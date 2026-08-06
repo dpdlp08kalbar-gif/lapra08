@@ -64,9 +64,7 @@ interface OrgPosition {
 
 const LEVEL_LABELS: Record<string, string> = {
   COUNTRY: 'Negara (DPN)',
-  COORDINATOR: 'Koorwil (Koordinator Wilayah)',
-  PROVINCE: 'Provinsi / Negara LN (DPD)',
-  COORD_DPD: 'Koor DPD (Koordinator Region)',
+  PROVINCE: 'Provinsi (DPD)',
   REGENCY: 'Kabupaten/Kota (DPC)',
   DISTRICT: 'Kecamatan',
   VILLAGE: 'Desa/Kelurahan',
@@ -74,9 +72,7 @@ const LEVEL_LABELS: Record<string, string> = {
 
 const LEVEL_COLORS: Record<string, string> = {
   COUNTRY: 'bg-purple-100 text-purple-700 border-purple-200',
-  COORDINATOR: 'bg-indigo-100 text-indigo-700 border-indigo-200',
   PROVINCE: 'bg-blue-100 text-blue-700 border-blue-200',
-  COORD_DPD: 'bg-amber-100 text-amber-700 border-amber-200',
   REGENCY: 'bg-emerald-100 text-emerald-700 border-emerald-200',
   DISTRICT: 'bg-gray-100 text-gray-700 border-gray-200',
   VILLAGE: 'bg-gray-50 text-gray-600 border-gray-200',
@@ -84,15 +80,13 @@ const LEVEL_COLORS: Record<string, string> = {
 
 const LEVEL_ICONS: Record<string, any> = {
   COUNTRY: Crown,
-  COORDINATOR: Network,
   PROVINCE: Building2,
-  COORD_DPD: Layers,
   REGENCY: MapPin,
   DISTRICT: Building,
   VILLAGE: Flag,
 }
 
-const LEVEL_ORDER = ['COUNTRY', 'COORDINATOR', 'PROVINCE', 'COORD_DPD', 'REGENCY', 'DISTRICT', 'VILLAGE']
+const LEVEL_ORDER = ['COUNTRY', 'PROVINCE', 'REGENCY', 'DISTRICT', 'VILLAGE']
 
 export function TerritoryMenu() {
   const user = useAuthStore((s) => s.user)!
@@ -121,10 +115,10 @@ export function TerritoryMenu() {
       .then(([t, p]) => {
         setTerritories(t)
         setOrgPositions(p)
-        // Auto-expand COUNTRY dan COORDINATOR
+        // Auto-expand COUNTRY
         const initialExpanded = new Set<string>()
         t.forEach((tt: Territory) => {
-          if (tt.level === 'COUNTRY' || tt.level === 'COORDINATOR') {
+          if (tt.level === 'COUNTRY') {
             initialExpanded.add(tt.id)
           }
         })
@@ -185,7 +179,7 @@ export function TerritoryMenu() {
     <div className="space-y-6">
       <PageHeader
         title="Manajemen Wilayah"
-        description="Kelola hierarki wilayah kepengurusan lengkap dengan pengurus inti - DPN → Koorwil → DPD → Koor DPD → DPC"
+        description="Kelola hierarki wilayah: DPN (Pusat) → DPD (Provinsi) → DPC (Kabupaten/Kota)"
         icon={Map}
         actions={
           canCreate && (
@@ -199,13 +193,11 @@ export function TerritoryMenu() {
 
       {/* Statistik per level */}
       <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
-        {(['COUNTRY', 'COORDINATOR', 'PROVINCE', 'COORD_DPD', 'REGENCY'] as const).map((level) => {
+        {(['COUNTRY', 'PROVINCE', 'REGENCY'] as const).map((level) => {
           const Icon = LEVEL_ICONS[level]
           const colorMap: Record<string, string> = {
             COUNTRY: 'purple',
-            COORDINATOR: 'indigo' as any,
             PROVINCE: 'blue',
-            COORD_DPD: 'amber' as any,
             REGENCY: 'emerald',
           }
           return (
@@ -850,20 +842,18 @@ function AddTerritoryDialog({
 
   const getParentOptions = () => {
     const parentMap: Record<string, string> = {
-      COORDINATOR: 'COUNTRY',
-      PROVINCE: 'COORDINATOR',
-      COORD_DPD: 'PROVINCE',
-      REGENCY: 'COORD_DPD',
+      PROVINCE: 'COUNTRY',
+      REGENCY: 'PROVINCE',
       DISTRICT: 'REGENCY',
       VILLAGE: 'DISTRICT',
     }
     const parentLevel = parentMap[form.level]
     if (!parentLevel) return []
     if (form.level === 'PROVINCE') {
-      return allTerritories.filter((t) => t.level === 'COORDINATOR' || t.level === 'COUNTRY')
+      return allTerritories.filter((t) => t.level === 'COUNTRY')
     }
     if (form.level === 'REGENCY') {
-      return allTerritories.filter((t) => t.level === 'COORD_DPD' || t.level === 'PROVINCE' || t.level === 'COUNTRY')
+      return allTerritories.filter((t) => t.level === 'PROVINCE' || t.level === 'COUNTRY')
     }
     return allTerritories.filter((t) => t.level === parentLevel)
   }
@@ -1132,9 +1122,7 @@ function AddOrgPositionDialog({
       // Auto-set level berdasarkan territory level
       const levelMap: Record<string, string> = {
         COUNTRY: 'DPN',
-        COORDINATOR: 'KOORWIL',
         PROVINCE: 'DPD',
-        COORD_DPD: 'KOOR_DPD',
         REGENCY: 'DPC',
       }
       setForm({
@@ -1203,9 +1191,7 @@ function AddOrgPositionDialog({
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="DPN">DPN</SelectItem>
-                  <SelectItem value="KOORWIL">Koorwil</SelectItem>
                   <SelectItem value="DPD">DPD</SelectItem>
-                  <SelectItem value="KOOR_DPD">Koor DPD</SelectItem>
                   <SelectItem value="DPC">DPC</SelectItem>
                 </SelectContent>
               </Select>
@@ -1319,9 +1305,7 @@ function EditOrgPositionDialog({
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="DPN">DPN</SelectItem>
-                  <SelectItem value="KOORWIL">Koorwil</SelectItem>
                   <SelectItem value="DPD">DPD</SelectItem>
-                  <SelectItem value="KOOR_DPD">Koor DPD</SelectItem>
                   <SelectItem value="DPC">DPC</SelectItem>
                 </SelectContent>
               </Select>

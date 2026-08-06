@@ -36,9 +36,7 @@ interface Stats {
     rejected: number
     byLevel?: {
       dpn: number
-      koorwil: number
       dpd: number
-      koor_dpd: number
       dpc: number
     }
   }
@@ -55,9 +53,7 @@ interface Stats {
     totalDomestic: number
     totalInternational: number
     totalCountries: number
-    totalCoordinators: number
     totalProvinces: number
-    totalCoordDpd: number
     totalRegencies: number
     totalDpdLn: number
     totalTerritoriesDomestic: number
@@ -158,11 +154,11 @@ export function DashboardMenu() {
           }
           icon={MapPin}
           color="blue"
-          subtitle={isGlobal ? `${stats.global.totalCountries} negara • ${stats.global.totalCoordinators || 0} koorwil` : 'Provinsi Anda'}
+          subtitle={isGlobal ? `${stats.global.totalCountries} negara • ${stats.global.totalDpdLn || 0} DPD LN` : 'Provinsi Anda'}
         />
       </div>
 
-      {/* Statistik anggota per level (DPN/Koorwil/DPD/Koor DPD/DPC) */}
+      {/* Statistik anggota per level (DPN/DPD/DPC) - 3 level hierarki */}
       {stats.members.byLevel && (
         <Card>
           <CardHeader>
@@ -172,7 +168,7 @@ export function DashboardMenu() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-3 md:grid-cols-5">
+            <div className="grid gap-3 md:grid-cols-3">
               <LevelStat
                 label="DPN"
                 subLabel="Pusat Nasional"
@@ -182,28 +178,12 @@ export function DashboardMenu() {
                 ktaFormat="LAPRA08.ID.00.00.XX"
               />
               <LevelStat
-                label="Koorwil"
-                subLabel="Koordinator Wilayah"
-                count={stats.members.byLevel.koorwil}
-                color="indigo"
-                icon={Building2}
-                ktaFormat="LAPRA08.ID.KW1.00.XX"
-              />
-              <LevelStat
                 label="DPD"
-                subLabel="Provinsi"
+                subLabel="Provinsi (38 Provinsi)"
                 count={stats.members.byLevel.dpd}
                 color="blue"
                 icon={Building2}
                 ktaFormat="LAPRA08.ID.61.00.XX"
-              />
-              <LevelStat
-                label="Koor DPD"
-                subLabel="Koordinator Region"
-                count={stats.members.byLevel.koor_dpd}
-                color="amber"
-                icon={MapPin}
-                ktaFormat="LAPRA08.ID.61.KR1.XX"
               />
               <LevelStat
                 label="DPC"
@@ -215,7 +195,7 @@ export function DashboardMenu() {
               />
             </div>
             <div className="mt-3 text-xs text-muted-foreground">
-              Hierarki: DPN → Koorwil → DPD → Koor DPD → DPC. Setiap level punya format KTA sendiri.
+              Hierarki: DPN (Pusat Nasional) → DPD (Provinsi) → DPC (Kabupaten/Kota). DPN membawahi semua DPD, setiap DPD membawahi DPC-DPC di provinsinya.
             </div>
           </CardContent>
         </Card>
@@ -343,22 +323,14 @@ export function DashboardMenu() {
                   <div className="text-[10px] text-purple-600">anggota luar negeri</div>
                 </div>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-center">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
                 <div className="rounded-lg border p-2 bg-purple-50 border-purple-200">
                   <div className="text-lg font-bold text-purple-700">{stats.global.totalCountries}</div>
                   <div className="text-[10px] text-purple-600">Negara (DPN)</div>
                 </div>
-                <div className="rounded-lg border p-2 bg-indigo-50 border-indigo-200">
-                  <div className="text-lg font-bold text-indigo-700">{stats.global.totalCoordinators || 0}</div>
-                  <div className="text-[10px] text-indigo-600">Koorwil</div>
-                </div>
                 <div className="rounded-lg border p-2 bg-blue-50 border-blue-200">
                   <div className="text-lg font-bold text-blue-700">{stats.global.totalProvinces}</div>
                   <div className="text-[10px] text-blue-600">Provinsi (DPD)</div>
-                </div>
-                <div className="rounded-lg border p-2 bg-amber-50 border-amber-200">
-                  <div className="text-lg font-bold text-amber-700">{stats.global.totalCoordDpd || 0}</div>
-                  <div className="text-[10px] text-amber-600">Koor DPD</div>
                 </div>
                 <div className="rounded-lg border p-2 bg-emerald-50 border-emerald-200">
                   <div className="text-lg font-bold text-emerald-700">{stats.global.totalRegencies}</div>
@@ -517,22 +489,18 @@ function LevelStat({
   label: string
   subLabel: string
   count: number
-  color: 'purple' | 'indigo' | 'blue' | 'amber' | 'emerald'
+  color: 'purple' | 'blue' | 'emerald'
   icon: React.ComponentType<{ className?: string }>
   ktaFormat: string
 }) {
   const colors = {
     purple: 'border-purple-200 bg-purple-50/50 text-purple-700',
-    indigo: 'border-indigo-200 bg-indigo-50/50 text-indigo-700',
     blue: 'border-blue-200 bg-blue-50/50 text-blue-700',
-    amber: 'border-amber-200 bg-amber-50/50 text-amber-700',
     emerald: 'border-emerald-200 bg-emerald-50/50 text-emerald-700',
   }
   const iconBg = {
     purple: 'bg-purple-100 text-purple-700',
-    indigo: 'bg-indigo-100 text-indigo-700',
     blue: 'bg-blue-100 text-blue-700',
-    amber: 'bg-amber-100 text-amber-700',
     emerald: 'bg-emerald-100 text-emerald-700',
   }
   return (

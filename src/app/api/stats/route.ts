@@ -79,18 +79,12 @@ export async function GET(request: NextRequest) {
     totalInternational: await db.member.count({
       where: { territory: { category: 'INTERNATIONAL' } },
     }),
-    // Breakdown territory per level (lebih akurat)
+    // Breakdown territory per level (3 level: DPN/DPD/DPC)
     totalCountries: await db.territory.count({
       where: { level: 'COUNTRY', isActive: true, category: 'DOMESTIC' },
     }),
-    totalCoordinators: await db.territory.count({
-      where: { level: 'COORDINATOR', isActive: true },
-    }),
     totalProvinces: await db.territory.count({
       where: { level: 'PROVINCE', isActive: true, category: 'DOMESTIC' },
-    }),
-    totalCoordDpd: await db.territory.count({
-      where: { level: 'COORD_DPD', isActive: true },
     }),
     totalRegencies: await db.territory.count({
       where: { level: 'REGENCY', isActive: true },
@@ -139,12 +133,10 @@ export async function GET(request: NextRequest) {
   const userWhere = scope.isGlobal ? {} : { territoryId: { in: scope.territoryIds } }
   const totalUsers = await db.user.count({ where: { ...userWhere, isActive: true } })
 
-  // Statistik anggota per level (DPN/Koorwil/DPD/Koor DPD/DPC)
-  const [dpnMembers, koorwilMembers, dpdMembers, koorDpdMembers, dpcMembers] = await Promise.all([
+  // Statistik anggota per level (DPN/DPD/DPC) - 3 level
+  const [dpnMembers, dpdMembers, dpcMembers] = await Promise.all([
     db.member.count({ where: { ...memberWhere, territory: { level: 'COUNTRY' } } }),
-    db.member.count({ where: { ...memberWhere, territory: { level: 'COORDINATOR' } } }),
     db.member.count({ where: { ...memberWhere, territory: { level: 'PROVINCE' } } }),
-    db.member.count({ where: { ...memberWhere, territory: { level: 'COORD_DPD' } } }),
     db.member.count({ where: { ...memberWhere, territory: { level: 'REGENCY' } } }),
   ])
 
@@ -159,9 +151,7 @@ export async function GET(request: NextRequest) {
         rejected: rejectedCount,
         byLevel: {
           dpn: dpnMembers,
-          koorwil: koorwilMembers,
           dpd: dpdMembers,
-          koor_dpd: koorDpdMembers,
           dpc: dpcMembers,
         },
       },

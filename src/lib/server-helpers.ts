@@ -1,4 +1,5 @@
 // LAPRA 08 - Server-side helpers (API routes)
+// Hierarki: DPN (Pusat) → DPD (Provinsi) → DPC (Kabupaten/Kota)
 
 import { db } from './db'
 import type { Role, TerritoryLevel } from './types'
@@ -19,14 +20,14 @@ export async function getUserFromRequest(request: Request) {
 export type AuthUser = NonNullable<Awaited<ReturnType<typeof getUserFromRequest>>>
 
 // ============================================================
-// HAK AKSES - 6 TINGKAT (Hierarki Baru)
+// HAK AKSES - 4 TINGKAT (Hierarki 3 Level: DPN → DPD → DPC)
 // ============================================================
-// SUPERADMIN        : Akses penuh teknis (debug, security, user mgmt)
-// ADMIN_DPN         : EDIT DPN pusat + LIHAT SEMUA (Koorwil/DPD/Koor DPD/DPC)
-// ADMIN_KOORWIL     : EDIT Koorwil sendiri + LIHAT DPN & SEMUA DPD/DPC di wilayahnya
-// ADMIN_DPD          : EDIT DPD sendiri + Koor DPD + DPC di bawahnya + LIHAT DPN & Koorwil
-// ADMIN_KOOR_DPD    : EDIT Koor DPD sendiri + LIHAT DPN, Koorwil, DPD, DPC di bawahnya
-// ADMIN_DPC         : Hanya DPC sendiri (terisolasi)
+// SUPERADMIN : Akses penuh teknis (debug, security, user mgmt)
+// ADMIN_DPN  : EDIT DPN pusat + LIHAT SEMUA DPD/DPC se-Indonesia & LN
+//              - DPN membawahi semua DPD seluruh Indonesia dan luar negeri
+// ADMIN_DPD  : EDIT DPD sendiri (provinsi) + SEMUA DPC di bawahnya
+//              - Setiap DPD membawahi DPC-DPC di provinsi tersebut
+// ADMIN_DPC  : Hanya DPC sendiri (terisolasi)
 // ============================================================
 
 // Cek apakah user adalah admin DPN level (SUPERADMIN atau ADMIN_DPN)
@@ -35,6 +36,7 @@ export function isDPNLevel(role: string): boolean {
 }
 
 // Helper rekursif: dapatkan semua descendant territoryId dari sebuah territory
+// Untuk DPD (provinsi), ini akan return semua DPC di provinsi tersebut
 async function getAllDescendants(territoryId: string): Promise<string[]> {
   const result: string[] = []
   const queue = [territoryId]
@@ -54,7 +56,8 @@ async function getAllDescendants(territoryId: string): Promise<string[]> {
   return result
 }
 
-// Helper: dapatkan semua ancestor territoryId dari sebuah territory (untuk view DPN/Koorwil)
+// Helper: dapatkan semua ancestor territoryId dari sebuah territory
+// Untuk DPC, ini akan return [DPD, DPN] agar DPC bisa lihat data DPD & DPN (read-only)
 async function getAllAncestors(territoryId: string): Promise<string[]> {
   const result: string[] = []
   let current = await db.territory.findUnique({
@@ -79,23 +82,12 @@ export async function getViewableTerritoryIds(user: AuthUser): Promise<{
   territoryIds: string[]
   primaryTerritoryId: string
 }> {
-  // SUPERADMIN & ADMIN_DPN: lihat SEMUA wilayah global
+  // SUPERADMIN & ADMIN_DPN: lihat SEMUA wilayah global (Indonesia + LN)
   if (isDPNLevel(user.role)) {
     return { isGlobalView: true, territoryIds: [], primaryTerritoryId: user.territoryId }
   }
 
-  // ADMIN_KOORWIL: lihat DPN (parent) + Koorwil sendiri + SEMUA descendant (DPD, Koor DPD, DPC)
-  if (user.role === 'ADMIN_KOORWIL') {
-    const ancestors = await getAllAncestors(user.territoryId)
-    const descendants = await getAllDescendants(user.territoryId)
-    return {
-      isGlobalView: false,
-      territoryIds: [user.territoryId, ...ancestors, ...descendants],
-      primaryTerritoryId: user.territoryId,
-    }
-  }
-
-  // ADMIN_DPD: lihat DPN + Koorwil (ancestors) + DPD sendiri + SEMUA descendant (Koor DPD, DPC)
+  // ADMIN_DPD: lihat DPN pusat (ancestor) + DPD sendiri + SEMUA DPC di provinsinya
   if (user.role === 'ADMIN_DPD') {
     const ancestors = await getAllAncestors(user.territoryId)
     const descendants = await getAllDescendants(user.territoryId)
@@ -106,18 +98,7 @@ export async function getViewableTerritoryIds(user: AuthUser): Promise<{
     }
   }
 
-  // ADMIN_KOOR_DPD: lihat DPN + Koorwil + DPD (ancestors) + Koor DPD sendiri + SEMUA DPC di bawahnya
-  if (user.role === 'ADMIN_KOOR_DPD') {
-    const ancestors = await getAllAncestors(user.territoryId)
-    const descendants = await getAllDescendants(user.territoryId)
-    return {
-      isGlobalView: false,
-      territoryIds: [user.territoryId, ...ancestors, ...descendants],
-      primaryTerritoryId: user.territoryId,
-    }
-  }
-
-  // ADMIN_DPC: lihat semua ancestor (DPN, Koorwil, DPD, Koor DPD) + DPC sendiri
+  // ADMIN_DPC: lihat semua ancestor (DPD + DPN) + DPC sendiri
   if (user.role === 'ADMIN_DPC') {
     const ancestors = await getAllAncestors(user.territoryId)
     return {
@@ -141,32 +122,13 @@ export async function getEditableTerritoryIds(user: AuthUser): Promise<{
   territoryIds: string[]
   primaryTerritoryId: string
 }> {
-  // SUPERADMIN & ADMIN_DPN: edit SEMUA wilayah (untuk manajemen struktur wilayah)
+  // SUPERADMIN & ADMIN_DPN: edit SEMUA wilayah (untuk manajemen struktur)
   if (user.role === 'SUPERADMIN' || user.role === 'ADMIN_DPN') {
     return { isGlobalEdit: true, territoryIds: [], primaryTerritoryId: user.territoryId }
   }
 
-  // ADMIN_KOORWIL: edit HANYA territory Koorwil sendiri (COORDINATOR)
-  if (user.role === 'ADMIN_KOORWIL') {
-    return {
-      isGlobalEdit: false,
-      territoryIds: [user.territoryId],
-      primaryTerritoryId: user.territoryId,
-    }
-  }
-
-  // ADMIN_DPD: edit DPD sendiri + SEMUA DPC di bawahnya (termasuk via Koor DPD)
+  // ADMIN_DPD: edit DPD sendiri + SEMUA DPC di bawahnya
   if (user.role === 'ADMIN_DPD') {
-    const descendants = await getAllDescendants(user.territoryId)
-    return {
-      isGlobalEdit: false,
-      territoryIds: [user.territoryId, ...descendants],
-      primaryTerritoryId: user.territoryId,
-    }
-  }
-
-  // ADMIN_KOOR_DPD: edit Koor DPD sendiri + SEMUA DPC di bawahnya
-  if (user.role === 'ADMIN_KOOR_DPD') {
     const descendants = await getAllDescendants(user.territoryId)
     return {
       isGlobalEdit: false,
@@ -215,21 +177,15 @@ export async function buildTerritoryWhere(user: AuthUser) {
 }
 
 // ============================================================
-// KTA GENERATOR - Format per Tingkat Admin
+// KTA GENERATOR - Format per Tingkat (3 Level + Internasional)
 // ============================================================
 // Format umum: LAPRA08.[KODE_NEGARA].[KODE_PROVINSI].[KODE_KAB_KOTA].[TAHUN].[NOMOR_URUT]
 //
 // DPN (Pusat Nasional, level COUNTRY):
 //   LAPRA08.ID.00.00.26.00001  (kode provinsi=00, kab/kota=00)
 //
-// KOORWIL (Koordinator Wilayah, level COORDINATOR):
-//   LAPRA08.ID.KW1.00.26.00001 (kode kab/kota=00, provinsi diganti kode koorwil)
-//
 // DPD (Provinsi, level PROVINCE):
 //   LAPRA08.ID.61.00.26.00001  (kode kab/kota=00)
-//
-// KOOR_DPD (Koordinator DPD, level COORD_DPD):
-//   LAPRA08.ID.61.KR1.26.00001 (kab/kota diganti kode koor_dpd)
 //
 // DPC (Kabupaten/Kota, level REGENCY):
 //   LAPRA08.ID.61.6171.26.00001 (format lengkap, kode 4 digit)
@@ -240,7 +196,7 @@ export async function buildTerritoryWhere(user: AuthUser) {
 export async function generateMemberNumber(territoryId: string): Promise<string> {
   const territory = await db.territory.findUnique({
     where: { id: territoryId },
-    include: { parent: { include: { parent: { include: { parent: true } } } } },
+    include: { parent: true },
   })
   if (!territory) throw new Error('Territory not found')
 
@@ -256,45 +212,13 @@ export async function generateMemberNumber(territoryId: string): Promise<string>
     provinceCode = '00'
     regencyCode = '00'
   }
-  // ===== KOORWIL (COORDINATOR level) =====
-  // Format: LAPRA08.[COUNTRY].[KW1].00.[YEAR].[SEQ]
-  else if (territory.level === 'COORDINATOR') {
-    regencyCode = '00'
-    if (territory.parent) {
-      countryCode = territory.parent.code
-      provinceCode = territory.code // pakai code koorwil (KW1, KW2, dll)
-    }
-  }
   // ===== DPD (PROVINCE level) =====
   // Format: LAPRA08.[COUNTRY].[PROVINCE].00.[YEAR].[SEQ]
   else if (territory.level === 'PROVINCE') {
     provinceCode = territory.code
     regencyCode = '00'
     if (territory.parent) {
-      // Parent bisa COUNTRY (untuk luar negeri) atau COORDINATOR (untuk domestik)
-      if (territory.parent.level === 'COORDINATOR') {
-        // Lewati COORDINATOR, ambil COUNTRY dari grandparent
-        countryCode = territory.parent.parent?.code || 'XX'
-      } else {
-        countryCode = territory.parent.code
-      }
-    }
-  }
-  // ===== KOOR_DPD (COORD_DPD level) =====
-  // Format: LAPRA08.[COUNTRY].[PROVINCE].[KR1].[YEAR].[SEQ]
-  else if (territory.level === 'COORD_DPD') {
-    regencyCode = territory.code // pakai code koor_dpd (KR1, KR2, dll)
-    if (territory.parent) {
-      // Parent = PROVINCE
-      provinceCode = territory.parent.code
-      if (territory.parent.parent) {
-        // Grandparent = COORDINATOR atau COUNTRY
-        if (territory.parent.parent.level === 'COORDINATOR') {
-          countryCode = territory.parent.parent.parent?.code || 'XX'
-        } else {
-          countryCode = territory.parent.parent.code
-        }
-      }
+      countryCode = territory.parent.code
     }
   }
   // ===== DPC (REGENCY level) =====
@@ -302,29 +226,13 @@ export async function generateMemberNumber(territoryId: string): Promise<string>
   else if (territory.level === 'REGENCY' && territory.parent) {
     regencyCode = territory.code
     const parent = territory.parent
-    if (parent.level === 'COORD_DPD') {
-      // Parent = COORD_DPD, grandparent = PROVINCE, great-grandparent = COORDINATOR/COUNTRY
-      provinceCode = parent.parent?.code || '00'
-      const grandparent = parent.parent
-      if (grandparent?.parent) {
-        if (grandparent.parent.level === 'COORDINATOR') {
-          countryCode = grandparent.parent.parent?.code || 'XX'
-        } else {
-          countryCode = grandparent.parent.code
-        }
-      }
-    } else if (parent.level === 'PROVINCE') {
-      // Parent = PROVINCE (untuk DPC luar negeri)
+    if (parent.level === 'PROVINCE') {
       provinceCode = parent.code
       if (parent.parent) {
-        if (parent.parent.level === 'COORDINATOR') {
-          countryCode = parent.parent.parent?.code || 'XX'
-        } else {
-          countryCode = parent.parent.code
-        }
+        countryCode = parent.parent.code
       }
     } else if (parent.level === 'COUNTRY') {
-      // Internasional: DPC langsung di bawah COUNTRY
+      // Internasional: DPC langsung di bawah COUNTRY (cth: Los Angeles di bawah USA)
       countryCode = parent.code
       provinceCode = '00'
     }

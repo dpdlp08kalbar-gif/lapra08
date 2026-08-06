@@ -82,25 +82,19 @@ interface Territory {
 
 const LEVEL_LABELS: Record<string, string> = {
   DPN: 'DPN (Pusat Nasional)',
-  KOORWIL: 'Koorwil (Koordinator Wilayah)',
   DPD: 'DPD (Provinsi)',
-  KOOR_DPD: 'Koor DPD (Koordinator Region)',
   DPC: 'DPC (Kabupaten/Kota)',
 }
 
 const LEVEL_COLORS: Record<string, string> = {
   DPN: 'bg-purple-100 text-purple-700 border-purple-200',
-  KOORWIL: 'bg-indigo-100 text-indigo-700 border-indigo-200',
   DPD: 'bg-blue-100 text-blue-700 border-blue-200',
-  KOOR_DPD: 'bg-amber-100 text-amber-700 border-amber-200',
   DPC: 'bg-emerald-100 text-emerald-700 border-emerald-200',
 }
 
 const LEVEL_ICONS: Record<string, any> = {
   DPN: Crown,
-  KOORWIL: Network,
   DPD: Building2,
-  KOOR_DPD: Layers,
   DPC: MapPin,
 }
 
@@ -125,7 +119,7 @@ export function OrganizationMenu() {
     <div className="space-y-6">
       <PageHeader
         title="Struktur Pengurus & SK"
-        description="Pendataan pengurus DPN/Koorwil/DPD/Koor DPD/DPC + arsip Surat Keputusan digital dengan OCR"
+        description="Pendataan pengurus DPN/DPD/DPC + arsip Surat Keputusan digital dengan OCR"
         icon={Building2}
       />
       <Tabs value={tab} onValueChange={setTab}>
@@ -197,7 +191,7 @@ function PositionsTab() {
   if (loading) return <LoadingState />
   if (error) return <ErrorState message={error} />
 
-  const levels = ['DPN', 'KOORWIL', 'DPD', 'KOOR_DPD', 'DPC']
+  const levels = ['DPN', 'DPD', 'DPC']
   
   // Filter positions berdasarkan level aktif & search
   const filtered = positions.filter((p) => {
@@ -227,9 +221,7 @@ function PositionsTab() {
           const Icon = LEVEL_ICONS[level]
           const colorMap: Record<string, string> = {
             DPN: 'purple',
-            KOORWIL: 'indigo' as any,
             DPD: 'blue',
-            KOOR_DPD: 'amber' as any,
             DPC: 'emerald',
           }
           return (
@@ -653,9 +645,7 @@ function AddPositionDialog({
   // Filter territories berdasarkan level
   const levelToTerritoryLevel: Record<string, string> = {
     DPN: 'COUNTRY',
-    KOORWIL: 'COORDINATOR',
     DPD: 'PROVINCE',
-    KOOR_DPD: 'COORD_DPD',
     DPC: 'REGENCY',
   }
   const filteredTerritories = territories.filter((t) => t.level === levelToTerritoryLevel[form.level] && t.isActive)
@@ -770,7 +760,6 @@ function EditPositionDialog({
   }
 
   const levelToTerritoryLevel: Record<string, string> = {
-    DPN: 'COUNTRY', KOORWIL: 'COORDINATOR', DPD: 'PROVINCE', KOOR_DPD: 'COORD_DPD', DPC: 'REGENCY',
   }
   const filteredTerritories = territories.filter((t) => t.level === levelToTerritoryLevel[form.level || 'DPC'] && t.isActive)
 

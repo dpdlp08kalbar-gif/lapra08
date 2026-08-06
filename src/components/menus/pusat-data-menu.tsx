@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useNavStore } from '@/lib/store'
 import {
   Database, Map, Users, Building2, FileText,
-  Crown, Network, Building, MapPin, Layers,
+  Crown, Building, MapPin,
 } from 'lucide-react'
 
 // Reuse komponen yang sudah ada
@@ -36,19 +36,17 @@ export function PusatDataMenu() {
             <div className="text-emerald-700 mt-1">
               Semua data terintegrasi via <code className="bg-emerald-100 px-1 rounded font-mono text-xs">territoryId</code> sebagai single source of truth.
               Unique constraint aktif: NIK, WhatsApp, Email anggota unik. Nomor SK unik. Jabatan pengurus unik per wilayah.
-              Hierarki: DPN (Nasional) → Koorwil → DPD (Provinsi) → Koor DPD → DPC (Kabupaten/Kota).
+              Hierarki: DPN (Pusat Nasional) → DPD (Provinsi) → DPC (Kabupaten/Kota).
             </div>
           </div>
         </div>
       </div>
 
-      {/* Statistik hierarki cepat */}
-      <div className="grid gap-3 grid-cols-2 md:grid-cols-5">
-        <HierarchyStat label="DPN (Pusat)" color="purple" icon={Crown} />
-        <HierarchyStat label="Koorwil" color="indigo" icon={Network} />
+      {/* Statistik hierarki cepat - 3 level */}
+      <div className="grid gap-3 grid-cols-1 md:grid-cols-3">
+        <HierarchyStat label="DPN (Pusat Nasional)" color="purple" icon={Crown} />
         <HierarchyStat label="DPD (Provinsi)" color="blue" icon={Building} />
-        <HierarchyStat label="Koor DPD" color="amber" icon={Layers} />
-        <HierarchyStat label="DPC (Kab/Kota)" color="emerald" icon={MapPin} />
+        <HierarchyStat label="DPC (Kabupaten/Kota)" color="emerald" icon={MapPin} />
       </div>
 
       {/* 4 Tab terintegrasi */}
@@ -98,14 +96,12 @@ function HierarchyStat({
   label, color, icon: Icon,
 }: {
   label: string
-  color: 'purple' | 'indigo' | 'blue' | 'amber' | 'emerald'
+  color: 'purple' | 'blue' | 'emerald'
   icon: React.ComponentType<{ className?: string }>
 }) {
   const colors = {
     purple: 'from-purple-500 to-purple-600',
-    indigo: 'from-indigo-500 to-indigo-600',
     blue: 'from-blue-500 to-blue-600',
-    amber: 'from-amber-500 to-amber-600',
     emerald: 'from-emerald-500 to-emerald-600',
   }
   return (
