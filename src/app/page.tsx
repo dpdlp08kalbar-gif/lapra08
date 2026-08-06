@@ -3,10 +3,8 @@
 import { useAuthStore, useNavStore } from '@/lib/store'
 import { LoginPage } from '@/components/login-page'
 import { MainShell } from '@/components/main-shell'
+import { PusatDataMenu } from '@/components/menus/pusat-data-menu'
 import { DashboardMenu } from '@/components/menus/dashboard-menu'
-import { TerritoryMenu } from '@/components/menus/territory-menu'
-import { MembershipMenu } from '@/components/menus/membership-menu'
-import { OrganizationMenu } from '@/components/menus/organization-menu'
 import { LogisticsMenu } from '@/components/menus/logistics-menu'
 import { EventsMenu } from '@/components/menus/events-menu'
 import { CommunicationMenu } from '@/components/menus/communication-menu'
@@ -22,7 +20,6 @@ export default function Home() {
   const activeMenu = useNavStore((s) => s.activeMenu)
 
   // Tampilkan loading screen saat menunggu hydration dari localStorage
-  // Ini mencegah race condition dimana API dipanggil sebelum session ter-load
   if (!hasHydrated) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 via-white to-red-50">
@@ -44,17 +41,18 @@ export default function Home() {
     return <LoginPage />
   }
 
-  // Render menu content based on active menu
+  // Render menu content based on active menu (8 menu konsolidasi)
   const renderMenu = () => {
     switch (activeMenu) {
       case 'dashboard':
         return <DashboardMenu />
+      case 'pusat-data':
+        return <PusatDataMenu />
+      // Menu lama (territory, membership, organization) → redirect ke pusat-data
       case 'territory':
-        return <TerritoryMenu />
       case 'membership':
-        return <MembershipMenu />
       case 'organization':
-        return <OrganizationMenu />
+        return <PusatDataMenu />
       case 'logistics':
         return <LogisticsMenu />
       case 'events':

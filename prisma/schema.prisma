@@ -84,10 +84,10 @@ model Member {
   memberNumber    String   @unique // LAPRA08.ID.61.71.26.00001
   fullName        String
   // Domestik
-  nik             String?  // NIK KTP 16 digit
-  passportNumber  String?  // Untuk internasional
+  nik             String?  @unique // ANTI-DUPLIKASI: NIK unik
+  passportNumber  String?  @unique // ANTI-DUPLIKASI: Paspor unik
   // Kontak
-  phone           String   // WA: awalan 62 / E.164
+  phone           String   @unique // ANTI-DUPLIKASI: WA unik
   email           String?
   // Alamat
   address         String?
@@ -164,6 +164,8 @@ model FormField {
 // ============================================================
 // ORGANIZATION STRUCTURE - Struktur Pengurus
 // ============================================================
+// ANTI-DUPLIKASI: Unique constraint (territoryId, positionName, isActive)
+// Cegah 2 pengurus dengan jabatan sama di wilayah sama
 model OrgPosition {
   id            String   @id @default(cuid())
   fullName      String
@@ -171,8 +173,8 @@ model OrgPosition {
   level         String   // DPN | KOORWIL | DPD | KOOR_DPD | DPC
   territoryId   String
   territory     Territory @relation(fields: [territoryId], references: [id])
-  phone         String?
-  email         String?
+  phone         String?  @unique // Cegah WA duplikat
+  email         String?  @unique // Cegah email duplikat
   photoUrl      String?
   startDate     DateTime?
   endDate       DateTime?
@@ -187,7 +189,7 @@ model OrgPosition {
 // ============================================================
 model SKDocument {
   id            String   @id @default(cuid())
-  skNumber      String
+  skNumber      String   @unique // ANTI-DUPLIKASI: Cegah nomor SK ganda
   title         String
   description   String?
   fileUrl       String

@@ -22,6 +22,7 @@ import {
   Wallet,
   UserCog,
   LifeBuoy,
+  Database,
   Menu,
   LogOut,
   ChevronLeft,
@@ -49,6 +50,7 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   Wallet,
   UserCog,
   LifeBuoy,
+  Database,
 }
 
 interface MenuData {

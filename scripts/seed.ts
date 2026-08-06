@@ -345,15 +345,14 @@ async function main() {
 
   const menus = [
     { key: 'dashboard', label: 'Dasbor Utama', icon: 'LayoutDashboard', order: 1, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_KOORWIL,ADMIN_DPD,ADMIN_KOOR_DPD,ADMIN_DPC' },
-    { key: 'territory', label: 'Manajemen Wilayah', icon: 'Map', order: 2, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_KOORWIL,ADMIN_DPD,ADMIN_KOOR_DPD' },
-    { key: 'membership', label: 'Data Keanggotaan', icon: 'Users', order: 3, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_KOORWIL,ADMIN_DPD,ADMIN_KOOR_DPD,ADMIN_DPC' },
-    { key: 'organization', label: 'Struktur Pengurus & SK', icon: 'Building2', order: 4, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_KOORWIL,ADMIN_DPD,ADMIN_KOOR_DPD,ADMIN_DPC' },
-    { key: 'logistics', label: 'Logistik & Atribut', icon: 'Package', order: 5, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_KOORWIL,ADMIN_DPD,ADMIN_KOOR_DPD,ADMIN_DPC' },
-    { key: 'events', label: 'Event & Mobilisasi', icon: 'CalendarDays', order: 6, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_KOORWIL,ADMIN_DPD,ADMIN_KOOR_DPD,ADMIN_DPC' },
-    { key: 'communication', label: 'Komunikasi & Broadcast', icon: 'Megaphone', order: 7, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_KOORWIL,ADMIN_DPD,ADMIN_KOOR_DPD,ADMIN_DPC' },
-    { key: 'finance', label: 'Kas & Keuangan', icon: 'Wallet', order: 8, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_KOORWIL,ADMIN_DPD,ADMIN_KOOR_DPD,ADMIN_DPC' },
-    { key: 'users', label: 'Pengaturan User', icon: 'UserCog', order: 9, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_KOORWIL,ADMIN_DPD' },
-    { key: 'help', label: 'Pusat Bantuan', icon: 'LifeBuoy', order: 10, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_KOORWIL,ADMIN_DPD,ADMIN_KOOR_DPD,ADMIN_DPC' },
+    // KONSOLIDASI: 3 menu lama (territory + membership + organization) → 1 menu "Pusat Data Organisasi"
+    { key: 'pusat-data', label: 'Pusat Data Organisasi', icon: 'Database', order: 2, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_KOORWIL,ADMIN_DPD,ADMIN_KOOR_DPD,ADMIN_DPC' },
+    { key: 'logistics', label: 'Logistik & Atribut', icon: 'Package', order: 3, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_KOORWIL,ADMIN_DPD,ADMIN_KOOR_DPD,ADMIN_DPC' },
+    { key: 'events', label: 'Event & Mobilisasi', icon: 'CalendarDays', order: 4, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_KOORWIL,ADMIN_DPD,ADMIN_KOOR_DPD,ADMIN_DPC' },
+    { key: 'communication', label: 'Komunikasi & Broadcast', icon: 'Megaphone', order: 5, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_KOORWIL,ADMIN_DPD,ADMIN_KOOR_DPD,ADMIN_DPC' },
+    { key: 'finance', label: 'Kas & Keuangan', icon: 'Wallet', order: 6, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_KOORWIL,ADMIN_DPD,ADMIN_KOOR_DPD,ADMIN_DPC' },
+    { key: 'users', label: 'Pengaturan User', icon: 'UserCog', order: 7, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_KOORWIL,ADMIN_DPD' },
+    { key: 'help', label: 'Pusat Bantuan', icon: 'LifeBuoy', order: 8, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_KOORWIL,ADMIN_DPD,ADMIN_KOOR_DPD,ADMIN_DPC' },
   ]
 
   for (const menu of menus) {
