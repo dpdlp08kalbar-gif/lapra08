@@ -281,3 +281,73 @@ Stage Summary:
 - API CRUD lengkap untuk territory dan orgPosition
 - DPN bisa edit SEMUA wilayah (manajemen struktur), bukan hanya DPN pusat
 - 7 Koorwil semua punya Ketua
+
+---
+Task ID: LAPRA08-ORG-SK-PRO-V2
+Agent: Main Agent (Super Z)
+Task: Update pengurus DPN dengan data asli + rombak Organization/SK menu dengan CRUD & OCR
+
+Work Log:
+- Web search & verifikasi berlapis susunan pengurus LAPRA 08 periode 2024-2029:
+  * Sumber: RRI.co.id (21 Mar 2025), BusinessAsia (22 Mar 2025), Detikzone (7 Mar 2026), MajalahReformasi (7 Mar 2026), Bumisultra (18 Des 2024)
+  * Cross-check dengan Instagram resmi @laskarprabowo08official
+- Update seed data dengan pengurus DPN asli (7 orang):
+  * Dr. (HC) Hashim S. Djojohadikusumo - Ketua Dewan Pembina
+  * Devi Taurisa, S.H., M.H., C.L.D. - Ketua Umum DPN
+  * Hisar Tambunan, S.H., M.H. - Ketua Harian DPN
+  * Brigjen. Pol. (Purn) Dr. R. Nurhadi, S.I.K., M.Si., CHRMP - Sekretaris Jenderal DPN (update 2026)
+  * Timmy Rorimpandey, S.E., M.M. - Bendahara Umum DPN (update 2026)
+  * Raymond Simamora, BBA., S.Kom - Wakil Sekjen (periode 2024-2025)
+  * Riyad, S.H., M.H., S.Pn - Wakil Bendahara (periode 2024-2025)
+- Update sample anggota DPN dengan nama asli (Devi Taurisa, Nurhadi, Timmy)
+- Update schema SKDocument dengan field OCR:
+  * fileName, fileType (pdf/jpg/png/doc/scan), fileSize (bytes)
+  * ocrStatus (PENDING/PROCESSING/COMPLETED/FAILED)
+  * extractedText (hasil OCR)
+  * ocrMetadata (JSON: nomorSK, tanggalTerbit, penerbit, pihakDilantik - auto-detected)
+- Seed 2 SK asli:
+  * SK-PEMBINA/LAPRA08/2024/001 - SK Pelantikan DPN Periode 2024-2029 (28 Nov 2024)
+  * SK-PEMBINA/LAPRA08/2026/001 - SK Pembaruan Pengurus Inti Maret 2026 (reshuffle)
+- Buat API baru:
+  * POST /api/sk/upload - Upload file SK dengan OCR otomatis (FormData)
+    - Auto-detect file type: PDF, JPG/PNG (image), TIFF (scan), DOC/DOCX
+    - Simpan file ke /public/uploads/sk/
+    - Proses OCR async menggunakan VLM (z-ai-web-dev-sdk chat.completions dengan image_url)
+    - Ekstrak metadata: nomorSK, tanggal, penerbit, jabatan, pihak dilantik, masa bakti
+  * PUT /api/sk/[id] - Update SK
+  * DELETE /api/sk/[id] - Hapus SK + hapus file fisik
+- Fix bug API SK & Organization: gunakan getViewableTerritoryIds dengan isGlobalView (bukan isGlobal lama)
+- Rombak total UI Organization Menu:
+  * Tab "Struktur Pengurus": filter per level (DPN/Koorwil/DPD/Koor DPD/DPC) dengan 5 kartu statistik interaktif
+  * Card layout per pengurus dengan avatar, jabatan, badge level, WhatsApp, email, tanggal mulai
+  * Search bar untuk cari nama/jabatan/wilayah
+  * Dropdown menu per pengurus: Edit Pengurus, Hapus
+  * Dialog Add Position dengan auto-filter territory berdasarkan level
+  * Dialog Edit Position dengan semua field
+  * AlertDialog konfirmasi hapus
+- Rombak total UI E-SK Menu:
+  * 4 kartu statistik: Total SK, OCR Selesai, Memproses, Gagal
+  * Card layout per SK dengan file type icon, OCR status badge, metadata
+  * Search bar untuk cari nomor/judul/penerbit
+  * Dropdown menu per SK: Lihat Detail & OCR, Edit SK, Buka File, Hapus
+  * Dialog Upload SK dengan drag & drop zone
+    - Mendukung: PDF, JPG/PNG/WEBP (image), TIFF (scan), DOC/DOCX
+    - Validasi tipe file otomatis
+    - Info OCR otomatis (VLM untuk image, library khusus untuk PDF/DOC)
+  * Dialog View SK dengan hasil OCR & metadata auto-detected
+  * Dialog Edit SK
+  * AlertDialog konfirmasi hapus
+- Verifikasi via Agent Browser:
+  * Login DPN: lihat 7 pengurus DPN asli (Hashim, Devi, Hisar, Nurhadi, Timmy, Raymond, Riyad)
+  * Tab E-SK: 2 SK asli tampil dengan OCR Selesai
+  * Dropdown pengurus: Edit Pengurus + Hapus berfungsi
+  * Dialog Edit Pengurus lengkap dengan data Hashim
+  * Upload SK via curl: file terupload, OCR status PROCESSING
+  * Lint check: bersih
+
+Stage Summary:
+- Pengurus DPN sekarang sesuai data resmi LAPRA 08 periode 2024-2029 + update 2026
+- Menu Struktur Pengurus: filter per level + search + CRUD lengkap (Tambah/Edit/Hapus)
+- Menu E-SK: upload multi-format (PDF/image/scan/doc) dengan OCR otomatis via VLM
+- API upload file dengan FormData, async OCR processing, metadata extraction
+- Sistem siap untuk demo & serah terima

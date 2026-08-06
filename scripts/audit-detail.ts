@@ -60,7 +60,7 @@ async function auditDetail() {
 
   // Cek file API routes
   console.log('📋 API ROUTES TERSEDIA')
-  const fs = require('fs')
+  import * as fs from 'fs'
   const apiPath = '/home/z/my-project/src/app/api'
   const apis = fs.readdirSync(apiPath)
   apis.forEach(api => {

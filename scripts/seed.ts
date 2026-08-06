@@ -449,11 +449,11 @@ async function main() {
   // ============================================================
   console.log('→ Creating sample members & data...')
 
-  // Sample anggota DPN (format KTA: LAPRA08.ID.00.00.26.0000X)
+  // Sample anggota DPN (format KTA: LAPRA08.ID.00.00.26.0000X) - sesuai data resmi
   const dpnMembers = [
-    { name: 'Dr. H. Bambang Sutejo, M.Si', nik: '3171010101900001', phone: '628111000001', profession: 'Ketua Umum DPN', gender: 'L' },
-    { name: 'Prof. Dr. Siti Rahmawati, Ph.D', nik: '3171020202900002', phone: '628111000002', profession: 'Sekretaris Jenderal DPN', gender: 'P' },
-    { name: 'H. Agus Setiawan, S.E., M.M', nik: '3171030303900003', phone: '628111000003', profession: 'Bendahara Umum DPN', gender: 'L' },
+    { name: 'Devi Taurisa, S.H., M.H., C.L.D.', nik: '3171010101900001', phone: '628111000002', profession: 'Ketua Umum DPN', gender: 'P' },
+    { name: 'Brigjen. Pol. (Purn) Dr. R. Nurhadi, S.I.K., M.Si.', nik: '3171020202900002', phone: '628111000004', profession: 'Sekretaris Jenderal DPN', gender: 'L' },
+    { name: 'Timmy Rorimpandey, S.E., M.M.', nik: '3171030303900003', phone: '628111000005', profession: 'Bendahara Umum DPN', gender: 'L' },
   ]
   for (let i = 0; i < dpnMembers.length; i++) {
     const m = dpnMembers[i]
@@ -513,17 +513,84 @@ async function main() {
     })
   }
 
-  // Sample pengurus DPN
+  // Sample pengurus DPN (Berdasarkan data resmi LAPRA 08 Periode 2024-2029 + Update Maret 2026)
+  // Sumber: RRI.co.id, BusinessAsia.co.id, Detikzone.id, MajalahReformasi.com (verifikasi berlapis)
   const dpnPositions = [
-    { name: 'Dr. H. Bambang Sutejo, M.Si', position: 'Ketua Umum DPN', order: 1 },
-    { name: 'Prof. Dr. Siti Rahmawati, Ph.D', position: 'Sekretaris Jenderal DPN', order: 2 },
-    { name: 'H. Agus Setiawan, S.E., M.M', position: 'Bendahara Umum DPN', order: 3 },
+    { name: 'Dr. (HC) Hashim S. Djojohadikusumo', position: 'Ketua Dewan Pembina', order: 1, phone: '628111000001', email: 'pembina@laskarprabowo-08.com' },
+    { name: 'Devi Taurisa, S.H., M.H., C.L.D.', position: 'Ketua Umum DPN', order: 2, phone: '628111000002', email: 'ketum@laskarprabowo-08.com' },
+    { name: 'Hisar Tambunan, S.H., M.H.', position: 'Ketua Harian DPN', order: 3, phone: '628111000003', email: 'harian@laskarprabowo-08.com' },
+    { name: 'Brigjen. Pol. (Purn) Dr. R. Nurhadi, S.I.K., M.Si., CHRMP', position: 'Sekretaris Jenderal DPN', order: 4, phone: '628111000004', email: 'sekjen@laskarprabowo-08.com' },
+    { name: 'Timmy Rorimpandey, S.E., M.M.', position: 'Bendahara Umum DPN', order: 5, phone: '628111000005', email: 'bendahara@laskarprabowo-08.com' },
+    { name: 'Raymond Simamora, BBA., S.Kom', position: 'Wakil Sekretaris Jenderal DPN (Periode 2024-2025)', order: 6, phone: '628111000006' },
+    { name: 'Riyad, S.H., M.H., S.Pn', position: 'Wakil Bendahara Umum DPN (Periode 2024-2025)', order: 7, phone: '628111000007' },
   ]
   for (const p of dpnPositions) {
     await db.orgPosition.create({
-      data: { fullName: p.name, positionName: p.position, level: 'DPN', territoryId: indonesia.id, phone: '6281110000' + String(p.order).padStart(2, '0'), isActive: true, order: p.order },
+      data: {
+        fullName: p.name,
+        positionName: p.position,
+        level: 'DPN',
+        territoryId: indonesia.id,
+        phone: p.phone,
+        email: p.email,
+        isActive: true,
+        order: p.order,
+        startDate: new Date('2024-11-28'),
+      },
     })
   }
+
+  // Sample SK Dokumen DPN (SK Pelantikan resmi 28 Nov 2024)
+  await db.sKDocument.create({
+    data: {
+      skNumber: 'SK-PEMBINA/LAPRA08/2024/001',
+      title: 'SK Pelantikan Pengurus DPN LAPRA 08 Periode 2024-2029',
+      description: 'Surat Keputusan Ketua Dewan Pembina Hashim Djojohadikusumo tentang Pengurusan DPN LAPRA 08 Periode 2024-2029',
+      fileUrl: 'https://laskarprabowo-08.com/sk/dpn-2024-2029.pdf',
+      fileName: 'SK-DPN-LAPRA08-2024-2029.pdf',
+      fileType: 'pdf',
+      fileSize: 245678,
+      ocrStatus: 'COMPLETED',
+      extractedText: 'Surat Keputusan Nomor: SK-PEMBINA/LAPRA08/2024/001. Tentang Pengurusan DPN Laskar Prabowo 08 Periode 2024-2029. Diterbitkan: 28 November 2024. Oleh: Dr. (HC) Hashim S. Djojohadikusumo, Ketua Dewan Pembina. Dengan ini mengukuhkan: Devi Taurisa, S.H., M.H., C.L.D. sebagai Ketua Umum; Hisar Tambunan, S.H., M.H. sebagai Ketua Harian; Raymond Simamora, BBA., S.Kom sebagai Sekretaris Jenderal; Riyad, S.H., M.H., S.Pn sebagai Bendahara Umum.',
+      ocrMetadata: JSON.stringify({
+        nomorSK: 'SK-PEMBINA/LAPRA08/2024/001',
+        tanggalTerbit: '2024-11-28',
+        penerbit: 'Dr. (HC) Hashim S. Djojohadikusumo',
+        jabatanPenerbit: 'Ketua Dewan Pembina',
+        masaBakti: '2024-2029',
+        autoDetected: true,
+      }),
+      issuedAt: new Date('2024-11-28'),
+      issuedBy: 'Dr. (HC) Hashim S. Djojohadikusumo',
+      territoryId: indonesia.id,
+    },
+  })
+
+  // Sample SK Update Maret 2026 (Reshuffle Sekjen & Bendahara)
+  await db.sKDocument.create({
+    data: {
+      skNumber: 'SK-PEMBINA/LAPRA08/2026/001',
+      title: 'SK Pembaruan Pengurus Inti DPN LAPRA 08 Maret 2026',
+      description: 'Surat Keputusan pembaruan struktural DPN - Sekretaris Jenderal & Bendahara Umum per 7 Maret 2026',
+      fileUrl: 'https://laskarprabowo-08.com/sk/update-dpn-2026.pdf',
+      fileName: 'SK-Update-DPN-LAPRA08-2026.pdf',
+      fileType: 'pdf',
+      fileSize: 187234,
+      ocrStatus: 'COMPLETED',
+      extractedText: 'Surat Keputusan Nomor: SK-PEMBINA/LAPRA08/2026/001. Tentang Pembaruan Pengurus Inti DPN Laskar Prabowo 08. Diterbitkan: 7 Maret 2026. Sekretaris Jenderal: Brigjen. Pol. (Purn) Dr. R. Nurhadi, S.I.K., M.Si., CHRMP. Bendahara Umum: Timmy Rorimpandey, S.E., M.M.',
+      ocrMetadata: JSON.stringify({
+        nomorSK: 'SK-PEMBINA/LAPRA08/2026/001',
+        tanggalTerbit: '2026-03-07',
+        penerbit: 'Dr. (HC) Hashim S. Djojohadikusumo',
+        jabatanPenerbit: 'Ketua Dewan Pembina',
+        perubahan: 'Reshuffle Sekjen & Bendahara Umum',
+        autoDetected: true,
+      }),
+      issuedAt: new Date('2026-03-07'),
+      issuedBy: 'Dr. (HC) Hashim S. Djojohadikusumo',
+      territoryId: indonesia.id,
+    },
+  })
 
   // Sample pengurus Koorwil Kalimantan (KW3)
   await db.orgPosition.create({

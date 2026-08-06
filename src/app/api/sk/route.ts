@@ -1,15 +1,15 @@
 // LAPRA 08 - API: SK Documents (E-SK)
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getUserFromRequest, getAccessibleTerritoryIds } from '@/lib/server-helpers'
+import { getUserFromRequest, getViewableTerritoryIds, getEditableTerritoryIds } from '@/lib/server-helpers'
 
 export async function GET(request: NextRequest) {
   const user = await getUserFromRequest(request)
   if (!user) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
   }
-  const scope = await getAccessibleTerritoryIds(user)
-  const where = scope.isGlobal ? {} : { territoryId: { in: scope.territoryIds } }
+  const scope = await getViewableTerritoryIds(user)
+  const where = scope.isGlobalView ? {} : { territoryId: { in: scope.territoryIds } }
 
   const docs = await db.sKDocument.findMany({
     where,
@@ -36,8 +36,8 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const scope = await getAccessibleTerritoryIds(user)
-  if (!scope.isGlobal && !scope.territoryIds.includes(territoryId)) {
+  const editScope = await getEditableTerritoryIds(user)
+  if (!editScope.isGlobalEdit && !editScope.territoryIds.includes(territoryId)) {
     return NextResponse.json({ success: false, error: 'Akses ditolak' }, { status: 403 })
   }
 

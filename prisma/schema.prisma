@@ -183,7 +183,7 @@ model OrgPosition {
 }
 
 // ============================================================
-// E-SK - Surat Keputusan Digital
+// E-SK - Surat Keputusan Digital (with OCR support)
 // ============================================================
 model SKDocument {
   id            String   @id @default(cuid())
@@ -191,6 +191,12 @@ model SKDocument {
   title         String
   description   String?
   fileUrl       String
+  fileName      String?
+  fileType      String?  // pdf, jpg, png, doc, docx, scan
+  fileSize      Int?     // bytes
+  ocrStatus     String   @default("PENDING") // PENDING | PROCESSING | COMPLETED | FAILED
+  extractedText String?  // hasil OCR
+  ocrMetadata   String?  // JSON: nomor SK, tanggal, pihak yang dilantik (auto-detected)
   issuedAt      DateTime
   issuedBy      String
   territoryId   String
