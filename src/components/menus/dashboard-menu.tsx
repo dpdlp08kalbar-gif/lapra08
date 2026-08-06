@@ -55,8 +55,12 @@ interface Stats {
     totalDomestic: number
     totalInternational: number
     totalCountries: number
+    totalCoordinators: number
     totalProvinces: number
+    totalCoordDpd: number
     totalRegencies: number
+    totalDpdLn: number
+    totalTerritoriesDomestic: number
   }
   finance: {
     totalIncome: number
@@ -144,17 +148,17 @@ export function DashboardMenu() {
           subtitle={`${stats.events.total} total event`}
         />
         <StatCard
-          label="Wilayah Terdaftar"
+          label="Provinsi (DPD)"
           value={
             isGlobal
-              ? stats.global.totalRegencies
+              ? stats.global.totalProvinces
               : isDPD
-              ? stats.perTerritory.length
-              : 1
+              ? 1
+              : 0
           }
           icon={MapPin}
-          color="purple"
-          subtitle={isGlobal ? `${stats.global.totalCountries} negara` : 'DPC di bawah DPD ini'}
+          color="blue"
+          subtitle={isGlobal ? `${stats.global.totalCountries} negara • ${stats.global.totalCoordinators || 0} koorwil` : 'Provinsi Anda'}
         />
       </div>
 
@@ -339,19 +343,34 @@ export function DashboardMenu() {
                   <div className="text-[10px] text-purple-600">anggota luar negeri</div>
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-2 text-center">
-                <div className="rounded-lg border p-2">
-                  <div className="text-lg font-bold">{stats.global.totalCountries}</div>
-                  <div className="text-[10px] text-muted-foreground">Negara</div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-center">
+                <div className="rounded-lg border p-2 bg-purple-50 border-purple-200">
+                  <div className="text-lg font-bold text-purple-700">{stats.global.totalCountries}</div>
+                  <div className="text-[10px] text-purple-600">Negara (DPN)</div>
                 </div>
-                <div className="rounded-lg border p-2">
-                  <div className="text-lg font-bold">{stats.global.totalProvinces}</div>
-                  <div className="text-[10px] text-muted-foreground">Provinsi</div>
+                <div className="rounded-lg border p-2 bg-indigo-50 border-indigo-200">
+                  <div className="text-lg font-bold text-indigo-700">{stats.global.totalCoordinators || 0}</div>
+                  <div className="text-[10px] text-indigo-600">Koorwil</div>
                 </div>
-                <div className="rounded-lg border p-2">
-                  <div className="text-lg font-bold">{stats.global.totalRegencies}</div>
-                  <div className="text-[10px] text-muted-foreground">Kab/Kota</div>
+                <div className="rounded-lg border p-2 bg-blue-50 border-blue-200">
+                  <div className="text-lg font-bold text-blue-700">{stats.global.totalProvinces}</div>
+                  <div className="text-[10px] text-blue-600">Provinsi (DPD)</div>
                 </div>
+                <div className="rounded-lg border p-2 bg-amber-50 border-amber-200">
+                  <div className="text-lg font-bold text-amber-700">{stats.global.totalCoordDpd || 0}</div>
+                  <div className="text-[10px] text-amber-600">Koor DPD</div>
+                </div>
+                <div className="rounded-lg border p-2 bg-emerald-50 border-emerald-200">
+                  <div className="text-lg font-bold text-emerald-700">{stats.global.totalRegencies}</div>
+                  <div className="text-[10px] text-emerald-600">Kab/Kota (DPC)</div>
+                </div>
+                <div className="rounded-lg border p-2 bg-pink-50 border-pink-200">
+                  <div className="text-lg font-bold text-pink-700">{stats.global.totalDpdLn || 0}</div>
+                  <div className="text-[10px] text-pink-600">DPD Luar Negeri</div>
+                </div>
+              </div>
+              <div className="mt-2 text-center text-xs text-muted-foreground">
+                Total wilayah terdaftar: <strong>{stats.global.totalTerritoriesDomestic || 0} domestik</strong> • {stats.global.totalDpdLn || 0} DPD LN
               </div>
             </CardContent>
           </Card>

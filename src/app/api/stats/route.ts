@@ -79,14 +79,29 @@ export async function GET(request: NextRequest) {
     totalInternational: await db.member.count({
       where: { territory: { category: 'INTERNATIONAL' } },
     }),
+    // Breakdown territory per level (lebih akurat)
     totalCountries: await db.territory.count({
-      where: { level: 'COUNTRY', isActive: true },
+      where: { level: 'COUNTRY', isActive: true, category: 'DOMESTIC' },
+    }),
+    totalCoordinators: await db.territory.count({
+      where: { level: 'COORDINATOR', isActive: true },
     }),
     totalProvinces: await db.territory.count({
-      where: { level: 'PROVINCE', isActive: true },
+      where: { level: 'PROVINCE', isActive: true, category: 'DOMESTIC' },
+    }),
+    totalCoordDpd: await db.territory.count({
+      where: { level: 'COORD_DPD', isActive: true },
     }),
     totalRegencies: await db.territory.count({
       where: { level: 'REGENCY', isActive: true },
+    }),
+    // DPD luar negeri
+    totalDpdLn: await db.territory.count({
+      where: { level: 'PROVINCE', isActive: true, category: 'INTERNATIONAL' },
+    }),
+    // Total semua wilayah domestik
+    totalTerritoriesDomestic: await db.territory.count({
+      where: { category: 'DOMESTIC', isActive: true },
     }),
   }
 

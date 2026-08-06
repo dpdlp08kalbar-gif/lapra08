@@ -198,8 +198,13 @@ export async function canViewTerritory(user: AuthUser, territoryId: string): Pro
 }
 
 // Backward compatibility - gunakan viewable untuk query
+// Return object dengan alias isGlobal = isGlobalView untuk kompatibilitas backward
 export async function getAccessibleTerritoryIds(user: AuthUser) {
-  return getViewableTerritoryIds(user)
+  const scope = await getViewableTerritoryIds(user)
+  return {
+    ...scope,
+    isGlobal: scope.isGlobalView, // alias untuk backward compat
+  }
 }
 
 // Build where clause untuk query (VIEW) dengan isolasi territory
