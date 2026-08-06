@@ -1,15 +1,15 @@
 // LAPRA 08 - API: Organization Structure (Pengurus)
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getUserFromRequest, getAccessibleTerritoryIds } from '@/lib/server-helpers'
+import { getUserFromRequest, getViewableTerritoryIds } from '@/lib/server-helpers'
 
 export async function GET(request: NextRequest) {
   const user = await getUserFromRequest(request)
   if (!user) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
   }
-  const scope = await getAccessibleTerritoryIds(user)
-  const where = scope.isGlobal ? {} : { territoryId: { in: scope.territoryIds } }
+  const scope = await getViewableTerritoryIds(user)
+  const where = scope.isGlobalView ? {} : { territoryId: { in: scope.territoryIds } }
 
   const positions = await db.orgPosition.findMany({
     where,

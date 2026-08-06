@@ -113,11 +113,12 @@ async function main() {
     { code: '05', name: 'Jawa Timur', kw: 'KW2' },
     { code: '06', name: 'Banten', kw: 'KW2' },
     { code: '07', name: 'Bali', kw: 'KW2' },
-    // Kalimantan (KW3)
+    // Kalimantan (KW3) - IKN masuk sini sebagai wilayah khusus
     { code: '61', name: 'Kalimantan Barat', kw: 'KW3' },
     { code: '62', name: 'Kalimantan Tengah', kw: 'KW3' },
     { code: '63', name: 'Kalimantan Selatan', kw: 'KW3' },
     { code: '64', name: 'Kalimantan Timur', kw: 'KW3' },
+    { code: 'IKN', name: 'Ibu Kota Nusantara (IKN)', kw: 'KW3' },
     // Sulawesi (KW4)
     { code: '71', name: 'Sulawesi Utara', kw: 'KW4' },
     { code: '72', name: 'Sulawesi Tengah', kw: 'KW4' },
@@ -536,6 +537,72 @@ async function main() {
       order: 1,
     },
   })
+
+  // Sample pengurus untuk semua Koorwil (KW1, KW2, KW4, KW5, KW6, KW7)
+  const koorwilPengurus = [
+    { kw: 'KW1', name: 'Mayor Jenderal TNI (Purn) Bambang Triwulan', phone: '628131000001' },
+    { kw: 'KW2', name: 'Prof. Dr. H. Sutrisno, M.Si', phone: '628132000001' },
+    { kw: 'KW4', name: 'Brigjen TNI (Purn) Andi Mappangara', phone: '628134000001' },
+    { kw: 'KW5', name: 'Dr. Made Suryawan, S.E., M.M', phone: '628135000001' },
+    { kw: 'KW6', name: 'Pdt. Yermias Rumbiak, M.Th', phone: '628136000001' },
+    { kw: 'KW7', name: 'H. Ridwan Kamal, S.H., M.H', phone: '628137000001' },
+  ]
+  for (const k of koorwilPengurus) {
+    await db.orgPosition.create({
+      data: {
+        fullName: k.name,
+        positionName: `Ketua ${koorwilData.find((kw) => kw.code === k.kw)?.name || k.kw}`,
+        level: 'KOORWIL',
+        territoryId: koorwilMap[k.kw],
+        phone: k.phone,
+        isActive: true,
+        order: 1,
+      },
+    })
+  }
+
+  // Sample pengurus DPD IKN (Ibu Kota Nusantara)
+  const iknId = provinceMap['IKN']
+  const iknPositions = [
+    { name: 'Dr. H. Basuki Purnama', position: 'Ketua DPD IKN', order: 1 },
+    { name: 'Ir. Hendra Wijaya, M.T', position: 'Wakil Ketua DPD IKN', order: 2 },
+    { name: 'Siti Nurhaliza, S.E., M.M', position: 'Sekretaris DPD IKN', order: 3 },
+    { name: 'Bambang Sutrisno, S.E', position: 'Bendahara DPD IKN', order: 4 },
+  ]
+  for (const p of iknPositions) {
+    await db.orgPosition.create({
+      data: {
+        fullName: p.name,
+        positionName: p.position,
+        level: 'DPD',
+        territoryId: iknId,
+        phone: '6281280000' + String(p.order).padStart(2, '0'),
+        isActive: true,
+        order: p.order,
+      },
+    })
+  }
+
+  // Sample anggota DPD IKN (format KTA: LAPRA08.ID.IKN.00.26.0000X)
+  for (let i = 0; i < 3; i++) {
+    const seq = String(i + 1).padStart(5, '0')
+    await db.member.create({
+      data: {
+        memberNumber: `LAPRA08.ID.IKN.00.26.${seq}`,
+        fullName: ['H. Andi Wijaya', 'Dra. Maria Ulfa', 'Ir. Bambang Supono'][i],
+        nik: '649901010190' + String(i + 1).padStart(4, '0'),
+        phone: '62812800' + String(i + 1).padStart(4, '0'),
+        profession: ['Pejabat Otorita IKN', 'Arsitek IKN', 'Kontraktor'][i],
+        gender: i === 1 ? 'P' : 'L',
+        territoryId: iknId,
+        status: 'ACTIVE',
+        registeredById: adminDpn.id,
+        verifiedById: adminDpn.id,
+        verifiedAt: new Date(),
+        registeredAt: new Date(),
+      },
+    })
+  }
 
   // Sample pengurus DPD Kalbar
   const dpdPositions = [

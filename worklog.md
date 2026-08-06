@@ -220,3 +220,64 @@ Stage Summary:
 - Isolasi data berlapis: setiap level hanya bisa edit territory sendiri + descendant, lihat ancestor (read-only)
 - 6 role: SUPERADMIN, ADMIN_DPN, ADMIN_KOORWIL, ADMIN_DPD, ADMIN_KOOR_DPD, ADMIN_DPC
 - Login credentials baru: koorwil.kw1-kw7, koor.kr1-kr4, dpc.6171-6106
+
+---
+Task ID: LAPRA08-TERRITORY-PRO-V1
+Agent: Main Agent (Super Z)
+Task: Rombak Manajemen Wilayah menjadi profesional + tambah IKN + tombol CRUD lengkap
+
+Work Log:
+- Menambahkan IKN (Ibu Kota Nusantara) sebagai provinsi khusus di seed:
+  * Code: IKN, parent: KW3 (Koorwil Kalimantan)
+  * 4 pengurus: Ketua (Dr. H. Basuki Purnama), Wakil, Sekretaris, Bendahara
+  * 3 anggota sample dengan KTA format: LAPRA08.ID.IKN.00.26.0000X
+- Menambahkan pengurus untuk semua 7 Koorwil:
+  * KW1: Mayor Jenderal TNI (Purn) Bambang Triwulan
+  * KW2: Prof. Dr. H. Sutrisno, M.Si
+  * KW3: Letjen (Purn) TNI Surya Pratama (sudah ada)
+  * KW4: Brigjen TNI (Purn) Andi Mappangara
+  * KW5: Dr. Made Suryawan, S.E., M.M
+  * KW6: Pdt. Yermias Rumbiak, M.Th
+  * KW7: H. Ridwan Kamal, S.H., M.H
+- Membuat API baru:
+  * PUT /api/territory/[id] - Update wilayah (hanya DPN)
+  * DELETE /api/territory/[id] - Hapus wilayah dengan validasi (tidak bisa hapus jika ada children/members/users)
+  * PUT /api/organization/[id] - Update pengurus
+  * DELETE /api/organization/[id] - Hapus pengurus
+- Memperbaiki API organization GET: gunakan getViewableTerritoryIds dengan isGlobalView (bukan isGlobal)
+- Mengupdate logika getEditableTerritoryIds:
+  * DPN sekarang bisa edit SEMUA wilayah (untuk manajemen struktur), bukan hanya DPN pusat
+  * Ini konsisten dengan kebutuhan DPN sebagai admin pusat yang kelola struktur wilayah
+- Rombak total UI Territory Menu (territory-menu.tsx):
+  * 2 mode view: Pohon Hierarki (tree) dan Daftar Lengkap (flat table dengan search & filter)
+  * Tree view dengan expand/collapse per node
+  * Auto-expand COUNTRY dan COORDINATOR saat load
+  * Setiap node territory menampilkan:
+    - Icon berwarna per level (Crown untuk DPN, Network untuk Koorwil, dll)
+    - Badge level (Negara/Koorwil/Provinsi/Koor DPD/Kabupaten)
+    - Kode wilayah
+    - Status Aktif/Nonaktif
+    - Ketua & pengurus inti (dengan foto avatar)
+    - Jumlah sub-wilayah, anggota, user, pengurus
+  * Pengurus Inti tampil saat node di-expand (dengan tombol edit/hapus per pengurus)
+  * Dropdown menu per territory: Edit Wilayah, Tambah Pengurus, Buka/Tutup Sub-wilayah, Hapus Wilayah
+  * AlertDialog konfirmasi untuk hapus (dengan pesan jelas)
+  * Dialog Edit Territory dengan semua field (code, name, level, kategori, parent, status)
+  * Dialog Add Org Position dengan auto-set level berdasarkan territory level
+  * Dialog Edit Org Position dengan semua field
+- Verifikasi via Agent Browser:
+  * Login DPN: lihat semua wilayah termasuk IKN
+  * IKN tampil dengan Ketua "Dr. H. Basuki Purnama" dan 3 anggota
+  * Pengurus Koorwil tampil saat expand (Letjen Surya Pratama, dll)
+  * Dropdown menu berfungsi: Edit Wilayah, Tambah Pengurus, Hapus Wilayah
+  * Dialog Tambah Pengurus terbuka dengan form lengkap
+  * Flat list view dengan search dan filter per level berfungsi
+
+Stage Summary:
+- IKN (Ibu Kota Nusantara) berhasil ditambahkan dengan 4 pengurus & 3 anggota
+- UI Territory Menu sekarang profesional dengan 2 mode view (Tree & List)
+- Setiap wilayah menampilkan Ketua & Pengurus Inti
+- Tombol Edit, Hapus, Tambah Pengurus semua berfungsi
+- API CRUD lengkap untuk territory dan orgPosition
+- DPN bisa edit SEMUA wilayah (manajemen struktur), bukan hanya DPN pusat
+- 7 Koorwil semua punya Ketua

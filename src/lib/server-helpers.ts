@@ -141,18 +141,9 @@ export async function getEditableTerritoryIds(user: AuthUser): Promise<{
   territoryIds: string[]
   primaryTerritoryId: string
 }> {
-  // SUPERADMIN: edit semua (untuk maintenance)
-  if (user.role === 'SUPERADMIN') {
+  // SUPERADMIN & ADMIN_DPN: edit SEMUA wilayah (untuk manajemen struktur wilayah)
+  if (user.role === 'SUPERADMIN' || user.role === 'ADMIN_DPN') {
     return { isGlobalEdit: true, territoryIds: [], primaryTerritoryId: user.territoryId }
-  }
-
-  // ADMIN_DPN: edit HANYA territory DPN pusat (COUNTRY sendiri)
-  if (user.role === 'ADMIN_DPN') {
-    return {
-      isGlobalEdit: false,
-      territoryIds: [user.territoryId],
-      primaryTerritoryId: user.territoryId,
-    }
   }
 
   // ADMIN_KOORWIL: edit HANYA territory Koorwil sendiri (COORDINATOR)
