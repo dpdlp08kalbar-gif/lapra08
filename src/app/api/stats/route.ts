@@ -124,6 +124,19 @@ export async function GET(request: NextRequest) {
   const userWhere = scope.isGlobal ? {} : { territoryId: { in: scope.territoryIds } }
   const totalUsers = await db.user.count({ where: { ...userWhere, isActive: true } })
 
+  // Statistik anggota per level (DPN/DPD/DPC)
+  const [dpnMembers, dpdMembers, dpcMembers] = await Promise.all([
+    db.member.count({
+      where: { ...memberWhere, territory: { level: 'COUNTRY' } },
+    }),
+    db.member.count({
+      where: { ...memberWhere, territory: { level: 'PROVINCE' } },
+    }),
+    db.member.count({
+      where: { ...memberWhere, territory: { level: 'REGENCY' } },
+    }),
+  ])
+
   return NextResponse.json({
     success: true,
     data: {
@@ -133,6 +146,11 @@ export async function GET(request: NextRequest) {
         verified: verifiedCount,
         active: activeCount,
         rejected: rejectedCount,
+        byLevel: {
+          dpn: dpnMembers,
+          dpd: dpdMembers,
+          dpc: dpcMembers,
+        },
       },
       perTerritory,
       global: globalStats,

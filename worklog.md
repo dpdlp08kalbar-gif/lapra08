@@ -40,3 +40,64 @@ Stage Summary:
 - Login credentials: superadmin/dpn/dpd.kalbar/dpc.71/dpc.75 (password: lapra08admin)
 - Database: SQLite dengan 18 tabel terintegrasi
 - Tech stack: Next.js 16 + TypeScript + Prisma + shadcn/ui + Tailwind CSS + Zustand
+
+---
+Task ID: LAPRA08-ACCESS-FIX
+Agent: Main Agent (Super Z)
+Task: Memperbaiki logika akses DPN/DPD/DPC dan KTA Generator per level
+
+Work Log:
+- Menganalisis logika akses yang benar:
+  * DPN = edit DPN pusat + lihat SEMUA DPD/DPC se-Indonesia & internasional (read-only)
+  * DPD = edit DPD sendiri + DPC di bawahnya + LIHAT DPN (read-only)
+  * DPC = hanya wilayah sendiri (terisolasi)
+- Memisahkan fungsi getAccessibleTerritoryIds menjadi:
+  * getViewableTerritoryIds: territory yang bisa DILIHAT (DPD sekarang include DPN pusat)
+  * getEditableTerritoryIds: territory yang bisa DIEDIT (DPN hanya DPN pusat, DPD tidak termasuk DPN)
+- Update API members:
+  * GET: tambah flag canEdit di setiap member
+  * POST: validasi hak edit territory sebelum input anggota baru
+  * PUT/DELETE/PATCH: cek hak edit sebelum modifikasi data
+- Update API territory:
+  * GET: tambah flag canEdit di setiap territory
+  * POST: hanya DPN yang bisa tambah wilayah baru
+- Update KTA Generator dengan format per level:
+  * DPN (COUNTRY): LAPRA08.ID.00.00.26.0000X (provinsi=00, kab/kota=00)
+  * DPD (PROVINCE): LAPRA08.ID.61.00.26.0000X (kab/kota=00)
+  * DPC (REGENCY): LAPRA08.ID.61.71.26.0000X (format lengkap)
+  * Internasional: LAPRA08.US.00.LAX.26.0000X
+- Tambah seed data:
+  * 3 anggota DPN pusat (Indonesia) dengan format KTA LAPRA08.ID.00.00.26.0000X
+  * 4 pengurus DPN (Ketua Umum, Sekjen, Bendahara, Ketua Harian)
+  * 3 pengurus DPD Kalbar (Ketua, Sekretaris, Bendahara)
+- Update UI Membership:
+  * Tampilkan badge "Read-Only" untuk anggota di luar scope edit
+  * Disable menu Edit/Verifikasi/Hapus untuk anggota Read-Only
+  * Tampilkan label level (DPN/DPD/DPC) di kolom KTA
+  * Dropdown wilayah sekarang tampilkan [DPN]/[DPD]/[DPC] prefix
+  * Preview format KTA saat pilih wilayah
+- Update UI Territory:
+  * Tampilkan badge "Read-Only" untuk territory di luar scope edit
+  * Disable tombol Aktifkan/Nonaktifkan untuk territory Read-Only
+- Update API stats: tambah statistik anggota per level (DPN/DPD/DPC)
+- Update Dashboard: tampilkan 3 kartu statistik per level dengan format KTA masing-masing
+- Verifikasi via Agent Browser:
+  * Login sebagai DPN: bisa lihat 11 anggota (3 DPN + 8 DPC), 3 DPN canEdit=True, 8 DPC canEdit=False
+  * Login sebagai DPD Kalbar: bisa lihat 11 anggota, 3 DPN canEdit=False, 8 DPC canEdit=True
+  * Login sebagai DPC Sambas: hanya lihat 3 anggota Sambas, semua canEdit=True
+  * Test API: DPN coba edit DPC → DITOLAK dengan pesan "Read-Only"
+  * Test API: DPD coba input DPN → DITOLAK dengan pesan jelas
+  * UI: menu aksi DPN untuk anggota DPN ada Edit/Hapus, untuk DPC hanya Read-Only (disabled)
+
+Stage Summary:
+- Logika akses 4 tingkat (SUPERADMIN/DPN/DPD/DPC) sekarang sudah benar
+- DPN bisa edit DPN pusat + lihat semua DPD/DPC (read-only)
+- DPD bisa edit DPD+DPC di provinsinya + lihat DPN (read-only)
+- DPC terisolasi total di wilayahnya
+- KTA Generator menghasilkan format berbeda per level:
+  - DPN: LAPRA08.ID.00.00.26.0000X
+  - DPD: LAPRA08.ID.61.00.26.0000X
+  - DPC: LAPRA08.ID.61.71.26.0000X
+  - Internasional: LAPRA08.US.00.LAX.26.0000X
+- UI menampilkan badge Read-Only dan disable edit untuk data di luar scope
+- Dashboard menampilkan statistik per level dengan format KTA masing-masing

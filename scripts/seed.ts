@@ -345,6 +345,37 @@ async function main() {
     })
   }
 
+  // Sample anggota DPN (Pusat Nasional) - format KTA: LAPRA08.ID.00.00.26.0000X
+  console.log('→ Creating DPN sample members...')
+  const dpnMembers = [
+    { name: 'Dr. H. Bambang Sutejo, M.Si', nik: '3171010101900001', phone: '628111000001', size: 'L', profession: 'Ketua Umum DPN', gender: 'L' },
+    { name: 'Prof. Dr. Siti Rahmawati, Ph.D', nik: '3171020202900002', phone: '628111000002', size: 'M', profession: 'Sekretaris Jenderal DPN', gender: 'P' },
+    { name: 'H. Agus Setiawan, S.E., M.M', nik: '3171030303900003', phone: '628111000003', size: 'XL', profession: 'Bendahara Umum DPN', gender: 'L' },
+  ]
+
+  for (let i = 0; i < dpnMembers.length; i++) {
+    const m = dpnMembers[i]
+    const seq = String(i + 1).padStart(5, '0')
+    const memberNumber = `LAPRA08.ID.00.00.26.${seq}` // Format DPN: provinsi=00, kab/kota=00
+    await db.member.create({
+      data: {
+        memberNumber,
+        fullName: m.name,
+        nik: m.nik,
+        phone: m.phone,
+        shirtSize: m.size,
+        profession: m.profession,
+        gender: m.gender,
+        territoryId: indonesia.id, // Territory DPN = Indonesia (COUNTRY level)
+        status: 'ACTIVE',
+        registeredById: adminDpn.id,
+        verifiedById: adminDpn.id,
+        verifiedAt: new Date(),
+        registeredAt: new Date(),
+      },
+    })
+  }
+
   // Sample pengurus DPC Pontianak
   await db.orgPosition.create({
     data: {
@@ -369,6 +400,47 @@ async function main() {
       order: 2,
     },
   })
+
+  // Sample pengurus DPN (Pusat Nasional)
+  const dpnPositions = [
+    { name: 'Dr. H. Bambang Sutejo, M.Si', position: 'Ketua Umum DPN', order: 1 },
+    { name: 'Prof. Dr. Siti Rahmawati, Ph.D', position: 'Sekretaris Jenderal DPN', order: 2 },
+    { name: 'H. Agus Setiawan, S.E., M.M', position: 'Bendahara Umum DPN', order: 3 },
+    { name: 'Letjen (Purn) TNI Surya Pratama', position: 'Ketua Harian DPN', order: 4 },
+  ]
+  for (const p of dpnPositions) {
+    await db.orgPosition.create({
+      data: {
+        fullName: p.name,
+        positionName: p.position,
+        level: 'DPN',
+        territoryId: indonesia.id,
+        phone: '6281110000' + String(p.order).padStart(2, '0'),
+        isActive: true,
+        order: p.order,
+      },
+    })
+  }
+
+  // Sample pengurus DPD Kalbar
+  const dpdPositions = [
+    { name: 'H. Gustav Hasan', position: 'Ketua DPD Kalbar', order: 1 },
+    { name: 'Drs. Eko Prasetyo', position: 'Sekretaris DPD Kalbar', order: 2 },
+    { name: 'Maya Anggraini, S.E', position: 'Bendahara DPD Kalbar', order: 3 },
+  ]
+  for (const p of dpdPositions) {
+    await db.orgPosition.create({
+      data: {
+        fullName: p.name,
+        positionName: p.position,
+        level: 'DPD',
+        territoryId: kalbar.id,
+        phone: '6281220000' + String(p.order).padStart(2, '0'),
+        isActive: true,
+        order: p.order,
+      },
+    })
+  }
 
   // Sample asset untuk DPD Kalbar
   await db.asset.create({

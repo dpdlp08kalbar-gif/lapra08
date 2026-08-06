@@ -1,9 +1,13 @@
 // LAPRA 08 - API: Members [id] - Update, Delete, Verify
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getUserFromRequest, getAccessibleTerritoryIds } from '@/lib/server-helpers'
+import {
+  getUserFromRequest,
+  getViewableTerritoryIds,
+  getEditableTerritoryIds,
+} from '@/lib/server-helpers'
 
-// GET single member
+// GET single member (VIEW)
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -14,10 +18,11 @@ export async function GET(
   }
   const { id } = await params
 
-  const scope = await getAccessibleTerritoryIds(user)
+  const viewScope = await getViewableTerritoryIds(user)
+  const editScope = await getEditableTerritoryIds(user)
   const where: any = { id }
-  if (!scope.isGlobal) {
-    where.territoryId = { in: scope.territoryIds }
+  if (!viewScope.isGlobalView) {
+    where.territoryId = { in: viewScope.territoryIds }
   }
 
   const member = await db.member.findFirst({
@@ -29,10 +34,16 @@ export async function GET(
     return NextResponse.json({ success: false, error: 'Member not found' }, { status: 404 })
   }
 
-  return NextResponse.json({ success: true, data: member })
+  // Tambahkan flag canEdit
+  const memberWithPermission = {
+    ...member,
+    canEdit: editScope.isGlobalEdit || editScope.territoryIds.includes(member.territoryId),
+  }
+
+  return NextResponse.json({ success: true, data: memberWithPermission })
 }
 
-// PUT - Update member (edit bebas di development mode)
+// PUT - Update member (hanya jika canEdit)
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -43,13 +54,23 @@ export async function PUT(
   }
   const { id } = await params
 
-  const scope = await getAccessibleTerritoryIds(user)
+  const editScope = await getEditableTerritoryIds(user)
   const existing = await db.member.findUnique({ where: { id } })
   if (!existing) {
     return NextResponse.json({ success: false, error: 'Member not found' }, { status: 404 })
   }
-  if (!scope.isGlobal && !scope.territoryIds.includes(existing.territoryId)) {
-    return NextResponse.json({ success: false, error: 'Akses ditolak' }, { status: 403 })
+
+  // Cek hak EDIT
+  if (!editScope.isGlobalEdit && !editScope.territoryIds.includes(existing.territoryId)) {
+    return NextResponse.json(
+      {
+        success: false,
+        error:
+          'Akses ditolak: Anda hanya bisa melihat data ini (read-only). ' +
+          'Hanya admin wilayah bersangkutan yang bisa mengedit.',
+      },
+      { status: 403 }
+    )
   }
 
   try {
@@ -106,7 +127,7 @@ export async function PUT(
   }
 }
 
-// DELETE - Hapus anggota (bebas di development mode)
+// DELETE - Hapus anggota (hanya jika canEdit)
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -117,20 +138,28 @@ export async function DELETE(
   }
   const { id } = await params
 
-  const scope = await getAccessibleTerritoryIds(user)
+  const editScope = await getEditableTerritoryIds(user)
   const existing = await db.member.findUnique({ where: { id } })
   if (!existing) {
     return NextResponse.json({ success: false, error: 'Member not found' }, { status: 404 })
   }
-  if (!scope.isGlobal && !scope.territoryIds.includes(existing.territoryId)) {
-    return NextResponse.json({ success: false, error: 'Akses ditolak' }, { status: 403 })
+
+  // Cek hak EDIT
+  if (!editScope.isGlobalEdit && !editScope.territoryIds.includes(existing.territoryId)) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Akses ditolak: Anda hanya bisa melihat data ini (read-only).',
+      },
+      { status: 403 }
+    )
   }
 
   await db.member.delete({ where: { id } })
   return NextResponse.json({ success: true, message: 'Member deleted' })
 }
 
-// PATCH - Quick action (verify, reject, activate, deactivate)
+// PATCH - Quick action (verify, reject, activate, deactivate) - butuh hak EDIT
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -141,13 +170,21 @@ export async function PATCH(
   }
   const { id } = await params
 
-  const scope = await getAccessibleTerritoryIds(user)
+  const editScope = await getEditableTerritoryIds(user)
   const existing = await db.member.findUnique({ where: { id } })
   if (!existing) {
     return NextResponse.json({ success: false, error: 'Member not found' }, { status: 404 })
   }
-  if (!scope.isGlobal && !scope.territoryIds.includes(existing.territoryId)) {
-    return NextResponse.json({ success: false, error: 'Akses ditolak' }, { status: 403 })
+
+  // Cek hak EDIT
+  if (!editScope.isGlobalEdit && !editScope.territoryIds.includes(existing.territoryId)) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Akses ditolak: Anda hanya bisa melihat data ini (read-only).',
+      },
+      { status: 403 }
+    )
   }
 
   const body = await request.json()

@@ -3,11 +3,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import {
   getUserFromRequest,
-  getAccessibleTerritoryIds,
+  getViewableTerritoryIds,
+  getEditableTerritoryIds,
   generateMemberNumber,
+  isDPNLevel,
 } from '@/lib/server-helpers'
 
-// GET /api/members - List members (with filters, scoped)
+// GET /api/members - List members (with filters, scoped to VIEW)
 export async function GET(request: NextRequest) {
   const user = await getUserFromRequest(request)
   if (!user) {
@@ -21,7 +23,8 @@ export async function GET(request: NextRequest) {
   const limit = parseInt(searchParams.get('limit') || '100')
   const offset = parseInt(searchParams.get('offset') || '0')
 
-  const scope = await getAccessibleTerritoryIds(user)
+  const viewScope = await getViewableTerritoryIds(user)
+  const editScope = await getEditableTerritoryIds(user)
 
   const where: any = {}
   if (status) where.status = status
@@ -33,16 +36,16 @@ export async function GET(request: NextRequest) {
       { phone: { contains: search } },
     ]
   }
-  // Isolasi territory
-  if (!scope.isGlobal) {
-    where.territoryId = { in: scope.territoryIds }
+  // Isolasi territory (VIEW)
+  if (!viewScope.isGlobalView) {
+    where.territoryId = { in: viewScope.territoryIds }
   }
   if (territoryId) {
-    if (scope.isGlobal) {
+    if (viewScope.isGlobalView) {
       where.territoryId = territoryId
     } else {
-      // Pastikan territoryId ada dalam scope
-      if (scope.territoryIds.includes(territoryId)) {
+      // Pastikan territoryId ada dalam scope view
+      if (viewScope.territoryIds.includes(territoryId)) {
         where.territoryId = territoryId
       }
     }
@@ -59,7 +62,13 @@ export async function GET(request: NextRequest) {
     db.member.count({ where }),
   ])
 
-  return NextResponse.json({ success: true, data: members, total })
+  // Tambahkan flag canEdit untuk setiap member
+  const membersWithPermissions = members.map((m) => ({
+    ...m,
+    canEdit: editScope.isGlobalEdit || editScope.territoryIds.includes(m.territoryId),
+  }))
+
+  return NextResponse.json({ success: true, data: membersWithPermissions, total })
 }
 
 // POST /api/members - Tambah anggota baru (auto-generate KTA number)
@@ -99,18 +108,25 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Validasi akses territory
-    const scope = await getAccessibleTerritoryIds(user)
-    if (!scope.isGlobal && !scope.territoryIds.includes(territoryId)) {
+    // Validasi akses EDIT territory
+    const editScope = await getEditableTerritoryIds(user)
+    if (!editScope.isGlobalEdit && !editScope.territoryIds.includes(territoryId)) {
       return NextResponse.json(
-        { success: false, error: 'Tidak memiliki akses ke wilayah ini' },
+        {
+          success: false,
+          error:
+            'Akses ditolak: Anda tidak memiliki hak edit di wilayah ini. ' +
+            'Admin DPN hanya bisa input anggota DPN pusat. ' +
+            'Admin DPD hanya bisa input anggota DPD/DPC di provinsinya. ' +
+            'Data DPN/DPD lain hanya bisa dilihat (read-only).',
+        },
         { status: 403 }
       )
     }
 
     // Validasi NIK unik untuk domestik
     if (nik) {
-      const existing = await db.member.findUnique({ where: { nik } })
+      const existing = await db.member.findFirst({ where: { nik } })
       if (existing) {
         return NextResponse.json(
           { success: false, error: 'NIK sudah terdaftar' },
@@ -119,7 +135,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Generate nomor KTA otomatis
+    // Generate nomor KTA otomatis (format berbeda per level territory)
     const memberNumber = await generateMemberNumber(territoryId)
 
     const member = await db.member.create({

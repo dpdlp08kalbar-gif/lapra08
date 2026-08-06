@@ -34,6 +34,11 @@ interface Stats {
     verified: number
     active: number
     rejected: number
+    byLevel?: {
+      dpn: number
+      dpd: number
+      dpc: number
+    }
   }
   perTerritory: Array<{
     id: string
@@ -147,6 +152,54 @@ export function DashboardMenu() {
           subtitle={isGlobal ? `${stats.global.totalCountries} negara` : 'DPC di bawah DPD ini'}
         />
       </div>
+
+      {/* Statistik anggota per level (DPN/DPD/DPC) */}
+      {stats.members.byLevel && (
+        <div className="grid gap-4 md:grid-cols-3">
+          <Card className="border-purple-200 bg-purple-50/30">
+            <CardContent className="p-4 flex items-center justify-between">
+              <div>
+                <div className="text-xs text-purple-700 font-medium">Anggota DPN (Pusat)</div>
+                <div className="text-2xl font-black text-purple-900 mt-1">
+                  {stats.members.byLevel.dpn}
+                </div>
+                <div className="text-[10px] text-purple-600 mt-0.5">
+                  Format KTA: LAPRA08.ID.00.00.XX.XXXXX
+                </div>
+              </div>
+              <Crown className="w-10 h-10 text-purple-400" />
+            </CardContent>
+          </Card>
+          <Card className="border-blue-200 bg-blue-50/30">
+            <CardContent className="p-4 flex items-center justify-between">
+              <div>
+                <div className="text-xs text-blue-700 font-medium">Anggota DPD (Provinsi)</div>
+                <div className="text-2xl font-black text-blue-900 mt-1">
+                  {stats.members.byLevel.dpd}
+                </div>
+                <div className="text-[10px] text-blue-600 mt-0.5">
+                  Format KTA: LAPRA08.ID.61.00.XX.XXXXX
+                </div>
+              </div>
+              <Building2 className="w-10 h-10 text-blue-400" />
+            </CardContent>
+          </Card>
+          <Card className="border-emerald-200 bg-emerald-50/30">
+            <CardContent className="p-4 flex items-center justify-between">
+              <div>
+                <div className="text-xs text-emerald-700 font-medium">Anggota DPC (Kab/Kota)</div>
+                <div className="text-2xl font-black text-emerald-900 mt-1">
+                  {stats.members.byLevel.dpc}
+                </div>
+                <div className="text-[10px] text-emerald-600 mt-0.5">
+                  Format KTA: LAPRA08.ID.61.71.XX.XXXXX
+                </div>
+              </div>
+              <MapPin className="w-10 h-10 text-emerald-400" />
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Heatmap Kalbar */}
       <Card>

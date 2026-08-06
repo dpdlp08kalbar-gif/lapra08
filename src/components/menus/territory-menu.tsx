@@ -237,7 +237,9 @@ function TerritoryNode({
   return (
     <div>
       <div
-        className="flex items-center gap-2 p-2 rounded-lg hover:bg-accent/50 transition-colors"
+        className={`flex items-center gap-2 p-2 rounded-lg transition-colors ${
+          territory.canEdit === false ? 'bg-muted/20' : 'hover:bg-accent/50'
+        }`}
         style={{ paddingLeft: `${depth * 24 + 8}px` }}
       >
         {hasChildren ? (
@@ -251,7 +253,7 @@ function TerritoryNode({
           <div className="w-5" />
         )}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="font-medium text-sm truncate">{territory.name}</span>
             <Badge variant="outline" className={`text-[10px] ${LEVEL_COLORS[territory.level]}`}>
               {LEVEL_LABELS[territory.level]}
@@ -263,6 +265,11 @@ function TerritoryNode({
             ) : (
               <Badge variant="outline" className="text-[10px] bg-gray-50 text-gray-500 border-gray-200">
                 Nonaktif
+              </Badge>
+            )}
+            {territory.canEdit === false && (
+              <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 border-amber-200">
+                Read-Only
               </Badge>
             )}
           </div>
@@ -283,7 +290,7 @@ function TerritoryNode({
             )}
           </div>
         </div>
-        {canCreate && (
+        {canCreate && territory.canEdit !== false && (
           <Button variant="ghost" size="sm" onClick={toggleActive} className="h-7 px-2 text-xs">
             {territory.isActive ? (
               <>

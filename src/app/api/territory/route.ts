@@ -1,9 +1,15 @@
 // LAPRA 08 - API: Territory Management
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getUserFromRequest, getAccessibleTerritoryIds } from '@/lib/server-helpers'
+import {
+  getUserFromRequest,
+  getViewableTerritoryIds,
+  getEditableTerritoryIds,
+  canEditTerritory,
+  isDPNLevel,
+} from '@/lib/server-helpers'
 
-// GET /api/territory - List territories (filtered by scope)
+// GET /api/territory - List territories (filtered by viewable scope)
 export async function GET(request: NextRequest) {
   const user = await getUserFromRequest(request)
   if (!user) {
@@ -15,7 +21,8 @@ export async function GET(request: NextRequest) {
   const category = searchParams.get('category')
   const parentId = searchParams.get('parentId')
 
-  const scope = await getAccessibleTerritoryIds(user)
+  const viewScope = await getViewableTerritoryIds(user)
+  const editScope = await getEditableTerritoryIds(user)
 
   const where: any = {}
   if (level) where.level = level
@@ -23,8 +30,8 @@ export async function GET(request: NextRequest) {
   if (parentId) where.parentId = parentId
 
   // Non-global users hanya bisa lihat territory di scope-nya
-  if (!scope.isGlobal) {
-    where.id = { in: scope.territoryIds }
+  if (!viewScope.isGlobalView) {
+    where.id = { in: viewScope.territoryIds }
   }
 
   const territories = await db.territory.findMany({
@@ -42,17 +49,30 @@ export async function GET(request: NextRequest) {
     orderBy: [{ category: 'asc' }, { level: 'asc' }, { name: 'asc' }],
   })
 
-  return NextResponse.json({ success: true, data: territories })
+  // Tambahkan flag canEdit untuk setiap territory
+  const territoriesWithPermissions = territories.map((t) => ({
+    ...t,
+    canEdit: editScope.isGlobalEdit || editScope.territoryIds.includes(t.id),
+    canView: true, // sudah filtered oleh where clause
+  }))
+
+  return NextResponse.json({ success: true, data: territoriesWithPermissions })
 }
 
 // POST /api/territory - Tambah wilayah baru (Dynamic Territory)
+// Hanya DPN yang bisa tambah wilayah baru (DPD hanya manage DPC di provinsinya)
 export async function POST(request: NextRequest) {
   const user = await getUserFromRequest(request)
   if (!user) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
   }
-  if (user.role !== 'SUPERADMIN' && user.role !== 'ADMIN_DPN' && user.role !== 'ADMIN_DPD') {
-    return NextResponse.json({ success: false, error: 'Akses ditolak' }, { status: 403 })
+
+  // Hanya DPN yang bisa tambah wilayah baru
+  if (!isDPNLevel(user.role)) {
+    return NextResponse.json(
+      { success: false, error: 'Hanya Admin DPN yang dapat menambah wilayah baru' },
+      { status: 403 }
+    )
   }
 
   try {

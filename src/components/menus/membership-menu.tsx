@@ -63,6 +63,7 @@ import {
   ShieldCheck,
   AlertCircle,
   Download,
+  Lock,
 } from 'lucide-react'
 
 interface Member {
@@ -84,11 +85,12 @@ interface Member {
   photoUrl: string | null
   idCardUrl: string | null
   territoryId: string
-  territory: { id: string; name: string; code: string }
+  territory: { id: string; name: string; code: string; level: string }
   status: string
   verifiedAt: string | null
   registeredAt: string
   createdAt: string
+  canEdit?: boolean // flag dari API: true = bisa edit, false = read-only
 }
 
 interface Territory {
@@ -99,6 +101,7 @@ interface Territory {
   category: string
   parentId: string | null
   isActive: boolean
+  canEdit?: boolean
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
@@ -135,8 +138,11 @@ export function MembershipMenu() {
     ])
       .then(([m, t]) => {
         setMembers(m)
-        // Filter territory yang bisa dipilih untuk pendaftaran (REGENCY level)
-        setTerritories(t.filter((tt: Territory) => tt.level === 'REGENCY' && tt.isActive))
+        // Filter territory yang bisa DIEDIT user untuk pendaftaran anggota
+        // DPN: COUNTRY level (untuk input anggota DPN pusat)
+        // DPD: PROVINCE + REGENCY level di provinsinya
+        // DPC: REGENCY level sendiri
+        setTerritories(t.filter((tt: Territory) => tt.canEdit && tt.isActive))
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false))
@@ -255,12 +261,18 @@ export function MembershipMenu() {
                       {members.map((m) => {
                         const status = STATUS_CONFIG[m.status]
                         const StatusIcon = status.icon
+                        const canEdit = m.canEdit !== false // default true jika undefined
+                        // Tentukan level berdasarkan territory
+                        const levelLabel =
+                          m.territory?.level === 'COUNTRY' ? 'DPN' :
+                          m.territory?.level === 'PROVINCE' ? 'DPD' : 'DPC'
                         return (
-                          <TableRow key={m.id}>
+                          <TableRow key={m.id} className={!canEdit ? 'bg-muted/30' : ''}>
                             <TableCell>
                               <code className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">
                                 {m.memberNumber}
                               </code>
+                              <div className="text-[10px] text-muted-foreground mt-0.5">{levelLabel}</div>
                             </TableCell>
                             <TableCell className="font-medium">
                               <div>
@@ -277,6 +289,11 @@ export function MembershipMenu() {
                               <Badge variant="outline" className="text-xs">
                                 {m.territory.name}
                               </Badge>
+                              {!canEdit && (
+                                <Badge variant="outline" className="text-[10px] ml-1 bg-amber-50 text-amber-700 border-amber-200">
+                                  Read-Only
+                                </Badge>
+                              )}
                             </TableCell>
                             <TableCell>
                               <Badge variant="outline" className={`text-xs ${status.color}`}>
@@ -298,32 +315,40 @@ export function MembershipMenu() {
                                   <DropdownMenuItem onClick={() => setDetailMember(m)}>
                                     <Eye className="w-4 h-4 mr-2" /> Lihat Detail
                                   </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => setEditMember(m)}>
-                                    <Edit className="w-4 h-4 mr-2" /> Edit Data
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => window.print()}>
-                                    <CreditCard className="w-4 h-4 mr-2" /> Cetak KTA
-                                  </DropdownMenuItem>
-                                  {m.status === 'PENDING' && (
+                                  {canEdit ? (
                                     <>
+                                      <DropdownMenuItem onClick={() => setEditMember(m)}>
+                                        <Edit className="w-4 h-4 mr-2" /> Edit Data
+                                      </DropdownMenuItem>
+                                      {m.status === 'PENDING' && (
+                                        <>
+                                          <DropdownMenuSeparator />
+                                          <DropdownMenuItem onClick={() => handleAction(m, 'verify')}>
+                                            <ShieldCheck className="w-4 h-4 mr-2 text-blue-600" /> Verifikasi
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem onClick={() => handleAction(m, 'activate')}>
+                                            <CheckCircle2 className="w-4 h-4 mr-2 text-emerald-600" /> Aktifkan
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem onClick={() => handleAction(m, 'reject')}>
+                                            <XCircle className="w-4 h-4 mr-2 text-red-600" /> Tolak
+                                          </DropdownMenuItem>
+                                        </>
+                                      )}
                                       <DropdownMenuSeparator />
-                                      <DropdownMenuItem onClick={() => handleAction(m, 'verify')}>
-                                        <ShieldCheck className="w-4 h-4 mr-2 text-blue-600" /> Verifikasi
-                                      </DropdownMenuItem>
-                                      <DropdownMenuItem onClick={() => handleAction(m, 'activate')}>
-                                        <CheckCircle2 className="w-4 h-4 mr-2 text-emerald-600" /> Aktifkan
-                                      </DropdownMenuItem>
-                                      <DropdownMenuItem onClick={() => handleAction(m, 'reject')}>
-                                        <XCircle className="w-4 h-4 mr-2 text-red-600" /> Tolak
+                                      <DropdownMenuItem
+                                        onClick={() => handleDelete(m)}
+                                        className="text-red-600"
+                                      >
+                                        <Trash2 className="w-4 h-4 mr-2" /> Hapus
                                       </DropdownMenuItem>
                                     </>
+                                  ) : (
+                                    <DropdownMenuItem disabled className="text-muted-foreground">
+                                      <Lock className="w-4 h-4 mr-2" /> Read-Only (Lihat saja)
+                                    </DropdownMenuItem>
                                   )}
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem
-                                    onClick={() => handleDelete(m)}
-                                    className="text-red-600"
-                                  >
-                                    <Trash2 className="w-4 h-4 mr-2" /> Hapus
+                                  <DropdownMenuItem onClick={() => window.print()}>
+                                    <CreditCard className="w-4 h-4 mr-2" /> Cetak KTA
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
@@ -496,24 +521,45 @@ function AddMemberDialog({
           </div>
 
           <div className="space-y-2">
-            <Label>Wilayah Kepengurusan (DPC) *</Label>
+            <Label>Wilayah Kepengurusan *</Label>
             <Select
               value={form.territoryId}
               onValueChange={(v) => setForm({ ...form, territoryId: v })}
               required
             >
               <SelectTrigger>
-                <SelectValue placeholder="Pilih Kabupaten/Kota..." />
+                <SelectValue placeholder="Pilih wilayah..." />
               </SelectTrigger>
               <SelectContent>
-                {territories.map((t) => (
-                  <SelectItem key={t.id} value={t.id}>
-                    {t.name} ({t.code})
-                  </SelectItem>
-                ))}
+                {territories.map((t) => {
+                  const levelLabel =
+                    t.level === 'COUNTRY' ? 'DPN' :
+                    t.level === 'PROVINCE' ? 'DPD' : 'DPC'
+                  return (
+                    <SelectItem key={t.id} value={t.id}>
+                      [{levelLabel}] {t.name} ({t.code})
+                    </SelectItem>
+                  )
+                })}
               </SelectContent>
             </Select>
+            <p className="text-xs text-muted-foreground">
+              Pilih wilayah sesuai tingkat kepengurusan Anda. Nomor KTA otomatis sesuai format masing-masing level.
+            </p>
           </div>
+
+          {/* Info KTA format preview */}
+          {form.territoryId && (
+            <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs text-blue-800">
+              <strong>Preview Nomor KTA:</strong> Akan di-generate otomatis dengan format:
+              <ul className="mt-1 ml-4 list-disc">
+                <li>DPN (Pusat): LAPRA08.ID.00.00.26.0000X</li>
+                <li>DPD (Provinsi): LAPRA08.ID.61.00.26.0000X</li>
+                <li>DPC (Kab/Kota): LAPRA08.ID.61.71.26.0000X</li>
+                <li>Internasional: LAPRA08.US.00.LAX.26.0000X</li>
+              </ul>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2 col-span-2">
