@@ -165,21 +165,25 @@ model FormField {
 // ANTI-DUPLIKASI: Unique constraint (territoryId, positionName, isActive)
 // Cegah 2 pengurus dengan jabatan sama di wilayah sama
 model OrgPosition {
-  id            String   @id @default(cuid())
-  fullName      String
-  positionName  String   // Ketua, Wakil, Sekretaris, Bendahara, dll
-  level         String   // DPN | DPD | DPC
-  territoryId   String
-  territory     Territory @relation(fields: [territoryId], references: [id])
-  phone         String?  @unique // Cegah WA duplikat
-  email         String?  @unique // Cegah email duplikat
-  photoUrl      String?
-  startDate     DateTime?
-  endDate       DateTime?
-  isActive      Boolean  @default(true)
-  order         Int      @default(0)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id              String   @id @default(cuid())
+  fullName        String
+  positionName    String   // Ketua, Wakil, Sekretaris, Bendahara, dll
+  level           String   // DPN | DPD | DPC
+  territoryId     String
+  territory       Territory @relation(fields: [territoryId], references: [id])
+  phone           String?
+  email           String?
+  photoUrl        String?
+  startDate       DateTime?
+  endDate         DateTime?
+  isActive        Boolean  @default(true)
+  approvalStatus  String   @default("APPROVED") // PENDING | APPROVED | REJECTED
+  approvedById    String?
+  approvedAt      DateTime?
+  source          String   @default("MANUAL") // MANUAL | OCR_EXTRACT
+  order           Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
 
 // ============================================================

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { api } from '@/lib/api-client'
 import { PageHeader, LoadingState, ErrorState, EmptyState, StatCard } from '@/components/ui-helpers'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -32,7 +32,7 @@ import { formatDateID, formatDateTimeID } from '@/lib/format'
 import {
   Database, Crown, Building, MapPin, Users, FileText, Plus, Edit, Trash2,
   MoreVertical, Upload, Phone, Mail, User, ArrowLeft, Search, Building2,
-  ShieldCheck, FileCheck, ScanText, Lock, ChevronRight, Layers,
+  ShieldCheck, FileCheck, ScanText, Lock, ChevronRight, Layers, Loader2,
 } from 'lucide-react'
 
 // ============================================================
@@ -448,6 +448,9 @@ function DpcDetailPage({ dpc, onBack }: { dpc: Territory; onBack: () => void }) 
           <AnggotaSection territoryId={dpc.id} />
         </TabsContent>
       </Tabs>
+
+      {/* Arsip SK DPC - sama seperti DPD */}
+      <SKSection level="DPC" territoryId={dpc.id} />
     </div>
   )
 }
@@ -519,7 +522,7 @@ function PengurusSection({ level, territoryId, territoryFilter }: {
         ) : (
           <div className="grid gap-2 md:grid-cols-2">
             {positions.sort((a, b) => a.order - b.order).map((p) => (
-              <div key={p.id} className="group flex items-start gap-3 p-3 rounded-lg border hover:shadow-sm">
+              <div key={p.id} className="group relative flex items-start gap-3 p-3 rounded-lg border hover:shadow-sm">
                 <Avatar className="w-10 h-10">
                   <AvatarFallback className="bg-gradient-to-br from-orange-500 to-red-600 text-white text-xs font-semibold">
                     {p.fullName.charAt(0).toUpperCase()}
@@ -533,23 +536,28 @@ function PengurusSection({ level, territoryId, territoryFilter }: {
                     {p.territory && <Badge variant="outline" className="text-[10px]">{p.territory.name}</Badge>}
                   </div>
                 </div>
+                {/* Ikon Edit & Hapus eksplisit di sudut kanan atas */}
                 {canManage && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100">
-                        <MoreVertical className="w-4 h-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => setEditPos(p)}>
-                        <Edit className="w-4 h-4 mr-2" /> Edit
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => setDeletePos(p)} className="text-red-600">
-                        <Trash2 className="w-4 h-4 mr-2" /> Hapus
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0 text-blue-600 hover:bg-blue-50"
+                      onClick={() => setEditPos(p)}
+                      title="Edit Pengurus"
+                    >
+                      <Edit className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0 text-red-600 hover:bg-red-50"
+                      onClick={() => setDeletePos(p)}
+                      title="Hapus Pengurus"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
                 )}
               </div>
             ))}
@@ -748,6 +756,9 @@ function SKSection({ level, territoryId, territoryFilter }: {
   const [loading, setLoading] = useState(true)
   const [uploadOpen, setUploadOpen] = useState(false)
   const [deleteDoc, setDeleteDoc] = useState<SKDocument | null>(null)
+  // OCR auto-extract state
+  const [ocrLoading, setOcrLoading] = useState(false)
+  const [ocrPreview, setOcrPreview] = useState<any>(null)
 
   const loadData = () => {
     setLoading(true)
@@ -777,19 +788,83 @@ function SKSection({ level, territoryId, territoryFilter }: {
     (user.role === 'ADMIN_DPD' && (level === 'DPD' || level === 'DPC')) ||
     (user.role === 'ADMIN_DPC' && level === 'DPC')
 
+  // Handler: Upload SK + OCR Extract Pengurus
+  const handleOcrExtract = async (file: File) => {
+    setOcrLoading(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('territoryId', territoryId || '')
+      formData.append('level', level)
+
+      const res = await fetch('/api/sk/extract-pengurus', {
+        method: 'POST',
+        headers: { 'x-user-id': user?.id || '' },
+        body: formData,
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) throw new Error(data.error || 'OCR gagal')
+
+      if (data.data.pengurus.length > 0) {
+        setOcrPreview(data.data)
+        addToast(`Berhasil ekstrak ${data.data.pengurus.length} pengurus dari SK`, 'success')
+      } else {
+        addToast('OCR selesai, tidak ada pengurus terdeteksi. SK tersimpan sebagai arsip.', 'info')
+      }
+      loadData()
+    } catch (e: any) {
+      addToast(e.message, 'error')
+    } finally {
+      setOcrLoading(false)
+    }
+  }
+
+  // Handler: Confirm extracted pengurus → create records
+  const handleConfirmExtract = async (pengurusList: any[]) => {
+    try {
+      const results = await Promise.all(
+        pengurusList.map((p) =>
+          api('/api/organization', {
+            method: 'POST',
+            body: JSON.stringify({
+              fullName: p.fullName,
+              positionName: p.positionName,
+              level,
+              territoryId,
+              phone: p.phone || null,
+              email: p.email || null,
+              source: 'OCR_EXTRACT',
+            }),
+          })
+        )
+      )
+      addToast(`${results.length} pengurus berhasil dibuat (menunggu approval)`, 'success')
+      setOcrPreview(null)
+      // Refresh pengurus data via parent callback
+      window.dispatchEvent(new Event('pengurus-updated'))
+    } catch (e: any) {
+      addToast(e.message, 'error')
+    }
+  }
+
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <CardTitle className="flex items-center gap-2 text-base">
             <FileText className="w-4 h-4 text-indigo-600" />
             Arsip SK {level}
             <Badge variant="outline" className="text-xs">{docs.length} dokumen</Badge>
           </CardTitle>
           {canManage && (
-            <Button onClick={() => setUploadOpen(true)} size="sm" className="bg-gradient-to-r from-orange-600 to-red-600 text-white">
-              <Upload className="w-4 h-4 mr-1" /> Upload SK
-            </Button>
+            <div className="flex gap-2">
+              {/* Upload SK biasa */}
+              <Button onClick={() => setUploadOpen(true)} size="sm" variant="outline">
+                <Upload className="w-4 h-4 mr-1" /> Upload SK
+              </Button>
+              {/* Upload SK + OCR Auto-Extract */}
+              <OcrExtractButton onFileSelected={handleOcrExtract} loading={ocrLoading} level={level} />
+            </div>
           )}
         </div>
       </CardHeader>
@@ -844,7 +919,175 @@ function SKSection({ level, territoryId, territoryFilter }: {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* OCR Preview Dialog - tampilkan hasil ekstrak pengurus dari SK */}
+      <OcrPreviewDialog
+        preview={ocrPreview}
+        onClose={() => setOcrPreview(null)}
+        onConfirm={handleConfirmExtract}
+      />
     </Card>
+  )
+}
+
+// ============================================================
+// OCR EXTRACT BUTTON - Upload SK + auto-extract pengurus via OCR
+// ============================================================
+function OcrExtractButton({ onFileSelected, loading, level }: {
+  onFileSelected: (file: File) => void
+  loading: boolean
+  level: string
+}) {
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  return (
+    <>
+      <input
+        ref={inputRef}
+        type="file"
+        className="hidden"
+        accept=".pdf,.jpg,.jpeg,.png,.webp,.tif,.tiff"
+        onChange={(e) => {
+          const f = e.target.files?.[0]
+          if (f) onFileSelected(f)
+          if (inputRef.current) inputRef.current.value = ''
+        }}
+      />
+      <Button
+        onClick={() => inputRef.current?.click()}
+        size="sm"
+        className="bg-gradient-to-r from-orange-600 to-red-600 text-white"
+        disabled={loading}
+      >
+        {loading ? (
+          <>
+            <Loader2 className="w-4 h-4 mr-1 animate-spin" /> OCR Processing...
+          </>
+        ) : (
+          <>
+            <ScanText className="w-4 h-4 mr-1" /> Upload SK + Extract
+          </>
+        )}
+      </Button>
+    </>
+  )
+}
+
+// ============================================================
+// OCR PREVIEW DIALOG - Preview extracted pengurus before saving
+// ============================================================
+function OcrPreviewDialog({ preview, onClose, onConfirm }: {
+  preview: any
+  onClose: () => void
+  onConfirm: (pengurus: any[]) => void
+}) {
+  const [editable, setEditable] = useState<any[]>([])
+  const addToast = useToastStore((s) => s.addToast)
+
+  useEffect(() => {
+    if (preview?.pengurus) {
+      setEditable(preview.pengurus.map((p: any, i: number) => ({ ...p, id: i, selected: true })))
+    }
+  }, [preview])
+
+  if (!preview) return null
+
+  const handleConfirm = () => {
+    const selected = editable.filter((p) => p.selected && p.fullName?.trim())
+    if (selected.length === 0) {
+      addToast('Pilih minimal 1 pengurus untuk disimpan', 'warning')
+      return
+    }
+    onConfirm(selected)
+  }
+
+  return (
+    <Dialog open={!!preview} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <ScanText className="w-5 h-5 text-orange-600" />
+            Pratinjau Hasil Ekstrak OCR
+          </DialogTitle>
+          <DialogDescription>
+            {editable.length} pengurus terdeteksi dari SK "{preview.fileName}". 
+            Edit data jika perlu, centang yang akan disimpan, lalu klik "Simpan".
+            Data akan masuk dengan status <strong>Pending</strong> (menunggu approval Admin DPN).
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          {/* Info SK */}
+          {preview.extractedText && (
+            <div className="rounded-lg bg-muted/50 p-3 text-xs">
+              <div className="font-semibold mb-1">Info SK (Auto-Detected):</div>
+              <pre className="whitespace-pre-wrap max-h-32 overflow-y-auto text-muted-foreground">
+                {preview.extractedText.substring(0, 500)}...
+              </pre>
+            </div>
+          )}
+
+          {/* Daftar pengurus yang bisa di-edit */}
+          <div className="space-y-2">
+            <div className="text-sm font-semibold">Daftar Pengurus Terdeteksi:</div>
+            {editable.map((p, i) => (
+              <div key={p.id} className="flex items-start gap-2 p-3 rounded-lg border">
+                <input
+                  type="checkbox"
+                  checked={p.selected}
+                  onChange={(e) => setEditable(prev => prev.map(x => x.id === p.id ? { ...x, selected: e.target.checked } : x))}
+                  className="mt-1 w-4 h-4"
+                />
+                <div className="flex-1 grid grid-cols-2 gap-2">
+                  <div>
+                    <Label className="text-[10px]">Nama Lengkap</Label>
+                    <Input
+                      value={p.fullName || ''}
+                      onChange={(e) => setEditable(prev => prev.map(x => x.id === p.id ? { ...x, fullName: e.target.value } : x))}
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-[10px]">Jabatan</Label>
+                    <Input
+                      value={p.positionName || ''}
+                      onChange={(e) => setEditable(prev => prev.map(x => x.id === p.id ? { ...x, positionName: e.target.value } : x))}
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-[10px]">WhatsApp</Label>
+                    <Input
+                      value={p.phone || ''}
+                      onChange={(e) => setEditable(prev => prev.map(x => x.id === p.id ? { ...x, phone: e.target.value } : x))}
+                      className="h-8 text-sm"
+                      placeholder="Opsional"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-[10px]">Email</Label>
+                    <Input
+                      value={p.email || ''}
+                      onChange={(e) => setEditable(prev => prev.map(x => x.id === p.id ? { ...x, email: e.target.value } : x))}
+                      className="h-8 text-sm"
+                      placeholder="Opsional"
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Batal</Button>
+          <Button onClick={handleConfirm} className="bg-gradient-to-r from-orange-600 to-red-600 text-white">
+            <ShieldCheck className="w-4 h-4 mr-1" />
+            Simpan ({editable.filter(p => p.selected && p.fullName?.trim()).length} pengurus)
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 

@@ -9,7 +9,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
   }
   const scope = await getViewableTerritoryIds(user)
-  const where = scope.isGlobalView ? {} : { territoryId: { in: scope.territoryIds } }
+  const where: any = scope.isGlobalView ? {} : { territoryId: { in: scope.territoryIds } }
+
+  // Non-superadmin hanya lihat APPROVED; Super Admin lihat semua
+  if (user.role !== 'SUPERADMIN' && user.role !== 'ADMIN_DPN') {
+    where.approvalStatus = 'APPROVED'
+  }
 
   const positions = await db.orgPosition.findMany({
     where,
@@ -52,6 +57,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'Akses ditolak' }, { status: 403 })
   }
 
+  // Sistem Perizinan: non-superadmin → status PENDING (butuh approval)
+  const isSuperAdmin = user.role === 'SUPERADMIN' || user.role === 'ADMIN_DPN'
+  const approvalStatus = isSuperAdmin ? 'APPROVED' : 'PENDING'
+  const isActive = isSuperAdmin // PENDING = tidak aktif sampai di-approve
+
   const position = await db.orgPosition.create({
     data: {
       fullName,
@@ -64,9 +74,18 @@ export async function POST(request: NextRequest) {
       startDate: startDate ? new Date(startDate) : null,
       endDate: endDate ? new Date(endDate) : null,
       order,
+      approvalStatus,
+      isActive,
+      source: body.source || 'MANUAL',
     },
     include: { territory: true },
   })
 
-  return NextResponse.json({ success: true, data: position })
+  return NextResponse.json({
+    success: true,
+    data: position,
+    message: isSuperAdmin
+      ? 'Pengurus berhasil ditambahkan.'
+      : 'Pengurus ditambahkan dengan status PENDING. Menunggu persetujuan Admin DPN.',
+  })
 }
