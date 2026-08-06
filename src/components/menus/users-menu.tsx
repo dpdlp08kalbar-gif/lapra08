@@ -219,12 +219,21 @@ function AddUserDialog({
   // Filter role yang bisa dibuat berdasarkan role current user
   const availableRoles = currentUser.role === 'SUPERADMIN' || currentUser.role === 'ADMIN_DPN'
     ? [
-        { value: 'ADMIN_DPN', label: 'Admin DPN (Pusat)' },
+        { value: 'ADMIN_DPN', label: 'Admin DPN (Pusat Nasional)' },
+        { value: 'ADMIN_KOORWIL', label: 'Admin Koorwil (Koordinator Wilayah)' },
         { value: 'ADMIN_DPD', label: 'Admin DPD (Provinsi)' },
+        { value: 'ADMIN_KOOR_DPD', label: 'Admin Koor DPD (Koordinator Region)' },
         { value: 'ADMIN_DPC', label: 'Admin DPC (Kab/Kota)' },
       ]
+    : currentUser.role === 'ADMIN_KOORWIL'
+    ? [
+        { value: 'ADMIN_DPD', label: 'Admin DPD (Provinsi)' },
+      ]
     : currentUser.role === 'ADMIN_DPD'
-    ? [{ value: 'ADMIN_DPC', label: 'Admin DPC (Kab/Kota)' }]
+    ? [
+        { value: 'ADMIN_KOOR_DPD', label: 'Admin Koor DPD (Koordinator Region)' },
+        { value: 'ADMIN_DPC', label: 'Admin DPC (Kab/Kota)' },
+      ]
     : []
 
   const handleSubmit = async (e: React.FormEvent) => {

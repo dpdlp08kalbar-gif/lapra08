@@ -265,7 +265,9 @@ export function MembershipMenu() {
                         // Tentukan level berdasarkan territory
                         const levelLabel =
                           m.territory?.level === 'COUNTRY' ? 'DPN' :
-                          m.territory?.level === 'PROVINCE' ? 'DPD' : 'DPC'
+                          m.territory?.level === 'COORDINATOR' ? 'KOORWIL' :
+                          m.territory?.level === 'PROVINCE' ? 'DPD' :
+                          m.territory?.level === 'COORD_DPD' ? 'KOOR_DPD' : 'DPC'
                         return (
                           <TableRow key={m.id} className={!canEdit ? 'bg-muted/30' : ''}>
                             <TableCell>
@@ -534,7 +536,9 @@ function AddMemberDialog({
                 {territories.map((t) => {
                   const levelLabel =
                     t.level === 'COUNTRY' ? 'DPN' :
-                    t.level === 'PROVINCE' ? 'DPD' : 'DPC'
+                    t.level === 'COORDINATOR' ? 'KOORWIL' :
+                    t.level === 'PROVINCE' ? 'DPD' :
+                    t.level === 'COORD_DPD' ? 'KOOR_DPD' : 'DPC'
                   return (
                     <SelectItem key={t.id} value={t.id}>
                       [{levelLabel}] {t.name} ({t.code})

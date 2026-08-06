@@ -145,3 +145,78 @@ Stage Summary:
 - Loading screen tampil saat menunggu hydration (UX lebih baik)
 - Auto-logout jika session invalid/expired (graceful degradation)
 - Semua 10 menu berfungsi normal setelah reload tanpa error
+
+---
+Task ID: LAPRA08-HIERARKI-KOORWIL
+Agent: Main Agent (Super Z)
+Task: Susun pembagian wilayah dengan Koorwil di bawah DPN & Koor DPD di bawah DPD
+
+Work Log:
+- Mendesain hierarki 5 tingkat baru:
+  * DPN (Pusat Nasional) - level COUNTRY
+  * Koorwil (Koordinator Wilayah) - level COORDINATOR - bantu DPN koordinir DPD
+  * DPD (Provinsi/Negara LN) - level PROVINCE
+  * Koor DPD (Koordinator Region) - level COORD_DPD - bantu DPD koordinir DPC
+  * DPC (Kabupaten/Kota) - level REGENCY
+- Update schema Territory: tambah level COORDINATOR dan COORD_DPD
+- Update schema User: tambah role ADMIN_KOORWIL dan ADMIN_KOOR_DPD
+- Update schema OrgPosition: tambah level KOORWIL dan KOOR_DPD
+- Seed data lengkap:
+  * 6 negara (ID, US, CN, MY, SA, AU)
+  * 7 Koorwil (KW1 Sumatera, KW2 Jawa, KW3 Kalimantan, KW4 Sulawesi, KW5 Bali-Nusa, KW6 Maluku-Papua, KW7 Luar Negeri)
+  * 36 provinsi Indonesia (38 total - include 4 DOB Papua baru)
+  * 5 DPD luar negeri (US, CN, MY, SA, AU) di bawah Koorwil VII
+  * 4 Koor DPD Kalbar:
+    - KR1 Pontianak Raya (4 DPC: Pontianak Kota/Kab, Landak, Mempawah)
+    - KR2 Pesisir Utara (3 DPC: Sambas, Bengkayang, Singkawang)
+    - KR3 Hulu Kapuas (1 DPC: Kapuas Hulu)
+    - KR4 Selatan (6 DPC: Ketapang, Melawi, Sintang, Sekadau, Sanggau, Tayan)
+  * 14 DPC Kalbar dengan code 4-digit (6171-6178, 6101-6106)
+- Update server-helpers:
+  * Tambah helper rekursif getAllDescendants & getAllAncestors
+  * getViewableTerritoryIds per role:
+    - DPN: global (semua)
+    - Koorwil: DPN (parent) + sendiri + SEMUA descendant (DPD, Koor DPD, DPC)
+    - DPD: ancestors (DPN, Koorwil) + sendiri + SEMUA descendant (Koor DPD, DPC)
+    - Koor DPD: ancestors + sendiri + SEMUA DPC di bawahnya
+    - DPC: ancestors (semua level di atasnya) + sendiri
+  * getEditableTerritoryIds per role:
+    - DPN: hanya DPN pusat
+    - Koorwil: hanya Koorwil sendiri
+    - DPD: DPD sendiri + SEMUA descendant
+    - Koor DPD: Koor DPD sendiri + SEMUA DPC di bawahnya
+    - DPC: hanya DPC sendiri
+- Update KTA Generator untuk handle 5 level:
+  * DPN (COUNTRY): LAPRA08.ID.00.00.26.00001
+  * Koorwil (COORDINATOR): LAPRA08.ID.KW1.00.26.00001
+  * DPD (PROVINCE): LAPRA08.ID.61.00.26.00001
+  * Koor DPD (COORD_DPD): LAPRA08.ID.61.KR1.26.00001
+  * DPC (REGENCY): LAPRA08.ID.61.6171.26.00001
+  * Internasional: LAPRA08.US.00.LAX.26.00001
+- Update types.ts: tambah Role baru + TerritoryLevel baru + ROLE_LABELS/ROLE_COLORS + TERRITORY_LEVEL_LABELS
+- Update UI Territory:
+  * LEVEL_LABELS & LEVEL_COLORS include COORDINATOR & COORD_DPD
+  * Dropdown level di AddTerritoryDialog include pilihan baru
+  * getParentOptions handle parent multiple level (PROVINCE bisa parent COORDINATOR atau COUNTRY)
+  * canCreate hanya DPN (bukan DPD lagi)
+- Update UI Membership: levelLabel include KOORWIL & KOOR_DPD
+- Update UI Users: availableRoles include ADMIN_KOORWIL & ADMIN_KOOR_DPD
+- Update Login Page: 7 akun demo (superadmin, dpn, koorwil.kw3, dpd.kalbar, koor.kr1, dpc.6171, dpc.6175)
+- Update API stats: statistik per level 5 tingkat (dpn/koorwil/dpd/koor_dpd/dpc)
+- Update Dashboard: 5 kartu LevelStat dengan warna berbeda dan format KTA masing-masing
+- Verifikasi via Agent Browser:
+  * Login DPN: lihat semua 7 Koorwil + 38 provinsi + 14 DPC Kalbar + DPN pusat
+  * Login Koorwil KW3: lihat DPN (read-only) + anggota Kalbar (Kalbar, Kalteng, Kalsel, Kaltim)
+  * Login Koor DPD KR1: lihat DPN (read-only) + hanya anggota Region I (Pontianak Raya)
+  * Login DPC Pontianak: tetap terisolasi, hanya 5 anggotanya
+- Lint check: bersih, tidak ada error
+
+Stage Summary:
+- Hierarki 5 tingkat berhasil diimplementasi: DPN → Koorwil → DPD → Koor DPD → DPC
+- 7 Koorwil regional (Sumatera, Jawa, Kalimantan, Sulawesi, Bali-Nusa, Maluku-Papua, Luar Negeri)
+- 36 provinsi Indonesia + 5 DPD luar negeri
+- 4 Koor DPD Kalbar dengan 14 DPC (Pontianak Raya, Pesisir Utara, Hulu Kapuas, Selatan)
+- KTA Generator menghasilkan format berbeda per level (5 format domestik + 1 internasional)
+- Isolasi data berlapis: setiap level hanya bisa edit territory sendiri + descendant, lihat ancestor (read-only)
+- 6 role: SUPERADMIN, ADMIN_DPN, ADMIN_KOORWIL, ADMIN_DPD, ADMIN_KOOR_DPD, ADMIN_DPC
+- Login credentials baru: koorwil.kw1-kw7, koor.kr1-kr4, dpc.6171-6106

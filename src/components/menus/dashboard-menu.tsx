@@ -36,7 +36,9 @@ interface Stats {
     rejected: number
     byLevel?: {
       dpn: number
+      koorwil: number
       dpd: number
+      koor_dpd: number
       dpc: number
     }
   }
@@ -156,52 +158,63 @@ export function DashboardMenu() {
         />
       </div>
 
-      {/* Statistik anggota per level (DPN/DPD/DPC) */}
+      {/* Statistik anggota per level (DPN/Koorwil/DPD/Koor DPD/DPC) */}
       {stats.members.byLevel && (
-        <div className="grid gap-4 md:grid-cols-3">
-          <Card className="border-purple-200 bg-purple-50/30">
-            <CardContent className="p-4 flex items-center justify-between">
-              <div>
-                <div className="text-xs text-purple-700 font-medium">Anggota DPN (Pusat)</div>
-                <div className="text-2xl font-black text-purple-900 mt-1">
-                  {stats.members.byLevel.dpn}
-                </div>
-                <div className="text-[10px] text-purple-600 mt-0.5">
-                  Format KTA: LAPRA08.ID.00.00.XX.XXXXX
-                </div>
-              </div>
-              <Crown className="w-10 h-10 text-purple-400" />
-            </CardContent>
-          </Card>
-          <Card className="border-blue-200 bg-blue-50/30">
-            <CardContent className="p-4 flex items-center justify-between">
-              <div>
-                <div className="text-xs text-blue-700 font-medium">Anggota DPD (Provinsi)</div>
-                <div className="text-2xl font-black text-blue-900 mt-1">
-                  {stats.members.byLevel.dpd}
-                </div>
-                <div className="text-[10px] text-blue-600 mt-0.5">
-                  Format KTA: LAPRA08.ID.61.00.XX.XXXXX
-                </div>
-              </div>
-              <Building2 className="w-10 h-10 text-blue-400" />
-            </CardContent>
-          </Card>
-          <Card className="border-emerald-200 bg-emerald-50/30">
-            <CardContent className="p-4 flex items-center justify-between">
-              <div>
-                <div className="text-xs text-emerald-700 font-medium">Anggota DPC (Kab/Kota)</div>
-                <div className="text-2xl font-black text-emerald-900 mt-1">
-                  {stats.members.byLevel.dpc}
-                </div>
-                <div className="text-[10px] text-emerald-600 mt-0.5">
-                  Format KTA: LAPRA08.ID.61.71.XX.XXXXX
-                </div>
-              </div>
-              <MapPin className="w-10 h-10 text-emerald-400" />
-            </CardContent>
-          </Card>
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Award className="w-4 h-4 text-orange-600" />
+              Hierarki Kepengurusan LAPRA 08
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-3 md:grid-cols-5">
+              <LevelStat
+                label="DPN"
+                subLabel="Pusat Nasional"
+                count={stats.members.byLevel.dpn}
+                color="purple"
+                icon={Crown}
+                ktaFormat="LAPRA08.ID.00.00.XX"
+              />
+              <LevelStat
+                label="Koorwil"
+                subLabel="Koordinator Wilayah"
+                count={stats.members.byLevel.koorwil}
+                color="indigo"
+                icon={Building2}
+                ktaFormat="LAPRA08.ID.KW1.00.XX"
+              />
+              <LevelStat
+                label="DPD"
+                subLabel="Provinsi"
+                count={stats.members.byLevel.dpd}
+                color="blue"
+                icon={Building2}
+                ktaFormat="LAPRA08.ID.61.00.XX"
+              />
+              <LevelStat
+                label="Koor DPD"
+                subLabel="Koordinator Region"
+                count={stats.members.byLevel.koor_dpd}
+                color="amber"
+                icon={MapPin}
+                ktaFormat="LAPRA08.ID.61.KR1.XX"
+              />
+              <LevelStat
+                label="DPC"
+                subLabel="Kabupaten/Kota"
+                count={stats.members.byLevel.dpc}
+                color="emerald"
+                icon={MapPin}
+                ktaFormat="LAPRA08.ID.61.6171.XX"
+              />
+            </div>
+            <div className="mt-3 text-xs text-muted-foreground">
+              Hierarki: DPN → Koorwil → DPD → Koor DPD → DPC. Setiap level punya format KTA sendiri.
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Heatmap Kalbar */}
@@ -470,6 +483,52 @@ function QuickStat({
         <div className="text-lg font-bold leading-tight">{value}</div>
         <div className="text-[10px] text-muted-foreground">{label}</div>
       </div>
+    </div>
+  )
+}
+
+function LevelStat({
+  label,
+  subLabel,
+  count,
+  color,
+  icon: Icon,
+  ktaFormat,
+}: {
+  label: string
+  subLabel: string
+  count: number
+  color: 'purple' | 'indigo' | 'blue' | 'amber' | 'emerald'
+  icon: React.ComponentType<{ className?: string }>
+  ktaFormat: string
+}) {
+  const colors = {
+    purple: 'border-purple-200 bg-purple-50/50 text-purple-700',
+    indigo: 'border-indigo-200 bg-indigo-50/50 text-indigo-700',
+    blue: 'border-blue-200 bg-blue-50/50 text-blue-700',
+    amber: 'border-amber-200 bg-amber-50/50 text-amber-700',
+    emerald: 'border-emerald-200 bg-emerald-50/50 text-emerald-700',
+  }
+  const iconBg = {
+    purple: 'bg-purple-100 text-purple-700',
+    indigo: 'bg-indigo-100 text-indigo-700',
+    blue: 'bg-blue-100 text-blue-700',
+    amber: 'bg-amber-100 text-amber-700',
+    emerald: 'bg-emerald-100 text-emerald-700',
+  }
+  return (
+    <div className={`rounded-lg border-2 p-3 ${colors[color]}`}>
+      <div className="flex items-center gap-2 mb-2">
+        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${iconBg[color]}`}>
+          <Icon className="w-4 h-4" />
+        </div>
+        <div>
+          <div className="font-bold text-sm leading-tight">{label}</div>
+          <div className="text-[10px] opacity-75">{subLabel}</div>
+        </div>
+      </div>
+      <div className="text-2xl font-black">{count}</div>
+      <div className="text-[10px] opacity-75 mt-1 font-mono">{ktaFormat}</div>
     </div>
   )
 }

@@ -59,19 +59,23 @@ interface Territory {
 }
 
 const LEVEL_LABELS: Record<string, string> = {
-  COUNTRY: 'Negara',
-  PROVINCE: 'Provinsi',
-  REGENCY: 'Kabupaten/Kota',
+  COUNTRY: 'Negara (DPN)',
+  COORDINATOR: 'Koorwil (Koordinator Wilayah)',
+  PROVINCE: 'Provinsi / Negara LN (DPD)',
+  COORD_DPD: 'Koor DPD (Koordinator Region)',
+  REGENCY: 'Kabupaten/Kota (DPC)',
   DISTRICT: 'Kecamatan',
   VILLAGE: 'Desa/Kelurahan',
 }
 
 const LEVEL_COLORS: Record<string, string> = {
   COUNTRY: 'bg-purple-100 text-purple-700 border-purple-200',
+  COORDINATOR: 'bg-indigo-100 text-indigo-700 border-indigo-200',
   PROVINCE: 'bg-blue-100 text-blue-700 border-blue-200',
+  COORD_DPD: 'bg-amber-100 text-amber-700 border-amber-200',
   REGENCY: 'bg-emerald-100 text-emerald-700 border-emerald-200',
-  DISTRICT: 'bg-amber-100 text-amber-700 border-amber-200',
-  VILLAGE: 'bg-gray-100 text-gray-700 border-gray-200',
+  DISTRICT: 'bg-gray-100 text-gray-700 border-gray-200',
+  VILLAGE: 'bg-gray-50 text-gray-600 border-gray-200',
 }
 
 export function TerritoryMenu() {
@@ -84,7 +88,8 @@ export function TerritoryMenu() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [tab, setTab] = useState('domestic')
 
-  const canCreate = user.role === 'SUPERADMIN' || user.role === 'ADMIN_DPN' || user.role === 'ADMIN_DPD'
+  // Hanya DPN yang bisa tambah wilayah baru (sesuai prinsip isolasi)
+  const canCreate = user.role === 'SUPERADMIN' || user.role === 'ADMIN_DPN'
 
   const loadData = () => {
     setLoading(true)
@@ -345,10 +350,27 @@ function AddTerritoryDialog({
 
   // Get potential parents based on selected level
   const getParentOptions = () => {
-    const levelOrder = ['COUNTRY', 'PROVINCE', 'REGENCY', 'DISTRICT', 'VILLAGE']
-    const currentIdx = levelOrder.indexOf(form.level)
-    const parentLevel = levelOrder[currentIdx - 1]
+    // Hierarki: COUNTRY → COORDINATOR → PROVINCE → COORD_DPD → REGENCY → DISTRICT → VILLAGE
+    const parentMap: Record<string, string> = {
+      COORDINATOR: 'COUNTRY',
+      PROVINCE: 'COORDINATOR', // bisa juga langsung COUNTRY (untuk LN)
+      COORD_DPD: 'PROVINCE',
+      REGENCY: 'COORD_DPD', // bisa juga PROVINCE atau COUNTRY
+      DISTRICT: 'REGENCY',
+      VILLAGE: 'DISTRICT',
+    }
+    const parentLevel = parentMap[form.level]
     if (!parentLevel) return []
+
+    // Untuk PROVINCE dan REGENCY, parent bisa multiple level
+    if (form.level === 'PROVINCE') {
+      return allTerritories.filter((t) => t.level === 'COORDINATOR' || t.level === 'COUNTRY')
+    }
+    if (form.level === 'REGENCY') {
+      return allTerritories.filter(
+        (t) => t.level === 'COORD_DPD' || t.level === 'PROVINCE' || t.level === 'COUNTRY'
+      )
+    }
     return allTerritories.filter((t) => t.level === parentLevel)
   }
 
@@ -425,9 +447,11 @@ function AddTerritoryDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="COUNTRY">Negara</SelectItem>
-                  <SelectItem value="PROVINCE">Provinsi</SelectItem>
-                  <SelectItem value="REGENCY">Kabupaten/Kota</SelectItem>
+                  <SelectItem value="COUNTRY">Negara (DPN)</SelectItem>
+                  <SelectItem value="COORDINATOR">Koorwil (Koordinator Wilayah)</SelectItem>
+                  <SelectItem value="PROVINCE">Provinsi / Negara LN (DPD)</SelectItem>
+                  <SelectItem value="COORD_DPD">Koor DPD (Koordinator Region)</SelectItem>
+                  <SelectItem value="REGENCY">Kabupaten/Kota (DPC)</SelectItem>
                   <SelectItem value="DISTRICT">Kecamatan</SelectItem>
                   <SelectItem value="VILLAGE">Desa/Kelurahan</SelectItem>
                 </SelectContent>

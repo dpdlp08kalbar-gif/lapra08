@@ -124,17 +124,13 @@ export async function GET(request: NextRequest) {
   const userWhere = scope.isGlobal ? {} : { territoryId: { in: scope.territoryIds } }
   const totalUsers = await db.user.count({ where: { ...userWhere, isActive: true } })
 
-  // Statistik anggota per level (DPN/DPD/DPC)
-  const [dpnMembers, dpdMembers, dpcMembers] = await Promise.all([
-    db.member.count({
-      where: { ...memberWhere, territory: { level: 'COUNTRY' } },
-    }),
-    db.member.count({
-      where: { ...memberWhere, territory: { level: 'PROVINCE' } },
-    }),
-    db.member.count({
-      where: { ...memberWhere, territory: { level: 'REGENCY' } },
-    }),
+  // Statistik anggota per level (DPN/Koorwil/DPD/Koor DPD/DPC)
+  const [dpnMembers, koorwilMembers, dpdMembers, koorDpdMembers, dpcMembers] = await Promise.all([
+    db.member.count({ where: { ...memberWhere, territory: { level: 'COUNTRY' } } }),
+    db.member.count({ where: { ...memberWhere, territory: { level: 'COORDINATOR' } } }),
+    db.member.count({ where: { ...memberWhere, territory: { level: 'PROVINCE' } } }),
+    db.member.count({ where: { ...memberWhere, territory: { level: 'COORD_DPD' } } }),
+    db.member.count({ where: { ...memberWhere, territory: { level: 'REGENCY' } } }),
   ])
 
   return NextResponse.json({
@@ -148,7 +144,9 @@ export async function GET(request: NextRequest) {
         rejected: rejectedCount,
         byLevel: {
           dpn: dpnMembers,
+          koorwil: koorwilMembers,
           dpd: dpdMembers,
+          koor_dpd: koorDpdMembers,
           dpc: dpcMembers,
         },
       },

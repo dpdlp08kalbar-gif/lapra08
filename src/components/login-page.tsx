@@ -13,11 +13,13 @@ import { Shield, ShieldOff, Eye, EyeOff, Loader2, AlertCircle } from 'lucide-rea
 import { Alert, AlertDescription } from '@/components/ui/alert'
 
 const DEMO_ACCOUNTS = [
-  { username: 'superadmin', role: 'Super Admin (Pusat)', territory: 'Global' },
-  { username: 'dpn', role: 'Admin DPN (Pusat)', territory: 'Global' },
+  { username: 'superadmin', role: 'Super Admin', territory: 'Global' },
+  { username: 'dpn', role: 'Admin DPN', territory: 'Pusat Nasional' },
+  { username: 'koorwil.kw3', role: 'Admin Koorwil', territory: 'Wilayah III (Kalimantan)' },
   { username: 'dpd.kalbar', role: 'Admin DPD', territory: 'Kalimantan Barat' },
-  { username: 'dpc.71', role: 'Admin DPC', territory: 'Kota Pontianak' },
-  { username: 'dpc.75', role: 'Admin DPC', territory: 'Kab. Sambas' },
+  { username: 'koor.kr1', role: 'Admin Koor DPD', territory: 'Kalbar Region I' },
+  { username: 'dpc.6171', role: 'Admin DPC', territory: 'Kota Pontianak' },
+  { username: 'dpc.6175', role: 'Admin DPC', territory: 'Kab. Sambas' },
 ]
 
 export function LoginPage() {

@@ -12,12 +12,18 @@ datasource db {
 
 // ============================================================
 // TERRITORY - Hierarki Wilayah Dinamis (Global)
+// Level: COUNTRY | COORDINATOR | PROVINCE | COORD_DPD | REGENCY | DISTRICT | VILLAGE
+//   COUNTRY    = Negara (Indonesia, USA, dll) - DPN pusat
+//   COORDINATOR = Koordinator Wilayah (Koorwil) - bantu DPN koordinir DPD
+//   PROVINCE   = Provinsi / Negara LN - DPD
+//   COORD_DPD  = Koordinator DPD (bantu DPD koordinir DPC)
+//   REGENCY    = Kabupaten/Kota - DPC
 // ============================================================
 model Territory {
   id          String      @id @default(cuid())
-  code        String      @unique // Kode wilayah: ID, 61, 71, US, LAX, dst
+  code        String      @unique // Kode wilayah: ID, KW1, 61, KR1, 71, US, LAX, dst
   name        String
-  level       String      // COUNTRY | PROVINCE | REGENCY | DISTRICT | VILLAGE
+  level       String      // COUNTRY | COORDINATOR | PROVINCE | COORD_DPD | REGENCY | DISTRICT | VILLAGE
   category    String      @default("DOMESTIC") // DOMESTIC | INTERNATIONAL
   parentId    String?
   parent      Territory?  @relation("TerritoryHierarchy", fields: [parentId], references: [id])
@@ -50,7 +56,7 @@ model User {
   email         String?
   phone         String?
   avatar        String?
-  role          String   @default("ADMIN_DPC") // SUPERADMIN | ADMIN_DPN | ADMIN_DPD | ADMIN_DPC
+  role          String   @default("ADMIN_DPC") // SUPERADMIN | ADMIN_DPN | ADMIN_KOORWIL | ADMIN_DPD | ADMIN_KOOR_DPD | ADMIN_DPC
   territoryId   String
   territory     Territory @relation(fields: [territoryId], references: [id])
   isActive      Boolean  @default(true)
@@ -162,7 +168,7 @@ model OrgPosition {
   id            String   @id @default(cuid())
   fullName      String
   positionName  String   // Ketua, Wakil, Sekretaris, Bendahara, dll
-  level         String   // DPN | DPD | DPC
+  level         String   // DPN | KOORWIL | DPD | KOOR_DPD | DPC
   territoryId   String
   territory     Territory @relation(fields: [territoryId], references: [id])
   phone         String?

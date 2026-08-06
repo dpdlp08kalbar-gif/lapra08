@@ -1,8 +1,22 @@
 // LAPRA 08 - Shared Types & Constants
 
-export type Role = 'SUPERADMIN' | 'ADMIN_DPN' | 'ADMIN_DPD' | 'ADMIN_DPC'
+export type Role =
+  | 'SUPERADMIN'
+  | 'ADMIN_DPN'
+  | 'ADMIN_KOORWIL'
+  | 'ADMIN_DPD'
+  | 'ADMIN_KOOR_DPD'
+  | 'ADMIN_DPC'
 
-export type TerritoryLevel = 'COUNTRY' | 'PROVINCE' | 'REGENCY' | 'DISTRICT' | 'VILLAGE'
+export type TerritoryLevel =
+  | 'COUNTRY'
+  | 'COORDINATOR'
+  | 'PROVINCE'
+  | 'COORD_DPD'
+  | 'REGENCY'
+  | 'DISTRICT'
+  | 'VILLAGE'
+
 export type TerritoryCategory = 'DOMESTIC' | 'INTERNATIONAL'
 
 export type MemberStatus = 'PENDING' | 'VERIFIED' | 'ACTIVE' | 'REJECTED' | 'INACTIVE'
@@ -65,15 +79,40 @@ export const DEFAULT_MENUS = [
 export const ROLE_LABELS: Record<Role, string> = {
   SUPERADMIN: 'Super Admin',
   ADMIN_DPN: 'Admin DPN (Pusat)',
+  ADMIN_KOORWIL: 'Admin Koorwil (Wilayah)',
   ADMIN_DPD: 'Admin DPD (Provinsi)',
+  ADMIN_KOOR_DPD: 'Admin Koor DPD (Region)',
   ADMIN_DPC: 'Admin DPC (Kab/Kota)',
 }
 
 export const ROLE_COLORS: Record<Role, string> = {
   SUPERADMIN: 'bg-red-100 text-red-700 border-red-200',
   ADMIN_DPN: 'bg-purple-100 text-purple-700 border-purple-200',
+  ADMIN_KOORWIL: 'bg-indigo-100 text-indigo-700 border-indigo-200',
   ADMIN_DPD: 'bg-orange-100 text-orange-700 border-orange-200',
+  ADMIN_KOOR_DPD: 'bg-amber-100 text-amber-700 border-amber-200',
   ADMIN_DPC: 'bg-green-100 text-green-700 border-green-200',
+}
+
+// Level labels untuk territory
+export const TERRITORY_LEVEL_LABELS: Record<string, string> = {
+  COUNTRY: 'Negara (DPN)',
+  COORDINATOR: 'Koorwil (Koordinator Wilayah)',
+  PROVINCE: 'Provinsi / Negara LN (DPD)',
+  COORD_DPD: 'Koor DPD (Koordinator Region)',
+  REGENCY: 'Kabupaten/Kota (DPC)',
+  DISTRICT: 'Kecamatan',
+  VILLAGE: 'Desa/Kelurahan',
+}
+
+export const TERRITORY_LEVEL_COLORS: Record<string, string> = {
+  COUNTRY: 'bg-purple-100 text-purple-700 border-purple-200',
+  COORDINATOR: 'bg-indigo-100 text-indigo-700 border-indigo-200',
+  PROVINCE: 'bg-blue-100 text-blue-700 border-blue-200',
+  COORD_DPD: 'bg-amber-100 text-amber-700 border-amber-200',
+  REGENCY: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+  DISTRICT: 'bg-gray-100 text-gray-700 border-gray-200',
+  VILLAGE: 'bg-gray-50 text-gray-600 border-gray-200',
 }
 
 // Helper: cek apakah role bisa akses menu
