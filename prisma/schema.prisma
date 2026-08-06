@@ -1,0 +1,394 @@
+// LAPRA 08 - Sistem Informasi Internal
+// Database Schema - 100% Dinamis Multi-Tenant
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// TERRITORY - Hierarki Wilayah Dinamis (Global)
+// ============================================================
+model Territory {
+  id          String      @id @default(cuid())
+  code        String      @unique // Kode wilayah: ID, 61, 71, US, LAX, dst
+  name        String
+  level       String      // COUNTRY | PROVINCE | REGENCY | DISTRICT | VILLAGE
+  category    String      @default("DOMESTIC") // DOMESTIC | INTERNATIONAL
+  parentId    String?
+  parent      Territory?  @relation("TerritoryHierarchy", fields: [parentId], references: [id])
+  children    Territory[] @relation("TerritoryHierarchy")
+  isActive    Boolean     @default(true)
+  metadata    String?     // JSON string untuk data tambahan (koordinat, populasi, dll)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  users       User[]
+  members     Member[]
+  assets      Asset[]
+  events      Event[]
+  announcements Announcement[]
+  financeTxns FinanceTransaction[]
+  distributionsFrom Distribution[] @relation("DistFrom")
+  distributionsTo   Distribution[] @relation("DistTo")
+  orgPositions OrgPosition[]
+  skDocuments SKDocument[]
+}
+
+// ============================================================
+// USER - Akun login pengurus
+// ============================================================
+model User {
+  id            String   @id @default(cuid())
+  username      String   @unique
+  password      String   // hashed
+  fullName      String
+  email         String?
+  phone         String?
+  avatar        String?
+  role          String   @default("ADMIN_DPC") // SUPERADMIN | ADMIN_DPN | ADMIN_DPD | ADMIN_DPC
+  territoryId   String
+  territory     Territory @relation(fields: [territoryId], references: [id])
+  isActive      Boolean  @default(true)
+  lastLogin     DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  members       Member[]   @relation("MemberRegistrar")   // anggota yang diinput oleh user ini
+  verifiedMembers Member[] @relation("MemberVerifier")
+  events        Event[]    @relation("EventCreator")
+  broadcasts    Broadcast[]
+  announcements Announcement[]
+  financeTxns   FinanceTransaction[]
+  tickets       SupportTicket[] @relation("TicketReporter")
+  ticketReplies SupportTicketReply[]
+  attendance    EventAttendance[]
+  distributions Distribution[] @relation("DistReceiver")
+}
+
+// ============================================================
+// MEMBER - Data Keanggotaan
+// ============================================================
+model Member {
+  id              String   @id @default(cuid())
+  memberNumber    String   @unique // LAPRA08.ID.61.71.26.00001
+  fullName        String
+  // Domestik
+  nik             String?  // NIK KTP 16 digit
+  passportNumber  String?  // Untuk internasional
+  // Kontak
+  phone           String   // WA: awalan 62 / E.164
+  email           String?
+  // Alamat
+  address         String?
+  // Atribut
+  shirtSize       String?  // S/M/L/XL/XXL
+  profession      String?
+  gender          String?  // L | P
+  birthDate       DateTime?
+  birthPlace      String?
+  bloodType       String?
+  maritalStatus   String?
+  // Foto & dokumen
+  photoUrl        String?
+  idCardUrl       String?  // KTP / Paspor
+  // Lokasi
+  territoryId     String
+  territory       Territory @relation(fields: [territoryId], references: [id])
+  // Status
+  status          String   @default("PENDING") // PENDING | VERIFIED | ACTIVE | REJECTED | INACTIVE
+  verifiedAt      DateTime?
+  verifiedById    String?
+  verifiedBy      User?    @relation("MemberVerifier", fields: [verifiedById], references: [id])
+  registeredAt    DateTime @default(now())
+  registeredById  String?
+  registeredBy    User?    @relation("MemberRegistrar", fields: [registeredById], references: [id])
+  // Dynamic fields (JSON)
+  dynamicFields   String?  // JSON string {fieldKey: value}
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  attendance      EventAttendance[]
+}
+
+// ============================================================
+// DYNAMIC MENU BUILDER
+// ============================================================
+model MenuItem {
+  id          String      @id @default(cuid())
+  key         String      @unique // dashboard, territory, membership, dll
+  label       String
+  icon        String      // Lucide icon name
+  order       Int         @default(0)
+  parentId    String?
+  parent      MenuItem?   @relation("MenuHierarchy", fields: [parentId], references: [id])
+  children    MenuItem[]  @relation("MenuHierarchy")
+  isVisible   Boolean     @default(true)
+  // Role-based visibility
+  roles       String      @default("SUPERADMIN,ADMIN_DPN,ADMIN_DPD,ADMIN_DPC")
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+// ============================================================
+// DYNAMIC FORM FIELDS - Untuk form pendaftaran anggota
+// ============================================================
+model FormField {
+  id            String   @id @default(cuid())
+  formType      String   // MEMBER_DOMESTIC | MEMBER_INTERNATIONAL | EVENT | dll
+  fieldKey      String   // nik, shirtSize, dll
+  fieldLabel    String
+  fieldType     String   // text | number | select | textarea | date | file | radio | checkbox
+  fieldOptions  String?  // JSON array untuk select/radio/checkbox
+  isRequired    Boolean  @default(false)
+  isVisible     Boolean  @default(true)
+  order         Int      @default(0)
+  placeholder   String?
+  helpText      String?
+  validation    String?  // JSON: minLength, maxLength, pattern, dll
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ============================================================
+// ORGANIZATION STRUCTURE - Struktur Pengurus
+// ============================================================
+model OrgPosition {
+  id            String   @id @default(cuid())
+  fullName      String
+  positionName  String   // Ketua, Wakil, Sekretaris, Bendahara, dll
+  level         String   // DPN | DPD | DPC
+  territoryId   String
+  territory     Territory @relation(fields: [territoryId], references: [id])
+  phone         String?
+  email         String?
+  photoUrl      String?
+  startDate     DateTime?
+  endDate       DateTime?
+  isActive      Boolean  @default(true)
+  order         Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ============================================================
+// E-SK - Surat Keputusan Digital
+// ============================================================
+model SKDocument {
+  id            String   @id @default(cuid())
+  skNumber      String
+  title         String
+  description   String?
+  fileUrl       String
+  issuedAt      DateTime
+  issuedBy      String
+  territoryId   String
+  territory     Territory @relation(fields: [territoryId], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ============================================================
+// ASSET MANAGEMENT - Logistik & Atribut
+// ============================================================
+model Asset {
+  id            String   @id @default(cuid())
+  name          String
+  category      String   // KEMEJA | SERAGAM | BENDERA | PLAKAT | LAINNYA
+  sku           String?
+  stock         Int      @default(0)
+  unit          String   @default("pcs")
+  minStock      Int      @default(0)
+  description   String?
+  photoUrl      String?
+  territoryId   String
+  territory     Territory @relation(fields: [territoryId], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  distributions Distribution[]
+}
+
+model Distribution {
+  id            String   @id @default(cuid())
+  assetId       String
+  asset         Asset     @relation(fields: [assetId], references: [id])
+  fromTerritoryId String
+  fromTerritory Territory @relation("DistFrom", fields: [fromTerritoryId], references: [id])
+  toTerritoryId String
+  toTerritory   Territory @relation("DistTo", fields: [toTerritoryId], references: [id])
+  quantity      Int
+  notes         String?
+  status        String   @default("PENDING") // PENDING | IN_TRANSIT | RECEIVED | CANCELLED
+  sentAt        DateTime?
+  receivedAt    DateTime?
+  receivedById  String?
+  receivedBy    User?    @relation("DistReceiver", fields: [receivedById], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ============================================================
+// EVENT & MOBILISASI
+// ============================================================
+model Event {
+  id            String   @id @default(cuid())
+  title         String
+  description   String?
+  type          String   // PELANTIKAN | MOBILISASI | RAPAT | SOSIAL | LAINNYA
+  startDate     DateTime
+  endDate       DateTime?
+  location      String?
+  territoryId   String
+  territory     Territory @relation(fields: [territoryId], references: [id])
+  createdById   String
+  createdBy     User     @relation("EventCreator", fields: [createdById], references: [id])
+  status        String   @default("SCHEDULED") // SCHEDULED | ONGOING | COMPLETED | CANCELLED
+  targetAttendance Int?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  attendance    EventAttendance[]
+  reports       EventReport[]
+}
+
+model EventAttendance {
+  id            String   @id @default(cuid())
+  eventId       String
+  event         Event     @relation(fields: [eventId], references: [id])
+  memberId      String
+  member        Member    @relation(fields: [memberId], references: [id])
+  status        String   @default("PRESENT") // PRESENT | ABSENT | EXCUSED
+  checkInTime   DateTime?
+  notes         String?
+  recordedById  String?
+  recordedBy    User?     @relation(fields: [recordedById], references: [id])
+  createdAt     DateTime @default(now())
+}
+
+model EventReport {
+  id            String   @id @default(cuid())
+  eventId       String
+  event         Event     @relation(fields: [eventId], references: [id])
+  title         String
+  content       String
+  photoUrls     String?  // JSON array
+  videoUrls     String?  // JSON array
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ============================================================
+// KOMUNIKASI & BROADCAST
+// ============================================================
+model Broadcast {
+  id            String   @id @default(cuid())
+  title         String
+  message       String
+  channel       String   @default("WHATSAPP") // WHATSAPP | SMS | EMAIL
+  status        String   @default("DRAFT") // DRAFT | QUEUED | SENT | FAILED
+  targetScope   String   // JSON: {territoryId, level, filter}
+  recipientCount Int     @default(0)
+  sentById      String
+  sentBy        User     @relation(fields: [sentById], references: [id])
+  scheduledAt   DateTime?
+  sentAt        DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Announcement {
+  id            String   @id @default(cuid())
+  title         String
+  content       String
+  type          String   @default("INFO") // INFO | WARNING | URGENT
+  isPinned      Boolean  @default(false)
+  isActive      Boolean  @default(true)
+  expiresAt     DateTime?
+  territoryId   String
+  territory     Territory @relation(fields: [territoryId], references: [id])
+  createdById   String
+  createdBy     User     @relation(fields: [createdById], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ============================================================
+// KAS & KEUANGAN
+// ============================================================
+model FinanceTransaction {
+  id            String   @id @default(cuid())
+  type          String   // INCOME | EXPENSE
+  category      String   // IURAN | DONASI | SEWA | CETAK | OPERASIONAL | LAINNYA
+  amount        Float
+  description   String?
+  receiptUrl    String?
+  transactionDate DateTime
+  territoryId   String
+  territory     Territory @relation(fields: [territoryId], references: [id])
+  recordedById  String
+  recordedBy    User     @relation(fields: [recordedById], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ============================================================
+// HELP DESK - Tiket Laporan Error
+// ============================================================
+model SupportTicket {
+  id            String   @id @default(cuid())
+  ticketNumber  String   @unique
+  title         String
+  description   String
+  category      String   @default("BUG") // BUG | QUESTION | FEATURE_REQUEST | OTHER
+  priority      String   @default("MEDIUM") // LOW | MEDIUM | HIGH | URGENT
+  status        String   @default("OPEN") // OPEN | IN_PROGRESS | RESOLVED | CLOSED
+  reporterId    String
+  reporter      User     @relation("TicketReporter", fields: [reporterId], references: [id])
+  assignedTo    String?
+  screenshotUrl String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  replies       SupportTicketReply[]
+}
+
+model SupportTicketReply {
+  id            String   @id @default(cuid())
+  ticketId      String
+  ticket        SupportTicket @relation(fields: [ticketId], references: [id])
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  message       String
+  createdAt     DateTime @default(now())
+}
+
+// ============================================================
+// SECURITY SETTINGS - Saklar Keamanan (Fase Finishing)
+// ============================================================
+model SecuritySetting {
+  id            String   @id @default(cuid())
+  key           String   @unique
+  value         String   // JSON atau string sederhana
+  isActive      Boolean  @default(false)
+  description   String?
+  updatedAt     DateTime @updatedAt
+}
+
+// ============================================================
+// SYSTEM SETTINGS - Konfigurasi global dinamis
+// ============================================================
+model SystemSetting {
+  id            String   @id @default(cuid())
+  key           String   @unique
+  value         String
+  category      String   @default("GENERAL")
+  description   String?
+  updatedAt     DateTime @updatedAt
+}
