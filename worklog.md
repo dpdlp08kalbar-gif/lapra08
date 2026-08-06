@@ -101,3 +101,47 @@ Stage Summary:
   - Internasional: LAPRA08.US.00.LAX.26.0000X
 - UI menampilkan badge Read-Only dan disable edit untuk data di luar scope
 - Dashboard menampilkan statistik per level dengan format KTA masing-masing
+
+---
+Task ID: LAPRA08-FIX-UNAUTHORIZED
+Agent: Main Agent (Super Z)
+Task: Perbaiki error "Unauthorized" di apiFetch saat reload halaman
+
+Work Log:
+- Investigasi penyebab: race condition antara Zustand persist hydration dan API call pertama
+  * Zustand persist hydrate dari localStorage secara ASYNC
+  * Komponen (DashboardMenu, MainShell) langsung call API di useEffect sebelum store selesai hydrate
+  * Akibatnya: useAuthStore.getState().user masih null → x-user-id header tidak terkirim → API return 401
+- Solusi 1: Tambah flag hasHydrated ke auth store
+  * Tambah state hasHydrated: boolean (default false)
+  * Gunakan onRehydrateStorage callback untuk set hasHydrated=true setelah hydrate selesai
+  * Tambah method setHasHydrated
+- Solusi 2: Update page.tsx untuk tunggu hydration
+  * Tampilkan loading screen dengan spinner selama hasHydrated=false
+  * Hanya render LoginPage atau MainShell setelah hasHydrated=true
+  * Ini mencegah komponen menu render dan call API sebelum session ter-load
+- Solusi 3: Update MainShell dengan guard hasHydrated
+  * Tambah hasHydrated ke useAuthStore selector
+  * useEffect hanya fetch menus jika hasHydrated && user
+  * Return null jika !hasHydrated atau !user
+- Solusi 4: Update DashboardMenu dengan defensive guard
+  * Hapus non-null assertion (!), ganti dengan optional
+  * Tambah if (!user) return di useEffect
+  * Tambah if (!user) return <LoadingState> di render
+- Solusi 5: Update api-client.ts untuk handle 401 gracefully
+  * Jika API return 401, auto-logout dan reload ke login page
+  * Tampilkan pesan "Session tidak valid. Silakan login kembali."
+  * Ini mencegah error unhandled di console
+- Verifikasi via Agent Browser:
+  * Login sebagai DPN → dashboard tampil dengan data ✓
+  * Reload halaman → tidak ada error 401 di console ✓
+  * Dev log: GET /api/menus 200, GET /api/stats 200 (bukan 401 lagi) ✓
+  * Navigasi semua 10 menu → tidak ada error ✓
+  * Test session expired (hapus localStorage) → auto-redirect ke login ✓
+
+Stage Summary:
+- Error "Unauthorized" di apiFetch berhasil diperbaiki
+- Race condition antara hydration dan API call teratasi dengan hasHydrated flag
+- Loading screen tampil saat menunggu hydration (UX lebih baik)
+- Auto-logout jika session invalid/expired (graceful degradation)
+- Semua 10 menu berfungsi normal setelah reload tanpa error

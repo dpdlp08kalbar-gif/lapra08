@@ -74,18 +74,21 @@ interface Stats {
 }
 
 export function DashboardMenu() {
-  const user = useAuthStore((s) => s.user)!
+  const user = useAuthStore((s) => s.user)
   const [stats, setStats] = useState<Stats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   useEffect(() => {
+    // Jangan panggil API jika user belum ada (defensive)
+    if (!user) return
     api('/api/stats')
       .then((data) => setStats(data))
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false))
-  }, [])
+  }, [user])
 
+  if (!user) return <LoadingState message="Memuat data user..." />
   if (loading) return <LoadingState message="Memuat statistik dashboard..." />
   if (error) return <ErrorState message={error} />
   if (!stats) return null

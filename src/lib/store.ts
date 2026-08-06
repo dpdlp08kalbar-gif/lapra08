@@ -7,8 +7,10 @@ import type { SessionUser, Role } from '@/lib/types'
 interface AuthState {
   user: SessionUser | null
   isAuthenticated: boolean
+  hasHydrated: boolean // flag untuk cek apakah store sudah di-hydrate dari localStorage
   login: (user: SessionUser) => void
   logout: () => void
+  setHasHydrated: (v: boolean) => void
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -16,11 +18,17 @@ export const useAuthStore = create<AuthState>()(
     (set) => ({
       user: null,
       isAuthenticated: false,
+      hasHydrated: false,
       login: (user) => set({ user, isAuthenticated: true }),
       logout: () => set({ user: null, isAuthenticated: false }),
+      setHasHydrated: (v) => set({ hasHydrated: v }),
     }),
     {
       name: 'lapra08-auth',
+      onRehydrateStorage: () => (state) => {
+        // Dipanggil setelah store selesai di-hydrate dari localStorage
+        state?.setHasHydrated(true)
+      },
     }
   )
 )

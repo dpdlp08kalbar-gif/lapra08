@@ -65,6 +65,7 @@ interface MenuData {
 
 export function MainShell({ children }: { children: React.ReactNode }) {
   const user = useAuthStore((s) => s.user)
+  const hasHydrated = useAuthStore((s) => s.hasHydrated)
   const logout = useAuthStore((s) => s.logout)
   const activeMenu = useNavStore((s) => s.activeMenu)
   const setActiveMenu = useNavStore((s) => s.setActiveMenu)
@@ -74,11 +75,14 @@ export function MainShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false)
 
   useEffect(() => {
-    if (user) {
+    // Hanya fetch menus jika sudah hydrated dan user ada
+    if (hasHydrated && user) {
       api('/api/menus').then(setMenus).catch(console.error)
     }
-  }, [user])
+  }, [user, hasHydrated])
 
+  // Tunggu hydration selesai sebelum render apapun
+  if (!hasHydrated) return null
   if (!user) return null
 
   const handleLogout = () => {

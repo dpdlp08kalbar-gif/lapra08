@@ -15,6 +15,18 @@ export async function apiFetch(path: string, options: RequestInit = {}) {
     headers,
   })
   const data = await res.json()
+
+  // Handle 401 Unauthorized: auto-logout dan reload ke login page
+  if (res.status === 401) {
+    console.warn('[API] Session invalid or expired, logging out...')
+    useAuthStore.getState().logout()
+    // Hanya reload jika bukan di halaman login
+    if (typeof window !== 'undefined') {
+      window.location.reload()
+    }
+    throw new Error('Session tidak valid. Silakan login kembali.')
+  }
+
   if (!res.ok || !data.success) {
     throw new Error(data.error || `HTTP ${res.status}`)
   }
