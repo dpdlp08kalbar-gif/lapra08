@@ -41,6 +41,47 @@ export async function PUT(
       }
     }
 
+    // ===== VALIDASI HIERARKI KETAT saat EDIT =====
+    const effectiveLevel = level || existing.level
+    const effectiveParentId = parentId !== undefined ? parentId : existing.parentId
+
+    if (effectiveLevel === 'REGENCY' && effectiveParentId) {
+      const parent = await db.territory.findUnique({ where: { id: effectiveParentId } })
+      if (!parent) {
+        return NextResponse.json(
+          { success: false, error: '❌ ORPHAN PREVENTION: DPD Parent tidak ditemukan.' },
+          { status: 400 }
+        )
+      }
+      if (!parent.isActive) {
+        return NextResponse.json(
+          { success: false, error: `❌ ORPHAN PREVENTION: DPD Parent "${parent.name}" tidak aktif.` },
+          { status: 400 }
+        )
+      }
+      // RULE 1: Code format untuk domestik
+      if (parent.category === 'DOMESTIC' && parent.level === 'PROVINCE' && code) {
+        if (!code.startsWith(parent.code)) {
+          return NextResponse.json(
+            { success: false, error: `❌ CODE FORMAT VIOLATION: Kode DPC "${code}" harus diawali "${parent.code}".` },
+            { status: 400 }
+          )
+        }
+      }
+      // RULE 3: Unique name within DPD
+      if (name && name !== existing.name) {
+        const dupName = await db.territory.findFirst({
+          where: { name, parentId: effectiveParentId, level: 'REGENCY', id: { not: id } },
+        })
+        if (dupName) {
+          return NextResponse.json(
+            { success: false, error: `❌ UNIQUE CONSTRAINT: Nama "${name}" sudah ada dalam DPD ini.` },
+            { status: 400 }
+          )
+        }
+      }
+    }
+
     const updated = await db.territory.update({
       where: { id },
       data: {
