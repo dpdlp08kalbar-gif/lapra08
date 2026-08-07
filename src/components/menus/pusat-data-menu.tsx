@@ -217,11 +217,14 @@ function DpnPage({ onBack }: { onBack: () => void }) {
 // ============================================================
 function DpdListPage({ onBack, onSelectDpd }: { onBack: () => void; onSelectDpd: (t: Territory) => void }) {
   const user = useAuthStore((s) => s.user)!
+  const addToast = useToastStore((s) => s.addToast)
   const [dpds, setDpds] = useState<Territory[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
   const [addOpen, setAddOpen] = useState(false)
+  const [editDpd, setEditDpd] = useState<Territory | null>(null)
+  const [deleteDpd, setDeleteDpd] = useState<Territory | null>(null)
 
   const loadData = () => {
     setLoading(true)
@@ -231,6 +234,15 @@ function DpdListPage({ onBack, onSelectDpd }: { onBack: () => void; onSelectDpd:
       .finally(() => setLoading(false))
   }
   useEffect(() => { loadData() }, [])
+
+  const handleDelete = async () => {
+    if (!deleteDpd) return
+    try {
+      await api(`/api/territory/${deleteDpd.id}`, { method: 'DELETE' })
+      addToast(`DPD "${deleteDpd.name}" berhasil dihapus`, 'success')
+      setDeleteDpd(null); loadData()
+    } catch (e: any) { addToast(e.message, 'error') }
+  }
 
   if (loading) return <><BackButton onBack={onBack} label="DPD (Provinsi)" /><LoadingState /></>
   if (error) return <><BackButton onBack={onBack} label="DPD (Provinsi)" /><ErrorState message={error} /></>
@@ -271,7 +283,7 @@ function DpdListPage({ onBack, onSelectDpd }: { onBack: () => void; onSelectDpd:
         <CardContent>
           <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
             {domestic.map((d) => (
-              <DpdCard key={d.id} dpd={d} onClick={() => onSelectDpd(d)} canManage={canManage} />
+              <TerritoryCard key={d.id} territory={d} onClick={() => onSelectDpd(d)} canManage={canManage} onEdit={() => setEditDpd(d)} onDelete={() => setDeleteDpd(d)} />
             ))}
           </div>
         </CardContent>
@@ -289,31 +301,62 @@ function DpdListPage({ onBack, onSelectDpd }: { onBack: () => void; onSelectDpd:
           <CardContent>
             <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
               {intl.map((d) => (
-                <DpdCard key={d.id} dpd={d} onClick={() => onSelectDpd(d)} canManage={canManage} />
+                <TerritoryCard key={d.id} territory={d} onClick={() => onSelectDpd(d)} canManage={canManage} onEdit={() => setEditDpd(d)} onDelete={() => setDeleteDpd(d)} />
               ))}
             </div>
           </CardContent>
         </Card>
       )}
 
+      {/* Dialogs */}
       <AddTerritoryDialog open={addOpen} onOpenChange={setAddOpen} level="PROVINCE" onSuccess={loadData} />
+      <EditTerritoryDialog territory={editDpd} onOpenChange={(o) => !o && setEditDpd(null)} onSuccess={() => { loadData(); setEditDpd(null); addToast('DPD diperbarui', 'success') }} />
+      <AlertDialog open={!!deleteDpd} onOpenChange={(o) => !o && setDeleteDpd(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus DPD?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Yakin hapus <strong>{deleteDpd?.name}</strong> ({deleteDpd?.code})?
+              DPD yang masih memiliki DPC atau anggota tidak bisa dihapus.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">Hapus</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
 
-function DpdCard({ dpd, onClick, canManage }: { dpd: Territory; onClick: () => void; canManage: boolean }) {
+// Reusable card untuk DPD & DPC dengan ikon Edit & Hapus
+function TerritoryCard({ territory, onClick, canManage, onEdit, onDelete }: {
+  territory: Territory; onClick: () => void; canManage: boolean; onEdit: () => void; onDelete: () => void
+}) {
   return (
-    <div className="group rounded-lg border p-3 hover:shadow-md transition-all cursor-pointer" onClick={onClick}>
+    <div className="group relative rounded-lg border p-3 hover:shadow-md transition-all cursor-pointer" onClick={onClick}>
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
-          <div className="font-semibold text-sm truncate">{dpd.name}</div>
-          <code className="text-[10px] font-mono bg-muted px-1.5 py-0.5 rounded">{dpd.code}</code>
+          <div className="font-semibold text-sm truncate">{territory.name}</div>
+          <code className="text-[10px] font-mono bg-muted px-1.5 py-0.5 rounded">{territory.code}</code>
           <div className="text-xs text-muted-foreground mt-1">
-            {dpd._count?.children || 0} DPC • {dpd._count?.members || 0} anggota
+            {territory._count?.children || 0} DPC • {territory._count?.members || 0} anggota
           </div>
         </div>
         <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground" />
       </div>
+      {/* Ikon Edit & Hapus di sudut kanan atas */}
+      {canManage && (
+        <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-blue-600 hover:bg-blue-50" onClick={onEdit} title="Edit">
+            <Edit className="w-3.5 h-3.5" />
+          </Button>
+          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-600 hover:bg-red-50" onClick={onDelete} title="Hapus">
+            <Trash2 className="w-3.5 h-3.5" />
+          </Button>
+        </div>
+      )}
     </div>
   )
 }
@@ -336,15 +379,18 @@ function DpdDetailPage({ dpd, onBack }: { dpd: Territory; onBack: () => void }) 
 // ============================================================
 function DpcListPage({ onBack, onSelectDpc }: { onBack: () => void; onSelectDpc: (t: Territory) => void }) {
   const user = useAuthStore((s) => s.user)!
+  const addToast = useToastStore((s) => s.addToast)
   const [dpds, setDpds] = useState<Territory[]>([])
   const [selectedDpdId, setSelectedDpdId] = useState<string>('')
   const [dpcs, setDpcs] = useState<Territory[]>([])
   const [loading, setLoading] = useState(true)
+  const [addOpen, setAddOpen] = useState(false)
+  const [editDpc, setEditDpc] = useState<Territory | null>(null)
+  const [deleteDpc, setDeleteDpc] = useState<Territory | null>(null)
 
-  useEffect(() => {
+  const loadDpds = () => {
     api('/api/territory?level=PROVINCE').then((d) => {
       setDpds(d)
-      // Auto-select DPD Kalbar jika user adalah DPD Kalbar, atau DPN pertama
       if (user.role === 'ADMIN_DPD') {
         setSelectedDpdId(user.territoryId)
       } else if (d.length > 0) {
@@ -353,15 +399,28 @@ function DpcListPage({ onBack, onSelectDpc }: { onBack: () => void; onSelectDpc:
       }
       setLoading(false)
     }).catch(() => setLoading(false))
-  }, [])
+  }
 
-  useEffect(() => {
+  useEffect(() => { loadDpds() }, [])
+
+  const loadDpcs = () => {
     if (selectedDpdId) {
       api(`/api/territory?parentId=${selectedDpdId}`).then(setDpcs).catch(() => setDpcs([]))
     } else {
       setDpcs([])
     }
-  }, [selectedDpdId])
+  }
+
+  useEffect(() => { loadDpcs() }, [selectedDpdId])
+
+  const handleDelete = async () => {
+    if (!deleteDpc) return
+    try {
+      await api(`/api/territory/${deleteDpc.id}`, { method: 'DELETE' })
+      addToast(`DPC "${deleteDpc.name}" berhasil dihapus`, 'success')
+      setDeleteDpc(null); loadDpcs()
+    } catch (e: any) { addToast(e.message, 'error') }
+  }
 
   if (loading) return <><BackButton onBack={onBack} label="DPC (Kabupaten/Kota)" /><LoadingState /></>
 
@@ -387,10 +446,17 @@ function DpcListPage({ onBack, onSelectDpc }: { onBack: () => void; onSelectDpc:
       {selectedDpdId && (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <MapPin className="w-4 h-4 text-emerald-600" />
-              Daftar DPC ({dpcs.length})
-            </CardTitle>
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <MapPin className="w-4 h-4 text-emerald-600" />
+                Daftar DPC ({dpcs.length})
+              </CardTitle>
+              {canManage && (
+                <Button onClick={() => setAddOpen(true)} size="sm" className="bg-gradient-to-r from-orange-600 to-red-600 text-white">
+                  <Plus className="w-4 h-4 mr-1" /> Tambah DPC
+                </Button>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
             {dpcs.length === 0 ? (
@@ -398,24 +464,32 @@ function DpcListPage({ onBack, onSelectDpc }: { onBack: () => void; onSelectDpc:
             ) : (
               <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
                 {dpcs.map((d) => (
-                  <div key={d.id} className="group rounded-lg border p-3 hover:shadow-md transition-all cursor-pointer" onClick={() => onSelectDpc(d)}>
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <div className="font-semibold text-sm truncate">{d.name}</div>
-                        <code className="text-[10px] font-mono bg-muted px-1.5 py-0.5 rounded">{d.code}</code>
-                        <div className="text-xs text-muted-foreground mt-1">
-                          {d._count?.members || 0} anggota
-                        </div>
-                      </div>
-                      <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground" />
-                    </div>
-                  </div>
+                  <TerritoryCard key={d.id} territory={d} onClick={() => onSelectDpc(d)} canManage={canManage} onEdit={() => setEditDpc(d)} onDelete={() => setDeleteDpc(d)} />
                 ))}
               </div>
             )}
           </CardContent>
         </Card>
       )}
+
+      {/* Dialogs */}
+      <AddTerritoryDialog open={addOpen} onOpenChange={setAddOpen} level="REGENCY" parentId={selectedDpdId} onSuccess={() => { loadDpcs(); setAddOpen(false); addToast('DPC baru ditambahkan', 'success') }} />
+      <EditTerritoryDialog territory={editDpc} onOpenChange={(o) => !o && setEditDpc(null)} onSuccess={() => { loadDpcs(); setEditDpc(null); addToast('DPC diperbarui', 'success') }} />
+      <AlertDialog open={!!deleteDpc} onOpenChange={(o) => !o && setDeleteDpc(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus DPC?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Yakin hapus <strong>{deleteDpc?.name}</strong> ({deleteDpc?.code})?
+              DPC yang masih memiliki anggota tidak bisa dihapus.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">Hapus</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
@@ -1342,37 +1416,106 @@ function UploadSKDialogSimple({ open, onOpenChange, territoryId, territoryFilter
   )
 }
 
-function AddTerritoryDialog({ open, onOpenChange, level, onSuccess }: any) {
+function AddTerritoryDialog({ open, onOpenChange, level, parentId: defaultParentId, onSuccess }: any) {
   const addToast = useToastStore((s) => s.addToast)
-  const [form, setForm] = useState({ code: '', name: '', level: 'PROVINCE', category: 'DOMESTIC', parentId: '' })
+  const [form, setForm] = useState({ code: '', name: '', level: level || 'PROVINCE', category: 'DOMESTIC', parentId: defaultParentId || '' })
   const [loading, setLoading] = useState(false)
   const [countries, setCountries] = useState<Territory[]>([])
 
   useEffect(() => {
-    if (open) api('/api/territory?level=COUNTRY').then(setCountries).catch(() => {})
-  }, [open])
+    if (open) {
+      api('/api/territory?level=COUNTRY').then(setCountries).catch(() => {})
+      setForm((f) => ({ ...f, level: level || 'PROVINCE', parentId: defaultParentId || f.parentId }))
+    }
+  }, [open, level, defaultParentId])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault(); setLoading(true)
     try {
       await api('/api/territory', { method: 'POST', body: JSON.stringify({ ...form, parentId: form.parentId || null }) })
-      setForm({ code: '', name: '', level: 'PROVINCE', category: 'DOMESTIC', parentId: '' })
+      setForm({ code: '', name: '', level: level || 'PROVINCE', category: 'DOMESTIC', parentId: defaultParentId || '' })
       onSuccess()
     } catch (e: any) { addToast(e.message, 'error') } finally { setLoading(false) }
   }
 
+  const isDPC = (level || form.level) === 'REGENCY'
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
-        <DialogHeader><DialogTitle>Tambah DPD</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{isDPC ? 'Tambah DPC' : 'Tambah DPD'}</DialogTitle></DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2"><Label>Kode *</Label><Input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })} required /></div>
             <div className="space-y-2"><Label>Nama *</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></div>
           </div>
-          <div className="space-y-2"><Label>Negara Induk</Label><Select value={form.parentId || 'ID'} onValueChange={(v) => setForm({ ...form, parentId: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{countries.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent></Select></div>
+          {/* Untuk DPD: pilih negara induk. Untuk DPC: parentId sudah di-set dari selectedDpdId */}
+          {!isDPC ? (
+            <div className="space-y-2"><Label>Negara Induk</Label><Select value={form.parentId || ''} onValueChange={(v) => setForm({ ...form, parentId: v })}><SelectTrigger><SelectValue placeholder="Pilih negara..." /></SelectTrigger><SelectContent>{countries.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent></Select></div>
+          ) : (
+            <div className="rounded-lg bg-blue-50 border border-blue-200 p-2 text-xs text-blue-800">
+              <strong>DPC akan otomatis terikat ke DPD yang dipilih.</strong> Kode DPC harus diawali kode DPD parent.
+            </div>
+          )}
           <div className="space-y-2"><Label>Kategori</Label><Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="DOMESTIC">Domestik</SelectItem><SelectItem value="INTERNATIONAL">Internasional</SelectItem></SelectContent></Select></div>
           <DialogFooter><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Batal</Button><Button type="submit" disabled={loading}>{loading ? 'Menyimpan...' : 'Simpan'}</Button></DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ============================================================
+// EDIT TERRITORY DIALOG - Modal async untuk edit DPD/DPC
+// ============================================================
+function EditTerritoryDialog({ territory, onOpenChange, onSuccess }: any) {
+  const addToast = useToastStore((s) => s.addToast)
+  const [form, setForm] = useState<any>({})
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (territory) {
+      setForm({
+        code: territory.code,
+        name: territory.name,
+        level: territory.level,
+        category: territory.category,
+        parentId: territory.parentId || '',
+        isActive: territory.isActive,
+      })
+    }
+  }, [territory])
+
+  if (!territory) return null
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault(); setLoading(true)
+    try {
+      await api(`/api/territory/${territory.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(form),
+      })
+      onSuccess()
+    } catch (e: any) { addToast(e.message, 'error') } finally { setLoading(false) }
+  }
+
+  const label = territory.level === 'PROVINCE' ? 'DPD' : 'DPC'
+
+  return (
+    <Dialog open={!!territory} onOpenChange={(o) => !o && onOpenChange(false)}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Edit {label}</DialogTitle>
+          <DialogDescription>Edit data wilayah <strong>{territory.name}</strong></DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2"><Label>Kode</Label><Input value={form.code || ''} onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })} /></div>
+            <div className="space-y-2"><Label>Nama *</Label><Input value={form.name || ''} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></div>
+          </div>
+          <div className="space-y-2"><Label>Kategori</Label><Select value={form.category || 'DOMESTIC'} onValueChange={(v) => setForm({ ...form, category: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="DOMESTIC">Domestik</SelectItem><SelectItem value="INTERNATIONAL">Internasional</SelectItem></SelectContent></Select></div>
+          <div className="space-y-2"><Label>Status</Label><Select value={form.isActive ? 'true' : 'false'} onValueChange={(v) => setForm({ ...form, isActive: v === 'true' })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="true">Aktif</SelectItem><SelectItem value="false">Nonaktif</SelectItem></SelectContent></Select></div>
+          <DialogFooter><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Batal</Button><Button type="submit" disabled={loading}>{loading ? 'Menyimpan...' : 'Simpan Perubahan'}</Button></DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
