@@ -364,13 +364,198 @@ export function PusatMediaMenu() {
       {tab === 'berita' ? (
         <AnnouncementManager />
       ) : tab === 'galeri' ? (
-        <Card><CardContent className="py-12"><EmptyState icon={ImageIcon} title="Galeri Media" description="Album foto kegiatan & video dokumenter siap diisi." /></CardContent></Card>
+        <GalleryManager />
       ) : tab === 'rilis-pers' ? (
         <Card><CardContent className="py-12"><EmptyState icon={Megaphone} title="Media Siaran LAPRA 08" description="Rilis pers resmi DPN siap diisi." /></CardContent></Card>
       ) : (
         <Card><CardContent className="py-12"><EmptyState icon={BookOpen} title="Majalah / Buletin Digital" description="Publikasi majalah digital siap diisi." /></CardContent></Card>
       )}
     </div>
+  )
+}
+
+// ============================================================
+// GALLERY MANAGER — Upload foto, pilih dari berita, hapus
+// ============================================================
+function GalleryManager() {
+  const addToast = useToastStore((s) => s.addToast)
+  const [items, setItems] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [uploadOpen, setUploadOpen] = useState(false)
+  const [deleteItem, setDeleteItem] = useState<any>(null)
+  const [form, setForm] = useState({ title: '', description: '', category: 'KEGIATAN' })
+  const [file, setFile] = useState<File | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const [syncLoading, setSyncLoading] = useState(false)
+
+  const loadData = () => {
+    setLoading(true)
+    api('/api/gallery').then(setItems).catch(() => {}).finally(() => setLoading(false))
+  }
+  useEffect(() => { loadData() }, [])
+
+  const handleUpload = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!file) { addToast('Pilih file gambar dulu', 'error'); return }
+    setUploading(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('title', form.title || file.name)
+      formData.append('description', form.description)
+      formData.append('category', form.category)
+
+      const res = await fetch('/api/gallery', {
+        method: 'POST',
+        headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+        body: formData,
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) throw new Error(data.error || 'Upload gagal')
+
+      addToast('Foto berhasil diupload ke galeri', 'success')
+      setForm({ title: '', description: '', category: 'KEGIATAN' })
+      setFile(null); setUploadOpen(false)
+      loadData()
+    } catch (e: any) { addToast(e.message, 'error') }
+    finally { setUploading(false) }
+  }
+
+  const handleDelete = async () => {
+    if (!deleteItem) return
+    try {
+      await fetch(`/api/gallery/${deleteItem.id}?id=${deleteItem.id}`, {
+        method: 'DELETE',
+        headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+      })
+      addToast('Foto dihapus dari galeri', 'success')
+      setDeleteItem(null); loadData()
+    } catch (e: any) { addToast(e.message, 'error') }
+  }
+
+  const handleSyncFromNews = async () => {
+    setSyncLoading(true)
+    try {
+      const res = await fetch('/api/news/sync', {
+        method: 'POST',
+        headers: { 'x-user-id': useAuthStore.getState().user?.id || '', 'Content-Type': 'application/json' },
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) throw new Error(data.error || 'Sync gagal')
+      addToast(data.message, 'success')
+      loadData()
+    } catch (e: any) { addToast(e.message, 'error') }
+    finally { setSyncLoading(false) }
+  }
+
+  if (loading) return <LoadingState />
+
+  const categories: Record<string, string> = {
+    KEGIATAN: 'Kegiatan', RAPAT: 'Rapat', PELANTIKAN: 'Pelantikan',
+    SOSIAL: 'Aksi Sosial', DOKUMENTER: 'Dokumenter', LAINNYA: 'Lainnya',
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <ImageIcon className="w-4 h-4 text-emerald-600" />
+            Galeri Media ({items.length} foto)
+          </CardTitle>
+          <div className="flex gap-2">
+            <Button onClick={handleSyncFromNews} size="sm" variant="outline" disabled={syncLoading}
+              className="border-blue-300 text-blue-600 hover:bg-blue-50">
+              {syncLoading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Newspaper className="w-4 h-4 mr-1" />}
+              Sync Berita Terbaru
+            </Button>
+            <Button onClick={() => setUploadOpen(true)} size="sm"
+              className="bg-gradient-to-r from-orange-600 to-red-600 text-white">
+              <Plus className="w-4 h-4 mr-1" /> Upload Foto
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {items.length === 0 ? (
+          <EmptyState icon={ImageIcon} title="Galeri masih kosong" description="Upload foto kegiatan atau sync dari berita yang sudah ada." />
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+            {items.map((item) => (
+              <div key={item.id} className="group relative rounded-xl overflow-hidden border shadow-sm hover:shadow-lg transition-all">
+                <img src={item.fileUrl} alt={item.title} className="w-full h-40 object-cover" />
+                <div className="p-2">
+                  <div className="font-medium text-xs truncate">{item.title}</div>
+                  <Badge variant="outline" className="text-[10px] mt-1">{categories[item.category] || item.category}</Badge>
+                </div>
+                <Button variant="destructive" size="sm"
+                  className="absolute top-2 right-2 h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                  onClick={() => setDeleteItem(item)}>
+                  <Trash2 className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+
+      {/* Upload Dialog */}
+      <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>Upload Foto ke Galeri</DialogTitle></DialogHeader>
+          <form onSubmit={handleUpload} className="space-y-3">
+            <div className="space-y-2">
+              <Label>Pilih File Gambar *</Label>
+              {file ? (
+                <div className="relative">
+                  <img src={URL.createObjectURL(file)} alt="Preview" className="w-full max-h-48 object-cover rounded-xl border" />
+                  <Button type="button" variant="destructive" size="sm" className="absolute top-2 right-2"
+                    onClick={() => setFile(null)}>
+                    <Trash2 className="w-3.5 h-3.5 mr-1" /> Hapus
+                  </Button>
+                </div>
+              ) : (
+                <div className="border-2 border-dashed rounded-xl p-6 text-center hover:border-emerald-400 transition-colors cursor-pointer"
+                  onClick={() => document.getElementById('gallery-upload-input')?.click()}>
+                  <input type="file" id="gallery-upload-input" className="hidden" accept="image/*"
+                    onChange={(e) => setFile(e.target.files?.[0] || null)} />
+                  <Upload className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+                  <div className="text-sm font-medium">Upload Foto</div>
+                  <div className="text-xs text-muted-foreground mt-1">JPG, PNG, WebP • Maks 10MB</div>
+                </div>
+              )}
+            </div>
+            <div className="space-y-2"><Label>Judul Foto</Label><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="cth: Pelantikan DPC Pontianak" /></div>
+            <div className="space-y-2"><Label>Deskripsi</Label><Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={2} placeholder="Deskripsi singkat foto..." /></div>
+            <div className="space-y-2"><Label>Kategori</Label>
+              <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {Object.entries(categories).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setUploadOpen(false)}>Batal</Button>
+              <Button type="submit" disabled={uploading || !file}>{uploading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : null} Upload</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!deleteItem} onOpenChange={(o) => !o && setDeleteItem(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus Foto?</AlertDialogTitle>
+            <AlertDialogDescription>Yakin hapus <strong>{deleteItem?.title}</strong> dari galeri?</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">Hapus</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </Card>
   )
 }
 

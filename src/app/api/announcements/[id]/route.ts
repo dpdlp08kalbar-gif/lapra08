@@ -1,0 +1,66 @@
+// LAPRA 08 - API: Announcement [id] - Update & Delete
+import { NextRequest, NextResponse } from 'next/server'
+import { db } from '@/lib/db'
+import { getUserFromRequest, getEditableTerritoryIds } from '@/lib/server-helpers'
+
+// PUT - Update announcement
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const user = await getUserFromRequest(request)
+  if (!user) {
+    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+  }
+  const { id } = await params
+
+  try {
+    const body = await request.json()
+    const { title, content, type, category, isPinned, isActive, photoUrl, publishDate, territoryId } = body
+
+    const existing = await db.announcement.findUnique({ where: { id } })
+    if (!existing) {
+      return NextResponse.json({ success: false, error: 'Berita tidak ditemukan' }, { status: 404 })
+    }
+
+    const updated = await db.announcement.update({
+      where: { id },
+      data: {
+        title: title || undefined,
+        content: content || undefined,
+        type: type || undefined,
+        category: category || undefined,
+        isPinned: typeof isPinned === 'boolean' ? isPinned : undefined,
+        isActive: typeof isActive === 'boolean' ? isActive : undefined,
+        photoUrl: photoUrl !== undefined ? photoUrl : undefined,
+        publishDate: publishDate ? new Date(publishDate) : undefined,
+        territoryId: territoryId || undefined,
+      },
+      include: { territory: true, createdBy: true },
+    })
+
+    return NextResponse.json({ success: true, data: updated })
+  } catch (e: any) {
+    return NextResponse.json({ success: false, error: e.message }, { status: 500 })
+  }
+}
+
+// DELETE - Delete announcement (admin bisa hapus berita yg tidak penting)
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const user = await getUserFromRequest(request)
+  if (!user) {
+    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+  }
+  const { id } = await params
+
+  const existing = await db.announcement.findUnique({ where: { id } })
+  if (!existing) {
+    return NextResponse.json({ success: false, error: 'Berita tidak ditemukan' }, { status: 404 })
+  }
+
+  await db.announcement.delete({ where: { id } })
+  return NextResponse.json({ success: true, message: 'Berita berhasil dihapus' })
+}
