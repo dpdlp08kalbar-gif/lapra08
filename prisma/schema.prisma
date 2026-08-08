@@ -324,8 +324,11 @@ model Announcement {
   title         String
   content       String
   type          String   @default("INFO") // INFO | WARNING | URGENT
+  category      String   @default("BERITA") // BERITA | PENGUMUMAN | SIRANAN_PERS
   isPinned      Boolean  @default(false)
   isActive      Boolean  @default(true)
+  photoUrl      String?
+  publishDate   DateTime?
   expiresAt     DateTime?
   territoryId   String
   territory     Territory @relation(fields: [territoryId], references: [id])
