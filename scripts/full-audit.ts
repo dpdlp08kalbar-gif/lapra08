@@ -180,7 +180,7 @@ async function audit() {
   console.log('\n🌐 9. API ROUTES')
   console.log('-'.repeat(40))
   
-  const fs = require('fs')
+  import * as fs from 'fs'
   const apiPath = '/home/z/my-project/src/app/api'
   const apis = fs.readdirSync(apiPath)
   let apiCount = 0
