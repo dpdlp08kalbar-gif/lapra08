@@ -130,13 +130,6 @@ export function DashboardMenu() {
           subtitle={`${stats.members.active} aktif`}
         />
         <StatCard
-          label="Saldo Kas"
-          value={formatIDR(stats.finance.balance)}
-          icon={Wallet}
-          color={stats.finance.balance >= 0 ? 'emerald' : 'red'}
-          subtitle={`Pemasukan: ${formatIDR(stats.finance.totalIncome)}`}
-        />
-        <StatCard
           label="Event Mendatang"
           value={stats.events.upcoming}
           icon={CalendarDays}
@@ -348,45 +341,7 @@ export function DashboardMenu() {
           </Card>
         )}
 
-        {/* Finance overview */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Wallet className="w-5 h-5 text-emerald-600" />
-              Ringkasan Keuangan
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-center justify-between p-3 rounded-lg bg-emerald-50 border border-emerald-200">
-              <span className="text-sm font-medium text-emerald-700">Total Pemasukan</span>
-              <span className="font-bold text-emerald-900">
-                {formatIDR(stats.finance.totalIncome)}
-              </span>
-            </div>
-            <div className="flex items-center justify-between p-3 rounded-lg bg-red-50 border border-red-200">
-              <span className="text-sm font-medium text-red-700">Total Pengeluaran</span>
-              <span className="font-bold text-red-900">
-                {formatIDR(stats.finance.totalExpense)}
-              </span>
-            </div>
-            <div
-              className={`flex items-center justify-between p-3 rounded-lg border ${
-                stats.finance.balance >= 0
-                  ? 'bg-blue-50 border-blue-200'
-                  : 'bg-red-50 border-red-200'
-              }`}
-            >
-              <span className="text-sm font-medium">Saldo</span>
-              <span
-                className={`font-bold ${
-                  stats.finance.balance >= 0 ? 'text-blue-900' : 'text-red-900'
-                }`}
-              >
-                {formatIDR(stats.finance.balance)}
-              </span>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Finance overview - HIDDEN sampai ada data keuangan diinput */}
 
         {/* Quick stats */}
         <Card>

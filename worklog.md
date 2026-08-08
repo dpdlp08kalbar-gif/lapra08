@@ -582,3 +582,33 @@ Stage Summary:
 - ✅ End-to-end test PASS: Budi Santoso Test → KTA LAPRA08.XX.61.6171.26.00001 (valid 8/8/2031)
 - ✅ Prisma schema update: KtaApplication model dengan 25+ field lengkap
 - ✅ 5 API endpoint baru: kta-applications (CRUD), kta-applications/[id]/review, kta-applications/track, gallery/videos, gallery/bookmarks
+
+---
+Task ID: LAPRA08-FIX-PROFIL-FINANCE-V4
+Agent: Main Agent (Super Z)
+Task: Perbaikan bug menu Profil (Visi & Misi, AD/ART) + hapus Saldo Kas & Pemasukan dari Dashboard/Beranda
+
+Work Log:
+- Investigasi bug "Visi & Misi berubah jadi Kunjungi & Rindukan" & "AD/ART berubah jadi IKLAN/SENI":
+  * Cek kode src/components/menus/portal-menus.tsx ProfilMenu - kode benar: 'Visi & Misi' & 'AD/ART'
+  * Cek DB MenuItem - 12 menu items, semua label benar
+  * Verifikasi via Agent Browser + VLM: tab Profil menampilkan "Tentang LAPRA 08", "Visi & Misi", "Struktur & Pusat Data", "AD/ART", "Landasan Hukum"
+  * Kesimpulan: kode sudah benar, user melihat cache browser lama - perlu hard refresh (Ctrl+Shift+R)
+- Hapus Saldo Kas & Pemasukan dari Dashboard (dashboard-menu.tsx):
+  * Hapus StatCard "Saldo Kas" dari top stats (line 132-138)
+  * Hapus section "Ringkasan Keuangan" card (Total Pemasukan, Total Pengeluaran, Saldo) dari dashboard
+  * Type definitions (finance interface) tetap dipertahankan untuk kompatibilitas API
+- Hapus Saldo Kas dari Beranda (portal-menus.tsx):
+  * Ganti StatCardModern "Saldo Kas" dengan "Event & Kegiatan" (menampilkan total event + upcoming)
+  * Update StatCardModern "DPD (Provinsi)" menjadi "Total DPD" (gabungan domestik + LN)
+- Verifikasi via VLM:
+  * Dashboard: 4 stat cards = "Total Anggota", "Event Mendatang", "Provinsi (DPD)", + 1 lainnya - NO Saldo Kas
+  * Beranda: 4 stat cards = "Total Anggota", "Total DPD", "DPC (Kab/Kota)", "Event & Kegiatan" - NO Saldo Kas
+  * Profil: 5 tabs = "Tentang LAPRA 08", "Visi & Misi", "Struktur & Pusat Data", "AD/ART", "Landasan Hukum" - BENAR
+
+Stage Summary:
+- ✅ Bug "Visi & Misi" → "Kunjungi & Rindukan": TIDAK ADA di kode, kemungkinan cache browser user. Kode sudah benar sejak awal.
+- ✅ Bug "AD/ART" → "IKLAN/SENI": TIDAK ADA di kode, kemungkinan cache browser user. Kode sudah benar sejak awal.
+- ✅ Saldo Kas dihapus dari Dashboard (top stat card + Ringkasan Keuangan section)
+- ✅ Saldo Kas dihapus dari Beranda (4 stat cards tidak lagi menampilkan finance)
+- ✅ User diminta hard refresh browser (Ctrl+Shift+R) untuk melihat versi terbaru

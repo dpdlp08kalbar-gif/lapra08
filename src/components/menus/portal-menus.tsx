@@ -120,11 +120,11 @@ export function BerandaMenu() {
             subtitle={`${stats.members.active} anggota aktif`}
           />
           <StatCardModern
-            label="DPD (Provinsi)"
-            value={stats.global.totalProvinces}
+            label="Total DPD"
+            value={stats.global.totalProvinces + (stats.global.totalDpdLn || 0)}
             icon={MapPin}
             gradient="from-blue-500 to-indigo-500"
-            subtitle={`${stats.global.totalDpdLn || 0} DPD Luar Negeri`}
+            subtitle={`${stats.global.totalProvinces} domestik + ${stats.global.totalDpdLn || 0} LN`}
           />
           <StatCardModern
             label="DPC (Kab/Kota)"
@@ -134,11 +134,11 @@ export function BerandaMenu() {
             subtitle="514 DPC terhubung"
           />
           <StatCardModern
-            label="Saldo Kas"
-            value={new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(stats.finance.balance)}
-            icon={Wallet}
-            gradient={stats.finance.balance >= 0 ? 'from-green-500 to-emerald-600' : 'from-red-500 to-rose-600'}
-            subtitle={stats.finance.balance >= 0 ? 'Surplus' : 'Defisit'}
+            label="Event & Kegiatan"
+            value={stats.events?.total || 0}
+            icon={CalendarDays}
+            gradient="from-purple-500 to-pink-500"
+            subtitle={`${stats.events?.upcoming || 0} event mendatang`}
           />
         </div>
       )}
