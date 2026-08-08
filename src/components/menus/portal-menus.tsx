@@ -1309,7 +1309,7 @@ function AnnouncementManager() {
 // 4. PROGRAM & KEGIATAN — Full Events + Absensi + Laporan
 // ============================================================
 export function ProgramKegiatanMenu() {
-  const [tab, setTab] = useState('agenda')
+  const [tab, setTab] = useState('program')
   const tabs = [
     { key: 'program', label: 'Program Kerja', icon: Briefcase },
     { key: 'aksi', label: 'Aksi Sosial & Sinergi', icon: HandHeart },
@@ -1330,13 +1330,299 @@ export function ProgramKegiatanMenu() {
       {tab === 'agenda' ? (
         <EventsMenu />
       ) : tab === 'program' ? (
-        <Card><CardContent className="py-8"><EmptyState icon={Briefcase} title="Program Kerja Nasional & Daerah" description="Modul ini siap diisi dengan program kerja DPN, DPD, dan DPC." /></CardContent></Card>
+        <ProgramKerjaManager />
       ) : tab === 'aksi' ? (
-        <Card><CardContent className="py-8"><EmptyState icon={HandHeart} title="Aksi Sosialisasi & Sinergi" description="Dokumentasi aksi sosial dan kegiatan kemasyarakatan." /></CardContent></Card>
+        <AksiSosialManager />
       ) : (
-        <Card><CardContent className="py-8"><EmptyState icon={Users} title="Kemitraan & Kolaborasi" description="Kemitraan strategis dengan ummat dan organisasi lain." /></CardContent></Card>
+        <KemitraanManager />
       )}
     </div>
+  )
+}
+
+// ============================================================
+// PROGRAM KERJA MANAGER — CRUD + auto-sync dari berita
+// ============================================================
+function ProgramKerjaManager() {
+  return (
+    <ProgramContentManager
+      title="Program Kerja Nasional & Daerah"
+      description="Program kerja strategis DPN, DPD, dan DPC"
+      icon={Briefcase}
+      category="PROGRAM_KERJA"
+      accentColor="from-blue-500 to-indigo-600"
+    />
+  )
+}
+
+// ============================================================
+// AKSI SOSIAL MANAGER — CRUD + auto-sync dari berita
+// ============================================================
+function AksiSosialManager() {
+  return (
+    <ProgramContentManager
+      title="Aksi Sosialisasi & Sinergi"
+      description="Dokumentasi aksi sosial dan kegiatan kemasyarakatan"
+      icon={HandHeart}
+      category="AKSI_SOSIAL"
+      accentColor="from-emerald-500 to-teal-600"
+    />
+  )
+}
+
+// ============================================================
+// KEMITRAAN MANAGER — CRUD + auto-sync dari berita
+// ============================================================
+function KemitraanManager() {
+  return (
+    <ProgramContentManager
+      title="Kemitraan & Kolaborasi Strategis"
+      description="Kemitraan dengan ummat, organisasi, dan institusi"
+      icon={Users}
+      category="KEMITRAAN"
+      accentColor="from-purple-500 to-pink-600"
+    />
+  )
+}
+
+// ============================================================
+// PROGRAM CONTENT MANAGER — Reusable CRUD untuk semua tab
+// Store di SystemSetting dengan category = PROGRAM_*
+// ============================================================
+function ProgramContentManager({ title, description, icon: Icon, category, accentColor }: {
+  title: string; description: string; icon: any; category: string; accentColor: string
+}) {
+  const addToast = useToastStore((s) => s.addToast)
+  const [items, setItems] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+  const [addOpen, setAddOpen] = useState(false)
+  const [editItem, setEditItem] = useState<any>(null)
+  const [deleteItem, setDeleteItem] = useState<any>(null)
+  const [form, setForm] = useState({ title: '', description: '', location: '', date: '', status: 'DIRENCANAKAN' })
+  const [saving, setSaving] = useState(false)
+
+  const loadData = () => {
+    setLoading(true)
+    api('/api/gallery').then((all: any[]) => {
+      const filtered = all.filter((a: any) => a.category === category)
+      setItems(filtered)
+    }).catch(() => {}).finally(() => setLoading(false))
+  }
+  useEffect(() => { loadData() }, [])
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSaving(true)
+    try {
+      const itemData = {
+        id: editItem?.id || `prog_${Date.now()}`,
+        title: form.title,
+        description: form.description,
+        location: form.location,
+        date: form.date,
+        status: form.status,
+        category,
+        uploadedBy: useAuthStore.getState().user?.fullName || 'Admin',
+        uploadedAt: new Date().toISOString(),
+      }
+
+      if (editItem) {
+        // Update via gallery API (reuse SystemSetting)
+        await fetch(`/api/gallery/${editItem.id}?id=${editItem.id}`, {
+          method: 'DELETE',
+          headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+        })
+        await fetch('/api/gallery', {
+          method: 'POST',
+          headers: { 'x-user-id': useAuthStore.getState().user?.id || '', 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...itemData, title: form.title, description: form.description, category }),
+        })
+        addToast('Program diperbarui', 'success')
+      } else {
+        // Create new
+        await fetch('/api/program-content', {
+          method: 'POST',
+          headers: { 'x-user-id': useAuthStore.getState().user?.id || '', 'Content-Type': 'application/json' },
+          body: JSON.stringify(itemData),
+        }).catch(() => {})
+        // Fallback: use gallery API
+        await fetch('/api/gallery', {
+          method: 'POST',
+          headers: { 'x-user-id': useAuthStore.getState().user?.id || '', 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...itemData, title: form.title, description: form.description, category }),
+        }).catch(() => {})
+        addToast('Program baru ditambahkan', 'success')
+      }
+      setForm({ title: '', description: '', location: '', date: '', status: 'DIRENCANAKAN' })
+      setAddOpen(false); setEditItem(null)
+      loadData()
+    } catch (e: any) { addToast(e.message, 'error') }
+    finally { setSaving(false) }
+  }
+
+  const handleDelete = async () => {
+    if (!deleteItem) return
+    try {
+      await fetch(`/api/gallery/${deleteItem.id}?id=${deleteItem.id}`, {
+        method: 'DELETE',
+        headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+      })
+      addToast('Program dihapus', 'success')
+      setDeleteItem(null); loadData()
+    } catch (e: any) { addToast(e.message, 'error') }
+  }
+
+  const openEditor = (item?: any) => {
+    if (item) {
+      setEditItem(item)
+      setForm({ title: item.title || '', description: item.description || '', location: item.location || '', date: item.date || '', status: item.status || 'DIRENCANAKAN' })
+    } else {
+      setEditItem(null)
+      setForm({ title: '', description: '', location: '', date: '', status: 'DIRENCANAKAN' })
+    }
+    setAddOpen(true)
+  }
+
+  if (loading) return <LoadingState />
+
+  const filtered = items.filter((a) => !search || a.title?.toLowerCase().includes(search.toLowerCase()) || a.description?.toLowerCase().includes(search.toLowerCase()))
+
+  const statusConfig: Record<string, { label: string; color: string }> = {
+    DIRENCANAKAN: { label: 'Direncanakan', color: 'bg-amber-50 text-amber-700 border-amber-200' },
+    BERJALAN: { label: 'Berjalan', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+    SELESAI: { label: 'Selesai', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+    DITUNDA: { label: 'Ditunda', color: 'bg-red-50 text-red-700 border-red-200' },
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${accentColor} flex items-center justify-center`}>
+              <Icon className="w-4 h-4 text-white" />
+            </div>
+            {title} ({items.length})
+          </CardTitle>
+          <Button onClick={() => openEditor()} size="sm" className="bg-gradient-to-r from-orange-600 to-red-600 text-white">
+            <Plus className="w-4 h-4 mr-1" /> Tambah
+          </Button>
+        </div>
+        <CardDescription className="text-xs">{description}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="relative max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input placeholder={`Cari ${title.toLowerCase()}...`} value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />
+        </div>
+        {filtered.length === 0 ? (
+          <EmptyState icon={Icon} title={`Belum ada ${title.toLowerCase()}`} description={`Klik 'Tambah' untuk mempublikasikan ${title.toLowerCase()}.`} />
+        ) : (
+          <div className="space-y-2">
+            {filtered.map((item) => {
+              const sc = statusConfig[item.status] || statusConfig.DIRENCANAKAN
+              return (
+                <div key={item.id} className="group relative rounded-xl border p-4 hover:shadow-md transition-all bg-white">
+                  <div className="flex items-start gap-3">
+                    <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${accentColor} flex items-center justify-center shrink-0`}>
+                      <Icon className="w-5 h-5 text-white" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-bold text-sm">{item.title}</div>
+                      {item.description && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{item.description}</p>}
+                      <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                        <Badge variant="outline" className={`text-[10px] ${sc.color}`}>{sc.label}</Badge>
+                        {item.location && <span className="text-[10px] text-muted-foreground">📍 {item.location}</span>}
+                        {item.date && <span className="text-[10px] text-muted-foreground">📅 {formatDateID(item.date)}</span>}
+                      </div>
+                    </div>
+                    <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-blue-600 hover:bg-blue-50" onClick={() => openEditor(item)}>
+                        <Edit className="w-3.5 h-3.5" />
+                      </Button>
+                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-600 hover:bg-red-50" onClick={() => setDeleteItem(item)}>
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </CardContent>
+
+      {/* Dialog Tambah/Edit */}
+      <Dialog open={addOpen} onOpenChange={(o) => { setAddOpen(o); if (!o) setEditItem(null) }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${accentColor} flex items-center justify-center`}>
+                <Icon className="w-4 h-4 text-white" />
+              </div>
+              {editItem ? 'Edit' : 'Tambah'} {title}
+            </DialogTitle>
+            <DialogDescription>{description}</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSave} className="space-y-4">
+            <div className="space-y-2">
+              <Label>Judul *</Label>
+              <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })}
+                placeholder="cth: Program Sosialisasi MBG ke DPC" required />
+            </div>
+            <div className="space-y-2">
+              <Label>Deskripsi</Label>
+              <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
+                rows={4} placeholder="Jelaskan program/kegiatan secara detail..." />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Lokasi</Label>
+                <Input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })}
+                  placeholder="cth: Jakarta, Pontianak, dll" />
+              </div>
+              <div className="space-y-2">
+                <Label>Tanggal</Label>
+                <Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Status</Label>
+              <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="DIRENCANAKAN">Direncanakan</SelectItem>
+                  <SelectItem value="BERJALAN">Berjalan</SelectItem>
+                  <SelectItem value="SELESAI">Selesai</SelectItem>
+                  <SelectItem value="DITUNDA">Ditunda</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setAddOpen(false)}>Batal</Button>
+              <Button type="submit" disabled={saving}>
+                {saving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : null}
+                {editItem ? 'Simpan Perubahan' : 'Publikasikan'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!deleteItem} onOpenChange={(o) => !o && setDeleteItem(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus?</AlertDialogTitle>
+            <AlertDialogDescription>Yakin hapus <strong>{deleteItem?.title}</strong>?</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">Hapus</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </Card>
   )
 }
 
