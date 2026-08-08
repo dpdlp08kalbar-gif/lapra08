@@ -1,0 +1,53 @@
+🚀 Initializing Z-AI SDK...
+🔎 Searching images: "Indonesia blood donation health checkup social event"
+✅ Got 6 images
+{
+  "success": true,
+  "query": "Indonesia blood donation health checkup social event",
+  "count": 6,
+  "ranked": false,
+  "results": [
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/43392d2842b6.png",
+      "caption": "",
+      "source": "CNA",
+      "original_width": "1200px",
+      "original_height": "676px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/7eb3bc2f9f19.jpg",
+      "caption": "",
+      "source": "Kokilaben Hospital",
+      "original_width": "1920px",
+      "original_height": "739px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/f0d2e53a46e9.png",
+      "caption": "",
+      "source": "Jotform",
+      "original_width": "930px",
+      "original_height": "1591px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/465920f6c624.png",
+      "caption": "",
+      "source": "Acibadem Hospitals Group",
+      "original_width": "1536px",
+      "original_height": "1024px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/e6b37c31fe1d.png",
+      "caption": "",
+      "source": "Drug Discovery News",
+      "original_width": "1200px",
+      "original_height": "1614px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/99f746dd02b5.jpg",
+      "caption": "",
+      "source": "Island Hospital",
+      "original_width": "1280px",
+      "original_height": "1600px"
+    }
+  ]
+}

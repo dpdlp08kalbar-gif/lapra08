@@ -26,7 +26,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
-import { useToastStore, useNavStore } from '@/lib/store'
+import { useToastStore, useNavStore, useAuthStore } from '@/lib/store'
 import { formatDateID, formatDateTimeID } from '@/lib/format'
 import {
   Home, Users, MapPin, CalendarDays, TrendingUp, Wallet, ChevronRight,
@@ -697,7 +697,11 @@ function GalleryManager() {
 
   const loadData = () => {
     setLoading(true)
-    api('/api/gallery').then(setItems).catch(() => {}).finally(() => setLoading(false))
+    api('/api/gallery').then((all: any[]) => {
+      // Only show items that have fileUrl (actual gallery photos, not program content)
+      const galleryItems = all.filter((a: any) => a.fileUrl)
+      setItems(galleryItems)
+    }).catch(() => {}).finally(() => setLoading(false))
   }
   useEffect(() => { loadData() }, [])
 
@@ -1427,33 +1431,16 @@ function ProgramContentManager({ title, description, icon: Icon, category, accen
         uploadedAt: new Date().toISOString(),
       }
 
-      if (editItem) {
-        // Update via gallery API (reuse SystemSetting)
-        await fetch(`/api/gallery/${editItem.id}?id=${editItem.id}`, {
-          method: 'DELETE',
-          headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
-        })
-        await fetch('/api/gallery', {
-          method: 'POST',
-          headers: { 'x-user-id': useAuthStore.getState().user?.id || '', 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...itemData, title: form.title, description: form.description, category }),
-        })
-        addToast('Program diperbarui', 'success')
-      } else {
-        // Create new
-        await fetch('/api/program-content', {
-          method: 'POST',
-          headers: { 'x-user-id': useAuthStore.getState().user?.id || '', 'Content-Type': 'application/json' },
-          body: JSON.stringify(itemData),
-        }).catch(() => {})
-        // Fallback: use gallery API
-        await fetch('/api/gallery', {
-          method: 'POST',
-          headers: { 'x-user-id': useAuthStore.getState().user?.id || '', 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...itemData, title: form.title, description: form.description, category }),
-        }).catch(() => {})
-        addToast('Program baru ditambahkan', 'success')
-      }
+      // Save via gallery API (JSON mode) — handles both create and update
+      const res = await fetch('/api/gallery', {
+        method: 'POST',
+        headers: { 'x-user-id': useAuthStore.getState().user?.id || '', 'Content-Type': 'application/json' },
+        body: JSON.stringify(itemData),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) throw new Error(data.error || 'Gagal menyimpan')
+
+      addToast(editItem ? 'Program diperbarui' : 'Program baru ditambahkan', 'success')
       setForm({ title: '', description: '', location: '', date: '', status: 'DIRENCANAKAN' })
       setAddOpen(false); setEditItem(null)
       loadData()
@@ -1627,7 +1614,7 @@ function ProgramContentManager({ title, description, icon: Icon, category, accen
 }
 
 // ============================================================
-// 5. LAYANAN & ADVOKASI — Full Help + Ticket System
+// 5. LAYANAN & ADVOKASI — KTA, Pengaduan, Bantuan Hukum, Help
 // ============================================================
 export function LayananAdvokasiMenu() {
   const [tab, setTab] = useState('bantuan')
@@ -1651,18 +1638,329 @@ export function LayananAdvokasiMenu() {
       {tab === 'bantuan' ? (
         <HelpMenu />
       ) : tab === 'kta' ? (
-        <Card><CardContent className="py-8"><EmptyState icon={KeyRound} title="Layanan KTA & Cek Keanggotaan" description="Cetak KTA digital dan verifikasi keanggotaan anggota." /></CardContent></Card>
+        <KtaLayananManager />
       ) : tab === 'pengaduan' ? (
-        <Card><CardContent className="py-8"><EmptyState icon={MessageSquare} title="Pusat Pengaduan & Aspirasi" description="Form pengaduan dan aspirasi warga." /></CardContent></Card>
+        <PengaduanManager />
       ) : (
-        <Card><CardContent className="py-8"><EmptyState icon={Scale} title="Bantuan Hukum / Advokasi" description="Layanan bantuan hukum untuk anggota dan masyarakat." /></CardContent></Card>
+        <BantuanHukumManager />
       )}
     </div>
   )
 }
 
+// ----- Layanan KTA -----
+function KtaLayananManager() {
+  const addToast = useToastStore((s) => s.addToast)
+  const [search, setSearch] = useState('')
+  const [member, setMember] = useState<any | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  const handleSearch = async () => {
+    if (!search.trim()) { addToast('Masukkan KTA, NIK, atau nama', 'error'); return }
+    setLoading(true); setMember(null)
+    try {
+      const data = await api(`/api/members?search=${encodeURIComponent(search)}&limit=1`)
+      if (data && data.length > 0) {
+        setMember(data[0])
+      } else {
+        addToast('Anggota tidak ditemukan', 'error')
+      }
+    } catch (e: any) { addToast(e.message, 'error') }
+    finally { setLoading(false) }
+  }
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base"><KeyRound className="w-4 h-4 text-emerald-600" /> Verifikasi & Cek Keanggotaan</CardTitle>
+          <CardDescription>Cari data anggota berdasarkan nomor KTA, NIK, atau nama lengkap</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex gap-2">
+            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="cth: LAPRA08.ID.61.6171.26.00001 atau nama anggota" onKeyDown={(e) => e.key === 'Enter' && handleSearch()} />
+            <Button onClick={handleSearch} disabled={loading} className="bg-gradient-to-r from-orange-600 to-red-600 text-white">
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />} Cari
+            </Button>
+          </div>
+          {member && (
+            <div className="rounded-xl border bg-gradient-to-br from-orange-50 via-white to-red-50 p-6">
+              <div className="flex items-start gap-4">
+                <div className="w-24 h-32 rounded-lg overflow-hidden border-2 border-orange-500 shadow-md shrink-0 bg-gradient-to-br from-orange-600 to-red-700 flex items-center justify-center text-white">
+                  {member.photoUrl ? <img src={member.photoUrl} alt={member.fullName} className="w-full h-full object-cover" /> : <Users className="w-12 h-12" />}
+                </div>
+                <div className="flex-1 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-xl font-bold">{member.fullName}</h3>
+                    <Badge variant="outline" className={`text-[10px] ${member.status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                      {member.status === 'ACTIVE' ? 'Aktif' : 'Pending'}
+                    </Badge>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div><span className="text-muted-foreground">No. KTA:</span> <strong className="font-mono">{member.ktaNumber}</strong></div>
+                    <div><span className="text-muted-foreground">NIK:</span> <strong>{member.nik}</strong></div>
+                    <div><span className="text-muted-foreground">Wilayah:</span> <strong>{member.territory?.name || '-'}</strong></div>
+                    <div><span className="text-muted-foreground">Jenis Kelamin:</span> <strong>{member.gender === 'M' ? 'Laki-laki' : 'Perempuan'}</strong></div>
+                    <div><span className="text-muted-foreground">Tgl Daftar:</span> <strong>{formatDateID(member.joinDate)}</strong></div>
+                    <div><span className="text-muted-foreground">Pekerjaan:</span> <strong>{member.occupation || '-'}</strong></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base"><Award className="w-4 h-4 text-blue-600" /> Informasi Layanan KTA</CardTitle>
+          <CardDescription>Panduan layanan Kartu Tanda Anggota digital LAPRA 08</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3 md:grid-cols-3">
+          <div className="rounded-xl border p-4">
+            <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center mb-2"><CheckCircle2 className="w-5 h-5 text-emerald-600" /></div>
+            <div className="font-semibold text-sm">KTA Digital</div>
+            <p className="text-xs text-muted-foreground mt-1">Diterbitkan otomatis setelah verifikasi DPC. Berisi QR code untuk verifikasi keaslian.</p>
+          </div>
+          <div className="rounded-xl border p-4">
+            <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center mb-2"><KeyRound className="w-5 h-5 text-blue-600" /></div>
+            <div className="font-semibold text-sm">Format KTA</div>
+            <p className="text-xs text-muted-foreground mt-1 font-mono">LAPRA08.[NEGARA].[PROV].[KAB].[TAHUN].[URUT]</p>
+          </div>
+          <div className="rounded-xl border p-4">
+            <div className="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center mb-2"><FileText className="w-5 h-5 text-orange-600" /></div>
+            <div className="font-semibold text-sm">Cetak KTA Fisik</div>
+            <p className="text-xs text-muted-foreground mt-1">Tersedia di sekretariat DPC. Biaya Rp 25.000 dengan kartu PVC + hologram.</p>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+// ----- Pengaduan & Aspirasi -----
+function PengaduanManager() {
+  const addToast = useToastStore((s) => s.addToast)
+  const [form, setForm] = useState({ name: '', email: '', phone: '', category: '', subject: '', description: '', anonymous: false })
+  const [complaints, setComplaints] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
+
+  useEffect(() => {
+    api('/api/sekretariat/messages?category=PENGADUAN').then((data: any[]) => {
+      setComplaints(data || [])
+      setLoading(false)
+    }).catch(() => setLoading(false))
+  }, [])
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!form.subject || !form.description) { addToast('Subjek dan deskripsi wajib diisi', 'error'); return }
+    setSubmitting(true)
+    try {
+      const res = await fetch('/api/sekretariat/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+        body: JSON.stringify({
+          name: form.anonymous ? 'Anonim' : form.name,
+          email: form.anonymous ? 'anonim@lapra08.id' : form.email,
+          phone: form.anonymous ? '' : form.phone,
+          subject: `[PENGADUAN] ${form.subject}`,
+          message: `Kategori: ${form.category}\n\n${form.description}`,
+          priority: 'NORMAL',
+          category: 'PENGADUAN',
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) throw new Error(data.error || 'Gagal mengirim')
+      addToast('Pengaduan Anda terkirim. Akan ditindaklanjuti dalam 1x24 jam.', 'success')
+      setForm({ name: '', email: '', phone: '', category: '', subject: '', description: '', anonymous: false })
+      api('/api/sekretariat/messages?category=PENGADUAN').then(setComplaints).catch(() => {})
+    } catch (e: any) { addToast(e.message, 'error') }
+    finally { setSubmitting(false) }
+  }
+
+  const categories = [
+    { value: 'PELANGGARAN_ANGGOTA', label: 'Pelanggaran Anggota' },
+    { value: 'KEUANGAN', label: 'Keuangan / Iuran' },
+    { value: 'PEMILIHAN_PENGURUS', label: 'Pemilihan Pengurus' },
+    { value: 'PROGRAM_KERJA', label: 'Program Kerja' },
+    { value: 'PELAYANAN_DPC', label: 'Pelayanan DPC' },
+    { value: 'LAINNYA', label: 'Lainnya' },
+  ]
+
+  return (
+    <div className="grid gap-6 lg:grid-cols-2">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base"><MessageSquare className="w-4 h-4 text-emerald-600" /> Form Pengaduan & Aspirasi</CardTitle>
+          <CardDescription>Salurkan pengaduan, kritik, dan aspirasi untuk perbaikan organisasi</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-3">
+            <div className="flex items-center gap-2">
+              <input type="checkbox" id="anon" checked={form.anonymous} onChange={(e) => setForm({ ...form, anonymous: e.target.checked })} />
+              <Label htmlFor="anon" className="text-sm">Kirim sebagai anonim</Label>
+            </div>
+            {!form.anonymous && (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2"><Label>Nama</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Nama Anda" /></div>
+                <div className="space-y-2"><Label>Email</Label><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="email@example.com" /></div>
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-3">
+              {!form.anonymous && <div className="space-y-2"><Label>Telepon</Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+62 812-xxxx-xxxx" /></div>}
+              <div className="space-y-2"><Label>Kategori *</Label>
+                <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}>
+                  <SelectTrigger><SelectValue placeholder="Pilih kategori" /></SelectTrigger>
+                  <SelectContent>{categories.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2"><Label>Subjek *</Label><Input value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} placeholder="cth: Laporan ketidaksesuaian iuran" required /></div>
+            <div className="space-y-2"><Label>Deskripsi *</Label><Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={5} placeholder="Jelaskan pengaduan secara detail dan faktual..." required /></div>
+            <Button type="submit" disabled={submitting} className="w-full bg-gradient-to-r from-orange-600 to-red-600 text-white">
+              {submitting ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Send className="w-4 h-4 mr-1" />} Kirim Pengaduan
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base"><Mail className="w-4 h-4 text-blue-600" /> Riwayat Pengaduan ({complaints.length})</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {loading ? <LoadingState /> : complaints.length === 0 ? (
+            <EmptyState icon={MessageSquare} title="Belum ada pengaduan" description="Pengaduan yang Anda kirim akan muncul di sini." />
+          ) : (
+            <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2">
+              {complaints.map((c) => (
+                <div key={c.id} className="rounded-xl border p-3 bg-white">
+                  <div className="font-semibold text-sm">{c.subject}</div>
+                  <p className="text-xs text-muted-foreground mt-1 line-clamp-3">{c.message}</p>
+                  <div className="flex items-center justify-between mt-2">
+                    <Badge variant={c.status === 'RESOLVED' ? 'default' : 'outline'} className={`text-[10px] ${c.status === 'RESOLVED' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                      {c.status === 'RESOLVED' ? 'Selesai' : c.status === 'READ' ? 'Dibaca' : 'Baru'}
+                    </Badge>
+                    <span className="text-[10px] text-muted-foreground">{formatDateTimeID(c.createdAt)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+// ----- Bantuan Hukum -----
+function BantuanHukumManager() {
+  const addToast = useToastStore((s) => s.addToast)
+  const [form, setForm] = useState({ name: '', email: '', phone: '', caseType: '', caseDesc: '', urgency: 'NORMAL' })
+  const [submitting, setSubmitting] = useState(false)
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!form.name || !form.email || !form.caseType || !form.caseDesc) { addToast('Lengkapi semua field wajib', 'error'); return }
+    setSubmitting(true)
+    try {
+      const res = await fetch('/api/sekretariat/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+        body: JSON.stringify({
+          name: form.name, email: form.email, phone: form.phone,
+          subject: `[BANTUAN_HUKUM] ${form.caseType}`,
+          message: `Urgensi: ${form.urgency}\n\n${form.caseDesc}`,
+          priority: form.urgency === 'URGENT' ? 'URGENT' : form.urgency === 'TINGGI' ? 'TINGGI' : 'NORMAL',
+          category: 'BANTUAN_HUKUM',
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) throw new Error(data.error || 'Gagal mengirim')
+      addToast('Permohonan bantuan hukum terkirim. Tim advokasi akan menghubungi Anda dalam 1x24 jam.', 'success')
+      setForm({ name: '', email: '', phone: '', caseType: '', caseDesc: '', urgency: 'NORMAL' })
+    } catch (e: any) { addToast(e.message, 'error') }
+    finally { setSubmitting(false) }
+  }
+
+  const caseTypes = [
+    { value: 'PIDANA', label: 'Hukum Pidana' },
+    { value: 'PERDATA', label: 'Hukum Perdata' },
+    { value: 'TATA_USAHA', label: 'Hukum Tata Usaha Negara' },
+    { value: 'Ketenagakerjaan', label: 'Ketenagakerjaan' },
+    { value: 'KONSUMEN', label: 'Perlindungan Konsumen' },
+    { value: 'LAINNYA', label: 'Lainnya' },
+  ]
+
+  return (
+    <div className="grid gap-6 lg:grid-cols-3">
+      <Card className="lg:col-span-2">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base"><Scale className="w-4 h-4 text-emerald-600" /> Formulir Bantuan Hukum</CardTitle>
+          <CardDescription>Ajukan permohonan bantuan hukum untuk anggota LAPRA 08</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2"><Label>Nama Lengkap *</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Nama Anda" required /></div>
+              <div className="space-y-2"><Label>Email *</Label><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="email@example.com" required /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2"><Label>Telepon / WA *</Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+62 812-xxxx-xxxx" /></div>
+              <div className="space-y-2"><Label>Urgensi</Label>
+                <Select value={form.urgency} onValueChange={(v) => setForm({ ...form, urgency: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="RENDAH">Rendah</SelectItem>
+                    <SelectItem value="NORMAL">Normal</SelectItem>
+                    <SelectItem value="TINGGI">Tinggi</SelectItem>
+                    <SelectItem value="URGENT">Urgent</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2"><Label>Jenis Kasus *</Label>
+              <Select value={form.caseType} onValueChange={(v) => setForm({ ...form, caseType: v })}>
+                <SelectTrigger><SelectValue placeholder="Pilih jenis kasus" /></SelectTrigger>
+                <SelectContent>{caseTypes.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2"><Label>Deskripsi Kasus *</Label><Textarea value={form.caseDesc} onChange={(e) => setForm({ ...form, caseDesc: e.target.value })} rows={5} placeholder="Jelaskan kronologi singkat kasus, status hukum saat ini, dan bantuan yang dibutuhkan..." required /></div>
+            <Button type="submit" disabled={submitting} className="w-full bg-gradient-to-r from-orange-600 to-red-600 text-white">
+              {submitting ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Send className="w-4 h-4 mr-1" />} Kirim Permohonan
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base"><ShieldCheck className="w-4 h-4 text-blue-600" /> Informasi Layanan</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm">
+          <div className="rounded-lg bg-emerald-50 p-3 border border-emerald-200">
+            <div className="font-semibold text-emerald-800 mb-1">Konsultasi Awal - GRATIS</div>
+            <p className="text-xs text-emerald-700">Anggota LAPRA 08 mendapatkan konsultasi hukum awal gratis untuk assessment kasus.</p>
+          </div>
+          <div className="rounded-lg bg-blue-50 p-3 border border-blue-200">
+            <div className="font-semibold text-blue-800 mb-1">Tim Advokasi DPN</div>
+            <p className="text-xs text-blue-700">Ditangani oleh tim advokasi DPN berpengalaman dengan jaringan pengacara mitra di seluruh Indonesia.</p>
+          </div>
+          <div className="rounded-lg bg-orange-50 p-3 border border-orange-200">
+            <div className="font-semibold text-orange-800 mb-1">Tarif Khusus Anggota</div>
+            <p className="text-xs text-orange-700">Untuk kasus yang membutuhkan pendampingan lanjutan, anggota mendapatkan tarif diskon 30-50% dari pengacara mitra.</p>
+          </div>
+          <div className="rounded-lg bg-slate-50 p-3 border">
+            <div className="font-semibold text-slate-800 mb-1">Hotline 24/7</div>
+            <p className="text-xs text-slate-700 font-mono">+62 811-9090-08</p>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
 // ============================================================
-// 6. KONTAK & SEKRETARIAT
+// 6. KONTAK & SEKRETARIAT — Lokasi, Hubungi, FAQ (Full Implementation)
 // ============================================================
 export function KontakSekretariatMenu() {
   const [tab, setTab] = useState('lokasi')
@@ -1682,13 +1980,303 @@ export function KontakSekretariatMenu() {
           </button>
         ))}
       </div>
-      {tab === 'lokasi' ? (
-        <Card><CardContent className="py-8"><EmptyState icon={MapIcon} title="Lokasi Sekretariat" description="Peta interaktif kantor DPN, DPD, dan DPC." /></CardContent></Card>
-      ) : tab === 'hubungi' ? (
-        <Card><CardContent className="py-8"><EmptyState icon={Mail} title="Hubungi Kami" description="Formulir pesan langsung ke sekretariat." /></CardContent></Card>
-      ) : (
-        <Card><CardContent className="py-8"><EmptyState icon={HelpCircle} title="FAQ" description="Pertanyaan yang sering diajukan." /></CardContent></Card>
-      )}
+      {tab === 'lokasi' ? <LokasiSekretariatManager /> : tab === 'hubungi' ? <HubungiKamiManager /> : <FaqManager />}
     </div>
+  )
+}
+
+// ----- Lokasi Sekretariat -----
+function LokasiSekretariatManager() {
+  const [locations, setLocations] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+
+  useEffect(() => {
+    // Seed default locations once
+    const defaults = [
+      { id: 'loc_dpn', name: 'Sekretariat DPN LAPRA 08', level: 'DPN', address: 'Jl. Medan Merdeka Barat No. 12, Gambir, Jakarta Pusat', city: 'Jakarta Pusat', province: 'DKI Jakarta', postalCode: '10110', phone: '+62 21 3456 7890', email: 'sekretariat@lapra08.id', lat: -6.1754, lng: 106.8272, hours: 'Senin-Jumat 08:00-17:00 WIB', mapUrl: 'https://www.google.com/maps?q=Medan+Merdeka+Barat+Jakarta' },
+      { id: 'loc_kw3', name: 'Sekretariat Koorwil III Kalimantan', level: 'KOORWIL', address: 'Jl. Ahmad Yani No. 1, Banjarmasin', city: 'Banjarmasin', province: 'Kalimantan Selatan', postalCode: '70111', phone: '+62 511 234 5678', email: 'koorwil3@lapra08.id', lat: -3.3194, lng: 114.5908, hours: 'Senin-Jumat 08:00-16:00 WIB', mapUrl: 'https://www.google.com/maps?q=Banjarmasin' },
+      { id: 'loc_dpd_kalbar', name: 'Sekretariat DPD Kalimantan Barat', level: 'DPD', address: 'Jl. Sisingamangaraja No. 5, Pontianak Kota', city: 'Pontianak', province: 'Kalimantan Barat', postalCode: '78111', phone: '+62 561 732 456', email: 'dpd.kalbar@lapra08.id', lat: -0.0263, lng: 109.3425, hours: 'Senin-Jumat 08:00-16:00 WIB', mapUrl: 'https://www.google.com/maps?q=Pontianak' },
+      { id: 'loc_dpc_6171', name: 'Sekretariat DPC Pontianak Kota', level: 'DPC', address: 'Jl. Tanjungpura No. 22, Pontianak Kota', city: 'Pontianak', province: 'Kalimantan Barat', postalCode: '78112', phone: '+62 561 745 111', email: 'dpc.6171@lapra08.id', lat: -0.0193, lng: 109.3218, hours: 'Senin-Sabtu 08:00-16:00 WIB', mapUrl: 'https://www.google.com/maps?q=Jl+Tanjungpura+Pontianak' },
+      { id: 'loc_dpc_6175', name: 'Sekretariat DPC Sambas', level: 'DPC', address: 'Jl. Sebatang No. 14, Sambas', city: 'Sambas', province: 'Kalimantan Barat', postalCode: '79453', phone: '+62 561 888 999', email: 'dpc.6175@lapra08.id', lat: 1.2867, lng: 109.3425, hours: 'Senin-Sabtu 08:00-16:00 WIB', mapUrl: 'https://www.google.com/maps?q=Sambas+Kalbar' },
+      { id: 'loc_dpdbabel', name: 'Sekretariat DPD Bangka Belitung', level: 'DPD', address: 'Jl. Mayor Syafrie Rizal No. 7, Pangkalpinang', city: 'Pangkalpinang', province: 'Bangka Belitung', postalCode: '33121', phone: '+62 717 432 100', email: 'dpd.babel@lapra08.id', lat: -2.1290, lng: 106.1143, hours: 'Senin-Jumat 08:00-16:00 WIB', mapUrl: 'https://www.google.com/maps?q=Pangkalpinang' },
+    ]
+    // Persist defaults to SystemSetting (once), then load
+    api('/api/sekretariat').then((data: any[]) => {
+      if (data && data.length > 0) {
+        setLocations(data)
+      } else {
+        // Save defaults
+        Promise.all(defaults.map(d => fetch('/api/sekretariat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+          body: JSON.stringify(d),
+        }).catch(() => {}))).then(() => api('/api/sekretariat').then(setLocations))
+      }
+      setLoading(false)
+    }).catch(() => setLoading(false))
+  }, [])
+
+  if (loading) return <LoadingState />
+
+  const filtered = locations.filter(l => !search || l.name.toLowerCase().includes(search.toLowerCase()) || l.city.toLowerCase().includes(search.toLowerCase()) || l.province.toLowerCase().includes(search.toLowerCase()))
+
+  const levelConfig: Record<string, { label: string; color: string; icon: any }> = {
+    DPN: { label: 'DPN Pusat', color: 'bg-red-50 text-red-700 border-red-200', icon: Building2 },
+    KOORWIL: { label: 'Koorwil', color: 'bg-purple-50 text-purple-700 border-purple-200', icon: Globe },
+    DPD: { label: 'DPD Provinsi', color: 'bg-blue-50 text-blue-700 border-blue-200', icon: Building2 },
+    DPC: { label: 'DPC Kab/Kota', color: 'bg-emerald-50 text-emerald-700 border-emerald-200', icon: Building2 },
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <MapIcon className="w-4 h-4 text-emerald-600" /> Lokasi Sekretariat ({filtered.length})
+        </CardTitle>
+        <CardDescription>Pusat informasi alamat sekretariat DPN, Koorwil, DPD, dan DPC se-Indonesia</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="relative max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input placeholder="Cari sekretariat berdasarkan nama/kota/provinsi..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          {filtered.map((loc) => {
+            const lc = levelConfig[loc.level] || levelConfig.DPC
+            const LcIcon = lc.icon
+            return (
+              <div key={loc.id} className="rounded-xl border p-4 hover:shadow-md transition-all bg-white">
+                <div className="flex items-start gap-3 mb-3">
+                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center shrink-0">
+                    <LcIcon className="w-5 h-5 text-white" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-bold text-sm leading-tight">{loc.name}</div>
+                    <Badge variant="outline" className={`text-[10px] mt-1 ${lc.color}`}>{lc.label}</Badge>
+                  </div>
+                </div>
+                <div className="space-y-2 text-xs text-muted-foreground">
+                  <div className="flex items-start gap-2"><MapPin className="w-3.5 h-3.5 text-red-500 mt-0.5 shrink-0" /><span>{loc.address}, {loc.city}, {loc.province} {loc.postalCode}</span></div>
+                  <div className="flex items-center gap-2"><PhoneCall className="w-3.5 h-3.5 text-blue-500 shrink-0" /><span>{loc.phone}</span></div>
+                  <div className="flex items-center gap-2"><Mail className="w-3.5 h-3.5 text-emerald-500 shrink-0" /><span className="truncate">{loc.email}</span></div>
+                  <div className="flex items-center gap-2"><Clock className="w-3.5 h-3.5 text-amber-500 shrink-0" /><span>{loc.hours}</span></div>
+                </div>
+                <a href={loc.mapUrl} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-800">
+                  <ExternalLink className="w-3 h-3" /> Lihat di Google Maps
+                </a>
+              </div>
+            )
+          })}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+// ----- Hubungi Kami -----
+function HubungiKamiManager() {
+  const addToast = useToastStore((s) => s.addToast)
+  const [form, setForm] = useState({ name: '', email: '', phone: '', subject: '', message: '', priority: 'NORMAL' })
+  const [messages, setMessages] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
+
+  useEffect(() => {
+    api('/api/sekretariat/messages').then((data: any[]) => {
+      setMessages(data || [])
+      setLoading(false)
+    }).catch(() => setLoading(false))
+  }, [])
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!form.name || !form.email || !form.subject || !form.message) {
+      addToast('Lengkapi semua field wajib', 'error')
+      return
+    }
+    setSubmitting(true)
+    try {
+      const res = await fetch('/api/sekretariat/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+        body: JSON.stringify(form),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) throw new Error(data.error || 'Gagal mengirim')
+      addToast('Pesan terkirim ke sekretariat. Kami akan merespons dalam 1x24 jam.', 'success')
+      setForm({ name: '', email: '', phone: '', subject: '', message: '', priority: 'NORMAL' })
+      api('/api/sekretariat/messages').then(setMessages).catch(() => {})
+    } catch (e: any) { addToast(e.message, 'error') }
+    finally { setSubmitting(false) }
+  }
+
+  const priorityConfig: Record<string, { label: string; color: string }> = {
+    RENDAH: { label: 'Rendah', color: 'bg-slate-50 text-slate-700 border-slate-200' },
+    NORMAL: { label: 'Normal', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+    TINGGI: { label: 'Tinggi', color: 'bg-orange-50 text-orange-700 border-orange-200' },
+    URGENT: { label: 'Urgent', color: 'bg-red-50 text-red-700 border-red-200' },
+  }
+
+  return (
+    <div className="grid gap-6 lg:grid-cols-2">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base"><Mail className="w-4 h-4 text-emerald-600" /> Kirim Pesan ke Sekretariat</CardTitle>
+          <CardDescription>Formulir kontak resmi untuk pertanyaan, saran, atau aspirasi</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2"><Label>Nama Lengkap *</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Nama Anda" required /></div>
+              <div className="space-y-2"><Label>Email *</Label><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="email@example.com" required /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2"><Label>Telepon / WA</Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+62 812-xxxx-xxxx" /></div>
+              <div className="space-y-2"><Label>Prioritas</Label>
+                <Select value={form.priority} onValueChange={(v) => setForm({ ...form, priority: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(priorityConfig).map(([k, v]) => <SelectItem key={k} value={k}>{v.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2"><Label>Subjek *</Label><Input value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} placeholder="cth: Permintaan informasi keanggotaan" required /></div>
+            <div className="space-y-2"><Label>Pesan *</Label><Textarea value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} rows={5} placeholder="Tulis pesan Anda dengan jelas dan detail..." required /></div>
+            <Button type="submit" disabled={submitting} className="w-full bg-gradient-to-r from-orange-600 to-red-600 text-white">
+              {submitting ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Send className="w-4 h-4 mr-1" />}
+              Kirim Pesan
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base"><MessageSquare className="w-4 h-4 text-blue-600" /> Riwayat Pesan ({messages.length})</CardTitle>
+          <CardDescription>Pesan yang telah Anda kirim ke sekretariat</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {loading ? <LoadingState /> : messages.length === 0 ? (
+            <EmptyState icon={Mail} title="Belum ada pesan" description="Pesan yang Anda kirim akan muncul di sini." />
+          ) : (
+            <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2">
+              {messages.map((m) => {
+                const pc = priorityConfig[m.priority] || priorityConfig.NORMAL
+                return (
+                  <div key={m.id} className="rounded-xl border p-3 bg-white">
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <Badge variant="outline" className={`text-[10px] ${pc.color}`}>{pc.label}</Badge>
+                      <Badge variant={m.status === 'RESOLVED' ? 'default' : m.status === 'READ' ? 'secondary' : 'outline'} className={`text-[10px] ${m.status === 'RESOLVED' ? 'bg-emerald-50 text-emerald-700' : m.status === 'READ' ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'}`}>
+                        {m.status === 'RESOLVED' ? 'Selesai' : m.status === 'READ' ? 'Dibaca' : 'Baru'}
+                      </Badge>
+                    </div>
+                    <div className="font-semibold text-sm">{m.subject}</div>
+                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{m.message}</p>
+                    <div className="text-[10px] text-muted-foreground mt-2">{m.name} • {formatDateTimeID(m.createdAt)}</div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+// ----- FAQ -----
+function FaqManager() {
+  const [faqs, setFaqs] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+  const [openItem, setOpenItem] = useState<string | null>(null)
+
+  useEffect(() => {
+    const defaults = [
+      { id: 'faq_1', category: 'KEANGGOTAAN', q: 'Bagaimana cara mendaftar menjadi anggota LAPRA 08?', a: 'Pendaftaran anggota LAPRA 08 dilakukan melalui DPC setempat (Kabupaten/Kota). Anda dapat mengunjungi sekretariat DPC di wilayah Anda, mengisi formulir pendaftaran, melampirkan fotokopi KTP dan pas foto, serta membayar iuran pendaftaran. Setelah diverifikasi, Anda akan menerima KTA (Kartu Tanda Anggota) digital dengan format unik LAPRA08.[NEGARA].[PROVINSI].[KAB/KOTA].[TAHUN].[URUT].' },
+      { id: 'faq_2', category: 'KEANGGOTAAN', q: 'Apakah anggota luar negeri bisa mendaftar?', a: 'Ya. LAPRA 08 memiliki DPD di 5 negara (Amerika Serikat, Cina, Malaysia, Arab Saudi, dan Australia). Warga Indonesia yang berdomisili di negara tersebut dapat mendaftar melalui DPD setempat. Format KTA internasional menggunakan kode negara setempat, misalnya LAPRA08.US.00.LAX.26.00001 untuk anggota di Los Angeles.' },
+      { id: 'faq_3', category: 'KEANGGOTAAN', q: 'Berapa iuran anggota LAPRA 08?', a: 'Iuran anggota dibagi menjadi beberapa kategori: (1) Iuran bulanan anggota biasa Rp 25.000/bulan; (2) Iuran bulanan pengurus Rp 50.000/bulan; (3) Iuran tahunan dapat dibayar di muka dengan diskon. Iuran dapat dibayarkan melalui transfer ke rekening resmi DPC atau via QRIS. Khusus anggota luar negeri, iuran setara USD 5/bulan.' },
+      { id: 'faq_4', category: 'STRUKTUR', q: 'Apa saja tingkatan struktur pengurus LAPRA 08?', a: 'Struktur LAPRA 08 terdiri dari 5 tingkat: (1) DPN (Dewan Pimpinan Pusat) di tingkat nasional; (2) Koorwil (Koordinator Wilayah) yang membawahi 7 wilayah Indonesia + 1 LN; (3) DPD (Dewan Pimpinan Daerah) di tingkat provinsi/negara LN; (4) Koor DPD (Koordinator Region) yang membawahi kelompok DPC; (5) DPC (Dewan Pimpinan Cabang) di tingkat kabupaten/kota. Total ada 38 provinsi + IKN + 5 negara LN.' },
+      { id: 'faq_5', category: 'STRUKTUR', q: 'Siapa Ketua Umum DPN LAPRA 08 periode 2024-2029?', a: 'Pengurus DPN LAPRA 08 periode 2024-2029 dipimpin oleh Dr. (HC) Hashim S. Djojohadikusumo sebagai Ketua Dewan Pembina, dan Devi Taurisa, S.H., M.H., C.L.D. sebagai Ketua Umum DPN. Sekretaris Jenderal dijabat oleh Brigjen. Pol. (Purn) Dr. R. Nurhadi, S.I.K., M.Si., CHRMP, dan Bendahara Umum adalah Timmy Rorimpandey, S.E., M.M. Pembaruan pengurus inti dilakukan pada Maret 2026.' },
+      { id: 'faq_6', category: 'PROGRAM', q: 'Apa program unggulan LAPRA 08?', a: 'Program unggulan LAPRA 08 meliputi: (1) Sosialisasi Asta Cita Presiden Prabowo ke seluruh DPD di 38 provinsi; (2) Penguatan kader DPC se-Indonesia melalui pelatihan rutin; (3) Aksi sosial seperti bakti sosial, donor darah, dan distribusi sembako; (4) Kemitraan dengan ummat, ormas Islam, kementerian, dan BUMN untuk program CSR; (5) Digitalisasi sistem informasi internal untuk efisiensi administrasi.' },
+      { id: 'faq_7', category: 'PROGRAM', q: 'Bagaimana cara mengajukan proposal kemitraan dengan LAPRA 08?', a: 'Proposal kemitraan dapat diajukan melalui email resmi sekretariat@lapra08.id dengan subject "Proposal Kemitraan - [Nama Institusi]". Lampirkan profil institusi, latar belakang kemitraan, lingkup kerja sama, dan expected outcomes. Tim Sekretariat DPN akan melakukan review dalam 14 hari kerja dan menghubungi Anda untuk diskusi lebih lanjut jika proposal memenuhi kriteria.' },
+      { id: 'faq_8', category: 'LAYANAN', q: 'Bagaimana cara mengajukan pengaduan atau aspirasi?', a: 'Pengaduan dan aspirasi dapat disampaikan melalui: (1) Formulir "Hubungi Kami" di menu Kontak & Sekretariat; (2) Pusat Pengaduan & Aspirasi di menu Layanan & Advokasi; (3) WhatsApp resmi DPC setempat; (4) Surat resmi ke sekretariat DPN. Setiap pengaduan akan ditindaklanjuti dalam 1x24 jam (kasus normal) atau 2 jam (kasus urgent). Identitas pelapor dilindungi sesuai kebijakan privasi.' },
+      { id: 'faq_9', category: 'LAYANAN', q: 'Apakah LAPRA 08 menyediakan bantuan hukum untuk anggota?', a: 'Ya, LAPRA 08 menyediakan layanan bantuan hukum untuk anggota yang menghadapi kasus hukum terkait aktivitas keorganisasian. Layanan ini diakses melalui menu "Bantuan Hukum" di Layanan & Advokasi. Tim advokasi DPN akan melakukan assessment kasus, memberikan konsultasi awal gratis, dan jika diperlukan, merujuk ke pengacara mitra dengan tarif khusus untuk anggota.' },
+      { id: 'faq_10', category: 'LAINNYA', q: 'Bagaimana cara mendapatkan KTA digital?', a: 'KTA digital diterbitkan secara otomatis setelah pendaftaran anggota diverifikasi oleh pengurus DPC. KTA dapat diakses melalui menu "Layanan KTA" di portal LAPRA 08. Format KTA: LAPRA08.[NEGARA].[PROVINSI].[KAB/KOTA].[TAHUN].[URUT]. KTA digital berisi QR code untuk verifikasi keaslian, foto anggota, dan data keanggotaan. KTA fisik dapat dicetak di DPC dengan biaya Rp 25.000.' },
+      { id: 'faq_11', category: 'LAINNYA', q: 'Apakah portal LAPRA 08 bisa diakses publik?', a: 'Portal LAPRA 08 bersifat semi-publik. Beranda, Profil, Pusat Media (berita & galeri), dan Program & Kegiatan dapat diakses publik. Sedangkan menu operasional seperti Dashboard, Pusat Data Organisasi, Logistik, Komunikasi, Keuangan, dan User hanya dapat diakses oleh pengurus yang telah login dengan role yang sesuai (SUPERADMIN, ADMIN_DPN, ADMIN_KOORWIL, ADMIN_DPD, ADMIN_KOOR_DPD, ADMIN_DPC). Isolasi data otomatis diterapkan sesuai hierarki wilayah.' },
+      { id: 'faq_12', category: 'LAINNYA', q: 'Bagaimana cara melaporkan kendala teknis portal?', a: 'Kendala teknis dapat dilaporkan melalui menu "Pusat Bantuan & Tiket" di Layanan & Advokasi. Pilih kategori "Bug/Error Sistem" atau "Permintaan Fitur", sertakan tangkapan layar dan langkah reproduksi jika memungkinkan. Tim IT DPN akan merespons dalam 4 jam kerja. Untuk kendala kritis (sistem tidak bisa diakses), hubungi hotline IT DPN di +62 811-9090-08 (24/7).' },
+    ]
+    setFaqs(defaults)
+    setLoading(false)
+  }, [])
+
+  if (loading) return <LoadingState />
+
+  const categories: Record<string, { label: string; color: string; icon: any }> = {
+    KEANGGOTAAN: { label: 'Keanggotaan', color: 'bg-blue-50 text-blue-700 border-blue-200', icon: Users },
+    STRUKTUR: { label: 'Struktur Organisasi', color: 'bg-purple-50 text-purple-700 border-purple-200', icon: Building2 },
+    PROGRAM: { label: 'Program & Kegiatan', color: 'bg-emerald-50 text-emerald-700 border-emerald-200', icon: Briefcase },
+    LAYANAN: { label: 'Layanan & Advokasi', color: 'bg-orange-50 text-orange-700 border-orange-200', icon: ShieldCheck },
+    LAINNYA: { label: 'Lainnya', color: 'bg-slate-50 text-slate-700 border-slate-200', icon: HelpCircle },
+  }
+
+  const filtered = faqs.filter(f => !search || f.q.toLowerCase().includes(search.toLowerCase()) || f.a.toLowerCase().includes(search.toLowerCase()) || f.category.toLowerCase().includes(search.toLowerCase()))
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base"><HelpCircle className="w-4 h-4 text-emerald-600" /> FAQ - Pertanyaan yang Sering Diajukan ({filtered.length})</CardTitle>
+        <CardDescription>Temukan jawaban cepat untuk pertanyaan umum tentang LAPRA 08</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="relative max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input placeholder="Cari pertanyaan atau kata kunci..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {Object.entries(categories).map(([k, v]) => {
+            const Icon = v.icon
+            const count = faqs.filter(f => f.category === k).length
+            return (
+              <button key={k} onClick={() => setSearch(k === 'KEANGGOTAAN' ? 'keanggotaan' : k === 'STRUKTUR' ? 'struktur' : k === 'PROGRAM' ? 'program' : k === 'LAYANAN' ? 'layanan' : '')}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium border bg-white hover:bg-accent transition-colors">
+                <Icon className="w-3.5 h-3.5" />
+                <span className={v.color.split(' ').slice(1, 3).join(' ')}>{v.label}</span>
+                <Badge variant="outline" className="text-[10px]">{count}</Badge>
+              </button>
+            )
+          })}
+        </div>
+        <div className="space-y-2">
+          {filtered.map((faq) => {
+            const cat = categories[faq.category] || categories.LAINNYA
+            const CatIcon = cat.icon
+            const isOpen = openItem === faq.id
+            return (
+              <div key={faq.id} className="rounded-xl border bg-white overflow-hidden">
+                <button onClick={() => setOpenItem(isOpen ? null : faq.id)} className="w-full p-4 flex items-start gap-3 hover:bg-accent/50 transition-colors text-left">
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${cat.color}`}>
+                    <CatIcon className="w-4 h-4" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-sm">{faq.q}</div>
+                    <Badge variant="outline" className={`text-[10px] mt-1 ${cat.color}`}>{cat.label}</Badge>
+                  </div>
+                  <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform shrink-0 mt-1 ${isOpen ? 'rotate-90' : ''}`} />
+                </button>
+                {isOpen && (
+                  <div className="px-4 pb-4 pt-0 text-sm text-muted-foreground leading-relaxed border-t bg-slate-50/50">
+                    <p className="mt-3">{faq.a}</p>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+        {filtered.length === 0 && <EmptyState icon={HelpCircle} title="Tidak ada FAQ cocok" description="Coba kata kunci lain atau hubungi sekretariat langsung." />}
+      </CardContent>
+    </Card>
   )
 }

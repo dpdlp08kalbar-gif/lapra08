@@ -1,0 +1,53 @@
+🚀 Initializing Z-AI SDK...
+🔎 Searching images: "Laskar Prabowo Subianto rally Indonesia political supporters red"
+✅ Got 6 images
+{
+  "success": true,
+  "query": "Laskar Prabowo Subianto rally Indonesia political supporters red",
+  "count": 6,
+  "ranked": false,
+  "results": [
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/0e9e522793f5.jpg",
+      "caption": "",
+      "source": "The Jakarta Post",
+      "original_width": "1360px",
+      "original_height": "934px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/a326d98a27d4.jpg",
+      "caption": "",
+      "source": "Foreign Policy",
+      "original_width": "1500px",
+      "original_height": "1000px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/dc1f9d832ad5.jpg",
+      "caption": "",
+      "source": "CNN",
+      "original_width": "1093px",
+      "original_height": "729px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/ecc961a8e0b8.jpg",
+      "caption": "",
+      "source": "Newsweek",
+      "original_width": "2500px",
+      "original_height": "1667px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/e0012efa25d2.jpg",
+      "caption": "",
+      "source": "Reuters",
+      "original_width": "1080px",
+      "original_height": "861px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/6355ab4a92ef.jpg",
+      "caption": "",
+      "source": "Carnegie Endowment for International Peace",
+      "original_width": "1420px",
+      "original_height": "770px"
+    }
+  ]
+}

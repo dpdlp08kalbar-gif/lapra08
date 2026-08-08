@@ -1,0 +1,53 @@
+🚀 Initializing Z-AI SDK...
+🔎 Searching images: "Indonesia vocational training seminar workshop audience hall"
+✅ Got 6 images
+{
+  "success": true,
+  "query": "Indonesia vocational training seminar workshop audience hall",
+  "count": 6,
+  "ranked": false,
+  "results": [
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/b6b2c02ab3cf.jpg",
+      "caption": "",
+      "source": "LinkedIn",
+      "original_width": "1280px",
+      "original_height": "720px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/23a767f6fbea.jpg",
+      "caption": "",
+      "source": "Salesforce",
+      "original_width": "1500px",
+      "original_height": "844px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/8825095188a9.jpg",
+      "caption": "",
+      "source": "LinkedIn",
+      "original_width": "1280px",
+      "original_height": "720px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/f298a497209e.jpg",
+      "caption": "",
+      "source": "HAE International",
+      "original_width": "1810px",
+      "original_height": "2560px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/04a8bfdec633.png",
+      "caption": "",
+      "source": "Speech Academy Asia",
+      "original_width": "1366px",
+      "original_height": "768px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/effd83eef343.jpg",
+      "caption": "",
+      "source": "Global Partnership for Education",
+      "original_width": "1170px",
+      "original_height": "780px"
+    }
+  ]
+}

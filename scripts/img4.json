@@ -1,0 +1,53 @@
+🚀 Initializing Z-AI SDK...
+🔎 Searching images: "Prabowo Subianto president Indonesia meeting officials"
+✅ Got 6 images
+{
+  "success": true,
+  "query": "Prabowo Subianto president Indonesia meeting officials",
+  "count": 6,
+  "ranked": false,
+  "results": [
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/616d472dfec0.jpg",
+      "caption": "",
+      "source": "EEAS - European Union",
+      "original_width": "1089px",
+      "original_height": "726px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/ecb138f0e36e.jpg",
+      "caption": "",
+      "source": "USINDO",
+      "original_width": "1219px",
+      "original_height": "812px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/0488074b0943.jpg",
+      "caption": "",
+      "source": "The Jakarta Post",
+      "original_width": "1200px",
+      "original_height": "801px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/d79375328225.jpeg",
+      "caption": "",
+      "source": "Wantimpres",
+      "original_width": "1280px",
+      "original_height": "1600px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/2bf677307fda.jpg",
+      "caption": "",
+      "source": "The Korea Herald",
+      "original_width": "1280px",
+      "original_height": "853px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/2b0c09920296.jpeg",
+      "caption": "",
+      "source": "Fox 59",
+      "original_width": "2560px",
+      "original_height": "1440px"
+    }
+  ]
+}

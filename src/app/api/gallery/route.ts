@@ -15,9 +15,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
   }
 
-  // Get all gallery items from SystemSetting
+  // Get all gallery items AND program content items from SystemSetting
+  // Gallery: photo gallery items; PROGRAM_CONTENT: program/aksi/kemitraan items
   const items = await db.systemSetting.findMany({
-    where: { category: 'GALLERY' },
+    where: { category: { in: ['GALLERY', 'PROGRAM_CONTENT'] } },
     orderBy: { updatedAt: 'desc' },
   })
 
@@ -32,11 +33,47 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({ success: true, data: gallery })
 }
 
-// POST /api/gallery - Upload photo to gallery
+// POST /api/gallery - Upload photo to gallery OR create program content (JSON)
 export async function POST(request: NextRequest) {
   const user = await getUserFromRequest(request)
   if (!user) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const contentType = request.headers.get('content-type') || ''
+
+  // JSON mode (for ProgramContentManager - store program/aksi/kemitraan items without image upload)
+  if (contentType.includes('application/json')) {
+    try {
+      const body = await request.json()
+      const itemData = {
+        id: body.id || `prog_${Date.now()}`,
+        title: body.title || '',
+        description: body.description || '',
+        location: body.location || '',
+        date: body.date || '',
+        status: body.status || 'DIRENCANAKAN',
+        category: body.category || 'PROGRAM_KERJA',
+        uploadedBy: user.fullName,
+        uploadedAt: new Date().toISOString(),
+      }
+
+      await db.systemSetting.upsert({
+        where: { key: itemData.id },
+        update: { value: JSON.stringify(itemData), category: 'PROGRAM_CONTENT' },
+        create: {
+          key: itemData.id,
+          value: JSON.stringify(itemData),
+          category: 'PROGRAM_CONTENT',
+          description: `Program: ${itemData.title}`,
+        },
+      })
+
+      return NextResponse.json({ success: true, data: itemData, message: 'Program content disimpan' })
+    } catch (e: any) {
+      console.error('[Program Content Error]', e)
+      return NextResponse.json({ success: false, error: e.message }, { status: 500 })
+    }
   }
 
   try {

@@ -1,0 +1,53 @@
+🚀 Initializing Z-AI SDK...
+🔎 Searching images: "Jakarta Indonesia modern city skyline government building"
+✅ Got 6 images
+{
+  "success": true,
+  "query": "Jakarta Indonesia modern city skyline government building",
+  "count": 6,
+  "ranked": false,
+  "results": [
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/3a8cf43abb3c.jpg",
+      "caption": "",
+      "source": "The New York Times",
+      "original_width": "2048px",
+      "original_height": "1366px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/c1d885e91ce5.jpg",
+      "caption": "",
+      "source": "Travel Weekly",
+      "original_width": "1200px",
+      "original_height": "799px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/ad6cb6df47a9.jpg",
+      "caption": "",
+      "source": "The Australian",
+      "original_width": "1024px",
+      "original_height": "768px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/8772216bf907.jpg",
+      "caption": "",
+      "source": "Airial.Travel",
+      "original_width": "1600px",
+      "original_height": "1200px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/677931618832.jpg",
+      "caption": "",
+      "source": "Reddit",
+      "original_width": "1080px",
+      "original_height": "1366px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/e64434df1965.jpg",
+      "caption": "",
+      "source": "123RF",
+      "original_width": "1300px",
+      "original_height": "730px"
+    }
+  ]
+}

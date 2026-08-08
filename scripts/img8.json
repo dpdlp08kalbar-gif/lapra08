@@ -1,0 +1,53 @@
+🚀 Initializing Z-AI SDK...
+🔎 Searching images: "Indonesia community service volunteers helping people donation"
+✅ Got 6 images
+{
+  "success": true,
+  "query": "Indonesia community service volunteers helping people donation",
+  "count": 6,
+  "ranked": false,
+  "results": [
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/d12c6efb1fe8.png",
+      "caption": "",
+      "source": "the United Nations",
+      "original_width": "2560px",
+      "original_height": "1440px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/3f8c51eb80b5.jpeg",
+      "caption": "",
+      "source": "Red Cross",
+      "original_width": "1280px",
+      "original_height": "735px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/16432ef50b5a.jpg",
+      "caption": "",
+      "source": "Workaway",
+      "original_width": "1920px",
+      "original_height": "500px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/1853fcf678ab.jpeg",
+      "caption": "",
+      "source": "World Central Kitchen",
+      "original_width": "2268px",
+      "original_height": "4032px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/19ddffb90a1b.jpg",
+      "caption": "",
+      "source": "Peace Corps",
+      "original_width": "1920px",
+      "original_height": "866px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/fce0e5f1bef6.jpeg",
+      "caption": "",
+      "source": "the United Nations",
+      "original_width": "1024px",
+      "original_height": "768px"
+    }
+  ]
+}

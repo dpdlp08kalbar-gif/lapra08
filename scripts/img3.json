@@ -1,0 +1,53 @@
+🚀 Initializing Z-AI SDK...
+🔎 Searching images: "Indonesia aksi sosial bakti sosial distribusi sembako masyarakat"
+✅ Got 6 images
+{
+  "success": true,
+  "query": "Indonesia aksi sosial bakti sosial distribusi sembako masyarakat",
+  "count": 6,
+  "ranked": false,
+  "results": [
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/abd24400739d.jpg",
+      "caption": "",
+      "source": "Mabes TNI",
+      "original_width": "2500px",
+      "original_height": "1665px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/5b9439d390f8.jpg",
+      "caption": "",
+      "source": "tugubandung.id",
+      "original_width": "1280px",
+      "original_height": "854px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/8ef420b6c7a5.jpg",
+      "caption": "",
+      "source": "ANTARA News Jawa Barat",
+      "original_width": "1200px",
+      "original_height": "800px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/31933e5cf281.jpg",
+      "caption": "",
+      "source": "DT Peduli",
+      "original_width": "1920px",
+      "original_height": "1081px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/af2c384a25a8.jpeg",
+      "caption": "",
+      "source": "AnalisaDaily.com",
+      "original_width": "1200px",
+      "original_height": "755px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/bf0e42f08503.jpg",
+      "caption": "",
+      "source": "lpham ri news",
+      "original_width": "1251px",
+      "original_height": "938px"
+    }
+  ]
+}

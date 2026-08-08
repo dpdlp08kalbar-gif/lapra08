@@ -1,0 +1,53 @@
+🚀 Initializing Z-AI SDK...
+🔎 Searching images: "Indonesia mosque interfaith dialogue religious leaders meeting"
+✅ Got 6 images
+{
+  "success": true,
+  "query": "Indonesia mosque interfaith dialogue religious leaders meeting",
+  "count": 6,
+  "ranked": false,
+  "results": [
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/1478ad6b0782.jpg",
+      "caption": "",
+      "source": "The Guardian",
+      "original_width": "1200px",
+      "original_height": "720px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/41cea0af18bf.jpg",
+      "caption": "",
+      "source": "EWTN News",
+      "original_width": "3840px",
+      "original_height": "2160px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/1aaffb59ce81.jpeg",
+      "caption": "",
+      "source": "LiCAS.news",
+      "original_width": "1600px",
+      "original_height": "1200px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/2762dbc2feda.jpg",
+      "caption": "",
+      "source": "Hartford International University for Religion and Peace",
+      "original_width": "1600px",
+      "original_height": "1200px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/c3cee5d45200.jpg",
+      "caption": "",
+      "source": "American Jewish Committee",
+      "original_width": "1280px",
+      "original_height": "640px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/dabcf963af59.jpeg",
+      "caption": "",
+      "source": "Vatican News",
+      "original_width": "1500px",
+      "original_height": "844px"
+    }
+  ]
+}

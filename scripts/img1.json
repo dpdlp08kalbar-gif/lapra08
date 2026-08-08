@@ -1,0 +1,50 @@
+{
+  "success": true,
+  "query": "Hashim Djojohadikusumo Laskar Prabowo pelantikan pengurus",
+  "count": 6,
+  "ranked": false,
+  "results": [
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/5f139c90784f.jpeg",
+      "caption": "",
+      "source": "RRI",
+      "original_width": "1600px",
+      "original_height": "1200px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/cf45272371b0.jpg",
+      "caption": "",
+      "source": "YouTube",
+      "original_width": "1280px",
+      "original_height": "720px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/c9918afe50d9.jpeg",
+      "caption": "",
+      "source": "DelikAsia.com",
+      "original_width": "1596px",
+      "original_height": "999px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/f104bc16f01f.jpg",
+      "caption": "",
+      "source": "BIDIKKASUSNEWS.COM",
+      "original_width": "898px",
+      "original_height": "1020px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/d9b49f9bf99a.jpg",
+      "caption": "",
+      "source": "katababel.com",
+      "original_width": "1600px",
+      "original_height": "900px"
+    },
+    {
+      "original_url": "https://z-cdn.chatglm.cn/image-search-mcp/images-ppt/e0a679d7590a.jpg",
+      "caption": "",
+      "source": "YouTube",
+      "original_width": "1280px",
+      "original_height": "720px"
+    }
+  ]
+}
