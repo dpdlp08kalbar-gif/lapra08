@@ -366,11 +366,318 @@ export function PusatMediaMenu() {
       ) : tab === 'galeri' ? (
         <GalleryManager />
       ) : tab === 'rilis-pers' ? (
-        <Card><CardContent className="py-12"><EmptyState icon={Megaphone} title="Media Siaran LAPRA 08" description="Rilis pers resmi DPN siap diisi." /></CardContent></Card>
+        <MediaSiaranManager />
       ) : (
-        <Card><CardContent className="py-12"><EmptyState icon={BookOpen} title="Majalah / Buletin Digital" description="Publikasi majalah digital siap diisi." /></CardContent></Card>
+        <MajalahManager />
       )}
     </div>
+  )
+}
+
+// ============================================================
+// MEDIA SIARAN — Auto-sync dari berita kategori SIRANAN_PERS
+// ============================================================
+function MediaSiaranManager() {
+  const addToast = useToastStore((s) => s.addToast)
+  const [items, setItems] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  const loadData = () => {
+    setLoading(true)
+    api('/api/announcements').then((all: any[]) => {
+      // Filter hanya yang kategori = SIRANAN_PERS
+      const siranan = all.filter((a) => a.category === 'SIRANAN_PERS')
+      setItems(siranan)
+    }).catch(() => {}).finally(() => setLoading(false))
+  }
+  useEffect(() => { loadData() }, [])
+
+  if (loading) return <LoadingState />
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Megaphone className="w-4 h-4 text-indigo-600" />
+            Media Siaran LAPRA 08 ({items.length} rilis pers)
+          </CardTitle>
+          <Button size="sm" variant="outline" onClick={() => {
+            useNavStore.getState().setActiveMenu('pusat-media')
+            // Switch to berita tab via event
+            window.dispatchEvent(new CustomEvent('switch-tab', { detail: 'berita' }))
+          }}>
+            <Plus className="w-4 h-4 mr-1" /> Buat Siaran Pers Baru
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="rounded-lg bg-indigo-50 border border-indigo-200 p-3 mb-4 text-xs text-indigo-800">
+          <Megaphone className="w-4 h-4 inline mr-1" />
+          <strong>Media Siaran</strong> otomatis menampilkan berita dengan kategori <strong>"Siaran Pers"</strong> yang dibuat di tab Kabar Utama.
+          Untuk membuat siaran pers baru, buat berita dengan kategori "Siaran Pers" di menu Kabar Utama.
+        </div>
+        {items.length === 0 ? (
+          <EmptyState icon={Megaphone} title="Belum ada siaran pers" description="Buat berita dengan kategori 'Siaran Pers' di tab Kabar Utama, dan akan otomatis muncul di sini." />
+        ) : (
+          <div className="space-y-2">
+            {items.map((a) => (
+              <div key={a.id} className="group relative rounded-xl border p-4 hover:shadow-md transition-all bg-white">
+                <div className="flex items-start gap-3">
+                  {a.photoUrl ? (
+                    <img src={a.photoUrl} alt={a.title} className="w-20 h-20 rounded-lg object-cover shrink-0" />
+                  ) : (
+                    <div className="w-20 h-20 rounded-lg bg-gradient-to-br from-indigo-100 to-indigo-200 flex items-center justify-center shrink-0">
+                      <Megaphone className="w-8 h-8 text-indigo-500" />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <Badge variant="outline" className="text-[10px] mb-1 bg-indigo-50 text-indigo-700 border-indigo-200">Siaran Pers</Badge>
+                    <div className="font-bold text-sm">{a.title}</div>
+                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{a.content}</p>
+                    <div className="flex items-center gap-2 mt-2 text-[10px] text-muted-foreground">
+                      <span>{a.publishDate ? formatDateID(a.publishDate) : formatDateTimeID(a.createdAt)}</span>
+                      <span>•</span>
+                      <span>{a.createdBy?.fullName || 'DPN LAPRA 08'}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+// ============================================================
+// MAJALAH / BULETIN DIGITAL — CRUD dengan upload PDF + cover
+// ============================================================
+function MajalahManager() {
+  const addToast = useToastStore((s) => s.addToast)
+  const [items, setItems] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [uploadOpen, setUploadOpen] = useState(false)
+  const [editItem, setEditItem] = useState<any>(null)
+  const [deleteItem, setDeleteItem] = useState<any>(null)
+  const [form, setForm] = useState({ title: '', description: '', edition: '', publishDate: '' })
+  const [coverFile, setCoverFile] = useState<File | null>(null)
+  const [pdfFile, setPdfFile] = useState<File | null>(null)
+  const [uploading, setUploading] = useState(false)
+
+  const loadData = () => {
+    setLoading(true)
+    api('/api/gallery').then((all: any[]) => {
+      // Filter hanya yang kategori = MAJALAH
+      const majalah = all.filter((a: any) => a.category === 'MAJALAH')
+      setItems(majalah)
+    }).catch(() => {}).finally(() => setLoading(false))
+  }
+  useEffect(() => { loadData() }, [])
+
+  const handleUpload = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!form.title) { addToast('Judul wajib diisi', 'error'); return }
+    setUploading(true)
+    try {
+      const formData = new FormData()
+      if (coverFile) formData.append('file', coverFile)
+      formData.append('title', form.title)
+      formData.append('description', form.description)
+      formData.append('category', 'MAJALAH')
+
+      const res = await fetch('/api/gallery', {
+        method: 'POST',
+        headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+        body: formData,
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) throw new Error(data.error || 'Upload gagal')
+
+      // If PDF also uploaded, store as separate gallery item with PDF reference
+      if (pdfFile) {
+        const pdfFormData = new FormData()
+        pdfFormData.append('file', pdfFile)
+        pdfFormData.append('title', `${form.title} - PDF`)
+        pdfFormData.append('description', `File PDF majalah: ${form.title}`)
+        pdfFormData.append('category', 'MAJALAH_PDF')
+        await fetch('/api/gallery', {
+          method: 'POST',
+          headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+          body: pdfFormData,
+        })
+      }
+
+      addToast('Majalah berhasil diupload', 'success')
+      setForm({ title: '', description: '', edition: '', publishDate: '' })
+      setCoverFile(null); setPdfFile(null); setUploadOpen(false); setEditItem(null)
+      loadData()
+    } catch (e: any) { addToast(e.message, 'error') }
+    finally { setUploading(false) }
+  }
+
+  const handleDelete = async () => {
+    if (!deleteItem) return
+    try {
+      await fetch(`/api/gallery/${deleteItem.id}?id=${deleteItem.id}`, {
+        method: 'DELETE',
+        headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+      })
+      addToast('Majalah dihapus', 'success')
+      setDeleteItem(null); loadData()
+    } catch (e: any) { addToast(e.message, 'error') }
+  }
+
+  if (loading) return <LoadingState />
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <BookOpen className="w-4 h-4 text-purple-600" />
+            Majalah / Buletin Digital ({items.length} edisi)
+          </CardTitle>
+          <Button onClick={() => { setEditItem(null); setForm({ title: '', description: '', edition: '', publishDate: '' }); setCoverFile(null); setPdfFile(null); setUploadOpen(true) }}
+            size="sm" className="bg-gradient-to-r from-orange-600 to-red-600 text-white">
+            <Plus className="w-4 h-4 mr-1" /> Buat Majalah Baru
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {items.length === 0 ? (
+          <EmptyState icon={BookOpen} title="Belum ada majalah" description="Klik 'Buat Majalah Baru' untuk upload majalah/buletin digital (cover + PDF)." />
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+            {items.map((item) => (
+              <div key={item.id} className="group relative rounded-xl overflow-hidden border shadow-sm hover:shadow-lg transition-all bg-white">
+                {item.fileUrl ? (
+                  <img src={item.fileUrl} alt={item.title} className="w-full h-56 object-cover" />
+                ) : (
+                  <div className="w-full h-56 bg-gradient-to-br from-purple-100 to-indigo-200 flex items-center justify-center">
+                    <BookOpen className="w-12 h-12 text-purple-400" />
+                  </div>
+                )}
+                <div className="p-3">
+                  <div className="font-bold text-sm truncate">{item.title}</div>
+                  {item.description && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{item.description}</p>}
+                  <div className="text-[10px] text-muted-foreground mt-2">{formatDateID(item.uploadedAt)}</div>
+                </div>
+                <Button variant="destructive" size="sm"
+                  className="absolute top-2 right-2 h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                  onClick={() => setDeleteItem(item)}>
+                  <Trash2 className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+
+      {/* Dialog Upload Majalah */}
+      <Dialog open={uploadOpen} onOpenChange={(o) => { setUploadOpen(o); if (!o) { setEditItem(null); setCoverFile(null); setPdfFile(null) } }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <BookOpen className="w-5 h-5 text-purple-600" />
+              {editItem ? 'Edit' : 'Buat'} Majalah / Buletin Digital
+            </DialogTitle>
+            <DialogDescription>Upload cover majalah (gambar) + file PDF majalah</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleUpload} className="space-y-4">
+            {/* Judul */}
+            <div className="space-y-2">
+              <Label>Judul Majalah *</Label>
+              <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })}
+                placeholder="cth: Majalah LAPRA 08 Edisi Januari 2026" required />
+            </div>
+            {/* Edisi */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Edisi</Label>
+                <Input value={form.edition} onChange={(e) => setForm({ ...form, edition: e.target.value })}
+                  placeholder="cth: Vol. 1 No. 1" />
+              </div>
+              <div className="space-y-2">
+                <Label>Tanggal Terbit</Label>
+                <Input type="date" value={form.publishDate} onChange={(e) => setForm({ ...form, publishDate: e.target.value })} />
+              </div>
+            </div>
+            {/* Deskripsi */}
+            <div className="space-y-2">
+              <Label>Deskripsi / Ringkasan</Label>
+              <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
+                rows={3} placeholder="Ringkasan isi majalah..." />
+            </div>
+            {/* Cover Upload */}
+            <div className="space-y-2">
+              <Label>Cover Majalah (Gambar)</Label>
+              {coverFile ? (
+                <div className="relative">
+                  <img src={URL.createObjectURL(coverFile)} alt="Cover preview" className="w-full max-h-48 object-cover rounded-xl border" />
+                  <Button type="button" variant="destructive" size="sm" className="absolute top-2 right-2"
+                    onClick={() => setCoverFile(null)}>
+                    <Trash2 className="w-3.5 h-3.5 mr-1" /> Hapus
+                  </Button>
+                </div>
+              ) : (
+                <div className="border-2 border-dashed rounded-xl p-4 text-center hover:border-purple-400 transition-colors cursor-pointer"
+                  onClick={() => document.getElementById('majalah-cover-input')?.click()}>
+                  <input type="file" id="majalah-cover-input" className="hidden" accept="image/*"
+                    onChange={(e) => setCoverFile(e.target.files?.[0] || null)} />
+                  <Upload className="w-6 h-6 text-slate-400 mx-auto mb-1" />
+                  <div className="text-xs font-medium">Upload Cover (JPG/PNG)</div>
+                </div>
+              )}
+            </div>
+            {/* PDF Upload */}
+            <div className="space-y-2">
+              <Label>File PDF Majalah</Label>
+              {pdfFile ? (
+                <div className="flex items-center gap-2 p-3 rounded-lg bg-emerald-50 border border-emerald-200">
+                  <FileText className="w-5 h-5 text-emerald-600" />
+                  <span className="text-sm font-medium flex-1 truncate">{pdfFile.name}</span>
+                  <Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-600"
+                    onClick={() => setPdfFile(null)}>
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="border-2 border-dashed rounded-xl p-4 text-center hover:border-emerald-400 transition-colors cursor-pointer"
+                  onClick={() => document.getElementById('majalah-pdf-input')?.click()}>
+                  <input type="file" id="majalah-pdf-input" className="hidden" accept=".pdf"
+                    onChange={(e) => setPdfFile(e.target.files?.[0] || null)} />
+                  <FileText className="w-6 h-6 text-slate-400 mx-auto mb-1" />
+                  <div className="text-xs font-medium">Upload PDF Majalah</div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5">Maks 10MB</div>
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setUploadOpen(false)}>Batal</Button>
+              <Button type="submit" disabled={uploading}>
+                {uploading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : null}
+                {editItem ? 'Simpan Perubahan' : 'Publikasikan Majalah'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!deleteItem} onOpenChange={(o) => !o && setDeleteItem(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus Majalah?</AlertDialogTitle>
+            <AlertDialogDescription>Yakin hapus <strong>{deleteItem?.title}</strong>? File cover & PDF akan dihapus permanen.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">Hapus</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </Card>
   )
 }
 
