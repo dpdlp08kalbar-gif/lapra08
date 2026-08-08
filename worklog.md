@@ -438,3 +438,147 @@ Stage Summary:
 - API gallery diperbarui: support JSON mode untuk program content + include PROGRAM_CONTENT category
 - Image source: 72 unique images dari z-ai image-search (OSS-hosted, embeddable)
 - Total deliverables: 12 screenshot bukti di /home/z/my-project/download/
+
+---
+Task ID: LAPRA08-KTA-MEDIA-PRO-V3
+Agent: Main Agent (Super Z)
+Task: Penyempurnaan Pusat Media (Kabar Utama + Galeri 3 sub-tab) + Sistem KTA Digital lengkap
+
+Work Log:
+- Audit gap:
+  * Kabar Utama: tidak ada tombol "Update Informasi Medsos" untuk sync berita terbaru
+  * Galeri Media: hanya 1 tab (Foto), belum ada Galeri Video & Arsip Berita Penting
+  * Layanan KTA: hanya search sederhana, belum ada workflow pendaftaran online + admin review + auto-generate KTA
+
+- Update News Sync API (src/app/api/news/sync/route.ts):
+  * STRICT FILTER: berita HARUS mengandung keyword LAPRA/Laskar Prabowo 08 ATAU agenda positif Presiden Prabowo
+  * LAPRA_KEYWORDS (10 keyword): laskar prabowo 08, lapra08, devi taurisa, hashim, hisar tambunan, nurhadi, timmy rorimpandey
+  * POSITIVE_PRABOWO_KEYWORDS (8 keyword): prabowo astacita, prabowo mbg, prabowo program sosial, dll
+  * NEGATIVE_KEYWORDS filter (anti berita negatif): korupsi, tersangka, kasus pidana, skandal, demonstrasi tolak, dll
+  * 6 search query targeted: LAPRA 08 berita, Devi Taurisa, Hashim, Peace Walk, Asta Cita, Deklarasi
+  * Response: totalFound, totalRelevant, newCreated, skippedDuplicate, skippedIrrelevant, skippedNegative
+
+- Update Prisma Schema: tambah model KtaApplication dengan field lengkap:
+  * applicationNumber (APP-LAPRA08-YYYYMMDD-XXXX auto-generate)
+  * Data diri: fullName, gender, birthPlace, birthDate, bloodType, maritalStatus, occupation, shirtSize
+  * Identitas: nik (WNI), passportNumber (WNA/LN), phone, email, address
+  * Dokumen: photoUrl, idCardUrl (upload via FormData)
+  * territoryId (DPC tujuan)
+  * Status workflow: PENDING → REVIEWING → APPROVED/REJECTED → ISSUED
+  * Review: reviewedById, reviewedAt, reviewNotes, rejectionReason
+  * KTA result: memberId, ktaNumber, ktaIssuedAt, ktaExpiryDate (5 tahun)
+  * submittedById (null untuk pemohon publik tanpa login)
+  * db push --accept-data-loss untuk apply schema
+
+- Buat 3 API endpoints baru untuk KTA:
+  * /api/kta-applications (GET list admin + POST submit pemohon FormData)
+  * /api/kta-applications/[id]/review (PUT action: REVIEWING/APPROVE/REJECT)
+    - APPROVE: auto-generate KTA via generateMemberNumber() + create Member record + link ke application
+    - REJECT: wajib rejectionReason
+    - Validasi: cek hak edit territory admin, anti-duplikasi NIK/phone
+  * /api/kta-applications/track (GET public - search by applicationNumber/phone/NIK/ktaNumber)
+
+- Buat 2 API endpoints untuk Galeri:
+  * /api/gallery/videos (POST FormData MP4 upload + POST JSON YouTube embed)
+    - Auto-extract YouTube ID dari berbagai format URL
+    - Auto-generate thumbnail dari img.youtube.com
+    - Max 100MB untuk upload MP4
+  * /api/gallery/bookmarks (GET list + POST add + DELETE remove)
+    - 4 kategori: PENTING, SEJARAH, MILESTONE, REFERENSI
+    - Link ke Announcement untuk ambil data lengkap
+
+- Update Komponen PusatMediaMenu:
+  * Tambah tombol "Update Informasi Medsos" di AnnouncementManager (Kabar Utama)
+    - Icon Globe, biru outline
+    - Loading state saat sync
+    - Dialog hasil sync dengan 4 stats cards (Berita Baru, Duplikat Skip, Tidak Relevan, Berita Negatif)
+    - List 5 berita baru pertama yang ditambahkan
+  * Blue info banner "Filter Ketat Aktif" di bawah header
+  * Rombak GaleriMediaManager: 3 sub-tab (Foto, Video, Arsip Berita Penting)
+
+- Buat Komponen Baru Galeri Video (GaleriVideoManager):
+  * Toggle mode: YouTube link atau Upload MP4
+  * YouTube: input URL → auto-extract ID → embed iframe + thumbnail
+  * MP4: drag&drop file upload (maks 100MB) → video player native
+  * Grid card layout dengan play button overlay
+  * Click thumbnail → dialog modal player (iframe YouTube atau video native)
+  * Kategori: KEGIATAN, RAPAT, PELANTIKAN, SOSIAL, DOKUMENTER, LAINNYA
+  * Delete dengan AlertDialog konfirmasi
+
+- Buat Komponen Arsip Berita Penting (ArsipBeritaPentingManager):
+  * Form tambah arsip: pilih berita dari Kabar Utama (dropdown berdasarkan announcement yang belum di-arsip)
+  * 4 kategori arsip: PENTING (merah), SEJARAH (ungu), MILESTONE (biru), REFERENSI (hijau)
+  * Catatan arsip (opsional) - alasan kenapa diarsipkan
+  * Card view dengan photo, kategori badge, source link, catatan di highlight kuning
+  * Delete dari arsip dengan konfirmasi
+
+- Rombak Layanan KTA (KtaLayananManager): 4 sub-tab lengkap:
+  1. Daftar KTA Online (KtaPendaftaranForm):
+     - Toggle Domestik (WNI) / Luar Negeri (WNA/WNI LN)
+     - Section Data Diri: fullName, gender, birthPlace, birthDate, bloodType, maritalStatus, occupation, shirtSize
+     - Section Identitas: NIK (domestik) / Paspor (LN), phone, email, territoryId (DPC), address
+     - Section Upload Dokumen: Pass Foto (gambar, max 5MB) + KTP/Paspor (gambar/PDF, max 10MB)
+     - Dropzone dengan preview image / PDF icon
+     - Validasi: cek NIK unik, phone unik, dokumen wajib
+     - Submit → success page dengan nomor pendaftaran besar
+  2. Cek Status Permohonan (KtaCekStatus):
+     - Search by applicationNumber / phone / NIK / ktaNumber
+     - Result card dengan icon status (Clock/Eye/CheckCircle2/XCircle/IdCard)
+     - Detail: nomor pendaftaran, nama, DPC, tanggal daftar, KTA number, issued date, expiry date
+     - Alasan penolakan / catatan admin ditampilkan jika ada
+  3. Admin Review Permohonan (KtaAdminReview):
+     - 4 stats cards interaktif (PENDING/REVIEWING/ISSUED/REJECTED) - click untuk filter
+     - Search by nama/nomor/NIK/WA + filter status
+     - Card list dengan photo thumbnail + status badge + canReview badge
+     - Dialog review detail: split 2 kolom (Dokumen | Biodata lengkap)
+     - 3 action buttons: Tandai REVIEWING (biru), Approve & Terbitkan KTA (hijau), Tolak (merah)
+     - Approve: auto-generate KTA + create Member + set expiry 5 tahun
+     - Reject: wajib alasan penolakan
+  4. Info Layanan KTA (KtaInfoLayanan):
+     - 3 info cards: KTA Digital, Format KTA, Cetak KTA Fisik
+     - Alur Pendaftaran 5 langkah (visual step-by-step)
+     - Syarat & Ketentuan (5 poin)
+
+- Testing end-to-end via script (scripts/test_kta_workflow.js):
+  * Submit aplikasi Budi Santoso Test dengan photo + KTP
+  * Result: APP-LAPRA08-20260808-0001, status PENDING, photo + idcard uploaded
+  * Track by application number → FOUND
+  * Admin mark REVIEWING → status updated
+  * Admin APPROVE → KTA generated: LAPRA08.XX.61.6171.26.00001
+  * Member record auto-created: cmsk76knj0003otjew59e46ro
+  * Expiry date: 8/8/2031 (5 tahun)
+  * ✅ WORKFLOW SUCCESS
+
+- Verifikasi via Agent Browser (login superadmin):
+  * Pusat Media → Kabar Utama: tombol "Update Informasi Medsos" + "Buat Berita/Pengumuman" + blue info banner "Filter Ketat Aktif"
+  * Pusat Media → Galeri Media: 3 sub-tab (Galeri Foto, Galeri Video, Arsip Berita Penting)
+  * Galeri Video: 2 sample YouTube videos (Pelantikan DPN + Aksi Sosial) dengan thumbnail + play button overlay
+  * Arsip Berita Penting: 1 sample berita arsip dengan kategori "Sejarah", catatan kuning, source link RRI.co.id
+  * Layanan & Advokasi → Layanan KTA: 4 sub-tab (Daftar KTA Online, Cek Status, Admin Review, Info Layanan)
+  * Form Pendaftaran: toggle Domestik/LN + Data Diri + Identitas + Upload Dokumen (Pass Foto + KTP) + validasi
+  * Admin Review: 4 stats cards + 1 application card (Budi Santoso Test, status "KTA Aktif", "Bisa Review")
+  * Cek Status: search by APP-LAPRA08-20260808-0001 → result dengan KTA number LAPRA08.XX.61.6171.26.00001, status "KTA Aktif", expiry 8/8/2031
+
+- VLM Verification via z-ai vision:
+  * Kabar Utama: confirmed "Update Informasi Medsos" button + "Filter Ketat Aktif" banner
+  * Galeri Video: 2 video thumbnails with play button overlay (paused state)
+  * Arsip Berita: confirmed "Sejarah" badge + catatan arsip kuning + RRI.co.id source link
+  * KTA Pendaftaran Form: confirmed toggle Domestik (selected) + LN + 2 upload dropzones (Pass Foto + KTP)
+  * KTA Admin Review: confirmed 4 stats cards (1 KTA Aktif) + Budi Santoso Test card with badges
+  * KTA Cek Status: confirmed "KTA Aktif" badge + KTA number + validity period 2026-2031
+
+Stage Summary:
+- ✅ Kabar Utama: tombol "Update Informasi Medsos" dengan filter ketat (LAPRA 08 + agenda positif Prabowo only)
+- ✅ Galeri Media: 3 sub-tab lengkap (Foto 18, Video 2 sample, Arsip Berita 1 sample)
+- ✅ Galeri Video: support YouTube embed + MP4 upload (maks 100MB) dengan player modal
+- ✅ Arsip Berita Penting: 4 kategori (PENTING/SEJARAH/MILESTONE/REFERENSI) + catatan arsip
+- ✅ Layanan KTA: 4 sub-tab lengkap dengan workflow end-to-end
+- ✅ KTA Digital System: Pemohon submit (FormData upload) → Admin review → Auto-generate KTA
+- ✅ KTA auto-generate format: LAPRA08.[NEGARA].[PROV].[KAB].[TAHUN].[URUT]
+- ✅ KTA masa berlaku 5 tahun + link ke Member table
+- ✅ Anti-duplikasi: NIK unik + phone unik
+- ✅ Track permohonan: by applicationNumber/phone/NIK/KTA number
+- ✅ Admin review: 3 action (REVIEWING/APPROVE/REJECT) dengan permission scope per wilayah
+- ✅ End-to-end test PASS: Budi Santoso Test → KTA LAPRA08.XX.61.6171.26.00001 (valid 8/8/2031)
+- ✅ Prisma schema update: KtaApplication model dengan 25+ field lengkap
+- ✅ 5 API endpoint baru: kta-applications (CRUD), kta-applications/[id]/review, kta-applications/track, gallery/videos, gallery/bookmarks

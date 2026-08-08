@@ -41,6 +41,7 @@ model Territory {
   distributionsTo   Distribution[] @relation("DistTo")
   orgPositions OrgPosition[]
   skDocuments SKDocument[]
+  ktaApplications KtaApplication[]
 }
 
 // ============================================================
@@ -413,4 +414,53 @@ model SystemSetting {
   category      String   @default("GENERAL")
   description   String?
   updatedAt     DateTime @updatedAt
+}
+
+// ============================================================
+// KTA DIGITAL - PERMOHOON KTA ONLINE
+// ============================================================
+model KtaApplication {
+  id              String   @id @default(cuid())
+  // Nomor pendaftaran untuk tracking pemohon
+  applicationNumber String @unique // APP-LAPRA08-YYYYMMDD-XXXX
+  // Data Pemohon
+  fullName        String
+  gender          String?  // L | P
+  birthPlace      String?
+  birthDate       DateTime?
+  bloodType       String?
+  maritalStatus   String?
+  occupation      String?
+  shirtSize       String?  // S/M/L/XL/XXL
+  // Identitas
+  nik             String?  // untuk WNI
+  passportNumber  String?  // untuk WNA/LN
+  phone           String   @unique // WA aktif
+  email           String?
+  address         String?
+  // Dokumen upload
+  photoUrl        String?  // Pass foto 3x4/4x6
+  idCardUrl       String?  // KTP / Paspor
+  signatureUrl    String?  // Tanda tangan digital (opsional)
+  // Wilayah tujuan
+  territoryId     String
+  territory       Territory @relation(fields: [territoryId], references: [id])
+  // Catatan pemohon
+  applicantNotes  String?
+  // Status workflow
+  status          String   @default("PENDING") // PENDING | REVIEWING | APPROVED | REJECTED | ISSUED
+  // Review admin
+  reviewedById    String?
+  reviewedAt      DateTime?
+  reviewNotes     String?
+  rejectionReason String?
+  // Setelah approved → auto-generate KTA
+  memberId        String?  // link ke Member table
+  ktaNumber       String?  // LAPRA08.ID.61.71.26.00001
+  ktaIssuedAt     DateTime?
+  ktaExpiryDate   DateTime? // biasanya 5 tahun
+  // Metadata
+  submittedById   String?  // null = pemohon publik (no login)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }

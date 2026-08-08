@@ -1,9 +1,39 @@
-// LAPRA 08 - API: Auto-Sync Berita dari Web (No Duplicate)
+// LAPRA 08 - API: Auto-Sync Berita dari Web (STRICT FILTER)
 // POST /api/news/sync — Search web for latest LAPRA 08 news, inject if not exists
+// HANYA sinkron berita terkait:
+//   1. Laskar Prabowo 08 / LAPRA 08
+//   2. Agenda kegiatan positif Presiden Prabowo
+// Berita lain DILARANG disinkron kecuali atas izin admin (manual entry)
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getUserFromRequest } from '@/lib/server-helpers'
 import ZAI from 'z-ai-web-dev-sdk'
+
+// STRICT keywords - berita harus mengandung salah satu untuk disinkron
+const LAPRA_KEYWORDS = [
+  'laskar prabowo 08',
+  'lapra 08',
+  'lapra08',
+  'laskarprabowo08',
+  'laskar prabowo delapan',
+  'devi taurisa',
+  'hashim djojohadikusumo laskar',
+  'hisar tambunan',
+  'nurhadi laskar prabowo',
+  'timmy rorimpandey',
+]
+
+// Positive agenda Presiden Prabowo yang relevan
+const POSITIVE_PRABOWO_KEYWORDS = [
+  'prabowo astacita',
+  'prabowo sejahtera',
+  'prabowo mbg', // makan bergizi gratis
+  'prabowo program sosial',
+  'presiden prabowo positif',
+  'pemerintahan prabowo gibran',
+  'prabowo dukung ummat',
+  'prabowo kerja rakyat',
+]
 
 export async function POST(request: NextRequest) {
   const user = await getUserFromRequest(request)
@@ -11,10 +41,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
   }
 
-  // Hanya SUPERADMIN & ADMIN_DPN yang bisa sync
+  // Hanya SUPERADMIN & ADMIN_DPN yang bisa sync berita dari medsos
   if (user.role !== 'SUPERADMIN' && user.role !== 'ADMIN_DPN') {
     return NextResponse.json(
-      { success: false, error: 'Hanya Super Admin / Admin DPN yang dapat sync berita' },
+      { success: false, error: 'Hanya Super Admin / Admin DPN yang dapat sync berita dari medsos' },
       { status: 403 }
     )
   }
@@ -22,23 +52,30 @@ export async function POST(request: NextRequest) {
   try {
     const zai = await ZAI.create()
 
-    // Search queries untuk berita terbaru
+    // Search queries untuk berita terbaru - HANYA terkait LAPRA 08 & agenda positif Presiden Prabowo
     const queries = [
-      'Laskar Prabowo 08 berita kegiatan 2025 2026',
-      'LAPRA 08 Devi Taurisa Hashim berita terbaru',
+      'Laskar Prabowo 08 LAPRA 08 berita kegiatan terbaru 2026',
+      'LAPRA 08 Devi Taurisa Hashim pengurus berita',
       'Laskar Prabowo 08 aksi sosial DPD DPC kegiatan',
+      'Presiden Prabowo astacita program positif 2026',
+      'Laskar Prabowo 08 peace walk peace forum',
+      'LAPRA 08 deklarasi dukung pemerintahan Prabowo',
     ]
 
     const allResults: any[] = []
     for (const query of queries) {
-      const results = await zai.functions.invoke('web_search', { query, num: 10 })
-      allResults.push(...results)
+      try {
+        const results = await zai.functions.invoke('web_search', { query, num: 10 })
+        if (Array.isArray(results)) allResults.push(...results)
+      } catch (e) {
+        console.error('[News Sync] Search failed for query:', query, e)
+      }
     }
 
     // Deduplicate by URL
     const seenUrls = new Set<string>()
     const uniqueResults = allResults.filter((r) => {
-      if (seenUrls.has(r.url)) return false
+      if (!r.url || seenUrls.has(r.url)) return false
       seenUrls.add(r.url)
       return true
     })
@@ -55,27 +92,51 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Territory Indonesia not found' }, { status: 500 })
     }
 
-    // Filter results that are actually about LAPRA 08
-    const lapraKeywords = ['laskar prabowo 08', 'lapra 08', 'lapra08', 'laskarprabowo08', 'devi taurisa', 'hashim djojohadikusumo laskar']
-    const lapraResults = uniqueResults.filter((r) => {
+    // STRICT FILTER: berita harus mengandung keyword LAPRA 08 ATAU agenda positif Prabowo
+    const isRelevant = (r: any): boolean => {
       const text = ((r.name || '') + ' ' + (r.snippet || '')).toLowerCase()
-      return lapraKeywords.some((kw) => text.includes(kw))
-    })
+      // Harus ada salah satu keyword LAPRA
+      const hasLapra = LAPRA_KEYWORDS.some((kw) => text.includes(kw))
+      // Atau salah satu keyword agenda positif Prabowo
+      const hasPositivePrabowo = POSITIVE_PRABOWO_KEYWORDS.some((kw) => text.includes(kw))
+      return hasLapra || hasPositivePrabowo
+    }
+
+    const relevantResults = uniqueResults.filter(isRelevant)
+
+    // Anti-filter: exclude berita negatif / konflik / sensitif
+    const NEGATIVE_KEYWORDS = [
+      'korupsi', 'tersangka', 'kasus pidana', 'skandal', 'dugaan',
+      'demonstrasi tolak', 'protes', 'mogok', 'konflik', 'bentrok',
+      'kriminal', 'pelanggaran hukum',
+    ]
+    const isNegative = (r: any): boolean => {
+      const text = ((r.name || '') + ' ' + (r.snippet || '')).toLowerCase()
+      return NEGATIVE_KEYWORDS.some((kw) => text.includes(kw))
+    }
+
+    const filteredResults = relevantResults.filter(r => !isNegative(r))
 
     let newCount = 0
-    let skippedCount = 0
+    let skippedDuplicate = 0
+    let skippedIrrelevant = uniqueResults.length - relevantResults.length
+    let skippedNegative = relevantResults.length - filteredResults.length
     const newBerita: any[] = []
 
-    for (const result of lapraResults) {
-      // Check duplicate by title (first 80 chars)
+    for (const result of filteredResults) {
       const titleKey = (result.name || '').toLowerCase().substring(0, 80)
       if (existingTitles.has(titleKey)) {
-        skippedCount++
+        skippedDuplicate++
         continue
       }
 
       // Build content from snippet
       const content = `${result.snippet || ''}\n\nSumber: ${result.host_name || ''}\nURL: ${result.url || ''}`
+
+      // Determine sourceName
+      let sourceName = result.host_name || 'Web'
+      // Clean common patterns
+      sourceName = sourceName.replace(/^www\./, '').replace(/\/$/, '')
 
       try {
         const created = await db.announcement.create({
@@ -88,6 +149,9 @@ export async function POST(request: NextRequest) {
             isActive: true,
             photoUrl: null,
             publishDate: result.date ? new Date(result.date) : new Date(),
+            source: 'WEB_SYNC',
+            sourceUrl: result.url,
+            sourceName,
             territoryId: indonesia.id,
             createdById: user.id,
           },
@@ -96,25 +160,33 @@ export async function POST(request: NextRequest) {
           id: created.id,
           title: created.title,
           url: result.url,
-          date: result.date,
+          sourceName,
         })
         newCount++
-        existingTitles.add(titleKey) // Prevent dupes within same batch
+        existingTitles.add(titleKey)
       } catch (e) {
-        // Skip on error (e.g., constraint violation)
-        skippedCount++
+        skippedDuplicate++
       }
     }
+
+    const summary = `Sync berita selesai:
+      ✅ ${newCount} berita baru ditambahkan
+      ↻ ${skippedDuplicate} duplikat di-skip
+      ✋ ${skippedIrrelevant} berita tidak relevan di-filter (bukan terkait LAPRA 08 / agenda positif Presiden Prabowo)
+      🚫 ${skippedNegative} berita negatif/sensitif di-block`
 
     return NextResponse.json({
       success: true,
       data: {
-        totalFound: lapraResults.length,
+        totalFound: uniqueResults.length,
+        totalRelevant: filteredResults.length,
         newCreated: newCount,
-        skippedDuplicate: skippedCount,
+        skippedDuplicate,
+        skippedIrrelevant,
+        skippedNegative,
         newBerita,
       },
-      message: `Sync selesai: ${newCount} berita baru ditemukan, ${skippedCount} duplikat di-skip.`,
+      message: summary,
     })
   } catch (e: any) {
     console.error('[News Sync Error]', e)
@@ -130,17 +202,23 @@ export async function GET(request: NextRequest) {
   }
 
   const totalBerita = await db.announcement.count()
+  const webSyncCount = await db.announcement.count({ where: { source: 'WEB_SYNC' } })
+  const manualCount = await db.announcement.count({ where: { source: 'MANUAL' } })
   const latestBerita = await db.announcement.findFirst({
+    where: { source: 'WEB_SYNC' },
     orderBy: { createdAt: 'desc' },
-    select: { title: true, createdAt: true },
+    select: { title: true, createdAt: true, sourceName: true },
   })
 
   return NextResponse.json({
     success: true,
     data: {
       totalBerita,
+      webSyncCount,
+      manualCount,
       lastSync: latestBerita?.createdAt || null,
       lastBeritaTitle: latestBerita?.title || null,
+      lastBeritaSource: latestBerita?.sourceName || null,
     },
   })
 }

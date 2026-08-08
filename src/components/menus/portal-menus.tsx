@@ -35,6 +35,7 @@ import {
   PhoneCall, MessageSquare, HelpCircle, Map as MapIcon, Mail, Plus,
   Edit, Trash2, MoreVertical, Pin, Send, Eye, Upload, Loader2, Search,
   Award, CheckCircle2, Clock, AlertTriangle, Globe, ExternalLink, Lock,
+  Video, PlayCircle, BookMarked, FileCheck, UserCheck, XCircle, Camera, IdCard,
 } from 'lucide-react'
 
 // Reuse existing functional components
@@ -364,13 +365,454 @@ export function PusatMediaMenu() {
       {tab === 'berita' ? (
         <AnnouncementManager />
       ) : tab === 'galeri' ? (
-        <GalleryManager />
+        <GaleriMediaManager />
       ) : tab === 'rilis-pers' ? (
         <MediaSiaranManager />
       ) : (
         <MajalahManager />
       )}
     </div>
+  )
+}
+
+// ============================================================
+// GALERI MEDIA — 3 Sub-Tab: Foto, Video, Arsip Berita Penting
+// ============================================================
+function GaleriMediaManager() {
+  const [subTab, setSubTab] = useState('foto')
+  const subTabs = [
+    { key: 'foto', label: 'Galeri Foto', icon: ImageIcon },
+    { key: 'video', label: 'Galeri Video', icon: Video },
+    { key: 'arsip', label: 'Arsip Berita Penting', icon: BookMarked },
+  ]
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-2">
+        {subTabs.map((t) => (
+          <button key={t.key} onClick={() => setSubTab(t.key)}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${subTab === t.key ? 'bg-emerald-600 text-white shadow-sm' : 'border hover:bg-accent'}`}>
+            <t.icon className="w-3.5 h-3.5" /> {t.label}
+          </button>
+        ))}
+      </div>
+      {subTab === 'foto' ? (
+        <GalleryManager />
+      ) : subTab === 'video' ? (
+        <GaleriVideoManager />
+      ) : (
+        <ArsipBeritaPentingManager />
+      )}
+    </div>
+  )
+}
+
+// ============================================================
+// GALERI VIDEO — YouTube embed + MP4 upload
+// ============================================================
+function GaleriVideoManager() {
+  const addToast = useToastStore((s) => s.addToast)
+  const [items, setItems] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [addOpen, setAddOpen] = useState(false)
+  const [deleteItem, setDeleteItem] = useState<any>(null)
+  const [form, setForm] = useState({ title: '', description: '', category: 'KEGIATAN', youtubeUrl: '' })
+  const [mode, setMode] = useState<'YOUTUBE' | 'UPLOAD'>('YOUTUBE')
+  const [file, setFile] = useState<File | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const [playingVideo, setPlayingVideo] = useState<any>(null)
+
+  const loadData = () => {
+    setLoading(true)
+    api('/api/gallery/videos').then(setItems).catch(() => {}).finally(() => setLoading(false))
+  }
+  useEffect(() => { loadData() }, [])
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setUploading(true)
+    try {
+      if (mode === 'YOUTUBE') {
+        if (!form.youtubeUrl) { addToast('URL YouTube wajib diisi', 'error'); setUploading(false); return }
+        const res = await fetch('/api/gallery/videos', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+          body: JSON.stringify(form),
+        })
+        const data = await res.json()
+        if (!res.ok || !data.success) throw new Error(data.error || 'Gagal')
+        addToast('Video YouTube berhasil ditambahkan', 'success')
+      } else {
+        if (!file) { addToast('Pilih file video dulu', 'error'); setUploading(false); return }
+        const formData = new FormData()
+        formData.append('file', file)
+        formData.append('title', form.title || file.name)
+        formData.append('description', form.description)
+        formData.append('category', form.category)
+        const res = await fetch('/api/gallery/videos', {
+          method: 'POST',
+          headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+          body: formData,
+        })
+        const data = await res.json()
+        if (!res.ok || !data.success) throw new Error(data.error || 'Upload gagal')
+        addToast('Video berhasil diupload', 'success')
+      }
+      setForm({ title: '', description: '', category: 'KEGIATAN', youtubeUrl: '' })
+      setFile(null); setAddOpen(false)
+      loadData()
+    } catch (e: any) { addToast(e.message, 'error') }
+    finally { setUploading(false) }
+  }
+
+  const handleDelete = async () => {
+    if (!deleteItem) return
+    try {
+      await fetch(`/api/gallery/${deleteItem.id}?id=${deleteItem.id}`, {
+        method: 'DELETE',
+        headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+      })
+      addToast('Video dihapus', 'success')
+      setDeleteItem(null); loadData()
+    } catch (e: any) { addToast(e.message, 'error') }
+  }
+
+  if (loading) return <LoadingState />
+
+  const categories: Record<string, string> = {
+    KEGIATAN: 'Kegiatan', RAPAT: 'Rapat', PELANTIKAN: 'Pelantikan',
+    SOSIAL: 'Aksi Sosial', DOKUMENTER: 'Dokumenter', LAINNYA: 'Lainnya',
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Video className="w-4 h-4 text-emerald-600" /> Galeri Video ({items.length})
+          </CardTitle>
+          <Button onClick={() => setAddOpen(true)} size="sm" className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white">
+            <Plus className="w-4 h-4 mr-1" /> Tambah Video
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {items.length === 0 ? (
+          <EmptyState icon={Video} title="Galeri video masih kosong" description="Tambahkan video kegiatan dari YouTube atau upload file MP4." />
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {items.map((item) => (
+              <div key={item.id} className="group relative rounded-xl overflow-hidden border shadow-sm hover:shadow-lg transition-all">
+                <div className="aspect-video bg-slate-900 relative cursor-pointer" onClick={() => setPlayingVideo(item)}>
+                  {item.videoType === 'YOUTUBE' && item.thumbnail ? (
+                    <img src={item.thumbnail} alt={item.title} className="w-full h-full object-cover" />
+                  ) : item.videoType === 'UPLOAD' ? (
+                    <video src={item.videoUrl} className="w-full h-full object-cover" muted preload="metadata" />
+                  ) : null}
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-black/40 transition-colors">
+                    <div className="w-14 h-14 rounded-full bg-white/90 flex items-center justify-center shadow-lg">
+                      <PlayCircle className="w-10 h-10 text-red-600" />
+                    </div>
+                  </div>
+                  <Badge variant="outline" className="absolute top-2 left-2 text-[10px] bg-black/70 text-white border-white/20">
+                    {item.videoType === 'YOUTUBE' ? 'YouTube' : 'MP4 Upload'}
+                  </Badge>
+                </div>
+                <div className="p-2">
+                  <div className="font-medium text-xs truncate">{item.title}</div>
+                  <div className="flex items-center justify-between mt-1">
+                    <Badge variant="outline" className="text-[10px]">{categories[item.category] || item.category}</Badge>
+                    <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-red-600 hover:bg-red-50"
+                      onClick={(e) => { e.stopPropagation(); setDeleteItem(item) }}>
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+
+      {/* Dialog Tambah Video */}
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><Video className="w-4 h-4 text-emerald-600" /> Tambah Video</DialogTitle></DialogHeader>
+          <form onSubmit={handleSubmit} className="space-y-3">
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setMode('YOUTUBE')}
+                className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium border ${mode === 'YOUTUBE' ? 'bg-emerald-600 text-white border-emerald-600' : 'hover:bg-accent'}`}>
+                Link YouTube
+              </button>
+              <button type="button" onClick={() => setMode('UPLOAD')}
+                className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium border ${mode === 'UPLOAD' ? 'bg-emerald-600 text-white border-emerald-600' : 'hover:bg-accent'}`}>
+                Upload MP4
+              </button>
+            </div>
+            {mode === 'YOUTUBE' ? (
+              <div className="space-y-2">
+                <Label>URL YouTube *</Label>
+                <Input value={form.youtubeUrl} onChange={(e) => setForm({ ...form, youtubeUrl: e.target.value })}
+                  placeholder="https://www.youtube.com/watch?v=XXXX atau youtu.be/XXXX" required />
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Label>File Video (MP4/WebP) *</Label>
+                {file ? (
+                  <div className="relative">
+                    <video src={URL.createObjectURL(file)} className="w-full max-h-48 object-contain rounded-lg border" controls />
+                    <Button type="button" variant="destructive" size="sm" className="absolute top-2 right-2"
+                      onClick={() => setFile(null)}>
+                      <Trash2 className="w-3.5 h-3.5 mr-1" /> Hapus
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="border-2 border-dashed rounded-xl p-6 text-center hover:border-emerald-400 transition-colors cursor-pointer"
+                    onClick={() => document.getElementById('video-upload-input')?.click()}>
+                    <input type="file" id="video-upload-input" className="hidden" accept="video/mp4,video/webm,video/ogg"
+                      onChange={(e) => setFile(e.target.files?.[0] || null)} />
+                    <Upload className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+                    <div className="text-sm font-medium">Upload Video</div>
+                    <div className="text-xs text-muted-foreground mt-1">MP4, WebM • Maks 100MB</div>
+                  </div>
+                )}
+              </div>
+            )}
+            <div className="space-y-2"><Label>Judul Video</Label><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="cth: Dokumentasi Pelantikan DPN" /></div>
+            <div className="space-y-2"><Label>Deskripsi</Label><Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={2} placeholder="Deskripsi singkat video..." /></div>
+            <div className="space-y-2"><Label>Kategori</Label>
+              <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{Object.entries(categories).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setAddOpen(false)}>Batal</Button>
+              <Button type="submit" disabled={uploading}>
+                {uploading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : null} Tambah
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Play Video */}
+      <Dialog open={!!playingVideo} onOpenChange={(o) => !o && setPlayingVideo(null)}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="text-base">{playingVideo?.title}</DialogTitle>
+            <DialogDescription>{playingVideo?.description}</DialogDescription>
+          </DialogHeader>
+          <div className="aspect-video rounded-lg overflow-hidden bg-black">
+            {playingVideo?.videoType === 'YOUTUBE' ? (
+              <iframe src={playingVideo.embedUrl} className="w-full h-full" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen frameBorder="0" />
+            ) : playingVideo?.videoType === 'UPLOAD' ? (
+              <video src={playingVideo.videoUrl} className="w-full h-full" controls autoPlay />
+            ) : null}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!deleteItem} onOpenChange={(o) => !o && setDeleteItem(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus Video?</AlertDialogTitle>
+            <AlertDialogDescription>Yakin hapus <strong>{deleteItem?.title}</strong>?</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">Hapus</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </Card>
+  )
+}
+
+// ============================================================
+// ARSIP BERITA PENTING - Bookmarked news
+// ============================================================
+function ArsipBeritaPentingManager() {
+  const addToast = useToastStore((s) => s.addToast)
+  const [bookmarks, setBookmarks] = useState<any[]>([])
+  const [announcements, setAnnouncements] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [addOpen, setAddOpen] = useState(false)
+  const [deleteItem, setDeleteItem] = useState<any>(null)
+  const [form, setForm] = useState({ announcementId: '', note: '', category: 'PENTING' })
+
+  const loadData = () => {
+    setLoading(true)
+    Promise.all([
+      api('/api/gallery/bookmarks'),
+      api('/api/announcements'),
+    ]).then(([bm, ann]) => {
+      setBookmarks(bm || [])
+      setAnnouncements(ann || [])
+      setLoading(false)
+    }).catch(() => setLoading(false))
+  }
+  useEffect(() => { loadData() }, [])
+
+  const handleAdd = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!form.announcementId) { addToast('Pilih berita dulu', 'error'); return }
+    try {
+      const res = await fetch('/api/gallery/bookmarks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+        body: JSON.stringify(form),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) throw new Error(data.error || 'Gagal')
+      addToast('Berita ditambahkan ke arsip penting', 'success')
+      setForm({ announcementId: '', note: '', category: 'PENTING' })
+      setAddOpen(false); loadData()
+    } catch (e: any) { addToast(e.message, 'error') }
+  }
+
+  const handleDelete = async () => {
+    if (!deleteItem) return
+    try {
+      await fetch(`/api/gallery/bookmarks?id=bm_${deleteItem.id}`, {
+        method: 'DELETE',
+        headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+      })
+      addToast('Berita dihapus dari arsip', 'success')
+      setDeleteItem(null); loadData()
+    } catch (e: any) { addToast(e.message, 'error') }
+  }
+
+  if (loading) return <LoadingState />
+
+  const categoryConfig: Record<string, { label: string; color: string }> = {
+    PENTING: { label: 'Penting', color: 'bg-red-50 text-red-700 border-red-200' },
+    SEJARAH: { label: 'Sejarah', color: 'bg-purple-50 text-purple-700 border-purple-200' },
+    MILESTONE: { label: 'Milestone', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+    REFERENSI: { label: 'Referensi', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  }
+
+  // Available announcements not yet bookmarked
+  const bookmarkedIds = new Set(bookmarks.map((b: any) => b.id))
+  const availableAnnouncements = announcements.filter((a: any) => !bookmarkedIds.has(a.id))
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <BookMarked className="w-4 h-4 text-amber-600" /> Arsip Berita Penting ({bookmarks.length})
+          </CardTitle>
+          <Button onClick={() => setAddOpen(true)} size="sm" className="bg-gradient-to-r from-amber-600 to-orange-600 text-white">
+            <Plus className="w-4 h-4 mr-1" /> Tambah ke Arsip
+          </Button>
+        </div>
+        <CardDescription>Kumpulan berita penting LAPRA 08 yang diarsipkan untuk referensi & sejarah organisasi</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {bookmarks.length === 0 ? (
+          <EmptyState icon={BookMarked} title="Arsip masih kosong" description="Bookmark berita penting dari Kabar Utama untuk dijadikan arsip permanen." />
+        ) : (
+          <div className="space-y-3">
+            {bookmarks.map((b: any) => {
+              const cc = categoryConfig[b.bookmarkCategory] || categoryConfig.PENTING
+              return (
+                <div key={b.id} className="group relative rounded-xl border p-3 hover:shadow-md transition-all bg-white">
+                  <div className="flex items-start gap-3">
+                    {b.photoUrl ? (
+                      <img src={b.photoUrl} alt={b.title} className="w-16 h-16 rounded-lg object-cover shrink-0" />
+                    ) : (
+                      <div className="w-16 h-16 rounded-lg bg-gradient-to-br from-amber-100 to-orange-200 flex items-center justify-center shrink-0">
+                        <BookMarked className="w-6 h-6 text-amber-600" />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge variant="outline" className={`text-[10px] ${cc.color}`}>{cc.label}</Badge>
+                        {b.source === 'WEB_SYNC' && (
+                          <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700 border-blue-200">
+                            <Globe className="w-2.5 h-2.5 mr-0.5" /> {b.sourceName || 'Web'}
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="font-semibold text-sm line-clamp-2">{b.title}</div>
+                      <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{b.content}</p>
+                      {b.bookmarkNote && (
+                        <div className="mt-2 p-2 rounded bg-amber-50 border border-amber-200 text-xs text-amber-800">
+                          <strong>Catatan Arsip:</strong> {b.bookmarkNote}
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2 mt-2 text-[10px] text-muted-foreground">
+                        <span>Diarsipkan: {formatDateTimeID(b.bookmarkedAt)}</span>
+                        {b.sourceUrl && (
+                          <a href={b.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                            <ExternalLink className="w-3 h-3 inline mr-0.5" />Sumber
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-600 hover:bg-red-50 opacity-0 group-hover:opacity-100"
+                      onClick={() => setDeleteItem(b)}>
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </CardContent>
+
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><BookMarked className="w-4 h-4 text-amber-600" /> Tambah Berita ke Arsip</DialogTitle>
+            <DialogDescription>Pilih berita dari Kabar Utama untuk diarsipkan</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleAdd} className="space-y-3">
+            <div className="space-y-2">
+              <Label>Pilih Berita *</Label>
+              <Select value={form.announcementId} onValueChange={(v) => setForm({ ...form, announcementId: v })}>
+                <SelectTrigger><SelectValue placeholder={`${availableAnnouncements.length} berita tersedia`} /></SelectTrigger>
+                <SelectContent className="max-h-60">
+                  {availableAnnouncements.map((a: any) => (
+                    <SelectItem key={a.id} value={a.id}>{a.title.substring(0, 60)}{a.title.length > 60 ? '...' : ''}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2"><Label>Kategori Arsip</Label>
+              <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {Object.entries(categoryConfig).map(([k, v]) => <SelectItem key={k} value={k}>{v.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2"><Label>Catatan Arsip (opsional)</Label>
+              <Textarea value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} rows={3}
+                placeholder="Alasan mengapa berita ini diarsipkan..." />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setAddOpen(false)}>Batal</Button>
+              <Button type="submit" className="bg-gradient-to-r from-amber-600 to-orange-600 text-white">Tambah ke Arsip</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!deleteItem} onOpenChange={(o) => !o && setDeleteItem(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus dari Arsip?</AlertDialogTitle>
+            <AlertDialogDescription>Yakin hapus <strong>{deleteItem?.title?.substring(0, 50)}</strong> dari arsip?</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">Hapus</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </Card>
   )
 }
 
@@ -883,6 +1325,9 @@ function AnnouncementManager() {
   const [deleteItem, setDeleteItem] = useState<any>(null)
   const [previewMode, setPreviewMode] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [syncLoading, setSyncLoading] = useState(false)
+  const [syncResult, setSyncResult] = useState<any>(null)
+  const [syncOpen, setSyncOpen] = useState(false)
   const [form, setForm] = useState({
     title: '', content: '', type: 'INFO', category: 'BERITA', isPinned: false,
     territoryId: '', imageUrl: '', publishDate: '',
@@ -947,6 +1392,23 @@ function AnnouncementManager() {
     catch (e: any) { addToast(e.message, 'error') }
   }
 
+  const handleSyncMedsos = async () => {
+    setSyncLoading(true); setSyncResult(null)
+    try {
+      const res = await fetch('/api/news/sync', {
+        method: 'POST',
+        headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) throw new Error(data.error || 'Sync gagal')
+      setSyncResult(data.data)
+      setSyncOpen(true)
+      addToast(`Sync selesai: ${data.data.newCreated} berita baru`, 'success')
+      loadData()
+    } catch (e: any) { addToast(e.message, 'error') }
+    finally { setSyncLoading(false) }
+  }
+
   if (loading) return <LoadingState />
 
   const filtered = items.filter((a) => !search || a.title.toLowerCase().includes(search.toLowerCase()) || a.content.toLowerCase().includes(search.toLowerCase()))
@@ -988,9 +1450,23 @@ function AnnouncementManager() {
             <Newspaper className="w-4 h-4 text-orange-600" />
             Kabar Utama & Pengumuman ({items.length})
           </CardTitle>
-          <Button onClick={() => openEditor()} size="sm" className="bg-gradient-to-r from-orange-600 to-red-600 text-white">
-            <Plus className="w-4 h-4 mr-1" /> Buat Berita/Pengumuman
-          </Button>
+          <div className="flex gap-2 flex-wrap">
+            <Button onClick={handleSyncMedsos} size="sm" variant="outline" disabled={syncLoading}
+              className="border-blue-400 text-blue-600 hover:bg-blue-50">
+              {syncLoading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Globe className="w-4 h-4 mr-1" />}
+              Update Informasi Medsos
+            </Button>
+            <Button onClick={() => openEditor()} size="sm" className="bg-gradient-to-r from-orange-600 to-red-600 text-white">
+              <Plus className="w-4 h-4 mr-1" /> Buat Berita/Pengumuman
+            </Button>
+          </div>
+        </div>
+        {/* Info banner - strict filter policy */}
+        <div className="mt-3 rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs text-blue-800 flex items-start gap-2">
+          <ShieldCheck className="w-4 h-4 mt-0.5 shrink-0" />
+          <div>
+            <strong>Filter Ketat Aktif:</strong> Sinkronisasi medsos HANYA menampilkan berita terkait <strong>Laskar Prabowo 08 / LAPRA 08</strong> dan <strong>agenda kegiatan positif Presiden Prabowo</strong>. Berita lain tidak akan disinkronkan kecuali atas izin admin (entry manual).
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -1305,6 +1781,59 @@ function AnnouncementManager() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Sync Result Dialog */}
+      <Dialog open={syncOpen} onOpenChange={setSyncOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><CheckCircle2 className="w-5 h-5 text-emerald-600" /> Hasil Sinkronisasi Medsos</DialogTitle>
+            <DialogDescription>Update informasi terbaru dari medsos tentang LAPRA 08</DialogDescription>
+          </DialogHeader>
+          {syncResult && (
+            <div className="space-y-3 text-sm">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3">
+                  <div className="text-2xl font-bold text-emerald-700">{syncResult.newCreated}</div>
+                  <div className="text-xs text-emerald-700">Berita Baru</div>
+                </div>
+                <div className="rounded-lg bg-blue-50 border border-blue-200 p-3">
+                  <div className="text-2xl font-bold text-blue-700">{syncResult.skippedDuplicate}</div>
+                  <div className="text-xs text-blue-700">Duplikat Skip</div>
+                </div>
+                <div className="rounded-lg bg-slate-50 border border-slate-200 p-3">
+                  <div className="text-2xl font-bold text-slate-700">{syncResult.skippedIrrelevant}</div>
+                  <div className="text-xs text-slate-700">Tidak Relevan</div>
+                </div>
+                <div className="rounded-lg bg-red-50 border border-red-200 p-3">
+                  <div className="text-2xl font-bold text-red-700">{syncResult.skippedNegative}</div>
+                  <div className="text-xs text-red-700">Berita Negatif</div>
+                </div>
+              </div>
+              <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800">
+                <ShieldCheck className="w-4 h-4 inline mr-1" />
+                <strong>Total ditemukan:</strong> {syncResult.totalFound} berita • <strong>Relevan:</strong> {syncResult.totalRelevant} berita
+              </div>
+              {syncResult.newBerita && syncResult.newBerita.length > 0 && (
+                <div className="space-y-1">
+                  <div className="text-xs font-semibold text-muted-foreground">Berita baru ditambahkan:</div>
+                  {syncResult.newBerita.slice(0, 5).map((b: any, i: number) => (
+                    <div key={i} className="text-xs p-2 rounded bg-white border">
+                      <div className="font-medium line-clamp-1">{b.title}</div>
+                      <div className="text-[10px] text-muted-foreground">{b.sourceName}</div>
+                    </div>
+                  ))}
+                  {syncResult.newBerita.length > 5 && (
+                    <div className="text-[10px] text-muted-foreground">+ {syncResult.newBerita.length - 5} berita lainnya</div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button onClick={() => setSyncOpen(false)} className="bg-gradient-to-r from-orange-600 to-red-600 text-white">Tutup</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   )
 }
@@ -1650,66 +2179,687 @@ export function LayananAdvokasiMenu() {
 
 // ----- Layanan KTA -----
 function KtaLayananManager() {
+  const [subTab, setSubTab] = useState('daftar')
+  const subTabs = [
+    { key: 'daftar', label: 'Daftar KTA Online', icon: IdCard },
+    { key: 'status', label: 'Cek Status Permohonan', icon: Search },
+    { key: 'admin', label: 'Admin Review Permohonan', icon: UserCheck },
+    { key: 'info', label: 'Info Layanan KTA', icon: Award },
+  ]
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-2">
+        {subTabs.map((t) => (
+          <button key={t.key} onClick={() => setSubTab(t.key)}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${subTab === t.key ? 'bg-emerald-600 text-white shadow-sm' : 'border hover:bg-accent'}`}>
+            <t.icon className="w-3.5 h-3.5" /> {t.label}
+          </button>
+        ))}
+      </div>
+      {subTab === 'daftar' ? (
+        <KtaPendaftaranForm />
+      ) : subTab === 'status' ? (
+        <KtaCekStatus />
+      ) : subTab === 'admin' ? (
+        <KtaAdminReview />
+      ) : (
+        <KtaInfoLayanan />
+      )}
+    </div>
+  )
+}
+
+// ============================================================
+// KTA — Form Pendaftaran Online (Public)
+// ============================================================
+function KtaPendaftaranForm() {
   const addToast = useToastStore((s) => s.addToast)
-  const [search, setSearch] = useState('')
-  const [member, setMember] = useState<any | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const [success, setSuccess] = useState<any>(null)
+  const [territories, setTerritories] = useState<any[]>([])
+  const [photoFile, setPhotoFile] = useState<File | null>(null)
+  const [idCardFile, setIdCardFile] = useState<File | null>(null)
+  const [isInternational, setIsInternational] = useState(false)
+  const [form, setForm] = useState({
+    fullName: '', gender: '', birthPlace: '', birthDate: '', bloodType: '',
+    maritalStatus: '', occupation: '', shirtSize: '',
+    nik: '', passportNumber: '', phone: '', email: '', address: '',
+    territoryId: '', applicantNotes: '',
+  })
+
+  useEffect(() => {
+    api('/api/territory?level=REGENCY').then((t: any[]) => {
+      setTerritories(t || [])
+      if (t && t.length > 0) setForm(f => ({ ...f, territoryId: t[0].id }))
+    }).catch(() => {})
+  }, [])
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!form.fullName || !form.phone || !form.territoryId) {
+      addToast('Nama, WA, dan wilayah wajib diisi', 'error'); return
+    }
+    if (isInternational && !form.passportNumber) {
+      addToast('Nomor Paspor wajib untuk pemohon luar negeri', 'error'); return
+    }
+    if (!isInternational && !form.nik) {
+      addToast('NIK wajib untuk pemohon domestik', 'error'); return
+    }
+    if (!photoFile) { addToast('Pass foto wajib diupload', 'error'); return }
+    if (!idCardFile) { addToast('KTP/Paspor wajib diupload', 'error'); return }
+    setSubmitting(true); setSuccess(null)
+    try {
+      const formData = new FormData()
+      Object.entries(form).forEach(([k, v]) => formData.append(k, String(v || '')))
+      formData.append('isInternational', String(isInternational))
+      formData.append('photo', photoFile)
+      formData.append('idCard', idCardFile)
+
+      const res = await fetch('/api/kta-applications', {
+        method: 'POST',
+        headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+        body: formData,
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) throw new Error(data.error || 'Gagal')
+
+      setSuccess(data.data)
+      addToast('Permohonan KTA berhasil dikirim!', 'success')
+      // Reset form
+      setForm({
+        fullName: '', gender: '', birthPlace: '', birthDate: '', bloodType: '',
+        maritalStatus: '', occupation: '', shirtSize: '',
+        nik: '', passportNumber: '', phone: '', email: '', address: '',
+        territoryId: territories[0]?.id || '', applicantNotes: '',
+      })
+      setPhotoFile(null); setIdCardFile(null); setIsInternational(false)
+    } catch (e: any) { addToast(e.message, 'error') }
+    finally { setSubmitting(false) }
+  }
+
+  if (success) {
+    return (
+      <Card>
+        <CardContent className="pt-6">
+          <div className="text-center space-y-4 max-w-md mx-auto">
+            <div className="w-20 h-20 rounded-full bg-emerald-100 flex items-center justify-center mx-auto">
+              <CheckCircle2 className="w-12 h-12 text-emerald-600" />
+            </div>
+            <div>
+              <h3 className="text-xl font-bold text-emerald-700">Permohonan Berhasil Dikirim!</h3>
+              <p className="text-sm text-muted-foreground mt-1">Pemohonan KTA Anda telah kami terima. Tim DPC akan menghubungi via WhatsApp dalam 1x24 jam.</p>
+            </div>
+            <div className="rounded-xl border-2 border-emerald-300 bg-emerald-50 p-4">
+              <div className="text-xs text-emerald-700 mb-1">Nomor Pendaftaran:</div>
+              <div className="font-mono text-2xl font-bold text-emerald-800">{success.applicationNumber}</div>
+              <div className="text-xs text-emerald-600 mt-2">Simpan nomor ini untuk cek status permohonan Anda.</div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 text-sm text-left bg-slate-50 rounded-xl p-3 border">
+              <div><div className="text-xs text-muted-foreground">Nama</div><div className="font-medium">{success.fullName}</div></div>
+              <div><div className="text-xs text-muted-foreground">Wilayah</div><div className="font-medium">{success.territory?.name}</div></div>
+              <div><div className="text-xs text-muted-foreground">Status</div><Badge className="bg-amber-100 text-amber-700 text-xs w-fit">PENDING</Badge></div>
+              <div><div className="text-xs text-muted-foreground">Tanggal</div><div className="font-medium">{formatDateTimeID(success.createdAt)}</div></div>
+            </div>
+            <Button onClick={() => setSuccess(null)} className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white">
+              Daftar Pemohon Lain
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <IdCard className="w-4 h-4 text-emerald-600" /> Formulir Pendaftaran KTA Online
+        </CardTitle>
+        <CardDescription>Lengkapi data diri, upload Pass Foto + KTP/Paspor. Tim DPC akan verifikasi dalam 1x24 jam.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Toggle: Domestik / Luar Negeri */}
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setIsInternational(false)}
+              className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium border ${!isInternational ? 'bg-emerald-600 text-white border-emerald-600' : 'hover:bg-accent'}`}>
+              🇮🇩 Domestik (WNI)
+            </button>
+            <button type="button" onClick={() => setIsInternational(true)}
+              className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium border ${isInternational ? 'bg-blue-600 text-white border-blue-600' : 'hover:bg-accent'}`}>
+              🌍 Luar Negeri (WNA/WNI LN)
+            </button>
+          </div>
+
+          {/* Data Diri */}
+          <div className="space-y-2">
+            <h4 className="text-sm font-semibold flex items-center gap-2"><Users className="w-4 h-4 text-orange-600" /> Data Diri</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="space-y-2"><Label>Nama Lengkap *</Label><Input value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} placeholder="Sesuai KTP/Paspor" required /></div>
+              <div className="space-y-2"><Label>Jenis Kelamin</Label>
+                <Select value={form.gender} onValueChange={(v) => setForm({ ...form, gender: v })}>
+                  <SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="L">Laki-laki</SelectItem>
+                    <SelectItem value="P">Perempuan</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2"><Label>Tempat Lahir</Label><Input value={form.birthPlace} onChange={(e) => setForm({ ...form, birthPlace: e.target.value })} placeholder="cth: Pontianak" /></div>
+              <div className="space-y-2"><Label>Tanggal Lahir</Label><Input type="date" value={form.birthDate} onChange={(e) => setForm({ ...form, birthDate: e.target.value })} /></div>
+              <div className="space-y-2"><Label>Golongan Darah</Label>
+                <Select value={form.bloodType} onValueChange={(v) => setForm({ ...form, bloodType: v })}>
+                  <SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger>
+                  <SelectContent>
+                    {['A', 'B', 'AB', 'O'].map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2"><Label>Status Pernikahan</Label>
+                <Select value={form.maritalStatus} onValueChange={(v) => setForm({ ...form, maritalStatus: v })}>
+                  <SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="LAJANG">Lajang</SelectItem>
+                    <SelectItem value="MENIKAH">Menikah</SelectItem>
+                    <SelectItem value="CERAI">Cerai</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2"><Label>Pekerjaan</Label><Input value={form.occupation} onChange={(e) => setForm({ ...form, occupation: e.target.value })} placeholder="cth: Wiraswasta" /></div>
+              <div className="space-y-2"><Label>Ukuran Baju Seragam</Label>
+                <Select value={form.shirtSize} onValueChange={(v) => setForm({ ...form, shirtSize: v })}>
+                  <SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger>
+                  <SelectContent>
+                    {['S', 'M', 'L', 'XL', 'XXL', '3XL'].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+
+          {/* Identitas */}
+          <div className="space-y-2">
+            <h4 className="text-sm font-semibold flex items-center gap-2"><FileText className="w-4 h-4 text-blue-600" /> Identitas & Kontak</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {isInternational ? (
+                <div className="space-y-2"><Label>Nomor Paspor *</Label><Input value={form.passportNumber} onChange={(e) => setForm({ ...form, passportNumber: e.target.value })} placeholder="cth: C12345678" required /></div>
+              ) : (
+                <div className="space-y-2"><Label>NIK (16 digit) *</Label><Input value={form.nik} onChange={(e) => setForm({ ...form, nik: e.target.value })} placeholder="cth: 6101010101900001" maxLength={16} required /></div>
+              )}
+              <div className="space-y-2"><Label>Nomor WhatsApp *</Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+62 812-xxxx-xxxx" required /></div>
+              <div className="space-y-2"><Label>Email</Label><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="email@example.com" /></div>
+              <div className="space-y-2"><Label>Wilayah DPC Tujuan *</Label>
+                <Select value={form.territoryId} onValueChange={(v) => setForm({ ...form, territoryId: v })}>
+                  <SelectTrigger><SelectValue placeholder="Pilih DPC" /></SelectTrigger>
+                  <SelectContent className="max-h-60">
+                    {territories.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2"><Label>Alamat Lengkap</Label><Textarea value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} rows={2} placeholder="Alamat domisili saat ini" /></div>
+          </div>
+
+          {/* Upload Dokumen */}
+          <div className="space-y-3">
+            <h4 className="text-sm font-semibold flex items-center gap-2"><Camera className="w-4 h-4 text-purple-600" /> Upload Dokumen</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {/* Pass Foto */}
+              <div className="space-y-2">
+                <Label>Pass Foto 3x4 / 4x6 *</Label>
+                {photoFile ? (
+                  <div className="relative">
+                    <img src={URL.createObjectURL(photoFile)} alt="Preview" className="w-full max-h-48 object-contain rounded-lg border" />
+                    <Button type="button" variant="destructive" size="sm" className="absolute top-2 right-2" onClick={() => setPhotoFile(null)}>
+                      <Trash2 className="w-3.5 h-3.5 mr-1" /> Ganti
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="border-2 border-dashed rounded-xl p-6 text-center hover:border-purple-400 transition-colors cursor-pointer"
+                    onClick={() => document.getElementById('photo-upload-input')?.click()}>
+                    <input type="file" id="photo-upload-input" className="hidden" accept="image/*"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0]
+                        if (f && f.type.startsWith('image/') && f.size < 5 * 1024 * 1024) setPhotoFile(f)
+                        else addToast('File harus gambar maks 5MB', 'error')
+                      }} />
+                    <Camera className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+                    <div className="text-sm font-medium">Upload Pass Foto</div>
+                    <div className="text-xs text-muted-foreground mt-1">JPG/PNG • Latar Merah/Biru • Maks 5MB</div>
+                  </div>
+                )}
+              </div>
+              {/* KTP / Paspor */}
+              <div className="space-y-2">
+                <Label>{isInternational ? 'Scan Paspor *' : 'Scan KTP *'}</Label>
+                {idCardFile ? (
+                  <div className="relative">
+                    {idCardFile.type.startsWith('image/') ? (
+                      <img src={URL.createObjectURL(idCardFile)} alt="Preview" className="w-full max-h-48 object-contain rounded-lg border" />
+                    ) : (
+                      <div className="w-full p-6 rounded-lg border bg-slate-50 flex flex-col items-center gap-2">
+                        <FileText className="w-10 h-10 text-red-500" />
+                        <div className="text-sm font-medium">{idCardFile.name}</div>
+                        <div className="text-xs text-muted-foreground">{(idCardFile.size / 1024 / 1024).toFixed(2)} MB</div>
+                      </div>
+                    )}
+                    <Button type="button" variant="destructive" size="sm" className="absolute top-2 right-2" onClick={() => setIdCardFile(null)}>
+                      <Trash2 className="w-3.5 h-3.5 mr-1" /> Ganti
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="border-2 border-dashed rounded-xl p-6 text-center hover:border-purple-400 transition-colors cursor-pointer"
+                    onClick={() => document.getElementById('idcard-upload-input')?.click()}>
+                    <input type="file" id="idcard-upload-input" className="hidden" accept="image/*,application/pdf"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0]
+                        if (f && (f.type.startsWith('image/') || f.type === 'application/pdf') && f.size < 10 * 1024 * 1024) setIdCardFile(f)
+                        else addToast('File harus gambar/PDF maks 10MB', 'error')
+                      }} />
+                    <FileText className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+                    <div className="text-sm font-medium">Upload {isInternational ? 'Paspor' : 'KTP'}</div>
+                    <div className="text-xs text-muted-foreground mt-1">JPG/PNG/PDF • Maks 10MB</div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Catatan */}
+          <div className="space-y-2">
+            <Label>Catatan untuk Admin (opsional)</Label>
+            <Textarea value={form.applicantNotes} onChange={(e) => setForm({ ...form, applicantNotes: e.target.value })} rows={2}
+              placeholder="Pertanyaan atau informasi tambahan untuk pengurus DPC..." />
+          </div>
+
+          <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs text-blue-800 flex items-start gap-2">
+            <ShieldCheck className="w-4 h-4 mt-0.5 shrink-0" />
+            <div>
+              <strong>Privasi & Keamanan Data:</strong> Data yang Anda kirim hanya digunakan untuk verifikasi keanggotaan LAPRA 08 dan tidak akan dibagikan ke pihak ketiga. Dengan mendaftar, Anda menyetujui AD/ART LAPRA 08.
+            </div>
+          </div>
+
+          <Button type="submit" disabled={submitting} className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 text-white">
+            {submitting ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Send className="w-4 h-4 mr-1" />}
+            Kirim Permohonan KTA
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
+  )
+}
+
+// ============================================================
+// KTA — Cek Status Permohonan (Public)
+// ============================================================
+function KtaCekStatus() {
+  const addToast = useToastStore((s) => s.addToast)
+  const [query, setQuery] = useState('')
+  const [result, setResult] = useState<any>(null)
   const [loading, setLoading] = useState(false)
 
   const handleSearch = async () => {
-    if (!search.trim()) { addToast('Masukkan KTA, NIK, atau nama', 'error'); return }
-    setLoading(true); setMember(null)
+    if (!query.trim()) { addToast('Masukkan nomor pendaftaran atau WA', 'error'); return }
+    setLoading(true); setResult(null)
     try {
-      const data = await api(`/api/members?search=${encodeURIComponent(search)}&limit=1`)
-      if (data && data.length > 0) {
-        setMember(data[0])
-      } else {
-        addToast('Anggota tidak ditemukan', 'error')
-      }
+      const res = await fetch(`/api/kta-applications/track?q=${encodeURIComponent(query)}`, {
+        headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) throw new Error(data.error || 'Tidak ditemukan')
+      setResult(data.data)
     } catch (e: any) { addToast(e.message, 'error') }
     finally { setLoading(false) }
   }
 
+  const statusConfig: Record<string, { label: string; color: string; icon: any; desc: string }> = {
+    PENDING: { label: 'Menunggu Review', color: 'bg-amber-50 text-amber-700 border-amber-200', icon: Clock, desc: 'Permohonan Anda diterima dan menunggu ditinjau admin DPC.' },
+    REVIEWING: { label: 'Sedang Direview', color: 'bg-blue-50 text-blue-700 border-blue-200', icon: Eye, desc: 'Admin DPC sedang memverifikasi data & dokumen Anda.' },
+    APPROVED: { label: 'Disetujui - KTA Diterbitkan', color: 'bg-emerald-50 text-emerald-700 border-emerald-200', icon: CheckCircle2, desc: 'Selamat! KTA digital Anda telah diterbitkan.' },
+    REJECTED: { label: 'Ditolak', color: 'bg-red-50 text-red-700 border-red-200', icon: XCircle, desc: 'Permohonan ditolak. Lihat alasan di bawah.' },
+    ISSUED: { label: 'KTA Aktif', color: 'bg-emerald-50 text-emerald-700 border-emerald-200', icon: IdCard, desc: 'KTA digital Anda aktif. Masa berlaku 5 tahun.' },
+  }
+
   return (
-    <div className="space-y-6">
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Search className="w-4 h-4 text-emerald-600" /> Cek Status Permohonan KTA
+        </CardTitle>
+        <CardDescription>Masukkan nomor pendaftaran (cth: APP-LAPRA08-20260808-0001) atau nomor WhatsApp</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex gap-2">
+          <Input value={query} onChange={(e) => setQuery(e.target.value)}
+            placeholder="APP-LAPRA08-YYYYMMDD-XXXX atau +62 812-xxxx-xxxx"
+            onKeyDown={(e) => e.key === 'Enter' && handleSearch()} />
+          <Button onClick={handleSearch} disabled={loading} className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white">
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />} Cek
+          </Button>
+        </div>
+        {result && (
+          <div className="rounded-xl border bg-gradient-to-br from-emerald-50 via-white to-teal-50 p-6">
+            {(() => {
+              const sc = statusConfig[result.status] || statusConfig.PENDING
+              const ScIcon = sc.icon
+              return (
+                <>
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className={`w-14 h-14 rounded-xl ${sc.color} flex items-center justify-center`}>
+                      <ScIcon className="w-7 h-7" />
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted-foreground">Status Permohonan</div>
+                      <Badge variant="outline" className={`text-sm ${sc.color}`}>{sc.label}</Badge>
+                    </div>
+                  </div>
+                  <p className="text-sm text-muted-foreground mb-4">{sc.desc}</p>
+                  <div className="grid grid-cols-2 gap-3 text-sm bg-white rounded-lg p-4 border">
+                    <div><div className="text-xs text-muted-foreground">Nomor Pendaftaran</div><div className="font-mono font-bold text-emerald-700">{result.applicationNumber}</div></div>
+                    <div><div className="text-xs text-muted-foreground">Nama Pemohon</div><div className="font-medium">{result.fullName}</div></div>
+                    <div><div className="text-xs text-muted-foreground">Wilayah DPC</div><div className="font-medium">{result.territory?.name || '-'}</div></div>
+                    <div><div className="text-xs text-muted-foreground">Tanggal Daftar</div><div className="font-medium">{formatDateTimeID(result.createdAt)}</div></div>
+                    {result.ktaNumber && (
+                      <div className="col-span-2"><div className="text-xs text-muted-foreground">Nomor KTA</div><div className="font-mono font-bold text-emerald-700 text-base">{result.ktaNumber}</div></div>
+                    )}
+                    {result.ktaIssuedAt && (
+                      <div><div className="text-xs text-muted-foreground">Diterbitkan</div><div className="font-medium">{formatDateID(result.ktaIssuedAt)}</div></div>
+                    )}
+                    {result.ktaExpiryDate && (
+                      <div><div className="text-xs text-muted-foreground">Berlaku Sampai</div><div className="font-medium">{formatDateID(result.ktaExpiryDate)}</div></div>
+                    )}
+                  </div>
+                  {result.rejectionReason && (
+                    <div className="mt-3 p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-800">
+                      <strong>Alasan Penolakan:</strong> {result.rejectionReason}
+                    </div>
+                  )}
+                  {result.reviewNotes && (
+                    <div className="mt-3 p-3 rounded-lg bg-blue-50 border border-blue-200 text-sm text-blue-800">
+                      <strong>Catatan Admin:</strong> {result.reviewNotes}
+                    </div>
+                  )}
+                </>
+              )
+            })()}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+// ============================================================
+// KTA — Admin Review Permohonan (Admin only)
+// ============================================================
+function KtaAdminReview() {
+  const addToast = useToastStore((s) => s.addToast)
+  const [items, setItems] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [statusFilter, setStatusFilter] = useState('ALL')
+  const [search, setSearch] = useState('')
+  const [reviewItem, setReviewItem] = useState<any>(null)
+  const [reviewAction, setReviewAction] = useState<'REVIEWING' | 'APPROVE' | 'REJECT'>('REVIEWING')
+  const [reviewNotes, setReviewNotes] = useState('')
+  const [rejectionReason, setRejectionReason] = useState('')
+  const [processing, setProcessing] = useState(false)
+  const [stats, setStats] = useState<any>({})
+
+  const loadData = () => {
+    setLoading(true)
+    api(`/api/kta-applications?status=${statusFilter === 'ALL' ? '' : statusFilter}&search=${encodeURIComponent(search)}`)
+      .then((data: any[]) => {
+        setItems(data || [])
+        // Calc stats
+        const allStatuses = ['PENDING', 'REVIEWING', 'ISSUED', 'REJECTED']
+        const s: any = {}
+        allStatuses.forEach(st => s[st] = data?.filter((d: any) => d.status === st).length || 0)
+        setStats(s)
+      })
+      .catch(() => {}).finally(() => setLoading(false))
+  }
+  useEffect(() => { loadData() }, [statusFilter, search])
+
+  const handleReview = async () => {
+    if (!reviewItem) return
+    if (reviewAction === 'REJECT' && !rejectionReason) { addToast('Alasan penolakan wajib diisi', 'error'); return }
+    setProcessing(true)
+    try {
+      const res = await fetch(`/api/kta-applications/${reviewItem.id}/review`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+        body: JSON.stringify({
+          action: reviewAction,
+          reviewNotes,
+          rejectionReason: reviewAction === 'REJECT' ? rejectionReason : undefined,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) throw new Error(data.error || 'Gagal')
+      addToast(data.message, 'success')
+      setReviewItem(null); setReviewNotes(''); setRejectionReason(''); setReviewAction('REVIEWING')
+      loadData()
+    } catch (e: any) { addToast(e.message, 'error') }
+    finally { setProcessing(false) }
+  }
+
+  if (loading) return <LoadingState />
+
+  const statusConfig: Record<string, { label: string; color: string }> = {
+    PENDING: { label: 'Menunggu', color: 'bg-amber-50 text-amber-700 border-amber-200' },
+    REVIEWING: { label: 'Direview', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+    ISSUED: { label: 'KTA Aktif', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+    REJECTED: { label: 'Ditolak', color: 'bg-red-50 text-red-700 border-red-200' },
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        {Object.entries(statusConfig).map(([k, v]) => (
+          <button key={k} onClick={() => setStatusFilter(statusFilter === k ? 'ALL' : k)}
+            className={`rounded-lg border p-3 text-left transition-all ${statusFilter === k ? 'ring-2 ring-emerald-500' : 'hover:bg-accent'}`}>
+            <div className={`text-xs font-medium ${v.color.split(' ').slice(1, 3).join(' ')} px-2 py-0.5 rounded inline-block mb-1`}>{v.label}</div>
+            <div className="text-2xl font-bold">{stats[k] || 0}</div>
+          </button>
+        ))}
+      </div>
+
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base"><KeyRound className="w-4 h-4 text-emerald-600" /> Verifikasi & Cek Keanggotaan</CardTitle>
-          <CardDescription>Cari data anggota berdasarkan nomor KTA, NIK, atau nama lengkap</CardDescription>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <UserCheck className="w-4 h-4 text-emerald-600" /> Review Permohonan KTA ({items.length})
+          </CardTitle>
+          <CardDescription>Verifikasi dokumen pemohon & terbitkan KTA digital</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex gap-2">
-            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="cth: LAPRA08.ID.61.6171.26.00001 atau nama anggota" onKeyDown={(e) => e.key === 'Enter' && handleSearch()} />
-            <Button onClick={handleSearch} disabled={loading} className="bg-gradient-to-r from-orange-600 to-red-600 text-white">
-              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />} Cari
-            </Button>
+        <CardContent className="space-y-3">
+          <div className="flex gap-2 flex-wrap items-center">
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input placeholder="Cari nama / nomor pendaftaran / NIK / WA..." value={search}
+                onChange={(e) => setSearch(e.target.value)} className="pl-10" />
+            </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">Semua Status</SelectItem>
+                <SelectItem value="PENDING">Menunggu Review</SelectItem>
+                <SelectItem value="REVIEWING">Sedang Direview</SelectItem>
+                <SelectItem value="ISSUED">KTA Diterbitkan</SelectItem>
+                <SelectItem value="REJECTED">Ditolak</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-          {member && (
-            <div className="rounded-xl border bg-gradient-to-br from-orange-50 via-white to-red-50 p-6">
-              <div className="flex items-start gap-4">
-                <div className="w-24 h-32 rounded-lg overflow-hidden border-2 border-orange-500 shadow-md shrink-0 bg-gradient-to-br from-orange-600 to-red-700 flex items-center justify-center text-white">
-                  {member.photoUrl ? <img src={member.photoUrl} alt={member.fullName} className="w-full h-full object-cover" /> : <Users className="w-12 h-12" />}
-                </div>
-                <div className="flex-1 space-y-2">
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-xl font-bold">{member.fullName}</h3>
-                    <Badge variant="outline" className={`text-[10px] ${member.status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
-                      {member.status === 'ACTIVE' ? 'Aktif' : 'Pending'}
-                    </Badge>
+
+          {items.length === 0 ? (
+            <EmptyState icon={UserCheck} title="Tidak ada permohonan" description="Belum ada permohonan KTA pada filter ini." />
+          ) : (
+            <div className="space-y-2">
+              {items.map((a) => {
+                const sc = statusConfig[a.status] || statusConfig.PENDING
+                return (
+                  <div key={a.id} className="rounded-xl border p-3 hover:shadow-md transition-all bg-white">
+                    <div className="flex items-start gap-3">
+                      <div className="w-12 h-12 rounded-lg overflow-hidden border shrink-0 bg-gradient-to-br from-emerald-100 to-teal-200 flex items-center justify-center">
+                        {a.photoUrl ? <img src={a.photoUrl} alt={a.fullName} className="w-full h-full object-cover" /> : <Users className="w-6 h-6 text-emerald-600" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <div className="font-bold text-sm">{a.fullName}</div>
+                          <Badge variant="outline" className={`text-[10px] ${sc.color}`}>{sc.label}</Badge>
+                          {a.canReview && <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200">Bisa Review</Badge>}
+                        </div>
+                        <div className="font-mono text-xs text-emerald-700 mt-0.5">{a.applicationNumber}</div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          📍 {a.territory?.name || '-'} • 📞 {a.phone}
+                          {a.nik && ` • NIK: ${a.nik}`}
+                          {a.passportNumber && ` • Paspor: ${a.passportNumber}`}
+                        </div>
+                        <div className="text-[10px] text-muted-foreground mt-1">{formatDateTimeID(a.createdAt)}</div>
+                        {a.ktaNumber && (
+                          <div className="mt-2 inline-flex items-center gap-1 px-2 py-1 rounded bg-emerald-100 text-emerald-800 text-xs font-mono">
+                            <IdCard className="w-3 h-3" /> {a.ktaNumber}
+                          </div>
+                        )}
+                      </div>
+                      {a.canReview && (
+                        <Button variant="outline" size="sm" onClick={() => setReviewItem(a)}>
+                          <Eye className="w-3.5 h-3.5 mr-1" /> Review
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-3 text-sm">
-                    <div><span className="text-muted-foreground">No. KTA:</span> <strong className="font-mono">{member.ktaNumber}</strong></div>
-                    <div><span className="text-muted-foreground">NIK:</span> <strong>{member.nik}</strong></div>
-                    <div><span className="text-muted-foreground">Wilayah:</span> <strong>{member.territory?.name || '-'}</strong></div>
-                    <div><span className="text-muted-foreground">Jenis Kelamin:</span> <strong>{member.gender === 'M' ? 'Laki-laki' : 'Perempuan'}</strong></div>
-                    <div><span className="text-muted-foreground">Tgl Daftar:</span> <strong>{formatDateID(member.joinDate)}</strong></div>
-                    <div><span className="text-muted-foreground">Pekerjaan:</span> <strong>{member.occupation || '-'}</strong></div>
-                  </div>
-                </div>
-              </div>
+                )
+              })}
             </div>
           )}
         </CardContent>
       </Card>
+
+      {/* Review Dialog */}
+      <Dialog open={!!reviewItem} onOpenChange={(o) => !o && setReviewItem(null)}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          {reviewItem && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <IdCard className="w-5 h-5 text-emerald-600" /> Review Permohonan KTA
+                </DialogTitle>
+                <DialogDescription>{reviewItem.applicationNumber} • {reviewItem.fullName}</DialogDescription>
+              </DialogHeader>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Documents */}
+                <div className="space-y-3">
+                  <h4 className="text-sm font-semibold">Dokumen Upload</h4>
+                  <div>
+                    <Label className="text-xs">Pass Foto</Label>
+                    {reviewItem.photoUrl ? (
+                      <img src={reviewItem.photoUrl} alt="Pass Foto" className="w-full rounded-lg border max-h-64 object-contain" />
+                    ) : <div className="text-xs text-red-600">Belum upload pass foto</div>}
+                  </div>
+                  <div>
+                    <Label className="text-xs">KTP / Paspor</Label>
+                    {reviewItem.idCardUrl ? (
+                      reviewItem.idCardUrl.endsWith('.pdf') ? (
+                        <a href={reviewItem.idCardUrl} target="_blank" rel="noopener noreferrer" className="block p-4 rounded-lg border bg-red-50 text-red-700 text-sm font-medium text-center hover:bg-red-100">
+                          <FileText className="w-6 h-6 inline mr-2" />Lihat Dokumen PDF
+                        </a>
+                      ) : (
+                        <img src={reviewItem.idCardUrl} alt="KTP" className="w-full rounded-lg border max-h-64 object-contain" />
+                      )
+                    ) : <div className="text-xs text-red-600">Belum upload KTP/Paspor</div>}
+                  </div>
+                </div>
+
+                {/* Biodata */}
+                <div className="space-y-2 text-sm">
+                  <h4 className="text-sm font-semibold">Biodata Pemohon</h4>
+                  <div className="rounded-lg bg-slate-50 border p-3 space-y-1.5">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div><span className="text-xs text-muted-foreground">Nama:</span><div className="font-medium">{reviewItem.fullName}</div></div>
+                      <div><span className="text-xs text-muted-foreground">Gender:</span><div className="font-medium">{reviewItem.gender === 'L' ? 'Laki-laki' : reviewItem.gender === 'P' ? 'Perempuan' : '-'}</div></div>
+                      <div><span className="text-xs text-muted-foreground">TTL:</span><div className="font-medium">{reviewItem.birthPlace}, {reviewItem.birthDate ? formatDateID(reviewItem.birthDate) : '-'}</div></div>
+                      <div><span className="text-xs text-muted-foreground">Gol. Darah:</span><div className="font-medium">{reviewItem.bloodType || '-'}</div></div>
+                      <div><span className="text-xs text-muted-foreground">Pekerjaan:</span><div className="font-medium">{reviewItem.occupation || '-'}</div></div>
+                      <div><span className="text-xs text-muted-foreground">Status:</span><div className="font-medium">{reviewItem.maritalStatus || '-'}</div></div>
+                      <div><span className="text-xs text-muted-foreground">Ukuran Baju:</span><div className="font-medium">{reviewItem.shirtSize || '-'}</div></div>
+                      <div><span className="text-xs text-muted-foreground">Wilayah:</span><div className="font-medium">{reviewItem.territory?.name}</div></div>
+                    </div>
+                    <div className="border-t pt-2 mt-2">
+                      <div><span className="text-xs text-muted-foreground">NIK:</span><div className="font-mono font-medium">{reviewItem.nik || '-'}</div></div>
+                      <div><span className="text-xs text-muted-foreground">Paspor:</span><div className="font-mono font-medium">{reviewItem.passportNumber || '-'}</div></div>
+                      <div><span className="text-xs text-muted-foreground">WA:</span><div className="font-medium">{reviewItem.phone}</div></div>
+                      <div><span className="text-xs text-muted-foreground">Email:</span><div className="font-medium">{reviewItem.email || '-'}</div></div>
+                      <div><span className="text-xs text-muted-foreground">Alamat:</span><div className="text-xs">{reviewItem.address || '-'}</div></div>
+                    </div>
+                    {reviewItem.applicantNotes && (
+                      <div className="border-t pt-2 mt-2">
+                        <div className="text-xs text-muted-foreground">Catatan Pemohon:</div>
+                        <div className="text-xs italic p-2 bg-amber-50 rounded">{reviewItem.applicantNotes}</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Review Action */}
+              <div className="space-y-3 border-t pt-4">
+                <h4 className="text-sm font-semibold">Aksi Admin</h4>
+                <div className="flex gap-2 flex-wrap">
+                  <button onClick={() => setReviewAction('REVIEWING')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${reviewAction === 'REVIEWING' ? 'bg-blue-600 text-white border-blue-600' : 'hover:bg-accent'}`}>
+                    <Eye className="w-3 h-3 inline mr-1" />Tandai Sedang Direview
+                  </button>
+                  <button onClick={() => setReviewAction('APPROVE')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${reviewAction === 'APPROVE' ? 'bg-emerald-600 text-white border-emerald-600' : 'hover:bg-accent'}`}>
+                    <CheckCircle2 className="w-3 h-3 inline mr-1" />Setujui & Terbitkan KTA
+                  </button>
+                  <button onClick={() => setReviewAction('REJECT')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${reviewAction === 'REJECT' ? 'bg-red-600 text-white border-red-600' : 'hover:bg-accent'}`}>
+                    <XCircle className="w-3 h-3 inline mr-1" />Tolak Permohonan
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  <Label>Catatan Admin (opsional)</Label>
+                  <Textarea value={reviewNotes} onChange={(e) => setReviewNotes(e.target.value)} rows={2}
+                    placeholder="Catatan internal atau pesan untuk pemohon..." />
+                </div>
+                {reviewAction === 'REJECT' && (
+                  <div className="space-y-2">
+                    <Label className="text-red-700">Alasan Penolakan *</Label>
+                    <Textarea value={rejectionReason} onChange={(e) => setRejectionReason(e.target.value)} rows={2}
+                      placeholder="Jelaskan alasan penolakan (akan dilihat pemohon)..." required />
+                  </div>
+                )}
+                {reviewAction === 'APPROVE' && (
+                  <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-sm text-emerald-800">
+                    <CheckCircle2 className="w-4 h-4 inline mr-1" />
+                    KTA digital akan otomatis dibuat dengan format: <strong>LAPRA08.[NEGARA].[PROV].[KAB].[TAHUN].[URUT]</strong> berdasarkan wilayah pemohon. Masa berlaku 5 tahun.
+                  </div>
+                )}
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setReviewItem(null)}>Batal</Button>
+                  <Button onClick={handleReview} disabled={processing}
+                    className={reviewAction === 'REJECT' ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white'}>
+                    {processing ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : null}
+                    {reviewAction === 'APPROVE' ? 'Setujui & Terbitkan KTA' : reviewAction === 'REJECT' ? 'Tolak Permohonan' : 'Update Status'}
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
+
+// ============================================================
+// KTA — Info Layanan
+// ============================================================
+function KtaInfoLayanan() {
+  return (
+    <div className="space-y-6">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base"><Award className="w-4 h-4 text-blue-600" /> Informasi Layanan KTA</CardTitle>
@@ -1719,7 +2869,7 @@ function KtaLayananManager() {
           <div className="rounded-xl border p-4">
             <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center mb-2"><CheckCircle2 className="w-5 h-5 text-emerald-600" /></div>
             <div className="font-semibold text-sm">KTA Digital</div>
-            <p className="text-xs text-muted-foreground mt-1">Diterbitkan otomatis setelah verifikasi DPC. Berisi QR code untuk verifikasi keaslian.</p>
+            <p className="text-xs text-muted-foreground mt-1">Diterbitkan otomatis setelah verifikasi admin DPC. Berisi QR code untuk verifikasi keaslian.</p>
           </div>
           <div className="rounded-xl border p-4">
             <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center mb-2"><KeyRound className="w-5 h-5 text-blue-600" /></div>
@@ -1731,6 +2881,47 @@ function KtaLayananManager() {
             <div className="font-semibold text-sm">Cetak KTA Fisik</div>
             <p className="text-xs text-muted-foreground mt-1">Tersedia di sekretariat DPC. Biaya Rp 25.000 dengan kartu PVC + hologram.</p>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base"><FileCheck className="w-4 h-4 text-emerald-600" /> Alur Pendaftaran KTA Online</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {[
+            { step: 1, title: 'Isi Formulir Online', desc: 'Lengkapi data diri (nama, NIK, kontak, pekerjaan, dll) di formulir pendaftaran online.', icon: FileText, color: 'bg-blue-500' },
+            { step: 2, title: 'Upload Dokumen', desc: 'Upload pass foto (latar merah/biru) dan scan KTP/Paspor. Format JPG/PNG/PDF.', icon: Camera, color: 'bg-purple-500' },
+            { step: 3, title: 'Pilih DPC Tujuan', desc: 'Pilih DPC (kabupaten/kota) tempat Anda berdomisili untuk verifikasi.', icon: MapPin, color: 'bg-amber-500' },
+            { step: 4, title: 'Submit & Tunggu Review', desc: 'Tim DPC akan verifikasi data & dokumen dalam 1x24 jam via WhatsApp.', icon: Clock, color: 'bg-orange-500' },
+            { step: 5, title: 'KTA Diterbitkan', desc: 'Setelah disetujui, KTA digital aktif dengan masa berlaku 5 tahun. Cetak fisik opsional.', icon: CheckCircle2, color: 'bg-emerald-500' },
+          ].map((s) => {
+            const Icon = s.icon
+            return (
+              <div key={s.step} className="flex items-start gap-3 p-3 rounded-lg border bg-white">
+                <div className={`w-10 h-10 rounded-full ${s.color} text-white flex items-center justify-center font-bold shrink-0`}>
+                  {s.step}
+                </div>
+                <div className="flex-1">
+                  <div className="font-semibold text-sm flex items-center gap-2"><Icon className="w-4 h-4 text-muted-foreground" />{s.title}</div>
+                  <p className="text-xs text-muted-foreground mt-1">{s.desc}</p>
+                </div>
+              </div>
+            )
+          })}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base"><ShieldCheck className="w-4 h-4 text-emerald-600" /> Syarat & Ketentuan</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2 text-sm">
+          <div className="flex items-start gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" /><span>WNI minimal 17 tahun atau WNA dengan KITAS, atau WNI di luar negeri dengan paspor aktif.</span></div>
+          <div className="flex items-start gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" /><span>Bersedia mematuhi AD/ART LAPRA 08 dan kode etik organisasi.</span></div>
+          <div className="flex items-start gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" /><span>Membayar iuran bulanan (Rp 25.000 untuk anggota biasa, Rp 50.000 untuk pengurus).</span></div>
+          <div className="flex items-start gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" /><span>Data yang dikirim adalah BENAR dan dapat dipertanggungjawabkan secara hukum.</span></div>
+          <div className="flex items-start gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" /><span>Privasi data dilindungi sesuai UU PDP No. 27 Tahun 2022.</span></div>
         </CardContent>
       </Card>
     </div>

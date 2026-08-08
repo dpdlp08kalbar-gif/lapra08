@@ -20,15 +20,19 @@ export async function DELETE(
     return NextResponse.json({ success: false, error: 'Item tidak ditemukan' }, { status: 404 })
   }
 
-  // Delete file
+  // Delete file (gallery photo OR uploaded video)
   try {
     const data = JSON.parse(item.value)
     if (data.fileUrl) {
       const filePath = path.join(process.cwd(), 'public', data.fileUrl.replace(/^\//, ''))
       if (fs.existsSync(filePath)) fs.unlinkSync(filePath)
     }
+    if (data.videoType === 'UPLOAD' && data.videoUrl) {
+      const filePath = path.join(process.cwd(), 'public', data.videoUrl.replace(/^\//, ''))
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath)
+    }
   } catch {}
 
   await db.systemSetting.delete({ where: { key: id } })
-  return NextResponse.json({ success: true, message: 'Foto dihapus dari galeri' })
+  return NextResponse.json({ success: true, message: 'Item dihapus' })
 }
