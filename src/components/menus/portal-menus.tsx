@@ -46,7 +46,7 @@ import { FinanceMenu } from '@/components/menus/finance-menu'
 import { LogisticsMenu } from '@/components/menus/logistics-menu'
 
 // ============================================================
-// 1. BERANDA
+// 1. BERANDA — Portal Profesional Level Internasional
 // ============================================================
 export function BerandaMenu() {
   const setActiveMenu = useNavStore((s) => s.setActiveMenu)
@@ -59,94 +59,226 @@ export function BerandaMenu() {
   }, [])
 
   return (
-    <div className="space-y-6">
-      {/* Hero Banner */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-orange-600 via-red-600 to-orange-700 p-8 text-white shadow-xl">
-        <div className="absolute top-0 right-0 opacity-10">
-          <ShieldCheck className="w-48 h-48 -mr-8 -mt-8" />
+    <div className="space-y-6 animate-fade-in-up">
+      {/* Hero Banner — Premium Design */}
+      <div className="relative overflow-hidden rounded-3xl shadow-2xl shadow-orange-600/20">
+        {/* Background gradient layers */}
+        <div className="absolute inset-0 bg-gradient-to-br from-orange-600 via-red-600 to-rose-700" />
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-900/40 via-transparent to-transparent" />
+        {/* Decorative pattern */}
+        <div className="absolute inset-0 opacity-10" style={{
+          backgroundImage: 'radial-gradient(circle at 20% 50%, white 1px, transparent 1px), radial-gradient(circle at 80% 80%, white 1px, transparent 1px)',
+          backgroundSize: '40px 40px',
+        }} />
+        {/* Large decorative icon */}
+        <div className="absolute top-0 right-0 opacity-5">
+          <ShieldCheck className="w-64 h-64 -mr-12 -mt-12" />
         </div>
-        <div className="relative z-10">
-          <Badge className="bg-white/20 text-white border-0 mb-3">Portal Resmi LAPRA 08</Badge>
-          <h1 className="text-3xl font-black tracking-tight mb-2">Sistem Informasi Internal</h1>
-          <p className="text-lg opacity-90 mb-4">Perkumpulan Laskar Prabowo 08 — Membangun Indonesia Emas 2045</p>
+
+        {/* Content */}
+        <div className="relative z-10 p-8 lg:p-10">
+          <div className="flex items-center gap-2 mb-4">
+            <Badge className="bg-white/15 text-white border border-white/20 backdrop-blur-sm px-3 py-1">
+              <ShieldCheck className="w-3 h-3 mr-1" /> Portal Resmi LAPRA 08
+            </Badge>
+            <Badge className="bg-yellow-400/20 text-yellow-200 border border-yellow-400/30 px-3 py-1">
+              Periode 2024-2029
+            </Badge>
+          </div>
+          <h1 className="text-4xl lg:text-5xl font-black tracking-tight text-white mb-3 drop-shadow-lg">
+            Sistem Informasi
+            <span className="block bg-gradient-to-r from-yellow-300 via-amber-200 to-yellow-400 bg-clip-text text-transparent">
+              Laskar Prabowo 08
+            </span>
+          </h1>
+          <p className="text-lg text-white/80 mb-6 max-w-2xl">
+            Platform digital terpadu untuk pengurus DPN, DPD, dan DPC seluruh Indonesia.
+            Mengawal program pemerintahan menuju Indonesia Emas 2045.
+          </p>
           <div className="flex flex-wrap gap-3">
-            <Button size="lg" className="bg-gradient-to-r from-yellow-500 to-amber-500 text-white hover:from-yellow-600 hover:to-amber-600 border-0"
+            <Button size="lg" className="bg-gradient-to-r from-yellow-400 to-amber-500 text-slate-900 font-bold hover:from-yellow-500 hover:to-amber-600 border-0 shadow-lg shadow-amber-500/30 hover:scale-105 transition-all"
               onClick={() => setActiveMenu('layanan')}>
               <KeyRound className="w-5 h-5 mr-2" /> Pendaftaran KTA
             </Button>
-            <Button size="lg" variant="outline" className="bg-white/10 text-white border-white/30 hover:bg-white/20"
+            <Button size="lg" variant="outline" className="bg-white/10 text-white border-white/20 hover:bg-white/20 backdrop-blur-sm"
               onClick={() => setActiveMenu('profil')}>
-              Struktur Pengurus <ChevronRight className="w-4 h-4 ml-1" />
+              Lihat Struktur Organisasi <ChevronRight className="w-4 h-4 ml-1" />
             </Button>
           </div>
         </div>
       </div>
 
-      {/* Statistik Singkat */}
+      {/* Statistik Cards — Modern Glassmorphism */}
       {stats && (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <StatCard label="Total Anggota" value={stats.members.total} icon={Users} color="orange" />
-          <StatCard label="DPD (Provinsi)" value={stats.global.totalProvinces} icon={MapPin} color="blue" />
-          <StatCard label="DPC (Kab/Kota)" value={stats.global.totalRegencies} icon={Building2} color="emerald" />
-          <StatCard label="Saldo Kas" value={new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(stats.finance.balance)} icon={Wallet} color={stats.finance.balance >= 0 ? 'emerald' : 'red'} />
+          <StatCardModern
+            label="Total Anggota"
+            value={stats.members.total}
+            icon={Users}
+            gradient="from-orange-500 to-red-500"
+            subtitle={`${stats.members.active} anggota aktif`}
+          />
+          <StatCardModern
+            label="DPD (Provinsi)"
+            value={stats.global.totalProvinces}
+            icon={MapPin}
+            gradient="from-blue-500 to-indigo-500"
+            subtitle={`${stats.global.totalDpdLn || 0} DPD Luar Negeri`}
+          />
+          <StatCardModern
+            label="DPC (Kab/Kota)"
+            value={stats.global.totalRegencies}
+            icon={Building2}
+            gradient="from-emerald-500 to-teal-500"
+            subtitle="514 DPC terhubung"
+          />
+          <StatCardModern
+            label="Saldo Kas"
+            value={new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(stats.finance.balance)}
+            icon={Wallet}
+            gradient={stats.finance.balance >= 0 ? 'from-green-500 to-emerald-600' : 'from-red-500 to-rose-600'}
+            subtitle={stats.finance.balance >= 0 ? 'Surplus' : 'Defisit'}
+          />
         </div>
       )}
 
-      {/* Pengumuman Terbaru */}
-      {announcements.length > 0 && (
-        <Card>
+      {/* Quick Access — Premium Cards */}
+      <div>
+        <div className="flex items-center gap-2 mb-4">
+          <div className="h-6 w-1 rounded-full bg-gradient-to-b from-orange-500 to-red-600" />
+          <h2 className="text-lg font-bold text-slate-800">Akses Cepat</h2>
+        </div>
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+          <QuickAccessPremium icon={Building2} title="Struktur Pengurus" desc="DPN → DPD → DPC lengkap" gradient="from-purple-500 to-indigo-600" onClick={() => setActiveMenu('profil')} />
+          <QuickAccessPremium icon={CalendarDays} title="Agenda Kegiatan" desc="Kalender & absensi" gradient="from-blue-500 to-cyan-600" onClick={() => setActiveMenu('program')} />
+          <QuickAccessPremium icon={Newspaper} title="Kabar & Berita" desc="Update terbaru" gradient="from-emerald-500 to-green-600" onClick={() => setActiveMenu('pusat-media')} />
+          <QuickAccessPremium icon={ShieldCheck} title="Layanan Advokasi" desc="Pengaduan & bantuan" gradient="from-orange-500 to-red-600" onClick={() => setActiveMenu('layanan')} />
+          <QuickAccessPremium icon={KeyRound} title="Cek KTA Digital" desc="Verifikasi keanggotaan" gradient="from-amber-400 to-yellow-500" onClick={() => setActiveMenu('layanan')} />
+          <QuickAccessPremium icon={MapIcon} title="Sekretariat" desc="Lokasi & kontak" gradient="from-slate-600 to-slate-800" onClick={() => setActiveMenu('kontak')} />
+        </div>
+      </div>
+
+      {/* Pengumuman Terbaru + Sidebar Info */}
+      <div className="grid gap-4 lg:grid-cols-3">
+        {/* Pengumuman */}
+        <div className="lg:col-span-2">
+          <Card className="border-slate-200 shadow-md">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center">
+                  <Megaphone className="w-4 h-4 text-white" />
+                </div>
+                Pengumuman Terbaru
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {announcements.length === 0 ? (
+                <EmptyState icon={Megaphone} title="Belum ada pengumuman" />
+              ) : (
+                announcements.slice(0, 4).map((a) => (
+                  <div key={a.id} className="group flex items-start gap-3 p-3 rounded-xl bg-gradient-to-r from-slate-50 to-slate-100/50 border border-slate-200 hover:border-orange-300 hover:shadow-sm transition-all">
+                    <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${a.isPinned ? 'bg-orange-500' : 'bg-slate-300'}`} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <div className="font-semibold text-sm truncate">{a.title}</div>
+                        {a.isPinned && <Pin className="w-3 h-3 text-orange-500 shrink-0" />}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{a.content}</p>
+                      <div className="text-[10px] text-muted-foreground mt-1 flex items-center gap-2">
+                        <span>{formatDateTimeID(a.createdAt)}</span>
+                        <span>•</span>
+                        <span>{a.createdBy?.fullName || 'Admin'}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Sidebar Info — Hierarchy Summary */}
+        <Card className="bg-gradient-to-br from-slate-900 to-slate-800 text-white border-0 shadow-lg">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Megaphone className="w-4 h-4 text-orange-600" /> Pengumuman Terbaru
+            <CardTitle className="flex items-center gap-2 text-sm text-white">
+              <div className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center">
+                <Building2 className="w-4 h-4 text-orange-400" />
+              </div>
+              Hierarki Organisasi
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
-            {announcements.slice(0, 3).map((a) => (
-              <div key={a.id} className="rounded-lg bg-orange-50 border border-orange-200 p-3">
-                <div className="flex items-center gap-2">
-                  {a.isPinned && <Pin className="w-3 h-3 text-orange-600" />}
-                  <div className="font-semibold text-sm">{a.title}</div>
-                </div>
-                <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{a.content}</p>
-                <div className="text-[10px] text-muted-foreground mt-1">{formatDateTimeID(a.createdAt)}</div>
+          <CardContent className="space-y-3">
+            <HierarchyItem level="DPN" desc="Pusat Nasional" count={1} color="text-purple-400" />
+            <div className="ml-4 border-l-2 border-slate-700 pl-4 space-y-3">
+              <HierarchyItem level="DPD" desc="38 Provinsi + IKN + 5 LN" count={44} color="text-blue-400" />
+              <div className="ml-4 border-l-2 border-slate-700 pl-4">
+                <HierarchyItem level="DPC" desc="514 Kabupaten/Kota" count={514} color="text-emerald-400" />
               </div>
-            ))}
+            </div>
+            <div className="pt-3 border-t border-slate-700">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-400">Total Wilayah</span>
+                <span className="font-bold text-orange-400">559 Teritori</span>
+              </div>
+              <div className="flex items-center justify-between text-xs mt-2">
+                <span className="text-slate-400">Status</span>
+                <span className="flex items-center gap-1 text-emerald-400">
+                  <CheckCircle2 className="w-3 h-3" /> Terhubung 100%
+                </span>
+              </div>
+            </div>
           </CardContent>
         </Card>
-      )}
-
-      {/* Quick Access */}
-      <div className="grid gap-3 md:grid-cols-3">
-        <QuickAccessCard icon={Building2} title="Struktur Pengurus" desc="DPN → DPD → DPC" color="purple" onClick={() => setActiveMenu('profil')} />
-        <QuickAccessCard icon={CalendarDays} title="Agenda Kegiatan" desc="Kalender & Event" color="blue" onClick={() => setActiveMenu('program')} />
-        <QuickAccessCard icon={Newspaper} title="Kabar & Berita" desc="Update terbaru" color="emerald" onClick={() => setActiveMenu('pusat-media')} />
-        <QuickAccessCard icon={ShieldCheck} title="Layanan Advokasi" desc="Pengaduan & Bantuan" color="orange" onClick={() => setActiveMenu('layanan')} />
-        <QuickAccessCard icon={KeyRound} title="Cek KTA Digital" desc="Verifikasi keanggotaan" color="amber" onClick={() => setActiveMenu('layanan')} />
-        <QuickAccessCard icon={MapIcon} title="Sekretariat" desc="Lokasi & Kontak" color="blue" onClick={() => setActiveMenu('kontak')} />
       </div>
     </div>
   )
 }
 
-function QuickAccessCard({ icon: Icon, title, desc, color, onClick }: any) {
-  const colors: Record<string, string> = {
-    purple: 'from-purple-500 to-purple-700', blue: 'from-blue-500 to-blue-700',
-    emerald: 'from-emerald-500 to-emerald-700', orange: 'from-orange-500 to-red-600',
-    amber: 'from-amber-500 to-yellow-600',
-  }
+function StatCardModern({ label, value, icon: Icon, gradient, subtitle }: any) {
   return (
-    <button onClick={onClick} className="group rounded-lg border p-4 text-left hover:shadow-md transition-all hover:scale-[1.02]">
-      <div className="flex items-center gap-3">
-        <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${colors[color]} flex items-center justify-center`}>
-          <Icon className="w-5 h-5 text-white" />
+    <div className="group relative overflow-hidden rounded-2xl bg-white border border-slate-200 shadow-sm hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
+      <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${gradient} opacity-5 rounded-full -mr-12 -mt-12 group-hover:opacity-10 transition-opacity`} />
+      <div className="relative p-5">
+        <div className="flex items-start justify-between mb-3">
+          <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${gradient} flex items-center justify-center shadow-md`}>
+            <Icon className="w-5 h-5 text-white" />
+          </div>
         </div>
-        <div className="flex-1">
-          <div className="font-semibold text-sm">{title}</div>
-          <div className="text-xs text-muted-foreground">{desc}</div>
+        <div className="text-2xl font-black text-slate-800 tracking-tight">{value}</div>
+        <div className="text-sm text-slate-500 font-medium mt-0.5">{label}</div>
+        {subtitle && <div className="text-[10px] text-slate-400 mt-1">{subtitle}</div>}
+      </div>
+    </div>
+  )
+}
+
+function QuickAccessPremium({ icon: Icon, title, desc, gradient, onClick }: any) {
+  return (
+    <button onClick={onClick} className="group relative overflow-hidden rounded-2xl bg-white border border-slate-200 p-5 text-left shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+      <div className={`absolute top-0 right-0 w-24 h-24 bg-gradient-to-br ${gradient} opacity-5 rounded-full -mr-8 -mt-8 group-hover:scale-150 group-hover:opacity-10 transition-all duration-500`} />
+      <div className="relative flex items-center gap-4">
+        <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${gradient} flex items-center justify-center shadow-md group-hover:scale-110 transition-transform`}>
+          <Icon className="w-6 h-6 text-white" />
         </div>
-        <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground" />
+        <div className="flex-1 min-w-0">
+          <div className="font-bold text-sm text-slate-800">{title}</div>
+          <div className="text-xs text-slate-500 mt-0.5">{desc}</div>
+        </div>
+        <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-slate-600 group-hover:translate-x-1 transition-all" />
       </div>
     </button>
+  )
+}
+
+function HierarchyItem({ level, desc, count, color }: any) {
+  return (
+    <div className="flex items-center justify-between">
+      <div>
+        <div className={`text-xs font-bold ${color}`}>{level}</div>
+        <div className="text-[10px] text-slate-400">{desc}</div>
+      </div>
+      <div className="text-lg font-black text-white">{count}</div>
+    </div>
   )
 }
 
