@@ -3,8 +3,14 @@
 import { useAuthStore, useNavStore } from '@/lib/store'
 import { LoginPage } from '@/components/login-page'
 import { MainShell } from '@/components/main-shell'
-import { PusatDataMenu } from '@/components/menus/pusat-data-menu'
+import { BerandaMenu } from '@/components/menus/beranda-menu'
+import { ProfilMenu } from '@/components/menus/profil-menu'
+import { PusatMediaMenu } from '@/components/menus/pusat-media-menu'
+import { ProgramKegiatanMenu } from '@/components/menus/program-kegiatan-menu'
+import { LayananAdvokasiMenu } from '@/components/menus/layanan-advokasi-menu'
+import { KontakSekretariatMenu } from '@/components/menus/kontak-sekretariat-menu'
 import { DashboardMenu } from '@/components/menus/dashboard-menu'
+import { PusatDataMenu } from '@/components/menus/pusat-data-menu'
 import { LogisticsMenu } from '@/components/menus/logistics-menu'
 import { EventsMenu } from '@/components/menus/events-menu'
 import { CommunicationMenu } from '@/components/menus/communication-menu'
@@ -19,7 +25,6 @@ export default function Home() {
   const hasHydrated = useAuthStore((s) => s.hasHydrated)
   const activeMenu = useNavStore((s) => s.activeMenu)
 
-  // Tampilkan loading screen saat menunggu hydration dari localStorage
   if (!hasHydrated) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 via-white to-red-50">
@@ -36,22 +41,29 @@ export default function Home() {
     )
   }
 
-  // Setelah hydration selesai, cek apakah user ter-authenticated
   if (!isAuthenticated || !user) {
     return <LoginPage />
   }
 
-  // Render menu content based on active menu (8 menu konsolidasi)
   const renderMenu = () => {
     switch (activeMenu) {
+      // 6 Menu Portal Publik
+      case 'beranda':
+        return <BerandaMenu />
+      case 'profil':
+        return <ProfilMenu />
+      case 'pusat-media':
+        return <PusatMediaMenu />
+      case 'program':
+        return <ProgramKegiatanMenu />
+      case 'layanan':
+        return <LayananAdvokasiMenu />
+      case 'kontak':
+        return <KontakSekretariatMenu />
+      // Menu Admin Internal (accessible dari Beranda/Dashboard)
       case 'dashboard':
         return <DashboardMenu />
       case 'pusat-data':
-        return <PusatDataMenu />
-      // Menu lama (territory, membership, organization) → redirect ke pusat-data
-      case 'territory':
-      case 'membership':
-      case 'organization':
         return <PusatDataMenu />
       case 'logistics':
         return <LogisticsMenu />
@@ -66,7 +78,7 @@ export default function Home() {
       case 'help':
         return <HelpMenu />
       default:
-        return <DashboardMenu />
+        return <BerandaMenu />
     }
   }
 

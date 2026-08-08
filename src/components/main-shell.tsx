@@ -23,6 +23,9 @@ import {
   UserCog,
   LifeBuoy,
   Database,
+  Home,
+  Newspaper,
+  ShieldCheck,
   Menu,
   LogOut,
   ChevronLeft,
@@ -34,6 +37,7 @@ import {
   Info,
   AlertTriangle,
   Bell,
+  KeyRound,
 } from 'lucide-react'
 import type { SessionUser } from '@/lib/types'
 import { ROLE_LABELS, ROLE_COLORS } from '@/lib/types'
@@ -51,6 +55,9 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   UserCog,
   LifeBuoy,
   Database,
+  Home,
+  Newspaper,
+  ShieldCheck,
 }
 
 interface MenuData {
@@ -113,9 +120,10 @@ export function MainShell({ children }: { children: React.ReactNode }) {
         </div>
       </div>
 
-      {/* Menu Navigation */}
+      {/* Menu Navigation - 6 Menu Portal + Admin Section */}
       <nav className="flex-1 overflow-y-auto p-2 space-y-1">
-        {menus.map((menu) => {
+        {/* 6 Menu Portal Publik */}
+        {menus.filter(m => ['beranda','profil','pusat-media','program','layanan','kontak'].includes(m.key)).map((menu) => {
           const Icon = ICON_MAP[menu.icon] || LayoutDashboard
           const isActive = activeMenu === menu.key
           return (
@@ -137,7 +145,52 @@ export function MainShell({ children }: { children: React.ReactNode }) {
             </button>
           )
         })}
+
+        {/* Divider */}
+        {!sidebarCollapsed && (
+          <div className="pt-2 pb-1 px-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+            Dashboard Admin
+          </div>
+        )}
+        {sidebarCollapsed && <div className="border-t my-2" />}
+
+        {/* Menu Admin Internal */}
+        {menus.filter(m => ['dashboard','pusat-data','logistics','communication','finance','users'].includes(m.key)).map((menu) => {
+          const Icon = ICON_MAP[menu.icon] || LayoutDashboard
+          const isActive = activeMenu === menu.key
+          return (
+            <button
+              key={menu.id}
+              onClick={() => {
+                setActiveMenu(menu.key)
+                setMobileOpen(false)
+              }}
+              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                isActive
+                  ? 'bg-gradient-to-r from-orange-600 to-red-600 text-white shadow-sm'
+                  : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+              } ${sidebarCollapsed ? 'justify-center' : ''}`}
+              title={sidebarCollapsed ? menu.label : undefined}
+            >
+              <Icon className="w-4 h-4 shrink-0" />
+              {!sidebarCollapsed && <span className="truncate text-[13px]">{menu.label}</span>}
+            </button>
+          )
+        })}
       </nav>
+
+      {/* CTA Button - Pendaftaran KTA / Login Anggota (Kuning Emas) */}
+      {!sidebarCollapsed && (
+        <div className="px-3 pb-2">
+          <button
+            onClick={() => setActiveMenu('layanan')}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-gradient-to-r from-yellow-500 to-amber-500 text-white font-semibold text-sm shadow-md hover:from-yellow-600 hover:to-amber-600 transition-all"
+          >
+            <KeyRound className="w-4 h-4" />
+            Pendaftaran KTA
+          </button>
+        </div>
+      )}
 
       {/* User info & logout */}
       <div className="border-t p-3 space-y-2">

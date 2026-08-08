@@ -269,14 +269,19 @@ async function main() {
   console.log('→ Creating 8 menus (konsolidasi)...')
 
   const menus = [
-    { key: 'dashboard', label: 'Dasbor Utama', icon: 'LayoutDashboard', order: 1, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_DPD,ADMIN_DPC' },
-    { key: 'pusat-data', label: 'Pusat Data Organisasi', icon: 'Database', order: 2, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_DPD,ADMIN_DPC' },
-    { key: 'logistics', label: 'Logistik & Atribut', icon: 'Package', order: 3, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_DPD,ADMIN_DPC' },
-    { key: 'events', label: 'Event & Mobilisasi', icon: 'CalendarDays', order: 4, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_DPD,ADMIN_DPC' },
-    { key: 'communication', label: 'Komunikasi & Broadcast', icon: 'Megaphone', order: 5, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_DPD,ADMIN_DPC' },
-    { key: 'finance', label: 'Kas & Keuangan', icon: 'Wallet', order: 6, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_DPD,ADMIN_DPC' },
-    { key: 'users', label: 'Pengaturan User', icon: 'UserCog', order: 7, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_DPD' },
-    { key: 'help', label: 'Pusat Bantuan', icon: 'LifeBuoy', order: 8, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_DPD,ADMIN_DPC' },
+    // 6 Menu Portal (struktur baru)
+    { key: 'beranda', label: 'Beranda', icon: 'Home', order: 1, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_DPD,ADMIN_DPC' },
+    { key: 'profil', label: 'Profil', icon: 'Building2', order: 2, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_DPD,ADMIN_DPC' },
+    { key: 'pusat-media', label: 'Pusat Media', icon: 'Newspaper', order: 3, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_DPD,ADMIN_DPC' },
+    { key: 'program', label: 'Program & Kegiatan', icon: 'CalendarDays', order: 4, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_DPD,ADMIN_DPC' },
+    { key: 'layanan', label: 'Layanan & Advokasi', icon: 'ShieldCheck', order: 5, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_DPD,ADMIN_DPC' },
+    { key: 'kontak', label: 'Kontak & Sekretariat', icon: 'MapPin', order: 6, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_DPD,ADMIN_DPC' },
+    // Menu Admin Internal (hidden dari nav publik, accessible dari Dashboard)
+    { key: 'dashboard', label: 'Dashboard Admin', icon: 'LayoutDashboard', order: 7, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_DPD,ADMIN_DPC' },
+    { key: 'logistics', label: 'Logistik & Atribut', icon: 'Package', order: 8, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_DPD,ADMIN_DPC' },
+    { key: 'communication', label: 'Komunikasi & Broadcast', icon: 'Megaphone', order: 9, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_DPD,ADMIN_DPC' },
+    { key: 'finance', label: 'Kas & Keuangan', icon: 'Wallet', order: 10, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_DPD,ADMIN_DPC' },
+    { key: 'users', label: 'Pengaturan User', icon: 'UserCog', order: 11, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_DPD' },
   ]
 
   for (const menu of menus) {
