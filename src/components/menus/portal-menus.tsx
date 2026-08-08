@@ -34,7 +34,7 @@ import {
   Building2, BookOpen, Scale, Briefcase, HandHeart, CalendarClock,
   PhoneCall, MessageSquare, HelpCircle, Map as MapIcon, Mail, Plus,
   Edit, Trash2, MoreVertical, Pin, Send, Eye, Upload, Loader2, Search,
-  Award, CheckCircle2, Clock, AlertTriangle,
+  Award, CheckCircle2, Clock, AlertTriangle, Globe, ExternalLink, Lock,
 } from 'lucide-react'
 
 // Reuse existing functional components
@@ -1001,15 +1001,16 @@ function AnnouncementManager() {
             {filtered.map((a) => {
               const tc = typeConfig[a.type] || typeConfig.INFO
               const cc = categoryConfig[a.category] || categoryConfig.BERITA
+              const isWebSync = a.source === 'WEB_SYNC' // Berita dari web lain = READ-ONLY
               return (
-                <div key={a.id} className="group relative rounded-xl border p-3 hover:shadow-md transition-all bg-white">
+                <div key={a.id} className={`group relative rounded-xl border p-3 hover:shadow-md transition-all bg-white ${isWebSync ? 'border-l-4 border-l-blue-400' : ''}`}>
                   <div className="flex items-start gap-3">
                     {/* Thumbnail */}
                     {a.photoUrl ? (
                       <img src={a.photoUrl} alt={a.title} className="w-16 h-16 rounded-lg object-cover shrink-0" />
                     ) : (
-                      <div className="w-16 h-16 rounded-lg bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center shrink-0">
-                        <ImageIcon className="w-6 h-6 text-slate-400" />
+                      <div className={`w-16 h-16 rounded-lg flex items-center justify-center shrink-0 ${isWebSync ? 'bg-gradient-to-br from-blue-100 to-indigo-200' : 'bg-gradient-to-br from-slate-100 to-slate-200'}`}>
+                        {isWebSync ? <Globe className="w-6 h-6 text-blue-500" /> : <ImageIcon className="w-6 h-6 text-slate-400" />}
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
@@ -1021,20 +1022,44 @@ function AnnouncementManager() {
                       <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                         <Badge variant="outline" className={`text-[10px] ${cc.color}`}>{cc.label}</Badge>
                         <Badge variant="outline" className={`text-[10px] ${tc.color}`}>{tc.label}</Badge>
+                        {/* Badge sumber untuk WEB_SYNC */}
+                        {isWebSync && (
+                          <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700 border-blue-200">
+                            <Globe className="w-2.5 h-2.5 mr-0.5" /> {a.sourceName || 'Web'}
+                          </Badge>
+                        )}
                         <span className="text-[10px] text-muted-foreground">
                           {a.publishDate ? formatDateID(a.publishDate) : formatDateTimeID(a.createdAt)}
                         </span>
-                        <span className="text-[10px] text-muted-400">• {a.createdBy?.fullName || 'Admin'}</span>
                       </div>
+                      {/* Link Baca Selengkapnya untuk WEB_SYNC */}
+                      {isWebSync && a.sourceUrl && (
+                        <a href={a.sourceUrl} target="_blank" rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 mt-2 text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline">
+                          <ExternalLink className="w-3 h-3" />
+                          Baca Selengkapnya di {a.sourceName || 'sumber asli'}
+                        </a>
+                      )}
                     </div>
-                    <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-blue-600 hover:bg-blue-50" onClick={() => openEditor(a)}>
-                        <Edit className="w-3.5 h-3.5" />
-                      </Button>
-                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-600 hover:bg-red-50" onClick={() => setDeleteItem(a)}>
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
-                    </div>
+                    {/* Tombol Edit & Hapus HANYA untuk berita MANUAL (admin buat) */}
+                    {!isWebSync && (
+                      <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-blue-600 hover:bg-blue-50" onClick={() => openEditor(a)}>
+                          <Edit className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-600 hover:bg-red-50" onClick={() => setDeleteItem(a)}>
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    )}
+                    {/* Badge READ-ONLY untuk WEB_SYNC */}
+                    {isWebSync && (
+                      <div className="absolute top-2 right-2">
+                        <Badge variant="outline" className="text-[9px] bg-slate-50 text-slate-500 border-slate-200">
+                          <Lock className="w-2.5 h-2.5 mr-0.5" /> Read-Only
+                        </Badge>
+                      </div>
+                    )}
                   </div>
                 </div>
               )

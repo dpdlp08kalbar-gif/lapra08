@@ -330,6 +330,9 @@ model Announcement {
   photoUrl      String?
   publishDate   DateTime?
   expiresAt     DateTime?
+  source        String   @default("MANUAL") // MANUAL (admin buat) | WEB_SYNC (dari web lain, READ-ONLY)
+  sourceUrl     String?  // URL asli jika WEB_SYNC
+  sourceName    String?  // Nama media sumber (cth: MetroTV, RRI, dll)
   territoryId   String
   territory     Territory @relation(fields: [territoryId], references: [id])
   createdById   String
