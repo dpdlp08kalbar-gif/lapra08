@@ -34,7 +34,7 @@ import {
   Building2, BookOpen, Scale, Briefcase, HandHeart, CalendarClock,
   PhoneCall, MessageSquare, HelpCircle, Map as MapIcon, Mail, Plus,
   Edit, Trash2, MoreVertical, Pin, Send, Eye, Upload, Loader2, Search,
-  Award, CheckCircle2, Clock,
+  Award, CheckCircle2, Clock, AlertTriangle,
 } from 'lucide-react'
 
 // Reuse existing functional components
@@ -378,7 +378,6 @@ export function PusatMediaMenu() {
 // ANNOUNCEMENT MANAGER — CRUD lengkap untuk berita & pengumuman
 // ============================================================
 function AnnouncementManager() {
-  const user = useToastStore.getState // placeholder
   const addToast = useToastStore((s) => s.addToast)
   const [items, setItems] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -386,7 +385,12 @@ function AnnouncementManager() {
   const [addOpen, setAddOpen] = useState(false)
   const [editItem, setEditItem] = useState<any>(null)
   const [deleteItem, setDeleteItem] = useState<any>(null)
-  const [form, setForm] = useState({ title: '', content: '', type: 'INFO', isPinned: false, territoryId: '' })
+  const [previewMode, setPreviewMode] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [form, setForm] = useState({
+    title: '', content: '', type: 'INFO', category: 'BERITA', isPinned: false,
+    territoryId: '', imageUrl: '', publishDate: '',
+  })
   const [territories, setTerritories] = useState<any[]>([])
 
   const loadData = () => {
@@ -398,24 +402,52 @@ function AnnouncementManager() {
   }
   useEffect(() => { loadData() }, [])
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleFileUpload = (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      addToast('File harus berupa gambar (JPG/PNG)', 'error')
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      addToast('Ukuran file maksimal 5MB', 'error')
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      setForm({ ...form, imageUrl: e.target?.result as string })
+      addToast('Gambar berhasil dimuat', 'success')
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const handlePublish = async () => {
+    setSaving(true)
     try {
-      if (editItem) {
-        await api(`/api/announcements/${editItem.id}`, { method: 'PUT', body: JSON.stringify(form) })
-        addToast('Pengumuman diperbarui', 'success')
-      } else {
-        await api('/api/announcements', { method: 'POST', body: JSON.stringify({ ...form, territoryId: form.territoryId || territories[0]?.id }) })
-        addToast('Pengumuman baru dibuat', 'success')
+      const payload = {
+        ...form,
+        territoryId: form.territoryId || territories[0]?.id,
+        publishDate: form.publishDate || new Date().toISOString(),
+        photoUrl: form.imageUrl || null,
       }
-      setAddOpen(false); setEditItem(null); setForm({ title: '', content: '', type: 'INFO', isPinned: false, territoryId: '' })
+      if (editItem) {
+        await api(`/api/announcements/${editItem.id}`, { method: 'PUT', body: JSON.stringify(payload) })
+        addToast('Berita/pengumuman diperbarui & disiarkan', 'success')
+      } else {
+        await api('/api/announcements', { method: 'POST', body: JSON.stringify(payload) })
+        addToast('Berita/pengumuman berhasil disiarkan', 'success')
+      }
+      setAddOpen(false); setEditItem(null); setPreviewMode(false)
+      setForm({ title: '', content: '', type: 'INFO', category: 'BERITA', isPinned: false, territoryId: '', imageUrl: '', publishDate: '' })
       loadData()
-    } catch (e: any) { addToast(e.message, 'error') }
+    } catch (e: any) {
+      addToast(e.message, 'error')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const handleDelete = async () => {
     if (!deleteItem) return
-    try { await api(`/api/announcements/${deleteItem.id}`, { method: 'DELETE' }); addToast('Pengumuman dihapus', 'success'); setDeleteItem(null); loadData() }
+    try { await api(`/api/announcements/${deleteItem.id}`, { method: 'DELETE' }); addToast('Berita dihapus', 'success'); setDeleteItem(null); loadData() }
     catch (e: any) { addToast(e.message, 'error') }
   }
 
@@ -429,6 +461,29 @@ function AnnouncementManager() {
     URGENT: { label: 'Mendesak', color: 'bg-red-50 text-red-700 border-red-200' },
   }
 
+  const categoryConfig: Record<string, { label: string; color: string }> = {
+    BERITA: { label: 'Berita', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+    PENGUMUMAN: { label: 'Pengumuman', color: 'bg-purple-50 text-purple-700 border-purple-200' },
+    SIRANAN_PERS: { label: 'Siaran Pers', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+  }
+
+  const openEditor = (item?: any) => {
+    if (item) {
+      setEditItem(item)
+      setForm({
+        title: item.title, content: item.content, type: item.type,
+        category: item.category || 'BERITA', isPinned: item.isPinned,
+        territoryId: item.territoryId, imageUrl: item.photoUrl || '',
+        publishDate: item.publishDate ? item.publishDate.split('T')[0] : '',
+      })
+    } else {
+      setEditItem(null)
+      setForm({ title: '', content: '', type: 'INFO', category: 'BERITA', isPinned: false, territoryId: territories[0]?.id || '', imageUrl: '', publishDate: new Date().toISOString().split('T')[0] })
+    }
+    setPreviewMode(false)
+    setAddOpen(true)
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -437,8 +492,7 @@ function AnnouncementManager() {
             <Newspaper className="w-4 h-4 text-orange-600" />
             Kabar Utama & Pengumuman ({items.length})
           </CardTitle>
-          <Button onClick={() => { setEditItem(null); setForm({ title: '', content: '', type: 'INFO', isPinned: false, territoryId: territories[0]?.id || '' }); setAddOpen(true) }}
-            size="sm" className="bg-gradient-to-r from-orange-600 to-red-600 text-white">
+          <Button onClick={() => openEditor()} size="sm" className="bg-gradient-to-r from-orange-600 to-red-600 text-white">
             <Plus className="w-4 h-4 mr-1" /> Buat Berita/Pengumuman
           </Button>
         </div>
@@ -454,22 +508,35 @@ function AnnouncementManager() {
           <div className="space-y-2">
             {filtered.map((a) => {
               const tc = typeConfig[a.type] || typeConfig.INFO
+              const cc = categoryConfig[a.category] || categoryConfig.BERITA
               return (
-                <div key={a.id} className="group relative rounded-lg border p-3 hover:shadow-sm">
-                  <div className="flex items-start gap-2">
-                    {a.isPinned && <Pin className="w-3 h-3 text-orange-600 shrink-0 mt-1" />}
+                <div key={a.id} className="group relative rounded-xl border p-3 hover:shadow-md transition-all bg-white">
+                  <div className="flex items-start gap-3">
+                    {/* Thumbnail */}
+                    {a.photoUrl ? (
+                      <img src={a.photoUrl} alt={a.title} className="w-16 h-16 rounded-lg object-cover shrink-0" />
+                    ) : (
+                      <div className="w-16 h-16 rounded-lg bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center shrink-0">
+                        <ImageIcon className="w-6 h-6 text-slate-400" />
+                      </div>
+                    )}
                     <div className="flex-1 min-w-0">
-                      <div className="font-semibold text-sm">{a.title}</div>
+                      <div className="flex items-center gap-2">
+                        {a.isPinned && <Pin className="w-3 h-3 text-orange-500 shrink-0" />}
+                        <div className="font-semibold text-sm truncate">{a.title}</div>
+                      </div>
                       <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{a.content}</p>
-                      <div className="flex items-center gap-2 mt-2">
+                      <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                        <Badge variant="outline" className={`text-[10px] ${cc.color}`}>{cc.label}</Badge>
                         <Badge variant="outline" className={`text-[10px] ${tc.color}`}>{tc.label}</Badge>
-                        <span className="text-[10px] text-muted-foreground">{formatDateTimeID(a.createdAt)}</span>
-                        <span className="text-[10px] text-muted-foreground">• {a.createdBy?.fullName || 'Unknown'}</span>
+                        <span className="text-[10px] text-muted-foreground">
+                          {a.publishDate ? formatDateID(a.publishDate) : formatDateTimeID(a.createdAt)}
+                        </span>
+                        <span className="text-[10px] text-muted-400">• {a.createdBy?.fullName || 'Admin'}</span>
                       </div>
                     </div>
                     <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-blue-600 hover:bg-blue-50"
-                        onClick={() => { setEditItem(a); setForm({ title: a.title, content: a.content, type: a.type, isPinned: a.isPinned, territoryId: a.territoryId }); setAddOpen(true) }}>
+                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-blue-600 hover:bg-blue-50" onClick={() => openEditor(a)}>
                         <Edit className="w-3.5 h-3.5" />
                       </Button>
                       <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-600 hover:bg-red-50" onClick={() => setDeleteItem(a)}>
@@ -484,40 +551,237 @@ function AnnouncementManager() {
         )}
       </CardContent>
 
-      {/* Dialog Tambah/Edit */}
-      <Dialog open={addOpen} onOpenChange={(o) => { setAddOpen(o); if (!o) setEditItem(null) }}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader><DialogTitle>{editItem ? 'Edit' : 'Buat'} Berita/Pengumuman</DialogTitle></DialogHeader>
-          <form onSubmit={handleSave} className="space-y-3">
-            <div className="space-y-2"><Label>Judul *</Label><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required /></div>
-            <div className="space-y-2"><Label>Isi *</Label><Textarea value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} rows={4} required /></div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2"><Label>Tipe</Label>
-                <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent><SelectItem value="INFO">Info</SelectItem><SelectItem value="WARNING">Peringatan</SelectItem><SelectItem value="URGENT">Mendesak</SelectItem></SelectContent>
-                </Select>
+      {/* Dialog Editor + Preview */}
+      <Dialog open={addOpen} onOpenChange={(o) => { setAddOpen(o); if (!o) { setEditItem(null); setPreviewMode(false) } }}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          {!previewMode ? (
+            // === MODE EDITOR ===
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-orange-600" />
+                  {editItem ? 'Edit' : 'Buat'} Berita / Pengumuman / Siaran Pers
+                </DialogTitle>
+                <DialogDescription>Lengkapi form di bawah, lalu klik "Pratinjau" untuk melihat hasil sebelum disiarkan</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                {/* Kategori & Tipe */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>Kategori *</Label>
+                    <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="BERITA">Berita</SelectItem>
+                        <SelectItem value="PENGUMUMAN">Pengumuman</SelectItem>
+                        <SelectItem value="SIRANAN_PERS">Siaran Pers</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Prioritas</Label>
+                    <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="INFO">Info</SelectItem>
+                        <SelectItem value="WARNING">Peringatan</SelectItem>
+                        <SelectItem value="URGENT">Mendesak</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {/* Judul */}
+                <div className="space-y-2">
+                  <Label>Judul *</Label>
+                  <Input
+                    value={form.title}
+                    onChange={(e) => setForm({ ...form, title: e.target.value })}
+                    placeholder="Masukkan judul berita/pengumuman..."
+                    className="text-base font-medium"
+                    required
+                  />
+                </div>
+
+                {/* Upload Gambar */}
+                <div className="space-y-2">
+                  <Label>Foto/Gambar Pendukung</Label>
+                  {form.imageUrl ? (
+                    <div className="relative group">
+                      <img src={form.imageUrl} alt="Preview" className="w-full max-h-48 object-cover rounded-xl border" />
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        className="absolute top-2 right-2"
+                        onClick={() => setForm({ ...form, imageUrl: '' })}
+                      >
+                        <Trash2 className="w-3.5 h-3.5 mr-1" /> Hapus
+                      </Button>
+                    </div>
+                  ) : (
+                    <div
+                      className="border-2 border-dashed rounded-xl p-6 text-center hover:border-orange-400 transition-colors cursor-pointer"
+                      onClick={() => document.getElementById('news-image-upload')?.click()}
+                    >
+                      <input
+                        type="file"
+                        id="news-image-upload"
+                        className="hidden"
+                        accept="image/jpeg,image/png,image/webp"
+                        onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileUpload(f) }}
+                      />
+                      <Upload className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+                      <div className="text-sm font-medium">Upload Foto/Gambar</div>
+                      <div className="text-xs text-muted-foreground mt-1">JPG, PNG, atau WebP • Maks 5MB</div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Isi Berita */}
+                <div className="space-y-2">
+                  <Label>Isi Berita/Pengumuman *</Label>
+                  <Textarea
+                    value={form.content}
+                    onChange={(e) => setForm({ ...form, content: e.target.value })}
+                    rows={6}
+                    placeholder="Tulis isi berita atau pengumuman di sini..."
+                    className="resize-y"
+                    required
+                  />
+                </div>
+
+                {/* Tanggal Rilis & Wilayah */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>Tanggal Rilis *</Label>
+                    <Input
+                      type="date"
+                      value={form.publishDate}
+                      onChange={(e) => setForm({ ...form, publishDate: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Wilayah *</Label>
+                    <Select value={form.territoryId} onValueChange={(v) => setForm({ ...form, territoryId: v })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {territories.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {/* Pin Option */}
+                <div className="flex items-center gap-2 p-3 rounded-lg bg-slate-50 border">
+                  <input type="checkbox" id="pinned-news" checked={form.isPinned} onChange={(e) => setForm({ ...form, isPinned: e.target.checked })} className="w-4 h-4" />
+                  <Label htmlFor="pinned-news" className="cursor-pointer">Sematkan di atas (Pinned)</Label>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex justify-between items-center pt-2">
+                  <Button type="button" variant="outline" onClick={() => setAddOpen(false)}>Batal</Button>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setPreviewMode(true)}
+                      disabled={!form.title || !form.content}
+                      className="border-blue-300 text-blue-600 hover:bg-blue-50"
+                    >
+                      <Eye className="w-4 h-4 mr-1" /> Pratinjau
+                    </Button>
+                  </div>
+                </div>
               </div>
-              <div className="space-y-2"><Label>Wilayah *</Label>
-                <Select value={form.territoryId} onValueChange={(v) => setForm({ ...form, territoryId: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{territories.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
-                </Select>
+            </>
+          ) : (
+            // === MODE PREVIEW (sebelum siaran) ===
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Eye className="w-5 h-5 text-blue-600" />
+                  Pratinjau Sebelum Disiarkan
+                </DialogTitle>
+                <DialogDescription>Periksa tampilan berita/pengumuman sebelum dipublikasikan</DialogDescription>
+              </DialogHeader>
+
+              {/* Preview Content — seperti akan tampil di publik */}
+              <div className="rounded-xl border overflow-hidden shadow-lg">
+                {/* Image */}
+                {form.imageUrl && (
+                  <img src={form.imageUrl} alt={form.title} className="w-full max-h-64 object-cover" />
+                )}
+                <div className="p-5 bg-white">
+                  {/* Badges */}
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <Badge variant="outline" className={`text-xs ${(categoryConfig[form.category] || categoryConfig.BERITA).color}`}>
+                      {(categoryConfig[form.category] || categoryConfig.BERITA).label}
+                    </Badge>
+                    <Badge variant="outline" className={`text-xs ${(typeConfig[form.type] || typeConfig.INFO).color}`}>
+                      {(typeConfig[form.type] || typeConfig.INFO).label}
+                    </Badge>
+                    {form.isPinned && (
+                      <Badge variant="outline" className="text-xs bg-orange-50 text-orange-700 border-orange-200">
+                        <Pin className="w-3 h-3 mr-1" /> Pinned
+                      </Badge>
+                    )}
+                  </div>
+                  {/* Title */}
+                  <h2 className="text-xl font-bold text-slate-800 mb-2">{form.title || '(Judul berita)'}</h2>
+                  {/* Meta */}
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground mb-4">
+                    <span>{formatDateID(form.publishDate || new Date().toISOString())}</span>
+                    <span>•</span>
+                    <span>Portal LAPRA 08</span>
+                  </div>
+                  {/* Content */}
+                  <div className="text-sm text-slate-600 whitespace-pre-wrap leading-relaxed">
+                    {form.content || '(Isi berita/pengumuman)'}
+                  </div>
+                </div>
               </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <input type="checkbox" id="pinned" checked={form.isPinned} onChange={(e) => setForm({ ...form, isPinned: e.target.checked })} className="w-4 h-4" />
-              <Label htmlFor="pinned">Sematkan di atas</Label>
-            </div>
-            <DialogFooter><Button type="button" variant="outline" onClick={() => setAddOpen(false)}>Batal</Button><Button type="submit">{editItem ? 'Simpan Perubahan' : 'Publikasikan'}</Button></DialogFooter>
-          </form>
+
+              {/* Warning */}
+              <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800">
+                <AlertTriangle className="w-4 h-4 inline mr-1" />
+                Pastikan semua data sudah benar. Setelah disiarkan, berita akan tampil di portal dan running news ticker.
+              </div>
+
+              {/* Action Buttons */}
+              <DialogFooter className="flex justify-between">
+                <Button type="button" variant="outline" onClick={() => setPreviewMode(false)}>
+                  <Edit className="w-4 h-4 mr-1" /> Edit Lagi
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handlePublish}
+                  disabled={saving}
+                  className="bg-gradient-to-r from-orange-600 to-red-600 text-white"
+                >
+                  {saving ? (
+                    <><Loader2 className="w-4 h-4 mr-1 animate-spin" /> Menyiarkan...</>
+                  ) : (
+                    <><Send className="w-4 h-4 mr-1" /> Siarkan / Publikasikan</>
+                  )}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
 
       <AlertDialog open={!!deleteItem} onOpenChange={(o) => !o && setDeleteItem(null)}>
         <AlertDialogContent>
-          <AlertDialogHeader><AlertDialogTitle>Hapus?</AlertDialogTitle><AlertDialogDescription>Yakin hapus <strong>{deleteItem?.title}</strong>?</AlertDialogDescription></AlertDialogHeader>
-          <AlertDialogFooter><AlertDialogCancel>Batal</AlertDialogCancel><AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">Hapus</AlertDialogAction></AlertDialogFooter>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus Berita?</AlertDialogTitle>
+            <AlertDialogDescription>Yakin hapus <strong>{deleteItem?.title}</strong>? Tindakan ini tidak dapat dibatalkan.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">Hapus</AlertDialogAction>
+          </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </Card>
