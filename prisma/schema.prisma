@@ -181,6 +181,7 @@ model OrgPosition {
   phone           String?
   email           String?
   photoUrl        String?
+  idCardUrl       String?  // KTP / Paspor / identitas pengurus
   startDate       DateTime?
   endDate         DateTime?
   isActive        Boolean  @default(true)
