@@ -34,7 +34,7 @@ import {
   Building2, BookOpen, Scale, Briefcase, HandHeart, CalendarClock,
   PhoneCall, MessageSquare, HelpCircle, Map as MapIcon, Mail, Plus,
   Edit, Trash2, MoreVertical, Pin, Send, Eye, Upload, Loader2, Search,
-  Award, CheckCircle2, Clock, AlertTriangle, Globe, ExternalLink, Lock,
+  Crown, Award, CheckCircle2, Clock, AlertTriangle, Globe, ExternalLink, Lock,
   Video, PlayCircle, BookMarked, FileCheck, UserCheck, XCircle, Camera, IdCard,
 } from 'lucide-react'
 
@@ -286,6 +286,798 @@ function HierarchyItem({ level, desc, count, color }: any) {
 // ============================================================
 // 2. PROFIL
 // ============================================================
+
+// --- Hook: cek apakah user adalah SUPERADMIN (reactive) ---
+function useIsSuperAdmin() {
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false)
+  useEffect(() => {
+    const check = () => setIsSuperAdmin(useAuthStore.getState().user?.role === 'SUPERADMIN')
+    check()
+    const unsub = useAuthStore.subscribe(check)
+    return () => unsub()
+  }, [])
+  return isSuperAdmin
+}
+
+// --- Tombol Edit Konten (hanya tampil di mode SUPERADMIN) ---
+function EditButton({ onClick, label = 'Edit Konten' }: { onClick: () => void; label?: string }) {
+  return (
+    <Button size="sm" variant="outline" onClick={onClick} className="gap-2">
+      <Edit className="w-4 h-4" /> {label}
+    </Button>
+  )
+}
+
+// --- Default content untuk Tentang LAPRA 08 (15 fields) ---
+const DEFAULT_TENTANG_CONTENT = {
+  heroTitle: 'Laskar Prabowo 08 (LAPRA 08)',
+  heroSubtitle: 'Komunitas Relawan Resmi Prabowo Subianto',
+  heroDescription:
+    'Laskar Prabowo 08 (LAPRA 08) adalah komunitas relawan resmi Prabowo Subianto yang bergerak dalam pengawasan program, kaderisasi, dan aksi sosial nasional.',
+  misiStrategis1: 'Mengawal program-program pemerintah Prabowo-Gibran',
+  misiStrategis2: 'Kaderisasi dan pembinaan relawan di seluruh Indonesia',
+  pelantikanDate: '21 Maret 2025',
+  pelantikanTempat: 'Auditorium RRI Jakarta',
+  pelantik: 'Dr. (HC) Hashim S. Djojohadikusumo (Ketua Dewan Pembina)',
+  ketuaUmum: 'Periode Bakti 2024-2029',
+  pilar1Title: 'Kaderisasi',
+  pilar1Desc: 'Pembinaan dan penguatan SDM relawan lintas generasi.',
+  pilar2Title: 'Aksi Sosial',
+  pilar2Desc: 'Pengabdian dan pemberdayaan masyarakat di seluruh Indonesia.',
+  pilar3Title: 'Advokasi',
+  pilar3Desc: 'Pengawalan kebijakan dan program pemerintah secara berkelanjutan.',
+}
+
+// --- Default content untuk Visi & Misi ---
+const DEFAULT_VISI_MISI = {
+  visi: 'Menjadi relawan terdepan dalam mendukung visi kebangsaan Prabowo Subianto menuju Indonesia Emas 2045.',
+  misi: [
+    'Mengawal program-program pemerintah Prabowo-Gibran',
+    'Kaderisasi dan pembinaan relawan di seluruh Indonesia',
+    'Aksi sosial dan pengabdian masyarakat',
+    'Penguatan harmoni dan persatuan bangsa',
+  ],
+}
+
+// --- Section: Tentang LAPRA 08 (hero, misi strategis, eksistensi, pilar, struktur) ---
+function TentangLAPRASection() {
+  const isSuperAdmin = useIsSuperAdmin()
+  const addToast = useToastStore((s) => s.addToast)
+  const [content, setContent] = useState<any>(DEFAULT_TENTANG_CONTENT)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [editOpen, setEditOpen] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    api('/api/profile-content')
+      .then((data: any[]) => {
+        if (cancelled) return
+        const item = (data || []).find((d) => d.key === 'profil.tentang')
+        if (item && item.value && typeof item.value === 'object') {
+          setContent({ ...DEFAULT_TENTANG_CONTENT, ...item.value })
+        }
+      })
+      .catch((e) => !cancelled && setError(e.message || 'Gagal memuat konten'))
+      .finally(() => !cancelled && setLoading(false))
+    return () => { cancelled = true }
+  }, [])
+
+  if (loading) return <LoadingState message="Memuat konten Tentang LAPRA 08..." />
+  if (error) return <ErrorState message={error} />
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="h-6 w-1 rounded-full bg-gradient-to-b from-orange-500 to-red-600" />
+          <h3 className="text-base font-bold">Tentang LAPRA 08</h3>
+        </div>
+        {isSuperAdmin && <EditButton onClick={() => setEditOpen(true)} />}
+      </div>
+
+      {/* Hero card — dark gradient */}
+      <div className="relative overflow-hidden rounded-2xl shadow-lg">
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-orange-900" />
+        <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 20% 30%, white 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
+        <div className="absolute top-0 right-0 opacity-5">
+          <Crown className="w-56 h-56 -mr-8 -mt-8" />
+        </div>
+        <div className="relative z-10 p-6 lg:p-8">
+          <Badge className="bg-orange-500/20 text-orange-200 border border-orange-400/30 mb-3">
+            <ShieldCheck className="w-3 h-3 mr-1" /> Periode 2024-2029
+          </Badge>
+          <h2 className="text-3xl lg:text-4xl font-black text-white mb-2">{content.heroTitle}</h2>
+          <p className="text-orange-200 font-medium mb-3">{content.heroSubtitle}</p>
+          <p className="text-white/70 max-w-3xl leading-relaxed">{content.heroDescription}</p>
+        </div>
+      </div>
+
+      {/* Misi Strategis card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center">
+              <Briefcase className="w-4 h-4 text-white" />
+            </div>
+            Misi Strategis
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-3 sm:grid-cols-2">
+          <div className="flex items-start gap-3 p-4 rounded-xl bg-orange-50 border border-orange-100">
+            <CheckCircle2 className="w-5 h-5 text-orange-600 mt-0.5 shrink-0" />
+            <p className="text-sm">{content.misiStrategis1}</p>
+          </div>
+          <div className="flex items-start gap-3 p-4 rounded-xl bg-rose-50 border border-rose-100">
+            <CheckCircle2 className="w-5 h-5 text-rose-600 mt-0.5 shrink-0" />
+            <p className="text-sm">{content.misiStrategis2}</p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Eksistensi & Legalitas card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
+              <Award className="w-4 h-4 text-white" />
+            </div>
+            Eksistensi & Legalitas
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div className="flex items-start gap-3">
+              <CalendarDays className="w-5 h-5 text-emerald-600 mt-0.5 shrink-0" />
+              <div>
+                <div className="text-xs text-muted-foreground">Tanggal Pelantikan</div>
+                <div className="text-sm font-semibold">{content.pelantikanDate}</div>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <MapPin className="w-5 h-5 text-emerald-600 mt-0.5 shrink-0" />
+              <div>
+                <div className="text-xs text-muted-foreground">Tempat Pelantikan</div>
+                <div className="text-sm font-semibold">{content.pelantikanTempat}</div>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <Users className="w-5 h-5 text-emerald-600 mt-0.5 shrink-0" />
+              <div>
+                <div className="text-xs text-muted-foreground">Dilantik oleh</div>
+                <div className="text-sm font-semibold">{content.pelantik}</div>
+              </div>
+            </div>
+          </div>
+          <div className="mt-4 p-4 rounded-xl bg-emerald-50 border border-emerald-100 text-sm">
+            <span className="font-semibold text-emerald-700">Ketua Umum:</span>{' '}
+            <span className="text-emerald-900">{content.ketuaUmum}</span>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Pilar Gerakan — 3 cards */}
+      <div>
+        <div className="flex items-center gap-2 mb-3">
+          <div className="h-5 w-1 rounded-full bg-gradient-to-b from-purple-500 to-pink-600" />
+          <h3 className="text-base font-bold">Pilar Gerakan</h3>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-3">
+          {[
+            { title: content.pilar1Title, desc: content.pilar1Desc, icon: Users, grad: 'from-orange-500 to-amber-600' },
+            { title: content.pilar2Title, desc: content.pilar2Desc, icon: HandHeart, grad: 'from-rose-500 to-pink-600' },
+            { title: content.pilar3Title, desc: content.pilar3Desc, icon: ShieldCheck, grad: 'from-emerald-500 to-teal-600' },
+          ].map((p, i) => (
+            <Card key={i} className="overflow-hidden">
+              <CardContent className="p-5">
+                <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${p.grad} flex items-center justify-center mb-3`}>
+                  <p.icon className="w-5 h-5 text-white" />
+                </div>
+                <div className="font-semibold mb-1">{p.title}</div>
+                <p className="text-sm text-muted-foreground">{p.desc}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+
+      {/* Struktur Hierarki */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-slate-600 to-slate-800 flex items-center justify-center">
+              <Building2 className="w-4 h-4 text-white" />
+            </div>
+            Struktur Hierarki Organisasi
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col lg:flex-row items-stretch gap-3">
+            <div className="flex-1 p-4 rounded-xl bg-gradient-to-br from-slate-800 to-slate-900 text-white">
+              <Badge className="bg-yellow-400/20 text-yellow-200 border border-yellow-400/30 mb-2">DPN</Badge>
+              <div className="font-bold">Dewan Pengurus Nasional</div>
+              <p className="text-xs text-white/70 mt-1">Pusat Nasional — Jakarta</p>
+            </div>
+            <div className="hidden lg:flex items-center justify-center text-slate-300">
+              <ChevronRight className="w-6 h-6" />
+            </div>
+            <div className="flex-1 p-4 rounded-xl bg-gradient-to-br from-purple-600 to-indigo-700 text-white">
+              <Badge className="bg-white/15 text-white border border-white/20 mb-2">DPD</Badge>
+              <div className="font-bold">Dewan Pengurus Daerah</div>
+              <p className="text-xs text-white/70 mt-1">39 domestik + 5 luar negeri</p>
+            </div>
+            <div className="hidden lg:flex items-center justify-center text-slate-300">
+              <ChevronRight className="w-6 h-6" />
+            </div>
+            <div className="flex-1 p-4 rounded-xl bg-gradient-to-br from-orange-600 to-red-700 text-white">
+              <Badge className="bg-white/15 text-white border border-white/20 mb-2">DPC</Badge>
+              <div className="font-bold">Dewan Pengurus Cabang</div>
+              <p className="text-xs text-white/70 mt-1">514 Kabupaten/Kota</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <TentangEditDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        content={content}
+        onSaved={(c) => setContent(c)}
+        addToast={addToast}
+      />
+    </div>
+  )
+}
+
+// --- Dialog edit untuk Tentang LAPRA 08 (15 fields) ---
+function TentangEditDialog({
+  open, onOpenChange, content, onSaved, addToast,
+}: {
+  open: boolean
+  onOpenChange: (v: boolean) => void
+  content: any
+  onSaved: (c: any) => void
+  addToast: (msg: string, type?: 'success' | 'error' | 'info' | 'warning') => void
+}) {
+  const [form, setForm] = useState<any>(content)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => { if (open) setForm(content) }, [open, content])
+
+  const fields: { key: string; label: string; multiline?: boolean }[] = [
+    { key: 'heroTitle', label: 'Hero: Judul' },
+    { key: 'heroSubtitle', label: 'Hero: Subtitle' },
+    { key: 'heroDescription', label: 'Hero: Deskripsi', multiline: true },
+    { key: 'misiStrategis1', label: 'Misi Strategis #1', multiline: true },
+    { key: 'misiStrategis2', label: 'Misi Strategis #2', multiline: true },
+    { key: 'pelantikanDate', label: 'Tanggal Pelantikan' },
+    { key: 'pelantikanTempat', label: 'Tempat Pelantikan' },
+    { key: 'pelantik', label: 'Pelantik' },
+    { key: 'ketuaUmum', label: 'Ketua Umum' },
+    { key: 'pilar1Title', label: 'Pilar 1: Judul' },
+    { key: 'pilar1Desc', label: 'Pilar 1: Deskripsi', multiline: true },
+    { key: 'pilar2Title', label: 'Pilar 2: Judul' },
+    { key: 'pilar2Desc', label: 'Pilar 2: Deskripsi', multiline: true },
+    { key: 'pilar3Title', label: 'Pilar 3: Judul' },
+    { key: 'pilar3Desc', label: 'Pilar 3: Deskripsi', multiline: true },
+  ]
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      const res = await fetch('/api/profile-content', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+        body: JSON.stringify({ key: 'profil.tentang', value: form }),
+      })
+      const data = await res.json()
+      if (!data.success) throw new Error(data.error || 'Gagal menyimpan')
+      onSaved(form)
+      addToast('Konten Tentang LAPRA 08 berhasil disimpan', 'success')
+      onOpenChange(false)
+    } catch (e: any) {
+      addToast(e.message || 'Gagal menyimpan', 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+        <DialogHeader>
+          <DialogTitle>Edit Konten — Tentang LAPRA 08</DialogTitle>
+          <DialogDescription>Perbarui informasi profil organisasi.</DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-3 py-2">
+          {fields.map((f) => (
+            <div key={f.key} className="space-y-1">
+              <Label className="text-xs">{f.label}</Label>
+              {f.multiline ? (
+                <Textarea
+                  value={form[f.key] || ''}
+                  onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
+                  rows={2}
+                />
+              ) : (
+                <Input
+                  value={form[f.key] || ''}
+                  onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
+                />
+              )}
+            </div>
+          ))}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Batal</Button>
+          <Button onClick={handleSave} disabled={saving} className="gap-2">
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+            Simpan Perubahan
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// --- Section: Visi & Misi ---
+function VisiMisiSection() {
+  const isSuperAdmin = useIsSuperAdmin()
+  const addToast = useToastStore((s) => s.addToast)
+  const [content, setContent] = useState<any>(DEFAULT_VISI_MISI)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [editOpen, setEditOpen] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    api('/api/profile-content')
+      .then((data: any[]) => {
+        if (cancelled) return
+        const item = (data || []).find((d) => d.key === 'profil.visi-misi')
+        if (item && item.value && typeof item.value === 'object') {
+          setContent({ ...DEFAULT_VISI_MISI, ...item.value })
+        }
+      })
+      .catch((e) => !cancelled && setError(e.message || 'Gagal memuat konten'))
+      .finally(() => !cancelled && setLoading(false))
+    return () => { cancelled = true }
+  }, [])
+
+  if (loading) return <LoadingState message="Memuat Visi & Misi..." />
+  if (error) return <ErrorState message={error} />
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="h-6 w-1 rounded-full bg-gradient-to-b from-orange-500 to-red-600" />
+          <h3 className="text-base font-bold">Visi & Misi</h3>
+        </div>
+        {isSuperAdmin && <EditButton onClick={() => setEditOpen(true)} />}
+      </div>
+
+      {/* Visi card */}
+      <Card className="overflow-hidden">
+        <div className="relative">
+          <div className="absolute inset-0 bg-gradient-to-br from-orange-50 to-amber-100" />
+          <div className="relative z-10 p-6">
+            <div className="flex items-center gap-2 mb-3">
+              <Globe className="w-5 h-5 text-orange-600" />
+              <Badge className="bg-orange-600 text-white">Visi</Badge>
+            </div>
+            <p className="text-lg font-semibold text-slate-800 leading-relaxed">{content.visi}</p>
+          </div>
+        </div>
+      </Card>
+
+      {/* Misi card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-rose-500 to-pink-600 flex items-center justify-center">
+              <Briefcase className="w-4 h-4 text-white" />
+            </div>
+            Misi
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ul className="space-y-3">
+            {(content.misi || []).map((m: string, i: number) => (
+              <li key={i} className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200">
+                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-orange-500 to-red-600 text-white text-sm font-bold flex items-center justify-center shrink-0">
+                  {i + 1}
+                </div>
+                <p className="text-sm pt-1">{m}</p>
+              </li>
+            ))}
+          </ul>
+        </CardContent>
+      </Card>
+
+      <VisiMisiEditDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        content={content}
+        onSaved={(c) => setContent(c)}
+        addToast={addToast}
+      />
+    </div>
+  )
+}
+
+// --- Dialog edit untuk Visi & Misi (dynamic list) ---
+function VisiMisiEditDialog({
+  open, onOpenChange, content, onSaved, addToast,
+}: {
+  open: boolean
+  onOpenChange: (v: boolean) => void
+  content: any
+  onSaved: (c: any) => void
+  addToast: (msg: string, type?: 'success' | 'error' | 'info' | 'warning') => void
+}) {
+  const [form, setForm] = useState<any>(content)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => { if (open) setForm(content) }, [open, content])
+
+  const updateMisi = (i: number, v: string) => {
+    const newMisi = [...(form.misi || [])]
+    newMisi[i] = v
+    setForm({ ...form, misi: newMisi })
+  }
+  const addMisi = () => setForm({ ...form, misi: [...(form.misi || []), ''] })
+  const removeMisi = (i: number) =>
+    setForm({ ...form, misi: (form.misi || []).filter((_: any, idx: number) => idx !== i) })
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      const res = await fetch('/api/profile-content', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+        body: JSON.stringify({ key: 'profil.visi-misi', value: form }),
+      })
+      const data = await res.json()
+      if (!data.success) throw new Error(data.error || 'Gagal menyimpan')
+      onSaved(form)
+      addToast('Visi & Misi berhasil disimpan', 'success')
+      onOpenChange(false)
+    } catch (e: any) {
+      addToast(e.message || 'Gagal menyimpan', 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+        <DialogHeader>
+          <DialogTitle>Edit Visi & Misi</DialogTitle>
+          <DialogDescription>Perbarui visi dan daftar misi organisasi.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-1">
+            <Label className="text-xs">Visi</Label>
+            <Textarea
+              value={form.visi || ''}
+              onChange={(e) => setForm({ ...form, visi: e.target.value })}
+              rows={3}
+            />
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs">Misi</Label>
+              <Button size="sm" variant="outline" onClick={addMisi} className="gap-1 h-7 text-xs">
+                <Plus className="w-3 h-3" /> Tambah Misi
+              </Button>
+            </div>
+            <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+              {(form.misi || []).map((m: string, i: number) => (
+                <div key={i} className="flex items-start gap-2">
+                  <div className="w-7 h-7 rounded-full bg-orange-100 text-orange-700 text-xs font-bold flex items-center justify-center shrink-0 mt-1">
+                    {i + 1}
+                  </div>
+                  <Textarea
+                    value={m}
+                    onChange={(e) => updateMisi(i, e.target.value)}
+                    rows={2}
+                    className="flex-1"
+                  />
+                  <Button size="icon" variant="ghost" onClick={() => removeMisi(i)} className="text-red-500 hover:text-red-600 h-8 w-8">
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              ))}
+              {(!form.misi || form.misi.length === 0) && (
+                <p className="text-xs text-muted-foreground text-center py-3">
+                  Belum ada misi. Klik &quot;Tambah Misi&quot; untuk menambahkan.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Batal</Button>
+          <Button onClick={handleSave} disabled={saving} className="gap-2">
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+            Simpan Perubahan
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// --- Section: Document upload & list (AD/ART & LEGALITAS) ---
+function ProfileDocumentSection({ type }: { type: 'AD_ART' | 'LEGALITAS' }) {
+  const isSuperAdmin = useIsSuperAdmin()
+  const addToast = useToastStore((s) => s.addToast)
+  const [docs, setDocs] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [uploadOpen, setUploadOpen] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<any | null>(null)
+
+  const meta = type === 'AD_ART'
+    ? {
+        icon: FileText,
+        title: 'Anggaran Dasar / Anggaran Rumah Tangga (AD/ART)',
+        emptyTitle: 'Belum ada dokumen AD/ART',
+        emptyDesc: 'Dokumen AD/ART LAPRA 08 akan ditampilkan di sini.',
+        grad: 'from-blue-500 to-cyan-600',
+      }
+    : {
+        icon: Scale,
+        title: 'Landasan Hukum & Legalitas Organisasi',
+        emptyTitle: 'Belum ada dokumen legalitas',
+        emptyDesc: 'SK Kepengurusan, Nota Kesepahaman, dan dokumen legal lainnya.',
+        grad: 'from-emerald-500 to-teal-600',
+      }
+
+  const load = () => {
+    setLoading(true)
+    api(`/api/profile-documents?type=${type}`)
+      .then((data: any[]) => setDocs(data || []))
+      .catch((e) => setError(e.message || 'Gagal memuat dokumen'))
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(() => { load() }, [type])
+
+  const handleDelete = async (doc: any) => {
+    try {
+      const res = await fetch(`/api/profile-documents/${doc.id}`, {
+        method: 'DELETE',
+        headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+      })
+      const data = await res.json()
+      if (!data.success) throw new Error(data.error || 'Gagal menghapus')
+      addToast('Dokumen berhasil dihapus', 'success')
+      setDeleteTarget(null)
+      load()
+    } catch (e: any) {
+      addToast(e.message || 'Gagal menghapus dokumen', 'error')
+    }
+  }
+
+  const formatSize = (bytes: number) => {
+    if (!bytes) return '-'
+    if (bytes < 1024) return `${bytes} B`
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+    return `${(bytes / 1024 / 1024).toFixed(2)} MB`
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className={`w-9 h-9 rounded-lg bg-gradient-to-br ${meta.grad} flex items-center justify-center`}>
+            <meta.icon className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h3 className="text-base font-bold">{meta.title}</h3>
+            <p className="text-xs text-muted-foreground">{docs.length} dokumen</p>
+          </div>
+        </div>
+        {isSuperAdmin && (
+          <Button size="sm" onClick={() => setUploadOpen(true)} className="gap-2">
+            <Upload className="w-4 h-4" /> Upload Dokumen
+          </Button>
+        )}
+      </div>
+
+      {loading ? (
+        <LoadingState message="Memuat dokumen..." />
+      ) : error ? (
+        <ErrorState message={error} />
+      ) : docs.length === 0 ? (
+        <EmptyState icon={meta.icon} title={meta.emptyTitle} description={meta.emptyDesc} />
+      ) : (
+        <div className="grid gap-3 max-h-[32rem] overflow-y-auto pr-1">
+          {docs.map((doc) => (
+            <Card key={doc.id} className="hover:shadow-md transition-shadow">
+              <CardContent className="p-4">
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-slate-100 to-slate-200 border border-slate-200 flex items-center justify-center shrink-0">
+                    <FileText className="w-6 h-6 text-slate-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h4 className="font-semibold text-sm truncate">{doc.title}</h4>
+                      <Badge variant="secondary" className="uppercase text-[10px]">{doc.fileType || 'file'}</Badge>
+                      <Badge variant="outline" className="text-[10px]">{formatSize(doc.fileSize)}</Badge>
+                    </div>
+                    {doc.description && (
+                      <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{doc.description}</p>
+                    )}
+                    <div className="text-[10px] text-muted-foreground mt-2">
+                      Diunggah oleh {doc.uploadedBy || '-'} • {formatDateTimeID(doc.uploadedAt || doc.updatedAt)}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Button size="sm" variant="outline" asChild>
+                      <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer" className="gap-1">
+                        <ExternalLink className="w-3.5 h-3.5" /> Buka
+                      </a>
+                    </Button>
+                    {isSuperAdmin && (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="text-red-500 hover:text-red-600 h-8 w-8"
+                        onClick={() => setDeleteTarget(doc)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <DocumentUploadDialog
+        open={uploadOpen}
+        onOpenChange={setUploadOpen}
+        type={type}
+        onUploaded={() => { setUploadOpen(false); load() }}
+        addToast={addToast}
+      />
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(v) => !v && setDeleteTarget(null)}>
+        <AlertDialogContent aria-describedby={undefined}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Konfirmasi Hapus Dokumen</AlertDialogTitle>
+            <AlertDialogDescription>
+              Apakah Anda yakin ingin menghapus dokumen{' '}
+              <strong>&quot;{deleteTarget?.title}&quot;</strong>? Tindakan ini tidak dapat dibatalkan.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteTarget && handleDelete(deleteTarget)}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              <Trash2 className="w-4 h-4 mr-2" /> Hapus
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  )
+}
+
+// --- Dialog upload dokumen (FormData) ---
+function DocumentUploadDialog({
+  open, onOpenChange, type, onUploaded, addToast,
+}: {
+  open: boolean
+  onOpenChange: (v: boolean) => void
+  type: 'AD_ART' | 'LEGALITAS'
+  onUploaded: () => void
+  addToast: (msg: string, type?: 'success' | 'error' | 'info' | 'warning') => void
+}) {
+  const [title, setTitle] = useState('')
+  const [description, setDescription] = useState('')
+  const [file, setFile] = useState<File | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (open) {
+      setTitle(''); setDescription(''); setFile(null)
+    }
+  }, [open])
+
+  const handleSubmit = async () => {
+    if (!file) {
+      addToast('Pilih file terlebih dahulu', 'warning')
+      return
+    }
+    if (!title.trim()) {
+      addToast('Judul wajib diisi', 'warning')
+      return
+    }
+    setSaving(true)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      fd.append('title', title.trim())
+      fd.append('description', description.trim())
+      fd.append('docType', type)
+      const res = await fetch('/api/profile-documents', {
+        method: 'POST',
+        headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+        body: fd,
+      })
+      const data = await res.json()
+      if (!data.success) throw new Error(data.error || 'Gagal upload')
+      addToast('Dokumen berhasil diupload', 'success')
+      onUploaded()
+    } catch (e: any) {
+      addToast(e.message || 'Gagal upload dokumen', 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg" aria-describedby={undefined}>
+        <DialogHeader>
+          <DialogTitle>Upload Dokumen {type === 'AD_ART' ? 'AD/ART' : 'Legalitas'}</DialogTitle>
+          <DialogDescription>
+            Format yang didukung: PDF, JPG, PNG, DOC/DOCX. Maksimal 20MB.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-1">
+            <Label className="text-xs">Judul Dokumen *</Label>
+            <Input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="cth: AD/ART LAPRA 08 Periode 2024-2029"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Deskripsi (opsional)</Label>
+            <Textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={2}
+              placeholder="Ringkasan singkat dokumen..."
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">File Dokumen *</Label>
+            <Input
+              type="file"
+              accept=".pdf,.jpg,.jpeg,.png,.webp,.gif,.doc,.docx"
+              onChange={(e) => setFile(e.target.files?.[0] || null)}
+            />
+            {file && (
+              <p className="text-xs text-muted-foreground mt-1">
+                {file.name} • {(file.size / 1024 / 1024).toFixed(2)} MB
+              </p>
+            )}
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Batal</Button>
+          <Button onClick={handleSubmit} disabled={saving || !file} className="gap-2">
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+            Upload
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export function ProfilMenu() {
   const [tab, setTab] = useState('tentang')
   const tabs = [
@@ -306,36 +1098,11 @@ export function ProfilMenu() {
           </button>
         ))}
       </div>
-      {tab === 'tentang' && (
-        <Card><CardHeader><CardTitle>Tentang Laskar Prabowo 08</CardTitle></CardHeader>
-        <CardContent className="space-y-3 text-sm">
-          <p>Laskar Prabowo 08 (LAPRA 08) adalah komunitas relawan resmi Prabowo Subianto yang bergerak dalam pengawasan program, kaderisasi, dan aksi sosial nasional.</p>
-          <p>Organisasi ini dilantik oleh Ketua Dewan Pembina, Dr. (HC) Hashim S. Djojohadikusumo, pada 21 Maret 2025 di Auditorium RRI Jakarta untuk masa bakti 2024-2029.</p>
-          <p>LAPRA 08 memiliki struktur hierarki: DPN (Pusat Nasional) → DPD (Provinsi) → DPC (Kabupaten/Kota), dengan 39 DPD domestik (38 provinsi + IKN), 5 DPD luar negeri, dan 514 DPC terhubung.</p>
-        </CardContent></Card>
-      )}
-      {tab === 'visi-misi' && (
-        <Card><CardHeader><CardTitle>Visi & Misi</CardTitle></CardHeader>
-        <CardContent className="space-y-4 text-sm">
-          <div><div className="font-semibold text-orange-600 mb-1">Visi</div><p>Menjadi relawan terdepan dalam mendukung visi kebangsaan Prabowo Subianto menuju Indonesia Emas 2045.</p></div>
-          <div><div className="font-semibold text-orange-600 mb-1">Misi</div>
-          <ul className="space-y-1 list-disc ml-4">
-            <li>Mengawal program-program pemerintah Prabowo-Gibran</li>
-            <li>Kaderisasi dan pembinaan relawan di seluruh Indonesia</li>
-            <li>Aksi sosial dan pengabdian masyarakat</li>
-            <li>Penguatan harmoni dan persatuan bangsa</li>
-          </ul></div>
-        </CardContent></Card>
-      )}
+      {tab === 'tentang' && <TentangLAPRASection />}
+      {tab === 'visi-misi' && <VisiMisiSection />}
       {tab === 'struktur' && <PusatDataMenu />}
-      {tab === 'ad-art' && (
-        <Card><CardHeader><CardTitle>Anggaran Dasar / Anggaran Rumah Tangga (AD/ART)</CardTitle></CardHeader>
-        <CardContent><EmptyState icon={FileText} title="Dokumen AD/ART" description="Dokumen AD/ART LAPRA 08 akan diupload di sini." /></CardContent></Card>
-      )}
-      {tab === 'legalitas' && (
-        <Card><CardHeader><CardTitle>Landasan Hukum & Legalitas Organisasi</CardTitle></CardHeader>
-        <CardContent><EmptyState icon={Scale} title="Dokumen Legalitas" description="SK Kepengurusan, Nota Kesepahatan, dan dokumen legal lainnya." /></CardContent></Card>
-      )}
+      {tab === 'ad-art' && <ProfileDocumentSection type="AD_ART" />}
+      {tab === 'legalitas' && <ProfileDocumentSection type="LEGALITAS" />}
     </div>
   )
 }

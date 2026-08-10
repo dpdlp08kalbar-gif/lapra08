@@ -1,0 +1,2002 @@
+     1→'use client'
+     2→
+     3→import { useState, useEffect } from 'react'
+     4→import { api } from '@/lib/api-client'
+     5→import { PageHeader, StatCard, LoadingState, ErrorState, EmptyState } from '@/components/ui-helpers'
+     6→import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+     7→import { Badge } from '@/components/ui/badge'
+     8→import { Button } from '@/components/ui/button'
+     9→import { Input } from '@/components/ui/input'
+    10→import { Label } from '@/components/ui/label'
+    11→import { Textarea } from '@/components/ui/textarea'
+    12→import {
+    13→  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+    14→} from '@/components/ui/dialog'
+    15→import {
+    16→  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+    17→} from '@/components/ui/select'
+    18→import {
+    19→  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+    20→} from '@/components/ui/dropdown-menu'
+    21→import {
+    22→  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+    23→  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+    24→} from '@/components/ui/alert-dialog'
+    25→import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+    26→import {
+    27→  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+    28→} from '@/components/ui/table'
+    29→import { useToastStore, useNavStore, useAuthStore } from '@/lib/store'
+    30→import { formatDateID, formatDateTimeID } from '@/lib/format'
+    31→import {
+    32→  Home, Users, MapPin, CalendarDays, TrendingUp, Wallet, ChevronRight,
+    33→  ShieldCheck, KeyRound, FileText, Newspaper, Image as ImageIcon, Megaphone,
+    34→  Building2, BookOpen, Scale, Briefcase, HandHeart, CalendarClock,
+    35→  PhoneCall, MessageSquare, HelpCircle, Map as MapIcon, Mail, Plus,
+    36→  Edit, Trash2, MoreVertical, Pin, Send, Eye, Upload, Loader2, Search,
+    37→  Award, CheckCircle2, Clock, AlertTriangle, Globe, ExternalLink, Lock,
+    38→  Video, PlayCircle, BookMarked, FileCheck, UserCheck, XCircle, Camera, IdCard,
+    39→} from 'lucide-react'
+    40→
+    41→// Reuse existing functional components
+    42→import { PusatDataMenu } from '@/components/menus/pusat-data-menu'
+    43→import { EventsMenu } from '@/components/menus/events-menu'
+    44→import { HelpMenu } from '@/components/menus/help-menu'
+    45→import { CommunicationMenu } from '@/components/menus/communication-menu'
+    46→import { FinanceMenu } from '@/components/menus/finance-menu'
+    47→import { LogisticsMenu } from '@/components/menus/logistics-menu'
+    48→
+    49→// ============================================================
+    50→// 1. BERANDA — Portal Profesional Level Internasional
+    51→// ============================================================
+    52→export function BerandaMenu() {
+    53→  const setActiveMenu = useNavStore((s) => s.setActiveMenu)
+    54→  const [stats, setStats] = useState<any>(null)
+    55→  const [announcements, setAnnouncements] = useState<any[]>([])
+    56→
+    57→  useEffect(() => {
+    58→    api('/api/stats').then(setStats).catch(() => {})
+    59→    api('/api/announcements').then(setAnnouncements).catch(() => {})
+    60→  }, [])
+    61→
+    62→  return (
+    63→    <div className="space-y-6 animate-fade-in-up">
+    64→      {/* Hero Banner — Premium Design */}
+    65→      <div className="relative overflow-hidden rounded-3xl shadow-2xl shadow-orange-600/20">
+    66→        {/* Background gradient layers */}
+    67→        <div className="absolute inset-0 bg-gradient-to-br from-orange-600 via-red-600 to-rose-700" />
+    68→        <div className="absolute inset-0 bg-gradient-to-t from-slate-900/40 via-transparent to-transparent" />
+    69→        {/* Decorative pattern */}
+    70→        <div className="absolute inset-0 opacity-10" style={{
+    71→          backgroundImage: 'radial-gradient(circle at 20% 50%, white 1px, transparent 1px), radial-gradient(circle at 80% 80%, white 1px, transparent 1px)',
+    72→          backgroundSize: '40px 40px',
+    73→        }} />
+    74→        {/* Large decorative icon */}
+    75→        <div className="absolute top-0 right-0 opacity-5">
+    76→          <ShieldCheck className="w-64 h-64 -mr-12 -mt-12" />
+    77→        </div>
+    78→
+    79→        {/* Content */}
+    80→        <div className="relative z-10 p-8 lg:p-10">
+    81→          <div className="flex items-center gap-2 mb-4">
+    82→            <Badge className="bg-white/15 text-white border border-white/20 backdrop-blur-sm px-3 py-1">
+    83→              <ShieldCheck className="w-3 h-3 mr-1" /> Portal Resmi LAPRA 08
+    84→            </Badge>
+    85→            <Badge className="bg-yellow-400/20 text-yellow-200 border border-yellow-400/30 px-3 py-1">
+    86→              Periode 2024-2029
+    87→            </Badge>
+    88→          </div>
+    89→          <h1 className="text-4xl lg:text-5xl font-black tracking-tight text-white mb-3 drop-shadow-lg">
+    90→            Sistem Informasi
+    91→            <span className="block bg-gradient-to-r from-yellow-300 via-amber-200 to-yellow-400 bg-clip-text text-transparent">
+    92→              Laskar Prabowo 08
+    93→            </span>
+    94→          </h1>
+    95→          <p className="text-lg text-white/80 mb-6 max-w-2xl">
+    96→            Platform digital terpadu untuk pengurus DPN, DPD, dan DPC seluruh Indonesia.
+    97→            Mengawal program pemerintahan menuju Indonesia Emas 2045.
+    98→          </p>
+    99→          <div className="flex flex-wrap gap-3">
+   100→            <Button size="lg" className="bg-gradient-to-r from-yellow-400 to-amber-500 text-slate-900 font-bold hover:from-yellow-500 hover:to-amber-600 border-0 shadow-lg shadow-amber-500/30 hover:scale-105 transition-all"
+   101→              onClick={() => setActiveMenu('layanan')}>
+   102→              <KeyRound className="w-5 h-5 mr-2" /> Pendaftaran KTA
+   103→            </Button>
+   104→            <Button size="lg" variant="outline" className="bg-white/10 text-white border-white/20 hover:bg-white/20 backdrop-blur-sm"
+   105→              onClick={() => setActiveMenu('profil')}>
+   106→              Lihat Struktur Organisasi <ChevronRight className="w-4 h-4 ml-1" />
+   107→            </Button>
+   108→          </div>
+   109→        </div>
+   110→      </div>
+   111→
+   112→      {/* Statistik Cards — Modern Glassmorphism */}
+   113→      {stats && (
+   114→        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+   115→          <StatCardModern
+   116→            label="Total Anggota"
+   117→            value={stats.members.total}
+   118→            icon={Users}
+   119→            gradient="from-orange-500 to-red-500"
+   120→            subtitle={`${stats.members.active} anggota aktif`}
+   121→          />
+   122→          <StatCardModern
+   123→            label="Total DPD"
+   124→            value={stats.global.totalProvinces + (stats.global.totalDpdLn || 0)}
+   125→            icon={MapPin}
+   126→            gradient="from-blue-500 to-indigo-500"
+   127→            subtitle={`${stats.global.totalProvinces} domestik + ${stats.global.totalDpdLn || 0} LN`}
+   128→          />
+   129→          <StatCardModern
+   130→            label="DPC (Kab/Kota)"
+   131→            value={stats.global.totalRegencies}
+   132→            icon={Building2}
+   133→            gradient="from-emerald-500 to-teal-500"
+   134→            subtitle="514 DPC terhubung"
+   135→          />
+   136→          <StatCardModern
+   137→            label="Event & Kegiatan"
+   138→            value={stats.events?.total || 0}
+   139→            icon={CalendarDays}
+   140→            gradient="from-purple-500 to-pink-500"
+   141→            subtitle={`${stats.events?.upcoming || 0} event mendatang`}
+   142→          />
+   143→        </div>
+   144→      )}
+   145→
+   146→      {/* Quick Access — Premium Cards */}
+   147→      <div>
+   148→        <div className="flex items-center gap-2 mb-4">
+   149→          <div className="h-6 w-1 rounded-full bg-gradient-to-b from-orange-500 to-red-600" />
+   150→          <h2 className="text-lg font-bold text-slate-800">Akses Cepat</h2>
+   151→        </div>
+   152→        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+   153→          <QuickAccessPremium icon={Building2} title="Struktur Pengurus" desc="DPN → DPD → DPC lengkap" gradient="from-purple-500 to-indigo-600" onClick={() => setActiveMenu('profil')} />
+   154→          <QuickAccessPremium icon={CalendarDays} title="Agenda Kegiatan" desc="Kalender & absensi" gradient="from-blue-500 to-cyan-600" onClick={() => setActiveMenu('program')} />
+   155→          <QuickAccessPremium icon={Newspaper} title="Kabar & Berita" desc="Update terbaru" gradient="from-emerald-500 to-green-600" onClick={() => setActiveMenu('pusat-media')} />
+   156→          <QuickAccessPremium icon={ShieldCheck} title="Layanan Advokasi" desc="Pengaduan & bantuan" gradient="from-orange-500 to-red-600" onClick={() => setActiveMenu('layanan')} />
+   157→          <QuickAccessPremium icon={KeyRound} title="Cek KTA Digital" desc="Verifikasi keanggotaan" gradient="from-amber-400 to-yellow-500" onClick={() => setActiveMenu('layanan')} />
+   158→          <QuickAccessPremium icon={MapIcon} title="Sekretariat" desc="Lokasi & kontak" gradient="from-slate-600 to-slate-800" onClick={() => setActiveMenu('kontak')} />
+   159→        </div>
+   160→      </div>
+   161→
+   162→      {/* Pengumuman Terbaru + Sidebar Info */}
+   163→      <div className="grid gap-4 lg:grid-cols-3">
+   164→        {/* Pengumuman */}
+   165→        <div className="lg:col-span-2">
+   166→          <Card className="border-slate-200 shadow-md">
+   167→            <CardHeader>
+   168→              <CardTitle className="flex items-center gap-2 text-base">
+   169→                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center">
+   170→                  <Megaphone className="w-4 h-4 text-white" />
+   171→                </div>
+   172→                Pengumuman Terbaru
+   173→              </CardTitle>
+   174→            </CardHeader>
+   175→            <CardContent className="space-y-3">
+   176→              {announcements.length === 0 ? (
+   177→                <EmptyState icon={Megaphone} title="Belum ada pengumuman" />
+   178→              ) : (
+   179→                announcements.slice(0, 4).map((a) => (
+   180→                  <div key={a.id} className="group flex items-start gap-3 p-3 rounded-xl bg-gradient-to-r from-slate-50 to-slate-100/50 border border-slate-200 hover:border-orange-300 hover:shadow-sm transition-all">
+   181→                    <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${a.isPinned ? 'bg-orange-500' : 'bg-slate-300'}`} />
+   182→                    <div className="flex-1 min-w-0">
+   183→                      <div className="flex items-center gap-2">
+   184→                        <div className="font-semibold text-sm truncate">{a.title}</div>
+   185→                        {a.isPinned && <Pin className="w-3 h-3 text-orange-500 shrink-0" />}
+   186→                      </div>
+   187→                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{a.content}</p>
+   188→                      <div className="text-[10px] text-muted-foreground mt-1 flex items-center gap-2">
+   189→                        <span>{formatDateTimeID(a.createdAt)}</span>
+   190→                        <span>•</span>
+   191→                        <span>{a.createdBy?.fullName || 'Admin'}</span>
+   192→                      </div>
+   193→                    </div>
+   194→                  </div>
+   195→                ))
+   196→              )}
+   197→            </CardContent>
+   198→          </Card>
+   199→        </div>
+   200→
+   201→        {/* Sidebar Info — Hierarchy Summary */}
+   202→        <Card className="bg-gradient-to-br from-slate-900 to-slate-800 text-white border-0 shadow-lg">
+   203→          <CardHeader>
+   204→            <CardTitle className="flex items-center gap-2 text-sm text-white">
+   205→              <div className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center">
+   206→                <Building2 className="w-4 h-4 text-orange-400" />
+   207→              </div>
+   208→              Hierarki Organisasi
+   209→            </CardTitle>
+   210→          </CardHeader>
+   211→          <CardContent className="space-y-3">
+   212→            <HierarchyItem level="DPN" desc="Pusat Nasional" count={1} color="text-purple-400" />
+   213→            <div className="ml-4 border-l-2 border-slate-700 pl-4 space-y-3">
+   214→              <HierarchyItem level="DPD" desc="38 Provinsi + IKN + 5 LN" count={44} color="text-blue-400" />
+   215→              <div className="ml-4 border-l-2 border-slate-700 pl-4">
+   216→                <HierarchyItem level="DPC" desc="514 Kabupaten/Kota" count={514} color="text-emerald-400" />
+   217→              </div>
+   218→            </div>
+   219→            <div className="pt-3 border-t border-slate-700">
+   220→              <div className="flex items-center justify-between text-xs">
+   221→                <span className="text-slate-400">Total Wilayah</span>
+   222→                <span className="font-bold text-orange-400">559 Teritori</span>
+   223→              </div>
+   224→              <div className="flex items-center justify-between text-xs mt-2">
+   225→                <span className="text-slate-400">Status</span>
+   226→                <span className="flex items-center gap-1 text-emerald-400">
+   227→                  <CheckCircle2 className="w-3 h-3" /> Terhubung 100%
+   228→                </span>
+   229→              </div>
+   230→            </div>
+   231→          </CardContent>
+   232→        </Card>
+   233→      </div>
+   234→    </div>
+   235→  )
+   236→}
+   237→
+   238→function StatCardModern({ label, value, icon: Icon, gradient, subtitle }: any) {
+   239→  return (
+   240→    <div className="group relative overflow-hidden rounded-2xl bg-white border border-slate-200 shadow-sm hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
+   241→      <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${gradient} opacity-5 rounded-full -mr-12 -mt-12 group-hover:opacity-10 transition-opacity`} />
+   242→      <div className="relative p-5">
+   243→        <div className="flex items-start justify-between mb-3">
+   244→          <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${gradient} flex items-center justify-center shadow-md`}>
+   245→            <Icon className="w-5 h-5 text-white" />
+   246→          </div>
+   247→        </div>
+   248→        <div className="text-2xl font-black text-slate-800 tracking-tight">{value}</div>
+   249→        <div className="text-sm text-slate-500 font-medium mt-0.5">{label}</div>
+   250→        {subtitle && <div className="text-[10px] text-slate-400 mt-1">{subtitle}</div>}
+   251→      </div>
+   252→    </div>
+   253→  )
+   254→}
+   255→
+   256→function QuickAccessPremium({ icon: Icon, title, desc, gradient, onClick }: any) {
+   257→  return (
+   258→    <button onClick={onClick} className="group relative overflow-hidden rounded-2xl bg-white border border-slate-200 p-5 text-left shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+   259→      <div className={`absolute top-0 right-0 w-24 h-24 bg-gradient-to-br ${gradient} opacity-5 rounded-full -mr-8 -mt-8 group-hover:scale-150 group-hover:opacity-10 transition-all duration-500`} />
+   260→      <div className="relative flex items-center gap-4">
+   261→        <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${gradient} flex items-center justify-center shadow-md group-hover:scale-110 transition-transform`}>
+   262→          <Icon className="w-6 h-6 text-white" />
+   263→        </div>
+   264→        <div className="flex-1 min-w-0">
+   265→          <div className="font-bold text-sm text-slate-800">{title}</div>
+   266→          <div className="text-xs text-slate-500 mt-0.5">{desc}</div>
+   267→        </div>
+   268→        <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-slate-600 group-hover:translate-x-1 transition-all" />
+   269→      </div>
+   270→    </button>
+   271→  )
+   272→}
+   273→
+   274→function HierarchyItem({ level, desc, count, color }: any) {
+   275→  return (
+   276→    <div className="flex items-center justify-between">
+   277→      <div>
+   278→        <div className={`text-xs font-bold ${color}`}>{level}</div>
+   279→        <div className="text-[10px] text-slate-400">{desc}</div>
+   280→      </div>
+   281→      <div className="text-lg font-black text-white">{count}</div>
+   282→    </div>
+   283→  )
+   284→}
+   285→
+   286→// ============================================================
+   287→// 2. PROFIL
+   288→// ============================================================
+   289→export function ProfilMenu() {
+   290→  const [tab, setTab] = useState('tentang')
+   291→  const tabs = [
+   292→    { key: 'tentang', label: 'Tentang LAPRA 08', icon: BookOpen },
+   293→    { key: 'visi-misi', label: 'Visi & Misi', icon: TrendingUp },
+   294→    { key: 'struktur', label: 'Struktur & Pusat Data', icon: Building2 },
+   295→    { key: 'ad-art', label: 'AD/ART', icon: FileText },
+   296→    { key: 'legalitas', label: 'Landasan Hukum', icon: Scale },
+   297→  ]
+   298→  return (
+   299→    <div className="space-y-6">
+   300→      <PageHeader title="Profil" description="Profil organisasi Laskar Prabowo 08" icon={Building2} />
+   301→      <div className="flex flex-wrap gap-2">
+   302→        {tabs.map((t) => (
+   303→          <button key={t.key} onClick={() => setTab(t.key)}
+   304→            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${tab === t.key ? 'bg-gradient-to-r from-orange-600 to-red-600 text-white shadow-sm' : 'border hover:bg-accent'}`}>
+   305→            <t.icon className="w-4 h-4" /> {t.label}
+   306→          </button>
+   307→        ))}
+   308→      </div>
+   309→      {tab === 'tentang' && (
+   310→        <Card><CardHeader><CardTitle>Tentang Laskar Prabowo 08</CardTitle></CardHeader>
+   311→        <CardContent className="space-y-3 text-sm">
+   312→          <p>Laskar Prabowo 08 (LAPRA 08) adalah komunitas relawan resmi Prabowo Subianto yang bergerak dalam pengawasan program, kaderisasi, dan aksi sosial nasional.</p>
+   313→          <p>Organisasi ini dilantik oleh Ketua Dewan Pembina, Dr. (HC) Hashim S. Djojohadikusumo, pada 21 Maret 2025 di Auditorium RRI Jakarta untuk masa bakti 2024-2029.</p>
+   314→          <p>LAPRA 08 memiliki struktur hierarki: DPN (Pusat Nasional) → DPD (Provinsi) → DPC (Kabupaten/Kota), dengan 39 DPD domestik (38 provinsi + IKN), 5 DPD luar negeri, dan 514 DPC terhubung.</p>
+   315→        </CardContent></Card>
+   316→      )}
+   317→      {tab === 'visi-misi' && (
+   318→        <Card><CardHeader><CardTitle>Visi & Misi</CardTitle></CardHeader>
+   319→        <CardContent className="space-y-4 text-sm">
+   320→          <div><div className="font-semibold text-orange-600 mb-1">Visi</div><p>Menjadi relawan terdepan dalam mendukung visi kebangsaan Prabowo Subianto menuju Indonesia Emas 2045.</p></div>
+   321→          <div><div className="font-semibold text-orange-600 mb-1">Misi</div>
+   322→          <ul className="space-y-1 list-disc ml-4">
+   323→            <li>Mengawal program-program pemerintah Prabowo-Gibran</li>
+   324→            <li>Kaderisasi dan pembinaan relawan di seluruh Indonesia</li>
+   325→            <li>Aksi sosial dan pengabdian masyarakat</li>
+   326→            <li>Penguatan harmoni dan persatuan bangsa</li>
+   327→          </ul></div>
+   328→        </CardContent></Card>
+   329→      )}
+   330→      {tab === 'struktur' && <PusatDataMenu />}
+   331→      {tab === 'ad-art' && (
+   332→        <Card><CardHeader><CardTitle>Anggaran Dasar / Anggaran Rumah Tangga (AD/ART)</CardTitle></CardHeader>
+   333→        <CardContent><EmptyState icon={FileText} title="Dokumen AD/ART" description="Dokumen AD/ART LAPRA 08 akan diupload di sini." /></CardContent></Card>
+   334→      )}
+   335→      {tab === 'legalitas' && (
+   336→        <Card><CardHeader><CardTitle>Landasan Hukum & Legalitas Organisasi</CardTitle></CardHeader>
+   337→        <CardContent><EmptyState icon={Scale} title="Dokumen Legalitas" description="SK Kepengurusan, Nota Kesepahatan, dan dokumen legal lainnya." /></CardContent></Card>
+   338→      )}
+   339→    </div>
+   340→  )
+   341→}
+   342→
+   343→// ============================================================
+   344→// 3. PUSAT MEDIA — Wired with Announcement CRUD
+   345→// ============================================================
+   346→export function PusatMediaMenu() {
+   347→  const [tab, setTab] = useState('berita')
+   348→  const tabs = [
+   349→    { key: 'berita', label: 'Kabar Utama & Pengumuman', icon: Newspaper },
+   350→    { key: 'galeri', label: 'Galeri Media', icon: ImageIcon },
+   351→    { key: 'rilis-pers', label: 'Media Siaran LAPRA 08', icon: Megaphone },
+   352→    { key: 'majalah', label: 'Majalah / Buletin Digital', icon: BookOpen },
+   353→  ]
+   354→  return (
+   355→    <div className="space-y-6">
+   356→      <PageHeader title="Pusat Media" description="Kabar, berita, galeri, dan publikasi LAPRA 08" icon={Newspaper} />
+   357→      <div className="flex flex-wrap gap-2">
+   358→        {tabs.map((t) => (
+   359→          <button key={t.key} onClick={() => setTab(t.key)}
+   360→            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${tab === t.key ? 'bg-gradient-to-r from-orange-600 to-red-600 text-white shadow-sm' : 'border hover:bg-accent'}`}>
+   361→            <t.icon className="w-4 h-4" /> {t.label}
+   362→          </button>
+   363→        ))}
+   364→      </div>
+   365→      {tab === 'berita' ? (
+   366→        <AnnouncementManager />
+   367→      ) : tab === 'galeri' ? (
+   368→        <GaleriMediaManager />
+   369→      ) : tab === 'rilis-pers' ? (
+   370→        <MediaSiaranManager />
+   371→      ) : (
+   372→        <MajalahManager />
+   373→      )}
+   374→    </div>
+   375→  )
+   376→}
+   377→
+   378→// ============================================================
+   379→// GALERI MEDIA — 3 Sub-Tab: Foto, Video, Arsip Berita Penting
+   380→// ============================================================
+   381→function GaleriMediaManager() {
+   382→  const [subTab, setSubTab] = useState('foto')
+   383→  const subTabs = [
+   384→    { key: 'foto', label: 'Galeri Foto', icon: ImageIcon },
+   385→    { key: 'video', label: 'Galeri Video', icon: Video },
+   386→    { key: 'arsip', label: 'Arsip Berita Penting', icon: BookMarked },
+   387→  ]
+   388→  return (
+   389→    <div className="space-y-4">
+   390→      <div className="flex flex-wrap gap-2">
+   391→        {subTabs.map((t) => (
+   392→          <button key={t.key} onClick={() => setSubTab(t.key)}
+   393→            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${subTab === t.key ? 'bg-emerald-600 text-white shadow-sm' : 'border hover:bg-accent'}`}>
+   394→            <t.icon className="w-3.5 h-3.5" /> {t.label}
+   395→          </button>
+   396→        ))}
+   397→      </div>
+   398→      {subTab === 'foto' ? (
+   399→        <GalleryManager />
+   400→      ) : subTab === 'video' ? (
+   401→        <GaleriVideoManager />
+   402→      ) : (
+   403→        <ArsipBeritaPentingManager />
+   404→      )}
+   405→    </div>
+   406→  )
+   407→}
+   408→
+   409→// ============================================================
+   410→// GALERI VIDEO — YouTube embed + MP4 upload
+   411→// ============================================================
+   412→function GaleriVideoManager() {
+   413→  const addToast = useToastStore((s) => s.addToast)
+   414→  const [items, setItems] = useState<any[]>([])
+   415→  const [loading, setLoading] = useState(true)
+   416→  const [addOpen, setAddOpen] = useState(false)
+   417→  const [deleteItem, setDeleteItem] = useState<any>(null)
+   418→  const [form, setForm] = useState({ title: '', description: '', category: 'KEGIATAN', youtubeUrl: '' })
+   419→  const [mode, setMode] = useState<'YOUTUBE' | 'UPLOAD'>('YOUTUBE')
+   420→  const [file, setFile] = useState<File | null>(null)
+   421→  const [uploading, setUploading] = useState(false)
+   422→  const [playingVideo, setPlayingVideo] = useState<any>(null)
+   423→
+   424→  const loadData = () => {
+   425→    setLoading(true)
+   426→    api('/api/gallery/videos').then(setItems).catch(() => {}).finally(() => setLoading(false))
+   427→  }
+   428→  useEffect(() => { loadData() }, [])
+   429→
+   430→  const handleSubmit = async (e: React.FormEvent) => {
+   431→    e.preventDefault()
+   432→    setUploading(true)
+   433→    try {
+   434→      if (mode === 'YOUTUBE') {
+   435→        if (!form.youtubeUrl) { addToast('URL YouTube wajib diisi', 'error'); setUploading(false); return }
+   436→        const res = await fetch('/api/gallery/videos', {
+   437→          method: 'POST',
+   438→          headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+   439→          body: JSON.stringify(form),
+   440→        })
+   441→        const data = await res.json()
+   442→        if (!res.ok || !data.success) throw new Error(data.error || 'Gagal')
+   443→        addToast('Video YouTube berhasil ditambahkan', 'success')
+   444→      } else {
+   445→        if (!file) { addToast('Pilih file video dulu', 'error'); setUploading(false); return }
+   446→        const formData = new FormData()
+   447→        formData.append('file', file)
+   448→        formData.append('title', form.title || file.name)
+   449→        formData.append('description', form.description)
+   450→        formData.append('category', form.category)
+   451→        const res = await fetch('/api/gallery/videos', {
+   452→          method: 'POST',
+   453→          headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+   454→          body: formData,
+   455→        })
+   456→        const data = await res.json()
+   457→        if (!res.ok || !data.success) throw new Error(data.error || 'Upload gagal')
+   458→        addToast('Video berhasil diupload', 'success')
+   459→      }
+   460→      setForm({ title: '', description: '', category: 'KEGIATAN', youtubeUrl: '' })
+   461→      setFile(null); setAddOpen(false)
+   462→      loadData()
+   463→    } catch (e: any) { addToast(e.message, 'error') }
+   464→    finally { setUploading(false) }
+   465→  }
+   466→
+   467→  const handleDelete = async () => {
+   468→    if (!deleteItem) return
+   469→    try {
+   470→      await fetch(`/api/gallery/${deleteItem.id}?id=${deleteItem.id}`, {
+   471→        method: 'DELETE',
+   472→        headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+   473→      })
+   474→      addToast('Video dihapus', 'success')
+   475→      setDeleteItem(null); loadData()
+   476→    } catch (e: any) { addToast(e.message, 'error') }
+   477→  }
+   478→
+   479→  if (loading) return <LoadingState />
+   480→
+   481→  const categories: Record<string, string> = {
+   482→    KEGIATAN: 'Kegiatan', RAPAT: 'Rapat', PELANTIKAN: 'Pelantikan',
+   483→    SOSIAL: 'Aksi Sosial', DOKUMENTER: 'Dokumenter', LAINNYA: 'Lainnya',
+   484→  }
+   485→
+   486→  return (
+   487→    <Card>
+   488→      <CardHeader>
+   489→        <div className="flex items-center justify-between flex-wrap gap-2">
+   490→          <CardTitle className="flex items-center gap-2 text-base">
+   491→            <Video className="w-4 h-4 text-emerald-600" /> Galeri Video ({items.length})
+   492→          </CardTitle>
+   493→          <Button onClick={() => setAddOpen(true)} size="sm" className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white">
+   494→            <Plus className="w-4 h-4 mr-1" /> Tambah Video
+   495→          </Button>
+   496→        </div>
+   497→      </CardHeader>
+   498→      <CardContent>
+   499→        {items.length === 0 ? (
+   500→          <EmptyState icon={Video} title="Galeri video masih kosong" description="Tambahkan video kegiatan dari YouTube atau upload file MP4." />
+   501→        ) : (
+   502→          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+   503→            {items.map((item) => (
+   504→              <div key={item.id} className="group relative rounded-xl overflow-hidden border shadow-sm hover:shadow-lg transition-all">
+   505→                <div className="aspect-video bg-slate-900 relative cursor-pointer" onClick={() => setPlayingVideo(item)}>
+   506→                  {item.videoType === 'YOUTUBE' && item.thumbnail ? (
+   507→                    <img src={item.thumbnail} alt={item.title} className="w-full h-full object-cover" />
+   508→                  ) : item.videoType === 'UPLOAD' ? (
+   509→                    <video src={item.videoUrl} className="w-full h-full object-cover" muted preload="metadata" />
+   510→                  ) : null}
+   511→                  <div className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-black/40 transition-colors">
+   512→                    <div className="w-14 h-14 rounded-full bg-white/90 flex items-center justify-center shadow-lg">
+   513→                      <PlayCircle className="w-10 h-10 text-red-600" />
+   514→                    </div>
+   515→                  </div>
+   516→                  <Badge variant="outline" className="absolute top-2 left-2 text-[10px] bg-black/70 text-white border-white/20">
+   517→                    {item.videoType === 'YOUTUBE' ? 'YouTube' : 'MP4 Upload'}
+   518→                  </Badge>
+   519→                </div>
+   520→                <div className="p-2">
+   521→                  <div className="font-medium text-xs truncate">{item.title}</div>
+   522→                  <div className="flex items-center justify-between mt-1">
+   523→                    <Badge variant="outline" className="text-[10px]">{categories[item.category] || item.category}</Badge>
+   524→                    <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-red-600 hover:bg-red-50"
+   525→                      onClick={(e) => { e.stopPropagation(); setDeleteItem(item) }}>
+   526→                      <Trash2 className="w-3 h-3" />
+   527→                    </Button>
+   528→                  </div>
+   529→                </div>
+   530→              </div>
+   531→            ))}
+   532→          </div>
+   533→        )}
+   534→      </CardContent>
+   535→
+   536→      {/* Dialog Tambah Video */}
+   537→      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+   538→        <DialogContent className="max-w-lg">
+   539→          <DialogHeader><DialogTitle className="flex items-center gap-2"><Video className="w-4 h-4 text-emerald-600" /> Tambah Video</DialogTitle></DialogHeader>
+   540→          <form onSubmit={handleSubmit} className="space-y-3">
+   541→            <div className="flex gap-2">
+   542→              <button type="button" onClick={() => setMode('YOUTUBE')}
+   543→                className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium border ${mode === 'YOUTUBE' ? 'bg-emerald-600 text-white border-emerald-600' : 'hover:bg-accent'}`}>
+   544→                Link YouTube
+   545→              </button>
+   546→              <button type="button" onClick={() => setMode('UPLOAD')}
+   547→                className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium border ${mode === 'UPLOAD' ? 'bg-emerald-600 text-white border-emerald-600' : 'hover:bg-accent'}`}>
+   548→                Upload MP4
+   549→              </button>
+   550→            </div>
+   551→            {mode === 'YOUTUBE' ? (
+   552→              <div className="space-y-2">
+   553→                <Label>URL YouTube *</Label>
+   554→                <Input value={form.youtubeUrl} onChange={(e) => setForm({ ...form, youtubeUrl: e.target.value })}
+   555→                  placeholder="https://www.youtube.com/watch?v=XXXX atau youtu.be/XXXX" required />
+   556→              </div>
+   557→            ) : (
+   558→              <div className="space-y-2">
+   559→                <Label>File Video (MP4/WebP) *</Label>
+   560→                {file ? (
+   561→                  <div className="relative">
+   562→                    <video src={URL.createObjectURL(file)} className="w-full max-h-48 object-contain rounded-lg border" controls />
+   563→                    <Button type="button" variant="destructive" size="sm" className="absolute top-2 right-2"
+   564→                      onClick={() => setFile(null)}>
+   565→                      <Trash2 className="w-3.5 h-3.5 mr-1" /> Hapus
+   566→                    </Button>
+   567→                  </div>
+   568→                ) : (
+   569→                  <div className="border-2 border-dashed rounded-xl p-6 text-center hover:border-emerald-400 transition-colors cursor-pointer"
+   570→                    onClick={() => document.getElementById('video-upload-input')?.click()}>
+   571→                    <input type="file" id="video-upload-input" className="hidden" accept="video/mp4,video/webm,video/ogg"
+   572→                      onChange={(e) => setFile(e.target.files?.[0] || null)} />
+   573→                    <Upload className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+   574→                    <div className="text-sm font-medium">Upload Video</div>
+   575→                    <div className="text-xs text-muted-foreground mt-1">MP4, WebM • Maks 100MB</div>
+   576→                  </div>
+   577→                )}
+   578→              </div>
+   579→            )}
+   580→            <div className="space-y-2"><Label>Judul Video</Label><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="cth: Dokumentasi Pelantikan DPN" /></div>
+   581→            <div className="space-y-2"><Label>Deskripsi</Label><Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={2} placeholder="Deskripsi singkat video..." /></div>
+   582→            <div className="space-y-2"><Label>Kategori</Label>
+   583→              <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}>
+   584→                <SelectTrigger><SelectValue /></SelectTrigger>
+   585→                <SelectContent>{Object.entries(categories).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent>
+   586→              </Select>
+   587→            </div>
+   588→            <DialogFooter>
+   589→              <Button type="button" variant="outline" onClick={() => setAddOpen(false)}>Batal</Button>
+   590→              <Button type="submit" disabled={uploading}>
+   591→                {uploading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : null} Tambah
+   592→              </Button>
+   593→            </DialogFooter>
+   594→          </form>
+   595→        </DialogContent>
+   596→      </Dialog>
+   597→
+   598→      {/* Dialog Play Video */}
+   599→      <Dialog open={!!playingVideo} onOpenChange={(o) => !o && setPlayingVideo(null)}>
+   600→        <DialogContent className="max-w-3xl">
+   601→          <DialogHeader>
+   602→            <DialogTitle className="text-base">{playingVideo?.title}</DialogTitle>
+   603→            <DialogDescription>{playingVideo?.description}</DialogDescription>
+   604→          </DialogHeader>
+   605→          <div className="aspect-video rounded-lg overflow-hidden bg-black">
+   606→            {playingVideo?.videoType === 'YOUTUBE' ? (
+   607→              <iframe src={playingVideo.embedUrl} className="w-full h-full" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen frameBorder="0" />
+   608→            ) : playingVideo?.videoType === 'UPLOAD' ? (
+   609→              <video src={playingVideo.videoUrl} className="w-full h-full" controls autoPlay />
+   610→            ) : null}
+   611→          </div>
+   612→        </DialogContent>
+   613→      </Dialog>
+   614→
+   615→      <AlertDialog open={!!deleteItem} onOpenChange={(o) => !o && setDeleteItem(null)}>
+   616→        <AlertDialogContent>
+   617→          <AlertDialogHeader>
+   618→            <AlertDialogTitle>Hapus Video?</AlertDialogTitle>
+   619→            <AlertDialogDescription>Yakin hapus <strong>{deleteItem?.title}</strong>?</AlertDialogDescription>
+   620→          </AlertDialogHeader>
+   621→          <AlertDialogFooter>
+   622→            <AlertDialogCancel>Batal</AlertDialogCancel>
+   623→            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">Hapus</AlertDialogAction>
+   624→          </AlertDialogFooter>
+   625→        </AlertDialogContent>
+   626→      </AlertDialog>
+   627→    </Card>
+   628→  )
+   629→}
+   630→
+   631→// ============================================================
+   632→// ARSIP BERITA PENTING - Bookmarked news
+   633→// ============================================================
+   634→function ArsipBeritaPentingManager() {
+   635→  const addToast = useToastStore((s) => s.addToast)
+   636→  const [bookmarks, setBookmarks] = useState<any[]>([])
+   637→  const [announcements, setAnnouncements] = useState<any[]>([])
+   638→  const [loading, setLoading] = useState(true)
+   639→  const [addOpen, setAddOpen] = useState(false)
+   640→  const [deleteItem, setDeleteItem] = useState<any>(null)
+   641→  const [form, setForm] = useState({ announcementId: '', note: '', category: 'PENTING' })
+   642→
+   643→  const loadData = () => {
+   644→    setLoading(true)
+   645→    Promise.all([
+   646→      api('/api/gallery/bookmarks'),
+   647→      api('/api/announcements'),
+   648→    ]).then(([bm, ann]) => {
+   649→      setBookmarks(bm || [])
+   650→      setAnnouncements(ann || [])
+   651→      setLoading(false)
+   652→    }).catch(() => setLoading(false))
+   653→  }
+   654→  useEffect(() => { loadData() }, [])
+   655→
+   656→  const handleAdd = async (e: React.FormEvent) => {
+   657→    e.preventDefault()
+   658→    if (!form.announcementId) { addToast('Pilih berita dulu', 'error'); return }
+   659→    try {
+   660→      const res = await fetch('/api/gallery/bookmarks', {
+   661→        method: 'POST',
+   662→        headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+   663→        body: JSON.stringify(form),
+   664→      })
+   665→      const data = await res.json()
+   666→      if (!res.ok || !data.success) throw new Error(data.error || 'Gagal')
+   667→      addToast('Berita ditambahkan ke arsip penting', 'success')
+   668→      setForm({ announcementId: '', note: '', category: 'PENTING' })
+   669→      setAddOpen(false); loadData()
+   670→    } catch (e: any) { addToast(e.message, 'error') }
+   671→  }
+   672→
+   673→  const handleDelete = async () => {
+   674→    if (!deleteItem) return
+   675→    try {
+   676→      await fetch(`/api/gallery/bookmarks?id=bm_${deleteItem.id}`, {
+   677→        method: 'DELETE',
+   678→        headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+   679→      })
+   680→      addToast('Berita dihapus dari arsip', 'success')
+   681→      setDeleteItem(null); loadData()
+   682→    } catch (e: any) { addToast(e.message, 'error') }
+   683→  }
+   684→
+   685→  if (loading) return <LoadingState />
+   686→
+   687→  const categoryConfig: Record<string, { label: string; color: string }> = {
+   688→    PENTING: { label: 'Penting', color: 'bg-red-50 text-red-700 border-red-200' },
+   689→    SEJARAH: { label: 'Sejarah', color: 'bg-purple-50 text-purple-700 border-purple-200' },
+   690→    MILESTONE: { label: 'Milestone', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+   691→    REFERENSI: { label: 'Referensi', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+   692→  }
+   693→
+   694→  // Available announcements not yet bookmarked
+   695→  const bookmarkedIds = new Set(bookmarks.map((b: any) => b.id))
+   696→  const availableAnnouncements = announcements.filter((a: any) => !bookmarkedIds.has(a.id))
+   697→
+   698→  return (
+   699→    <Card>
+   700→      <CardHeader>
+   701→        <div className="flex items-center justify-between flex-wrap gap-2">
+   702→          <CardTitle className="flex items-center gap-2 text-base">
+   703→            <BookMarked className="w-4 h-4 text-amber-600" /> Arsip Berita Penting ({bookmarks.length})
+   704→          </CardTitle>
+   705→          <Button onClick={() => setAddOpen(true)} size="sm" className="bg-gradient-to-r from-amber-600 to-orange-600 text-white">
+   706→            <Plus className="w-4 h-4 mr-1" /> Tambah ke Arsip
+   707→          </Button>
+   708→        </div>
+   709→        <CardDescription>Kumpulan berita penting LAPRA 08 yang diarsipkan untuk referensi & sejarah organisasi</CardDescription>
+   710→      </CardHeader>
+   711→      <CardContent>
+   712→        {bookmarks.length === 0 ? (
+   713→          <EmptyState icon={BookMarked} title="Arsip masih kosong" description="Bookmark berita penting dari Kabar Utama untuk dijadikan arsip permanen." />
+   714→        ) : (
+   715→          <div className="space-y-3">
+   716→            {bookmarks.map((b: any) => {
+   717→              const cc = categoryConfig[b.bookmarkCategory] || categoryConfig.PENTING
+   718→              return (
+   719→                <div key={b.id} className="group relative rounded-xl border p-3 hover:shadow-md transition-all bg-white">
+   720→                  <div className="flex items-start gap-3">
+   721→                    {b.photoUrl ? (
+   722→                      <img src={b.photoUrl} alt={b.title} className="w-16 h-16 rounded-lg object-cover shrink-0" />
+   723→                    ) : (
+   724→                      <div className="w-16 h-16 rounded-lg bg-gradient-to-br from-amber-100 to-orange-200 flex items-center justify-center shrink-0">
+   725→                        <BookMarked className="w-6 h-6 text-amber-600" />
+   726→                      </div>
+   727→                    )}
+   728→                    <div className="flex-1 min-w-0">
+   729→                      <div className="flex items-center gap-2 mb-1">
+   730→                        <Badge variant="outline" className={`text-[10px] ${cc.color}`}>{cc.label}</Badge>
+   731→                        {b.source === 'WEB_SYNC' && (
+   732→                          <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700 border-blue-200">
+   733→                            <Globe className="w-2.5 h-2.5 mr-0.5" /> {b.sourceName || 'Web'}
+   734→                          </Badge>
+   735→                        )}
+   736→                      </div>
+   737→                      <div className="font-semibold text-sm line-clamp-2">{b.title}</div>
+   738→                      <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{b.content}</p>
+   739→                      {b.bookmarkNote && (
+   740→                        <div className="mt-2 p-2 rounded bg-amber-50 border border-amber-200 text-xs text-amber-800">
+   741→                          <strong>Catatan Arsip:</strong> {b.bookmarkNote}
+   742→                        </div>
+   743→                      )}
+   744→                      <div className="flex items-center gap-2 mt-2 text-[10px] text-muted-foreground">
+   745→                        <span>Diarsipkan: {formatDateTimeID(b.bookmarkedAt)}</span>
+   746→                        {b.sourceUrl && (
+   747→                          <a href={b.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+   748→                            <ExternalLink className="w-3 h-3 inline mr-0.5" />Sumber
+   749→                          </a>
+   750→                        )}
+   751→                      </div>
+   752→                    </div>
+   753→                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-600 hover:bg-red-50 opacity-0 group-hover:opacity-100"
+   754→                      onClick={() => setDeleteItem(b)}>
+   755→                      <Trash2 className="w-3.5 h-3.5" />
+   756→                    </Button>
+   757→                  </div>
+   758→                </div>
+   759→              )
+   760→            })}
+   761→          </div>
+   762→        )}
+   763→      </CardContent>
+   764→
+   765→      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+   766→        <DialogContent className="max-w-lg">
+   767→          <DialogHeader>
+   768→            <DialogTitle className="flex items-center gap-2"><BookMarked className="w-4 h-4 text-amber-600" /> Tambah Berita ke Arsip</DialogTitle>
+   769→            <DialogDescription>Pilih berita dari Kabar Utama untuk diarsipkan</DialogDescription>
+   770→          </DialogHeader>
+   771→          <form onSubmit={handleAdd} className="space-y-3">
+   772→            <div className="space-y-2">
+   773→              <Label>Pilih Berita *</Label>
+   774→              <Select value={form.announcementId} onValueChange={(v) => setForm({ ...form, announcementId: v })}>
+   775→                <SelectTrigger><SelectValue placeholder={`${availableAnnouncements.length} berita tersedia`} /></SelectTrigger>
+   776→                <SelectContent className="max-h-60">
+   777→                  {availableAnnouncements.map((a: any) => (
+   778→                    <SelectItem key={a.id} value={a.id}>{a.title.substring(0, 60)}{a.title.length > 60 ? '...' : ''}</SelectItem>
+   779→                  ))}
+   780→                </SelectContent>
+   781→              </Select>
+   782→            </div>
+   783→            <div className="space-y-2"><Label>Kategori Arsip</Label>
+   784→              <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}>
+   785→                <SelectTrigger><SelectValue /></SelectTrigger>
+   786→                <SelectContent>
+   787→                  {Object.entries(categoryConfig).map(([k, v]) => <SelectItem key={k} value={k}>{v.label}</SelectItem>)}
+   788→                </SelectContent>
+   789→              </Select>
+   790→            </div>
+   791→            <div className="space-y-2"><Label>Catatan Arsip (opsional)</Label>
+   792→              <Textarea value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} rows={3}
+   793→                placeholder="Alasan mengapa berita ini diarsipkan..." />
+   794→            </div>
+   795→            <DialogFooter>
+   796→              <Button type="button" variant="outline" onClick={() => setAddOpen(false)}>Batal</Button>
+   797→              <Button type="submit" className="bg-gradient-to-r from-amber-600 to-orange-600 text-white">Tambah ke Arsip</Button>
+   798→            </DialogFooter>
+   799→          </form>
+   800→        </DialogContent>
+   801→      </Dialog>
+   802→
+   803→      <AlertDialog open={!!deleteItem} onOpenChange={(o) => !o && setDeleteItem(null)}>
+   804→        <AlertDialogContent>
+   805→          <AlertDialogHeader>
+   806→            <AlertDialogTitle>Hapus dari Arsip?</AlertDialogTitle>
+   807→            <AlertDialogDescription>Yakin hapus <strong>{deleteItem?.title?.substring(0, 50)}</strong> dari arsip?</AlertDialogDescription>
+   808→          </AlertDialogHeader>
+   809→          <AlertDialogFooter>
+   810→            <AlertDialogCancel>Batal</AlertDialogCancel>
+   811→            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">Hapus</AlertDialogAction>
+   812→          </AlertDialogFooter>
+   813→        </AlertDialogContent>
+   814→      </AlertDialog>
+   815→    </Card>
+   816→  )
+   817→}
+   818→
+   819→// ============================================================
+   820→// MEDIA SIARAN — Auto-sync dari berita kategori SIRANAN_PERS
+   821→// ============================================================
+   822→function MediaSiaranManager() {
+   823→  const addToast = useToastStore((s) => s.addToast)
+   824→  const [items, setItems] = useState<any[]>([])
+   825→  const [loading, setLoading] = useState(true)
+   826→
+   827→  const loadData = () => {
+   828→    setLoading(true)
+   829→    api('/api/announcements').then((all: any[]) => {
+   830→      // Filter hanya yang kategori = SIRANAN_PERS
+   831→      const siranan = all.filter((a) => a.category === 'SIRANAN_PERS')
+   832→      setItems(siranan)
+   833→    }).catch(() => {}).finally(() => setLoading(false))
+   834→  }
+   835→  useEffect(() => { loadData() }, [])
+   836→
+   837→  if (loading) return <LoadingState />
+   838→
+   839→  return (
+   840→    <Card>
+   841→      <CardHeader>
+   842→        <div className="flex items-center justify-between flex-wrap gap-2">
+   843→          <CardTitle className="flex items-center gap-2 text-base">
+   844→            <Megaphone className="w-4 h-4 text-indigo-600" />
+   845→            Media Siaran LAPRA 08 ({items.length} rilis pers)
+   846→          </CardTitle>
+   847→          <Button size="sm" variant="outline" onClick={() => {
+   848→            useNavStore.getState().setActiveMenu('pusat-media')
+   849→            // Switch to berita tab via event
+   850→            window.dispatchEvent(new CustomEvent('switch-tab', { detail: 'berita' }))
+   851→          }}>
+   852→            <Plus className="w-4 h-4 mr-1" /> Buat Siaran Pers Baru
+   853→          </Button>
+   854→        </div>
+   855→      </CardHeader>
+   856→      <CardContent>
+   857→        <div className="rounded-lg bg-indigo-50 border border-indigo-200 p-3 mb-4 text-xs text-indigo-800">
+   858→          <Megaphone className="w-4 h-4 inline mr-1" />
+   859→          <strong>Media Siaran</strong> otomatis menampilkan berita dengan kategori <strong>"Siaran Pers"</strong> yang dibuat di tab Kabar Utama.
+   860→          Untuk membuat siaran pers baru, buat berita dengan kategori "Siaran Pers" di menu Kabar Utama.
+   861→        </div>
+   862→        {items.length === 0 ? (
+   863→          <EmptyState icon={Megaphone} title="Belum ada siaran pers" description="Buat berita dengan kategori 'Siaran Pers' di tab Kabar Utama, dan akan otomatis muncul di sini." />
+   864→        ) : (
+   865→          <div className="space-y-2">
+   866→            {items.map((a) => (
+   867→              <div key={a.id} className="group relative rounded-xl border p-4 hover:shadow-md transition-all bg-white">
+   868→                <div className="flex items-start gap-3">
+   869→                  {a.photoUrl ? (
+   870→                    <img src={a.photoUrl} alt={a.title} className="w-20 h-20 rounded-lg object-cover shrink-0" />
+   871→                  ) : (
+   872→                    <div className="w-20 h-20 rounded-lg bg-gradient-to-br from-indigo-100 to-indigo-200 flex items-center justify-center shrink-0">
+   873→                      <Megaphone className="w-8 h-8 text-indigo-500" />
+   874→                    </div>
+   875→                  )}
+   876→                  <div className="flex-1 min-w-0">
+   877→                    <Badge variant="outline" className="text-[10px] mb-1 bg-indigo-50 text-indigo-700 border-indigo-200">Siaran Pers</Badge>
+   878→                    <div className="font-bold text-sm">{a.title}</div>
+   879→                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{a.content}</p>
+   880→                    <div className="flex items-center gap-2 mt-2 text-[10px] text-muted-foreground">
+   881→                      <span>{a.publishDate ? formatDateID(a.publishDate) : formatDateTimeID(a.createdAt)}</span>
+   882→                      <span>•</span>
+   883→                      <span>{a.createdBy?.fullName || 'DPN LAPRA 08'}</span>
+   884→                    </div>
+   885→                  </div>
+   886→                </div>
+   887→              </div>
+   888→            ))}
+   889→          </div>
+   890→        )}
+   891→      </CardContent>
+   892→    </Card>
+   893→  )
+   894→}
+   895→
+   896→// ============================================================
+   897→// MAJALAH / BULETIN DIGITAL — CRUD dengan upload PDF + cover
+   898→// ============================================================
+   899→function MajalahManager() {
+   900→  const addToast = useToastStore((s) => s.addToast)
+   901→  const [items, setItems] = useState<any[]>([])
+   902→  const [loading, setLoading] = useState(true)
+   903→  const [uploadOpen, setUploadOpen] = useState(false)
+   904→  const [editItem, setEditItem] = useState<any>(null)
+   905→  const [deleteItem, setDeleteItem] = useState<any>(null)
+   906→  const [form, setForm] = useState({ title: '', description: '', edition: '', publishDate: '' })
+   907→  const [coverFile, setCoverFile] = useState<File | null>(null)
+   908→  const [pdfFile, setPdfFile] = useState<File | null>(null)
+   909→  const [uploading, setUploading] = useState(false)
+   910→
+   911→  const loadData = () => {
+   912→    setLoading(true)
+   913→    api('/api/gallery').then((all: any[]) => {
+   914→      // Filter hanya yang kategori = MAJALAH
+   915→      const majalah = all.filter((a: any) => a.category === 'MAJALAH')
+   916→      setItems(majalah)
+   917→    }).catch(() => {}).finally(() => setLoading(false))
+   918→  }
+   919→  useEffect(() => { loadData() }, [])
+   920→
+   921→  const handleUpload = async (e: React.FormEvent) => {
+   922→    e.preventDefault()
+   923→    if (!form.title) { addToast('Judul wajib diisi', 'error'); return }
+   924→    setUploading(true)
+   925→    try {
+   926→      const formData = new FormData()
+   927→      if (coverFile) formData.append('file', coverFile)
+   928→      formData.append('title', form.title)
+   929→      formData.append('description', form.description)
+   930→      formData.append('category', 'MAJALAH')
+   931→
+   932→      const res = await fetch('/api/gallery', {
+   933→        method: 'POST',
+   934→        headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+   935→        body: formData,
+   936→      })
+   937→      const data = await res.json()
+   938→      if (!res.ok || !data.success) throw new Error(data.error || 'Upload gagal')
+   939→
+   940→      // If PDF also uploaded, store as separate gallery item with PDF reference
+   941→      if (pdfFile) {
+   942→        const pdfFormData = new FormData()
+   943→        pdfFormData.append('file', pdfFile)
+   944→        pdfFormData.append('title', `${form.title} - PDF`)
+   945→        pdfFormData.append('description', `File PDF majalah: ${form.title}`)
+   946→        pdfFormData.append('category', 'MAJALAH_PDF')
+   947→        await fetch('/api/gallery', {
+   948→          method: 'POST',
+   949→          headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+   950→          body: pdfFormData,
+   951→        })
+   952→      }
+   953→
+   954→      addToast('Majalah berhasil diupload', 'success')
+   955→      setForm({ title: '', description: '', edition: '', publishDate: '' })
+   956→      setCoverFile(null); setPdfFile(null); setUploadOpen(false); setEditItem(null)
+   957→      loadData()
+   958→    } catch (e: any) { addToast(e.message, 'error') }
+   959→    finally { setUploading(false) }
+   960→  }
+   961→
+   962→  const handleDelete = async () => {
+   963→    if (!deleteItem) return
+   964→    try {
+   965→      await fetch(`/api/gallery/${deleteItem.id}?id=${deleteItem.id}`, {
+   966→        method: 'DELETE',
+   967→        headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+   968→      })
+   969→      addToast('Majalah dihapus', 'success')
+   970→      setDeleteItem(null); loadData()
+   971→    } catch (e: any) { addToast(e.message, 'error') }
+   972→  }
+   973→
+   974→  if (loading) return <LoadingState />
+   975→
+   976→  return (
+   977→    <Card>
+   978→      <CardHeader>
+   979→        <div className="flex items-center justify-between flex-wrap gap-2">
+   980→          <CardTitle className="flex items-center gap-2 text-base">
+   981→            <BookOpen className="w-4 h-4 text-purple-600" />
+   982→            Majalah / Buletin Digital ({items.length} edisi)
+   983→          </CardTitle>
+   984→          <Button onClick={() => { setEditItem(null); setForm({ title: '', description: '', edition: '', publishDate: '' }); setCoverFile(null); setPdfFile(null); setUploadOpen(true) }}
+   985→            size="sm" className="bg-gradient-to-r from-orange-600 to-red-600 text-white">
+   986→            <Plus className="w-4 h-4 mr-1" /> Buat Majalah Baru
+   987→          </Button>
+   988→        </div>
+   989→      </CardHeader>
+   990→      <CardContent>
+   991→        {items.length === 0 ? (
+   992→          <EmptyState icon={BookOpen} title="Belum ada majalah" description="Klik 'Buat Majalah Baru' untuk upload majalah/buletin digital (cover + PDF)." />
+   993→        ) : (
+   994→          <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+   995→            {items.map((item) => (
+   996→              <div key={item.id} className="group relative rounded-xl overflow-hidden border shadow-sm hover:shadow-lg transition-all bg-white">
+   997→                {item.fileUrl ? (
+   998→                  <img src={item.fileUrl} alt={item.title} className="w-full h-56 object-cover" />
+   999→                ) : (
+  1000→                  <div className="w-full h-56 bg-gradient-to-br from-purple-100 to-indigo-200 flex items-center justify-center">
+  1001→                    <BookOpen className="w-12 h-12 text-purple-400" />
+  1002→                  </div>
+  1003→                )}
+  1004→                <div className="p-3">
+  1005→                  <div className="font-bold text-sm truncate">{item.title}</div>
+  1006→                  {item.description && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{item.description}</p>}
+  1007→                  <div className="text-[10px] text-muted-foreground mt-2">{formatDateID(item.uploadedAt)}</div>
+  1008→                </div>
+  1009→                <Button variant="destructive" size="sm"
+  1010→                  className="absolute top-2 right-2 h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+  1011→                  onClick={() => setDeleteItem(item)}>
+  1012→                  <Trash2 className="w-3.5 h-3.5" />
+  1013→                </Button>
+  1014→              </div>
+  1015→            ))}
+  1016→          </div>
+  1017→        )}
+  1018→      </CardContent>
+  1019→
+  1020→      {/* Dialog Upload Majalah */}
+  1021→      <Dialog open={uploadOpen} onOpenChange={(o) => { setUploadOpen(o); if (!o) { setEditItem(null); setCoverFile(null); setPdfFile(null) } }}>
+  1022→        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+  1023→          <DialogHeader>
+  1024→            <DialogTitle className="flex items-center gap-2">
+  1025→              <BookOpen className="w-5 h-5 text-purple-600" />
+  1026→              {editItem ? 'Edit' : 'Buat'} Majalah / Buletin Digital
+  1027→            </DialogTitle>
+  1028→            <DialogDescription>Upload cover majalah (gambar) + file PDF majalah</DialogDescription>
+  1029→          </DialogHeader>
+  1030→          <form onSubmit={handleUpload} className="space-y-4">
+  1031→            {/* Judul */}
+  1032→            <div className="space-y-2">
+  1033→              <Label>Judul Majalah *</Label>
+  1034→              <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })}
+  1035→                placeholder="cth: Majalah LAPRA 08 Edisi Januari 2026" required />
+  1036→            </div>
+  1037→            {/* Edisi */}
+  1038→            <div className="grid grid-cols-2 gap-3">
+  1039→              <div className="space-y-2">
+  1040→                <Label>Edisi</Label>
+  1041→                <Input value={form.edition} onChange={(e) => setForm({ ...form, edition: e.target.value })}
+  1042→                  placeholder="cth: Vol. 1 No. 1" />
+  1043→              </div>
+  1044→              <div className="space-y-2">
+  1045→                <Label>Tanggal Terbit</Label>
+  1046→                <Input type="date" value={form.publishDate} onChange={(e) => setForm({ ...form, publishDate: e.target.value })} />
+  1047→              </div>
+  1048→            </div>
+  1049→            {/* Deskripsi */}
+  1050→            <div className="space-y-2">
+  1051→              <Label>Deskripsi / Ringkasan</Label>
+  1052→              <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
+  1053→                rows={3} placeholder="Ringkasan isi majalah..." />
+  1054→            </div>
+  1055→            {/* Cover Upload */}
+  1056→            <div className="space-y-2">
+  1057→              <Label>Cover Majalah (Gambar)</Label>
+  1058→              {coverFile ? (
+  1059→                <div className="relative">
+  1060→                  <img src={URL.createObjectURL(coverFile)} alt="Cover preview" className="w-full max-h-48 object-cover rounded-xl border" />
+  1061→                  <Button type="button" variant="destructive" size="sm" className="absolute top-2 right-2"
+  1062→                    onClick={() => setCoverFile(null)}>
+  1063→                    <Trash2 className="w-3.5 h-3.5 mr-1" /> Hapus
+  1064→                  </Button>
+  1065→                </div>
+  1066→              ) : (
+  1067→                <div className="border-2 border-dashed rounded-xl p-4 text-center hover:border-purple-400 transition-colors cursor-pointer"
+  1068→                  onClick={() => document.getElementById('majalah-cover-input')?.click()}>
+  1069→                  <input type="file" id="majalah-cover-input" className="hidden" accept="image/*"
+  1070→                    onChange={(e) => setCoverFile(e.target.files?.[0] || null)} />
+  1071→                  <Upload className="w-6 h-6 text-slate-400 mx-auto mb-1" />
+  1072→                  <div className="text-xs font-medium">Upload Cover (JPG/PNG)</div>
+  1073→                </div>
+  1074→              )}
+  1075→            </div>
+  1076→            {/* PDF Upload */}
+  1077→            <div className="space-y-2">
+  1078→              <Label>File PDF Majalah</Label>
+  1079→              {pdfFile ? (
+  1080→                <div className="flex items-center gap-2 p-3 rounded-lg bg-emerald-50 border border-emerald-200">
+  1081→                  <FileText className="w-5 h-5 text-emerald-600" />
+  1082→                  <span className="text-sm font-medium flex-1 truncate">{pdfFile.name}</span>
+  1083→                  <Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-600"
+  1084→                    onClick={() => setPdfFile(null)}>
+  1085→                    <Trash2 className="w-3.5 h-3.5" />
+  1086→                  </Button>
+  1087→                </div>
+  1088→              ) : (
+  1089→                <div className="border-2 border-dashed rounded-xl p-4 text-center hover:border-emerald-400 transition-colors cursor-pointer"
+  1090→                  onClick={() => document.getElementById('majalah-pdf-input')?.click()}>
+  1091→                  <input type="file" id="majalah-pdf-input" className="hidden" accept=".pdf"
+  1092→                    onChange={(e) => setPdfFile(e.target.files?.[0] || null)} />
+  1093→                  <FileText className="w-6 h-6 text-slate-400 mx-auto mb-1" />
+  1094→                  <div className="text-xs font-medium">Upload PDF Majalah</div>
+  1095→                  <div className="text-[10px] text-muted-foreground mt-0.5">Maks 10MB</div>
+  1096→                </div>
+  1097→              )}
+  1098→            </div>
+  1099→            <DialogFooter>
+  1100→              <Button type="button" variant="outline" onClick={() => setUploadOpen(false)}>Batal</Button>
+  1101→              <Button type="submit" disabled={uploading}>
+  1102→                {uploading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : null}
+  1103→                {editItem ? 'Simpan Perubahan' : 'Publikasikan Majalah'}
+  1104→              </Button>
+  1105→            </DialogFooter>
+  1106→          </form>
+  1107→        </DialogContent>
+  1108→      </Dialog>
+  1109→
+  1110→      <AlertDialog open={!!deleteItem} onOpenChange={(o) => !o && setDeleteItem(null)}>
+  1111→        <AlertDialogContent>
+  1112→          <AlertDialogHeader>
+  1113→            <AlertDialogTitle>Hapus Majalah?</AlertDialogTitle>
+  1114→            <AlertDialogDescription>Yakin hapus <strong>{deleteItem?.title}</strong>? File cover & PDF akan dihapus permanen.</AlertDialogDescription>
+  1115→          </AlertDialogHeader>
+  1116→          <AlertDialogFooter>
+  1117→            <AlertDialogCancel>Batal</AlertDialogCancel>
+  1118→            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">Hapus</AlertDialogAction>
+  1119→          </AlertDialogFooter>
+  1120→        </AlertDialogContent>
+  1121→      </AlertDialog>
+  1122→    </Card>
+  1123→  )
+  1124→}
+  1125→
+  1126→// ============================================================
+  1127→// GALLERY MANAGER — Upload foto, pilih dari berita, hapus
+  1128→// ============================================================
+  1129→function GalleryManager() {
+  1130→  const addToast = useToastStore((s) => s.addToast)
+  1131→  const [items, setItems] = useState<any[]>([])
+  1132→  const [loading, setLoading] = useState(true)
+  1133→  const [uploadOpen, setUploadOpen] = useState(false)
+  1134→  const [deleteItem, setDeleteItem] = useState<any>(null)
+  1135→  const [form, setForm] = useState({ title: '', description: '', category: 'KEGIATAN' })
+  1136→  const [file, setFile] = useState<File | null>(null)
+  1137→  const [uploading, setUploading] = useState(false)
+  1138→  const [syncLoading, setSyncLoading] = useState(false)
+  1139→
+  1140→  const loadData = () => {
+  1141→    setLoading(true)
+  1142→    api('/api/gallery').then((all: any[]) => {
+  1143→      // Only show items that have fileUrl (actual gallery photos, not program content)
+  1144→      const galleryItems = all.filter((a: any) => a.fileUrl)
+  1145→      setItems(galleryItems)
+  1146→    }).catch(() => {}).finally(() => setLoading(false))
+  1147→  }
+  1148→  useEffect(() => { loadData() }, [])
+  1149→
+  1150→  const handleUpload = async (e: React.FormEvent) => {
+  1151→    e.preventDefault()
+  1152→    if (!file) { addToast('Pilih file gambar dulu', 'error'); return }
+  1153→    setUploading(true)
+  1154→    try {
+  1155→      const formData = new FormData()
+  1156→      formData.append('file', file)
+  1157→      formData.append('title', form.title || file.name)
+  1158→      formData.append('description', form.description)
+  1159→      formData.append('category', form.category)
+  1160→
+  1161→      const res = await fetch('/api/gallery', {
+  1162→        method: 'POST',
+  1163→        headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+  1164→        body: formData,
+  1165→      })
+  1166→      const data = await res.json()
+  1167→      if (!res.ok || !data.success) throw new Error(data.error || 'Upload gagal')
+  1168→
+  1169→      addToast('Foto berhasil diupload ke galeri', 'success')
+  1170→      setForm({ title: '', description: '', category: 'KEGIATAN' })
+  1171→      setFile(null); setUploadOpen(false)
+  1172→      loadData()
+  1173→    } catch (e: any) { addToast(e.message, 'error') }
+  1174→    finally { setUploading(false) }
+  1175→  }
+  1176→
+  1177→  const handleDelete = async () => {
+  1178→    if (!deleteItem) return
+  1179→    try {
+  1180→      await fetch(`/api/gallery/${deleteItem.id}?id=${deleteItem.id}`, {
+  1181→        method: 'DELETE',
+  1182→        headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+  1183→      })
+  1184→      addToast('Foto dihapus dari galeri', 'success')
+  1185→      setDeleteItem(null); loadData()
+  1186→    } catch (e: any) { addToast(e.message, 'error') }
+  1187→  }
+  1188→
+  1189→  const handleSyncFromNews = async () => {
+  1190→    setSyncLoading(true)
+  1191→    try {
+  1192→      const res = await fetch('/api/news/sync', {
+  1193→        method: 'POST',
+  1194→        headers: { 'x-user-id': useAuthStore.getState().user?.id || '', 'Content-Type': 'application/json' },
+  1195→      })
+  1196→      const data = await res.json()
+  1197→      if (!res.ok || !data.success) throw new Error(data.error || 'Sync gagal')
+  1198→      addToast(data.message, 'success')
+  1199→      loadData()
+  1200→    } catch (e: any) { addToast(e.message, 'error') }
+  1201→    finally { setSyncLoading(false) }
+  1202→  }
+  1203→
+  1204→  if (loading) return <LoadingState />
+  1205→
+  1206→  const categories: Record<string, string> = {
+  1207→    KEGIATAN: 'Kegiatan', RAPAT: 'Rapat', PELANTIKAN: 'Pelantikan',
+  1208→    SOSIAL: 'Aksi Sosial', DOKUMENTER: 'Dokumenter', LAINNYA: 'Lainnya',
+  1209→  }
+  1210→
+  1211→  return (
+  1212→    <Card>
+  1213→      <CardHeader>
+  1214→        <div className="flex items-center justify-between flex-wrap gap-2">
+  1215→          <CardTitle className="flex items-center gap-2 text-base">
+  1216→            <ImageIcon className="w-4 h-4 text-emerald-600" />
+  1217→            Galeri Media ({items.length} foto)
+  1218→          </CardTitle>
+  1219→          <div className="flex gap-2">
+  1220→            <Button onClick={handleSyncFromNews} size="sm" variant="outline" disabled={syncLoading}
+  1221→              className="border-blue-300 text-blue-600 hover:bg-blue-50">
+  1222→              {syncLoading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Newspaper className="w-4 h-4 mr-1" />}
+  1223→              Sync Berita Terbaru
+  1224→            </Button>
+  1225→            <Button onClick={() => setUploadOpen(true)} size="sm"
+  1226→              className="bg-gradient-to-r from-orange-600 to-red-600 text-white">
+  1227→              <Plus className="w-4 h-4 mr-1" /> Upload Foto
+  1228→            </Button>
+  1229→          </div>
+  1230→        </div>
+  1231→      </CardHeader>
+  1232→      <CardContent>
+  1233→        {items.length === 0 ? (
+  1234→          <EmptyState icon={ImageIcon} title="Galeri masih kosong" description="Upload foto kegiatan atau sync dari berita yang sudah ada." />
+  1235→        ) : (
+  1236→          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+  1237→            {items.map((item) => (
+  1238→              <div key={item.id} className="group relative rounded-xl overflow-hidden border shadow-sm hover:shadow-lg transition-all">
+  1239→                <img src={item.fileUrl} alt={item.title} className="w-full h-40 object-cover" />
+  1240→                <div className="p-2">
+  1241→                  <div className="font-medium text-xs truncate">{item.title}</div>
+  1242→                  <Badge variant="outline" className="text-[10px] mt-1">{categories[item.category] || item.category}</Badge>
+  1243→                </div>
+  1244→                <Button variant="destructive" size="sm"
+  1245→                  className="absolute top-2 right-2 h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+  1246→                  onClick={() => setDeleteItem(item)}>
+  1247→                  <Trash2 className="w-3.5 h-3.5" />
+  1248→                </Button>
+  1249→              </div>
+  1250→            ))}
+  1251→          </div>
+  1252→        )}
+  1253→      </CardContent>
+  1254→
+  1255→      {/* Upload Dialog */}
+  1256→      <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
+  1257→        <DialogContent className="max-w-lg">
+  1258→          <DialogHeader><DialogTitle>Upload Foto ke Galeri</DialogTitle></DialogHeader>
+  1259→          <form onSubmit={handleUpload} className="space-y-3">
+  1260→            <div className="space-y-2">
+  1261→              <Label>Pilih File Gambar *</Label>
+  1262→              {file ? (
+  1263→                <div className="relative">
+  1264→                  <img src={URL.createObjectURL(file)} alt="Preview" className="w-full max-h-48 object-cover rounded-xl border" />
+  1265→                  <Button type="button" variant="destructive" size="sm" className="absolute top-2 right-2"
+  1266→                    onClick={() => setFile(null)}>
+  1267→                    <Trash2 className="w-3.5 h-3.5 mr-1" /> Hapus
+  1268→                  </Button>
+  1269→                </div>
+  1270→              ) : (
+  1271→                <div className="border-2 border-dashed rounded-xl p-6 text-center hover:border-emerald-400 transition-colors cursor-pointer"
+  1272→                  onClick={() => document.getElementById('gallery-upload-input')?.click()}>
+  1273→                  <input type="file" id="gallery-upload-input" className="hidden" accept="image/*"
+  1274→                    onChange={(e) => setFile(e.target.files?.[0] || null)} />
+  1275→                  <Upload className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+  1276→                  <div className="text-sm font-medium">Upload Foto</div>
+  1277→                  <div className="text-xs text-muted-foreground mt-1">JPG, PNG, WebP • Maks 10MB</div>
+  1278→                </div>
+  1279→              )}
+  1280→            </div>
+  1281→            <div className="space-y-2"><Label>Judul Foto</Label><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="cth: Pelantikan DPC Pontianak" /></div>
+  1282→            <div className="space-y-2"><Label>Deskripsi</Label><Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={2} placeholder="Deskripsi singkat foto..." /></div>
+  1283→            <div className="space-y-2"><Label>Kategori</Label>
+  1284→              <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}>
+  1285→                <SelectTrigger><SelectValue /></SelectTrigger>
+  1286→                <SelectContent>
+  1287→                  {Object.entries(categories).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+  1288→                </SelectContent>
+  1289→              </Select>
+  1290→            </div>
+  1291→            <DialogFooter>
+  1292→              <Button type="button" variant="outline" onClick={() => setUploadOpen(false)}>Batal</Button>
+  1293→              <Button type="submit" disabled={uploading || !file}>{uploading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : null} Upload</Button>
+  1294→            </DialogFooter>
+  1295→          </form>
+  1296→        </DialogContent>
+  1297→      </Dialog>
+  1298→
+  1299→      <AlertDialog open={!!deleteItem} onOpenChange={(o) => !o && setDeleteItem(null)}>
+  1300→        <AlertDialogContent>
+  1301→          <AlertDialogHeader>
+  1302→            <AlertDialogTitle>Hapus Foto?</AlertDialogTitle>
+  1303→            <AlertDialogDescription>Yakin hapus <strong>{deleteItem?.title}</strong> dari galeri?</AlertDialogDescription>
+  1304→          </AlertDialogHeader>
+  1305→          <AlertDialogFooter>
+  1306→            <AlertDialogCancel>Batal</AlertDialogCancel>
+  1307→            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">Hapus</AlertDialogAction>
+  1308→          </AlertDialogFooter>
+  1309→        </AlertDialogContent>
+  1310→      </AlertDialog>
+  1311→    </Card>
+  1312→  )
+  1313→}
+  1314→
+  1315→// ============================================================
+  1316→// ANNOUNCEMENT MANAGER — CRUD lengkap untuk berita & pengumuman
+  1317→// ============================================================
+  1318→function AnnouncementManager() {
+  1319→  const addToast = useToastStore((s) => s.addToast)
+  1320→  const [items, setItems] = useState<any[]>([])
+  1321→  const [loading, setLoading] = useState(true)
+  1322→  const [search, setSearch] = useState('')
+  1323→  const [addOpen, setAddOpen] = useState(false)
+  1324→  const [editItem, setEditItem] = useState<any>(null)
+  1325→  const [deleteItem, setDeleteItem] = useState<any>(null)
+  1326→  const [previewMode, setPreviewMode] = useState(false)
+  1327→  const [saving, setSaving] = useState(false)
+  1328→  const [syncLoading, setSyncLoading] = useState(false)
+  1329→  const [syncResult, setSyncResult] = useState<any>(null)
+  1330→  const [syncOpen, setSyncOpen] = useState(false)
+  1331→  const [form, setForm] = useState({
+  1332→    title: '', content: '', type: 'INFO', category: 'BERITA', isPinned: false,
+  1333→    territoryId: '', imageUrl: '', publishDate: '',
+  1334→  })
+  1335→  const [territories, setTerritories] = useState<any[]>([])
+  1336→
+  1337→  const loadData = () => {
+  1338→    setLoading(true)
+  1339→    Promise.all([api('/api/announcements'), api('/api/territory?level=COUNTRY')])
+  1340→      .then(([a, t]) => { setItems(a); setTerritories(t) })
+  1341→      .catch((e) => addToast(e.message, 'error'))
+  1342→      .finally(() => setLoading(false))
+  1343→  }
+  1344→  useEffect(() => { loadData() }, [])
+  1345→
+  1346→  const handleFileUpload = (file: File) => {
+  1347→    if (!file.type.startsWith('image/')) {
+  1348→      addToast('File harus berupa gambar (JPG/PNG)', 'error')
+  1349→      return
+  1350→    }
+  1351→    if (file.size > 5 * 1024 * 1024) {
+  1352→      addToast('Ukuran file maksimal 5MB', 'error')
+  1353→      return
+  1354→    }
+  1355→    const reader = new FileReader()
+  1356→    reader.onload = (e) => {
+  1357→      setForm({ ...form, imageUrl: e.target?.result as string })
+  1358→      addToast('Gambar berhasil dimuat', 'success')
+  1359→    }
+  1360→    reader.readAsDataURL(file)
+  1361→  }
+  1362→
+  1363→  const handlePublish = async () => {
+  1364→    setSaving(true)
+  1365→    try {
+  1366→      const payload = {
+  1367→        ...form,
+  1368→        territoryId: form.territoryId || territories[0]?.id,
+  1369→        publishDate: form.publishDate || new Date().toISOString(),
+  1370→        photoUrl: form.imageUrl || null,
+  1371→      }
+  1372→      if (editItem) {
+  1373→        await api(`/api/announcements/${editItem.id}`, { method: 'PUT', body: JSON.stringify(payload) })
+  1374→        addToast('Berita/pengumuman diperbarui & disiarkan', 'success')
+  1375→      } else {
+  1376→        await api('/api/announcements', { method: 'POST', body: JSON.stringify(payload) })
+  1377→        addToast('Berita/pengumuman berhasil disiarkan', 'success')
+  1378→      }
+  1379→      setAddOpen(false); setEditItem(null); setPreviewMode(false)
+  1380→      setForm({ title: '', content: '', type: 'INFO', category: 'BERITA', isPinned: false, territoryId: '', imageUrl: '', publishDate: '' })
+  1381→      loadData()
+  1382→    } catch (e: any) {
+  1383→      addToast(e.message, 'error')
+  1384→    } finally {
+  1385→      setSaving(false)
+  1386→    }
+  1387→  }
+  1388→
+  1389→  const handleDelete = async () => {
+  1390→    if (!deleteItem) return
+  1391→    try { await api(`/api/announcements/${deleteItem.id}`, { method: 'DELETE' }); addToast('Berita dihapus', 'success'); setDeleteItem(null); loadData() }
+  1392→    catch (e: any) { addToast(e.message, 'error') }
+  1393→  }
+  1394→
+  1395→  const handleSyncMedsos = async () => {
+  1396→    setSyncLoading(true); setSyncResult(null)
+  1397→    try {
+  1398→      const res = await fetch('/api/news/sync', {
+  1399→        method: 'POST',
+  1400→        headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+  1401→      })
+  1402→      const data = await res.json()
+  1403→      if (!res.ok || !data.success) throw new Error(data.error || 'Sync gagal')
+  1404→      setSyncResult(data.data)
+  1405→      setSyncOpen(true)
+  1406→      addToast(`Sync selesai: ${data.data.newCreated} berita baru`, 'success')
+  1407→      loadData()
+  1408→    } catch (e: any) { addToast(e.message, 'error') }
+  1409→    finally { setSyncLoading(false) }
+  1410→  }
+  1411→
+  1412→  if (loading) return <LoadingState />
+  1413→
+  1414→  const filtered = items.filter((a) => !search || a.title.toLowerCase().includes(search.toLowerCase()) || a.content.toLowerCase().includes(search.toLowerCase()))
+  1415→
+  1416→  const typeConfig: Record<string, { label: string; color: string }> = {
+  1417→    INFO: { label: 'Info', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+  1418→    WARNING: { label: 'Peringatan', color: 'bg-amber-50 text-amber-700 border-amber-200' },
+  1419→    URGENT: { label: 'Mendesak', color: 'bg-red-50 text-red-700 border-red-200' },
+  1420→  }
+  1421→
+  1422→  const categoryConfig: Record<string, { label: string; color: string }> = {
+  1423→    BERITA: { label: 'Berita', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  1424→    PENGUMUMAN: { label: 'Pengumuman', color: 'bg-purple-50 text-purple-700 border-purple-200' },
+  1425→    SIRANAN_PERS: { label: 'Siaran Pers', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+  1426→  }
+  1427→
+  1428→  const openEditor = (item?: any) => {
+  1429→    if (item) {
+  1430→      setEditItem(item)
+  1431→      setForm({
+  1432→        title: item.title, content: item.content, type: item.type,
+  1433→        category: item.category || 'BERITA', isPinned: item.isPinned,
+  1434→        territoryId: item.territoryId, imageUrl: item.photoUrl || '',
+  1435→        publishDate: item.publishDate ? item.publishDate.split('T')[0] : '',
+  1436→      })
+  1437→    } else {
+  1438→      setEditItem(null)
+  1439→      setForm({ title: '', content: '', type: 'INFO', category: 'BERITA', isPinned: false, territoryId: territories[0]?.id || '', imageUrl: '', publishDate: new Date().toISOString().split('T')[0] })
+  1440→    }
+  1441→    setPreviewMode(false)
+  1442→    setAddOpen(true)
+  1443→  }
+  1444→
+  1445→  return (
+  1446→    <Card>
+  1447→      <CardHeader>
+  1448→        <div className="flex items-center justify-between flex-wrap gap-2">
+  1449→          <CardTitle className="flex items-center gap-2 text-base">
+  1450→            <Newspaper className="w-4 h-4 text-orange-600" />
+  1451→            Kabar Utama & Pengumuman ({items.length})
+  1452→          </CardTitle>
+  1453→          <div className="flex gap-2 flex-wrap">
+  1454→            <Button onClick={handleSyncMedsos} size="sm" variant="outline" disabled={syncLoading}
+  1455→              className="border-blue-400 text-blue-600 hover:bg-blue-50">
+  1456→              {syncLoading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Globe className="w-4 h-4 mr-1" />}
+  1457→              Update Informasi Medsos
+  1458→            </Button>
+  1459→            <Button onClick={() => openEditor()} size="sm" className="bg-gradient-to-r from-orange-600 to-red-600 text-white">
+  1460→              <Plus className="w-4 h-4 mr-1" /> Buat Berita/Pengumuman
+  1461→            </Button>
+  1462→          </div>
+  1463→        </div>
+  1464→        {/* Info banner - strict filter policy */}
+  1465→        <div className="mt-3 rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs text-blue-800 flex items-start gap-2">
+  1466→          <ShieldCheck className="w-4 h-4 mt-0.5 shrink-0" />
+  1467→          <div>
+  1468→            <strong>Filter Ketat Aktif:</strong> Sinkronisasi medsos HANYA menampilkan berita terkait <strong>Laskar Prabowo 08 / LAPRA 08</strong> dan <strong>agenda kegiatan positif Presiden Prabowo</strong>. Berita lain tidak akan disinkronkan kecuali atas izin admin (entry manual).
+  1469→          </div>
+  1470→        </div>
+  1471→      </CardHeader>
+  1472→      <CardContent className="space-y-3">
+  1473→        <div className="relative max-w-md">
+  1474→          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+  1475→          <Input placeholder="Cari berita atau pengumuman..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />
+  1476→        </div>
+  1477→        {filtered.length === 0 ? (
+  1478→          <EmptyState icon={Newspaper} title="Belum ada berita" description="Klik 'Buat Berita/Pengumuman' untuk menambahkan." />
+  1479→        ) : (
+  1480→          <div className="space-y-2">
+  1481→            {filtered.map((a) => {
+  1482→              const tc = typeConfig[a.type] || typeConfig.INFO
+  1483→              const cc = categoryConfig[a.category] || categoryConfig.BERITA
+  1484→              const isWebSync = a.source === 'WEB_SYNC' // Berita dari web lain = READ-ONLY
+  1485→              return (
+  1486→                <div key={a.id} className={`group relative rounded-xl border p-3 hover:shadow-md transition-all bg-white ${isWebSync ? 'border-l-4 border-l-blue-400' : ''}`}>
+  1487→                  <div className="flex items-start gap-3">
+  1488→                    {/* Thumbnail */}
+  1489→                    {a.photoUrl ? (
+  1490→                      <img src={a.photoUrl} alt={a.title} className="w-16 h-16 rounded-lg object-cover shrink-0" />
+  1491→                    ) : (
+  1492→                      <div className={`w-16 h-16 rounded-lg flex items-center justify-center shrink-0 ${isWebSync ? 'bg-gradient-to-br from-blue-100 to-indigo-200' : 'bg-gradient-to-br from-slate-100 to-slate-200'}`}>
+  1493→                        {isWebSync ? <Globe className="w-6 h-6 text-blue-500" /> : <ImageIcon className="w-6 h-6 text-slate-400" />}
+  1494→                      </div>
+  1495→                    )}
+  1496→                    <div className="flex-1 min-w-0">
+  1497→                      <div className="flex items-center gap-2">
+  1498→                        {a.isPinned && <Pin className="w-3 h-3 text-orange-500 shrink-0" />}
+  1499→                        <div className="font-semibold text-sm truncate">{a.title}</div>
+  1500→                      </div>
+  1501→                      <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{a.content}</p>
+  1502→                      <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+  1503→                        <Badge variant="outline" className={`text-[10px] ${cc.color}`}>{cc.label}</Badge>
+  1504→                        <Badge variant="outline" className={`text-[10px] ${tc.color}`}>{tc.label}</Badge>
+  1505→                        {/* Badge sumber untuk WEB_SYNC */}
+  1506→                        {isWebSync && (
+  1507→                          <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700 border-blue-200">
+  1508→                            <Globe className="w-2.5 h-2.5 mr-0.5" /> {a.sourceName || 'Web'}
+  1509→                          </Badge>
+  1510→                        )}
+  1511→                        <span className="text-[10px] text-muted-foreground">
+  1512→                          {a.publishDate ? formatDateID(a.publishDate) : formatDateTimeID(a.createdAt)}
+  1513→                        </span>
+  1514→                      </div>
+  1515→                      {/* Link Baca Selengkapnya untuk WEB_SYNC */}
+  1516→                      {isWebSync && a.sourceUrl && (
+  1517→                        <a href={a.sourceUrl} target="_blank" rel="noopener noreferrer"
+  1518→                          className="inline-flex items-center gap-1 mt-2 text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline">
+  1519→                          <ExternalLink className="w-3 h-3" />
+  1520→                          Baca Selengkapnya di {a.sourceName || 'sumber asli'}
+  1521→                        </a>
+  1522→                      )}
+  1523→                    </div>
+  1524→                    {/* Tombol Edit & Hapus HANYA untuk berita MANUAL (admin buat) */}
+  1525→                    {!isWebSync && (
+  1526→                      <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+  1527→                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-blue-600 hover:bg-blue-50" onClick={() => openEditor(a)}>
+  1528→                          <Edit className="w-3.5 h-3.5" />
+  1529→                        </Button>
+  1530→                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-600 hover:bg-red-50" onClick={() => setDeleteItem(a)}>
+  1531→                          <Trash2 className="w-3.5 h-3.5" />
+  1532→                        </Button>
+  1533→                      </div>
+  1534→                    )}
+  1535→                    {/* Badge READ-ONLY untuk WEB_SYNC */}
+  1536→                    {isWebSync && (
+  1537→                      <div className="absolute top-2 right-2">
+  1538→                        <Badge variant="outline" className="text-[9px] bg-slate-50 text-slate-500 border-slate-200">
+  1539→                          <Lock className="w-2.5 h-2.5 mr-0.5" /> Read-Only
+  1540→                        </Badge>
+  1541→                      </div>
+  1542→                    )}
+  1543→                  </div>
+  1544→                </div>
+  1545→              )
+  1546→            })}
+  1547→          </div>
+  1548→        )}
+  1549→      </CardContent>
+  1550→
+  1551→      {/* Dialog Editor + Preview */}
+  1552→      <Dialog open={addOpen} onOpenChange={(o) => { setAddOpen(o); if (!o) { setEditItem(null); setPreviewMode(false) } }}>
+  1553→        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+  1554→          {!previewMode ? (
+  1555→            // === MODE EDITOR ===
+  1556→            <>
+  1557→              <DialogHeader>
+  1558→                <DialogTitle className="flex items-center gap-2">
+  1559→                  <FileText className="w-5 h-5 text-orange-600" />
+  1560→                  {editItem ? 'Edit' : 'Buat'} Berita / Pengumuman / Siaran Pers
+  1561→                </DialogTitle>
+  1562→                <DialogDescription>Lengkapi form di bawah, lalu klik "Pratinjau" untuk melihat hasil sebelum disiarkan</DialogDescription>
+  1563→              </DialogHeader>
+  1564→              <div className="space-y-4">
+  1565→                {/* Kategori & Tipe */}
+  1566→                <div className="grid grid-cols-2 gap-3">
+  1567→                  <div className="space-y-2">
+  1568→                    <Label>Kategori *</Label>
+  1569→                    <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}>
+  1570→                      <SelectTrigger><SelectValue /></SelectTrigger>
+  1571→                      <SelectContent>
+  1572→                        <SelectItem value="BERITA">Berita</SelectItem>
+  1573→                        <SelectItem value="PENGUMUMAN">Pengumuman</SelectItem>
+  1574→                        <SelectItem value="SIRANAN_PERS">Siaran Pers</SelectItem>
+  1575→                      </SelectContent>
+  1576→                    </Select>
+  1577→                  </div>
+  1578→                  <div className="space-y-2">
+  1579→                    <Label>Prioritas</Label>
+  1580→                    <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v })}>
+  1581→                      <SelectTrigger><SelectValue /></SelectTrigger>
+  1582→                      <SelectContent>
+  1583→                        <SelectItem value="INFO">Info</SelectItem>
+  1584→                        <SelectItem value="WARNING">Peringatan</SelectItem>
+  1585→                        <SelectItem value="URGENT">Mendesak</SelectItem>
+  1586→                      </SelectContent>
+  1587→                    </Select>
+  1588→                  </div>
+  1589→                </div>
+  1590→
+  1591→                {/* Judul */}
+  1592→                <div className="space-y-2">
+  1593→                  <Label>Judul *</Label>
+  1594→                  <Input
+  1595→                    value={form.title}
+  1596→                    onChange={(e) => setForm({ ...form, title: e.target.value })}
+  1597→                    placeholder="Masukkan judul berita/pengumuman..."
+  1598→                    className="text-base font-medium"
+  1599→                    required
+  1600→                  />
+  1601→                </div>
+  1602→
+  1603→                {/* Upload Gambar */}
+  1604→                <div className="space-y-2">
+  1605→                  <Label>Foto/Gambar Pendukung</Label>
+  1606→                  {form.imageUrl ? (
+  1607→                    <div className="relative group">
+  1608→                      <img src={form.imageUrl} alt="Preview" className="w-full max-h-48 object-cover rounded-xl border" />
+  1609→                      <Button
+  1610→                        type="button"
+  1611→                        variant="destructive"
+  1612→                        size="sm"
+  1613→                        className="absolute top-2 right-2"
+  1614→                        onClick={() => setForm({ ...form, imageUrl: '' })}
+  1615→                      >
+  1616→                        <Trash2 className="w-3.5 h-3.5 mr-1" /> Hapus
+  1617→                      </Button>
+  1618→                    </div>
+  1619→                  ) : (
+  1620→                    <div
+  1621→                      className="border-2 border-dashed rounded-xl p-6 text-center hover:border-orange-400 transition-colors cursor-pointer"
+  1622→                      onClick={() => document.getElementById('news-image-upload')?.click()}
+  1623→                    >
+  1624→                      <input
+  1625→                        type="file"
+  1626→                        id="news-image-upload"
+  1627→                        className="hidden"
+  1628→                        accept="image/jpeg,image/png,image/webp"
+  1629→                        onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileUpload(f) }}
+  1630→                      />
+  1631→                      <Upload className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+  1632→                      <div className="text-sm font-medium">Upload Foto/Gambar</div>
+  1633→                      <div className="text-xs text-muted-foreground mt-1">JPG, PNG, atau WebP • Maks 5MB</div>
+  1634→                    </div>
+  1635→                  )}
+  1636→                </div>
+  1637→
+  1638→                {/* Isi Berita */}
+  1639→                <div className="space-y-2">
+  1640→                  <Label>Isi Berita/Pengumuman *</Label>
+  1641→                  <Textarea
+  1642→                    value={form.content}
+  1643→                    onChange={(e) => setForm({ ...form, content: e.target.value })}
+  1644→                    rows={6}
+  1645→                    placeholder="Tulis isi berita atau pengumuman di sini..."
+  1646→                    className="resize-y"
+  1647→                    required
+  1648→                  />
+  1649→                </div>
+  1650→
+  1651→                {/* Tanggal Rilis & Wilayah */}
+  1652→                <div className="grid grid-cols-2 gap-3">
+  1653→                  <div className="space-y-2">
+  1654→                    <Label>Tanggal Rilis *</Label>
+  1655→                    <Input
+  1656→                      type="date"
+  1657→                      value={form.publishDate}
+  1658→                      onChange={(e) => setForm({ ...form, publishDate: e.target.value })}
+  1659→                      required
+  1660→                    />
+  1661→                  </div>
+  1662→                  <div className="space-y-2">
+  1663→                    <Label>Wilayah *</Label>
+  1664→                    <Select value={form.territoryId} onValueChange={(v) => setForm({ ...form, territoryId: v })}>
+  1665→                      <SelectTrigger><SelectValue /></SelectTrigger>
+  1666→                      <SelectContent>
+  1667→                        {territories.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+  1668→                      </SelectContent>
+  1669→                    </Select>
+  1670→                  </div>
+  1671→                </div>
+  1672→
+  1673→                {/* Pin Option */}
+  1674→                <div className="flex items-center gap-2 p-3 rounded-lg bg-slate-50 border">
+  1675→                  <input type="checkbox" id="pinned-news" checked={form.isPinned} onChange={(e) => setForm({ ...form, isPinned: e.target.checked })} className="w-4 h-4" />
+  1676→                  <Label htmlFor="pinned-news" className="cursor-pointer">Sematkan di atas (Pinned)</Label>
+  1677→                </div>
+  1678→
+  1679→                {/* Action Buttons */}
+  1680→                <div className="flex justify-between items-center pt-2">
+  1681→                  <Button type="button" variant="outline" onClick={() => setAddOpen(false)}>Batal</Button>
+  1682→                  <div className="flex gap-2">
+  1683→                    <Button
+  1684→                      type="button"
+  1685→                      variant="outline"
+  1686→                      onClick={() => setPreviewMode(true)}
+  1687→                      disabled={!form.title || !form.content}
+  1688→                      className="border-blue-300 text-blue-600 hover:bg-blue-50"
+  1689→                    >
+  1690→                      <Eye className="w-4 h-4 mr-1" /> Pratinjau
+  1691→                    </Button>
+  1692→                  </div>
+  1693→                </div>
+  1694→              </div>
+  1695→            </>
+  1696→          ) : (
+  1697→            // === MODE PREVIEW (sebelum siaran) ===
+  1698→            <>
+  1699→              <DialogHeader>
+  1700→                <DialogTitle className="flex items-center gap-2">
+  1701→                  <Eye className="w-5 h-5 text-blue-600" />
+  1702→                  Pratinjau Sebelum Disiarkan
+  1703→                </DialogTitle>
+  1704→                <DialogDescription>Periksa tampilan berita/pengumuman sebelum dipublikasikan</DialogDescription>
+  1705→              </DialogHeader>
+  1706→
+  1707→              {/* Preview Content — seperti akan tampil di publik */}
+  1708→              <div className="rounded-xl border overflow-hidden shadow-lg">
+  1709→                {/* Image */}
+  1710→                {form.imageUrl && (
+  1711→                  <img src={form.imageUrl} alt={form.title} className="w-full max-h-64 object-cover" />
+  1712→                )}
+  1713→                <div className="p-5 bg-white">
+  1714→                  {/* Badges */}
+  1715→                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+  1716→                    <Badge variant="outline" className={`text-xs ${(categoryConfig[form.category] || categoryConfig.BERITA).color}`}>
+  1717→                      {(categoryConfig[form.category] || categoryConfig.BERITA).label}
+  1718→                    </Badge>
+  1719→                    <Badge variant="outline" className={`text-xs ${(typeConfig[form.type] || typeConfig.INFO).color}`}>
+  1720→                      {(typeConfig[form.type] || typeConfig.INFO).label}
+  1721→                    </Badge>
+  1722→                    {form.isPinned && (
+  1723→                      <Badge variant="outline" className="text-xs bg-orange-50 text-orange-700 border-orange-200">
+  1724→                        <Pin className="w-3 h-3 mr-1" /> Pinned
+  1725→                      </Badge>
+  1726→                    )}
+  1727→                  </div>
+  1728→                  {/* Title */}
+  1729→                  <h2 className="text-xl font-bold text-slate-800 mb-2">{form.title || '(Judul berita)'}</h2>
+  1730→                  {/* Meta */}
+  1731→                  <div className="flex items-center gap-2 text-xs text-muted-foreground mb-4">
+  1732→                    <span>{formatDateID(form.publishDate || new Date().toISOString())}</span>
+  1733→                    <span>•</span>
+  1734→                    <span>Portal LAPRA 08</span>
+  1735→                  </div>
+  1736→                  {/* Content */}
+  1737→                  <div className="text-sm text-slate-600 whitespace-pre-wrap leading-relaxed">
+  1738→                    {form.content || '(Isi berita/pengumuman)'}
+  1739→                  </div>
+  1740→                </div>
+  1741→              </div>
+  1742→
+  1743→              {/* Warning */}
+  1744→              <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800">
+  1745→                <AlertTriangle className="w-4 h-4 inline mr-1" />
+  1746→                Pastikan semua data sudah benar. Setelah disiarkan, berita akan tampil di portal dan running news ticker.
+  1747→              </div>
+  1748→
+  1749→              {/* Action Buttons */}
+  1750→              <DialogFooter className="flex justify-between">
+  1751→                <Button type="button" variant="outline" onClick={() => setPreviewMode(false)}>
+  1752→                  <Edit className="w-4 h-4 mr-1" /> Edit Lagi
+  1753→                </Button>
+  1754→                <Button
+  1755→                  type="button"
+  1756→                  onClick={handlePublish}
+  1757→                  disabled={saving}
+  1758→                  className="bg-gradient-to-r from-orange-600 to-red-600 text-white"
+  1759→                >
+  1760→                  {saving ? (
+  1761→                    <><Loader2 className="w-4 h-4 mr-1 animate-spin" /> Menyiarkan...</>
+  1762→                  ) : (
+  1763→                    <><Send className="w-4 h-4 mr-1" /> Siarkan / Publikasikan</>
+  1764→                  )}
+  1765→                </Button>
+  1766→              </DialogFooter>
+  1767→            </>
+  1768→          )}
+  1769→        </DialogContent>
+  1770→      </Dialog>
+  1771→
+  1772→      <AlertDialog open={!!deleteItem} onOpenChange={(o) => !o && setDeleteItem(null)}>
+  1773→        <AlertDialogContent>
+  1774→          <AlertDialogHeader>
+  1775→            <AlertDialogTitle>Hapus Berita?</AlertDialogTitle>
+  1776→            <AlertDialogDescription>Yakin hapus <strong>{deleteItem?.title}</strong>? Tindakan ini tidak dapat dibatalkan.</AlertDialogDescription>
+  1777→          </AlertDialogHeader>
+  1778→          <AlertDialogFooter>
+  1779→            <AlertDialogCancel>Batal</AlertDialogCancel>
+  1780→            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">Hapus</AlertDialogAction>
+  1781→          </AlertDialogFooter>
+  1782→        </AlertDialogContent>
+  1783→      </AlertDialog>
+  1784→
+  1785→      {/* Sync Result Dialog */}
+  1786→      <Dialog open={syncOpen} onOpenChange={setSyncOpen}>
+  1787→        <DialogContent className="max-w-md">
+  1788→          <DialogHeader>
+  1789→            <DialogTitle className="flex items-center gap-2"><CheckCircle2 className="w-5 h-5 text-emerald-600" /> Hasil Sinkronisasi Medsos</DialogTitle>
+  1790→            <DialogDescription>Update informasi terbaru dari medsos tentang LAPRA 08</DialogDescription>
+  1791→          </DialogHeader>
+  1792→          {syncResult && (
+  1793→            <div className="space-y-3 text-sm">
+  1794→              <div className="grid grid-cols-2 gap-2">
+  1795→                <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3">
+  1796→                  <div className="text-2xl font-bold text-emerald-700">{syncResult.newCreated}</div>
+  1797→                  <div className="text-xs text-emerald-700">Berita Baru</div>
+  1798→                </div>
+  1799→                <div className="rounded-lg bg-blue-50 border border-blue-200 p-3">
+  1800→                  <div className="text-2xl font-bold text-blue-700">{syncResult.skippedDuplicate}</div>
+  1801→                  <div className="text-xs text-blue-700">Duplikat Skip</div>
+  1802→                </div>
+  1803→                <div className="rounded-lg bg-slate-50 border border-slate-200 p-3">
+  1804→                  <div className="text-2xl font-bold text-slate-700">{syncResult.skippedIrrelevant}</div>
+  1805→                  <div className="text-xs text-slate-700">Tidak Relevan</div>
+  1806→                </div>
+  1807→                <div className="rounded-lg bg-red-50 border border-red-200 p-3">
+  1808→                  <div className="text-2xl font-bold text-red-700">{syncResult.skippedNegative}</div>
+  1809→                  <div className="text-xs text-red-700">Berita Negatif</div>
+  1810→                </div>
+  1811→              </div>
+  1812→              <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800">
+  1813→                <ShieldCheck className="w-4 h-4 inline mr-1" />
+  1814→                <strong>Total ditemukan:</strong> {syncResult.totalFound} berita • <strong>Relevan:</strong> {syncResult.totalRelevant} berita
+  1815→              </div>
+  1816→              {syncResult.newBerita && syncResult.newBerita.length > 0 && (
+  1817→                <div className="space-y-1">
+  1818→                  <div className="text-xs font-semibold text-muted-foreground">Berita baru ditambahkan:</div>
+  1819→                  {syncResult.newBerita.slice(0, 5).map((b: any, i: number) => (
+  1820→                    <div key={i} className="text-xs p-2 rounded bg-white border">
+  1821→                      <div className="font-medium line-clamp-1">{b.title}</div>
+  1822→                      <div className="text-[10px] text-muted-foreground">{b.sourceName}</div>
+  1823→                    </div>
+  1824→                  ))}
+  1825→                  {syncResult.newBerita.length > 5 && (
+  1826→                    <div className="text-[10px] text-muted-foreground">+ {syncResult.newBerita.length - 5} berita lainnya</div>
+  1827→                  )}
+  1828→                </div>
+  1829→              )}
+  1830→            </div>
+  1831→          )}
+  1832→          <DialogFooter>
+  1833→            <Button onClick={() => setSyncOpen(false)} className="bg-gradient-to-r from-orange-600 to-red-600 text-white">Tutup</Button>
+  1834→          </DialogFooter>
+  1835→        </DialogContent>
+  1836→      </Dialog>
+  1837→    </Card>
+  1838→  )
+  1839→}
+  1840→
+  1841→// ============================================================
+  1842→// 4. PROGRAM & KEGIATAN — Full Events + Absensi + Laporan
+  1843→// ============================================================
+  1844→export function ProgramKegiatanMenu() {
+  1845→  const [tab, setTab] = useState('program')
+  1846→  const tabs = [
+  1847→    { key: 'program', label: 'Program Kerja', icon: Briefcase },
+  1848→    { key: 'aksi', label: 'Aksi Sosial & Sinergi', icon: HandHeart },
+  1849→    { key: 'kemitraan', label: 'Kemitraan', icon: Users },
+  1850→    { key: 'agenda', label: 'Agenda & Kegiatan', icon: CalendarClock },
+  1851→  ]
+  1852→  return (
+  1853→    <div className="space-y-6">
+  1854→      <PageHeader title="Program & Kegiatan" description="Program kerja, aksi sosial, kemitraan, dan agenda kegiatan" icon={CalendarDays} />
+  1855→      <div className="flex flex-wrap gap-2">
+  1856→        {tabs.map((t) => (
+  1857→          <button key={t.key} onClick={() => setTab(t.key)}
+  1858→            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${tab === t.key ? 'bg-gradient-to-r from-orange-600 to-red-600 text-white shadow-sm' : 'border hover:bg-accent'}`}>
+  1859→            <t.icon className="w-4 h-4" /> {t.label}
+  1860→          </button>
+  1861→        ))}
+  1862→      </div>
+  1863→      {tab === 'agenda' ? (
+  1864→        <EventsMenu />
+  1865→      ) : tab === 'program' ? (
+  1866→        <ProgramKerjaManager />
+  1867→      ) : tab === 'aksi' ? (
+  1868→        <AksiSosialManager />
+  1869→      ) : (
+  1870→        <KemitraanManager />
+  1871→      )}
+  1872→    </div>
+  1873→  )
+  1874→}
+  1875→
+  1876→// ============================================================
+  1877→// PROGRAM KERJA MANAGER — CRUD + auto-sync dari berita
+  1878→// ============================================================
+  1879→function ProgramKerjaManager() {
+  1880→  return (
+  1881→    <ProgramContentManager
+  1882→      title="Program Kerja Nasional & Daerah"
+  1883→      description="Program kerja strategis DPN, DPD, dan DPC"
+  1884→      icon={Briefcase}
+  1885→      category="PROGRAM_KERJA"
+  1886→      accentColor="from-blue-500 to-indigo-600"
+  1887→    />
+  1888→  )
+  1889→}
+  1890→
+  1891→// ============================================================
+  1892→// AKSI SOSIAL MANAGER — CRUD + auto-sync dari berita
+  1893→// ============================================================
+  1894→function AksiSosialManager() {
+  1895→  return (
+  1896→    <ProgramContentManager
+  1897→      title="Aksi Sosialisasi & Sinergi"
+  1898→      description="Dokumentasi aksi sosial dan kegiatan kemasyarakatan"
+  1899→      icon={HandHeart}
+  1900→      category="AKSI_SOSIAL"
+  1901→      accentColor="from-emerald-500 to-teal-600"
+  1902→    />
+  1903→  )
+  1904→}
+  1905→
+  1906→// ============================================================
+  1907→// KEMITRAAN MANAGER — CRUD + auto-sync dari berita
+  1908→// ============================================================
+  1909→function KemitraanManager() {
+  1910→  return (
+  1911→    <ProgramContentManager
+  1912→      title="Kemitraan & Kolaborasi Strategis"
+  1913→      description="Kemitraan dengan ummat, organisasi, dan institusi"
+  1914→      icon={Users}
+  1915→      category="KEMITRAAN"
+  1916→      accentColor="from-purple-500 to-pink-600"
+  1917→    />
+  1918→  )
+  1919→}
+  1920→
+  1921→// ============================================================
+  1922→// PROGRAM CONTENT MANAGER — Reusable CRUD untuk semua tab
+  1923→// Store di SystemSetting dengan category = PROGRAM_*
+  1924→// ============================================================
+  1925→function ProgramContentManager({ title, description, icon: Icon, category, accentColor }: {
+  1926→  title: string; description: string; icon: any; category: string; accentColor: string
+  1927→}) {
+  1928→  const addToast = useToastStore((s) => s.addToast)
+  1929→  const [items, setItems] = useState<any[]>([])
+  1930→  const [loading, setLoading] = useState(true)
+  1931→  const [search, setSearch] = useState('')
+  1932→  const [addOpen, setAddOpen] = useState(false)
+  1933→  const [editItem, setEditItem] = useState<any>(null)
+  1934→  const [deleteItem, setDeleteItem] = useState<any>(null)
+  1935→  const [form, setForm] = useState({ title: '', description: '', location: '', date: '', status: 'DIRENCANAKAN' })
+  1936→  const [saving, setSaving] = useState(false)
+  1937→
+  1938→  const loadData = () => {
+  1939→    setLoading(true)
+  1940→    api('/api/gallery').then((all: any[]) => {
+  1941→      const filtered = all.filter((a: any) => a.category === category)
+  1942→      setItems(filtered)
+  1943→    }).catch(() => {}).finally(() => setLoading(false))
+  1944→  }
+  1945→  useEffect(() => { loadData() }, [])
+  1946→
+  1947→  const handleSave = async (e: React.FormEvent) => {
+  1948→    e.preventDefault()
+  1949→    setSaving(true)
+  1950→    try {
+  1951→      const itemData = {
+  1952→        id: editItem?.id || `prog_${Date.now()}`,
+  1953→        title: form.title,
+  1954→        description: form.description,
+  1955→        location: form.location,
+  1956→        date: form.date,
+  1957→        status: form.status,
+  1958→        category,
+  1959→        uploadedBy: useAuthStore.getState().user?.fullName || 'Admin',
+  1960→        uploadedAt: new Date().toISOString(),
+  1961→      }
+  1962→
+  1963→      // Save via gallery API (JSON mode) — handles both create and update
+  1964→      const res = await fetch('/api/gallery', {
+  1965→        method: 'POST',
+  1966→        headers: { 'x-user-id': useAuthStore.getState().user?.id || '', 'Content-Type': 'application/json' },
+  1967→        body: JSON.stringify(itemData),
+  1968→      })
+  1969→      const data = await res.json()
+  1970→      if (!res.ok || !data.success) throw new Error(data.error || 'Gagal menyimpan')
+  1971→
+  1972→      addToast(editItem ? 'Program diperbarui' : 'Program baru ditambahkan', 'success')
+  1973→      setForm({ title: '', description: '', location: '', date: '', status: 'DIRENCANAKAN' })
+  1974→      setAddOpen(false); setEditItem(null)
+  1975→      loadData()
+  1976→    } catch (e: any) { addToast(e.message, 'error') }
+  1977→    finally { setSaving(false) }
+  1978→  }
+  1979→
+  1980→  const handleDelete = async () => {
+  1981→    if (!deleteItem) return
+  1982→    try {
+  1983→      await fetch(`/api/gallery/${deleteItem.id}?id=${deleteItem.id}`, {
+  1984→        method: 'DELETE',
+  1985→        headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+  1986→      })
+  1987→      addToast('Program dihapus', 'success')
+  1988→      setDeleteItem(null); loadData()
+  1989→    } catch (e: any) { addToast(e.message, 'error') }
+  1990→  }
+  1991→
+  1992→  const openEditor = (item?: any) => {
+  1993→    if (item) {
+  1994→      setEditItem(item)
+  1995→      setForm({ title: item.title || '', description: item.description || '', location: item.location || '', date: item.date || '', status: item.status || 'DIRENCANAKAN' })
+  1996→    } else {
+  1997→      setEditItem(null)
+  1998→      setForm({ title: '', description: '', location: '', date: '', status: 'DIRENCANAKAN' })
+  1999→    }
+  2000→    setAddOpen(true)
+
+[showing lines 1-2000 of 3474; use offset=2001 with limit to continue reading]
