@@ -3789,11 +3789,11 @@ function AddSourceDialog({ open, onOpenChange, onSuccess }: any) {
 function MentionFeed() {
   const [mentions, setMentions] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [filterSentiment, setFilterSentiment] = useState('')
+  const [filterSentiment, setFilterSentiment] = useState('ALL')
 
   const loadData = () => {
     setLoading(true)
-    const params = filterSentiment ? `?sentiment=${filterSentiment}` : ''
+    const params = filterSentiment && filterSentiment !== 'ALL' ? `?sentiment=${filterSentiment}` : ''
     api(`/api/social-listening/mentions${params}`).then(setMentions).catch(() => {}).finally(() => setLoading(false))
   }
   useEffect(() => { loadData() }, [filterSentiment])
@@ -3811,7 +3811,7 @@ function MentionFeed() {
       <div className="flex gap-2 items-center">
         <Select value={filterSentiment} onValueChange={setFilterSentiment}>
           <SelectTrigger className="w-[180px]"><SelectValue placeholder="Semua Sentimen" /></SelectTrigger>
-          <SelectContent><SelectItem value="">Semua</SelectItem><SelectItem value="POSITIVE">Positif</SelectItem><SelectItem value="NEUTRAL">Netral</SelectItem><SelectItem value="NEGATIVE">Negatif</SelectItem></SelectContent>
+          <SelectContent><SelectItem value="ALL">Semua</SelectItem><SelectItem value="POSITIVE">Positif</SelectItem><SelectItem value="NEUTRAL">Netral</SelectItem><SelectItem value="NEGATIVE">Negatif</SelectItem></SelectContent>
         </Select>
       </div>
       {mentions.length === 0 ? (
