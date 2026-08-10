@@ -1,11 +1,14 @@
-// LAPRA 08 - API: Public Opinion Links
+// LAPRA 08 - API: Public Opinion Links (AI ENGINE: Lexicon + LLM)
 // GET - List all analyzed public opinion links (with RBAC + filters)
-// POST - Add link manually OR auto-scrape from YouTube + Google News (saves to DB)
+// POST - Add link manually OR auto-scrape + AI analysis (lexicon + LLM hybrid)
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getUserFromRequest } from '@/lib/server-helpers'
 import { scrapeAuto } from '@/lib/auto-scraper'
-import { analyzeSentiment, calculatePriority, detectLocation } from '@/lib/social-scraper'
+import {
+  analyzeSentiment, calculatePriority, detectLocationFromDB,
+  aiGenerateOpinionSummaryLLM
+} from '@/lib/ai-engine'
 
 // GET - List opinion links
 export async function GET(request: NextRequest) {
@@ -48,7 +51,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({ success: true, data: links })
 }
 
-// POST - Auto-scrape & save links
+// POST - Auto-scrape & AI-analyze links
 export async function POST(request: NextRequest) {
   const user = await getUserFromRequest(request)
   if (!user) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
@@ -63,25 +66,65 @@ export async function POST(request: NextRequest) {
       let duplicateCount = 0
       let newHigh = 0
       let newMedium = 0
+      let aiProcessed = 0
+      let aiFailed = 0
 
       for (const post of posts) {
-        const text = `${post.title} ${post.content}`
-        const sentimentResult = analyzeSentiment(text)
-        const priorityResult = calculatePriority(text, post.engagementCount, sentimentResult.sentiment)
-        const loc = detectLocation(text)
-
+        // Skip if URL already exists
         const existing = await db.publicOpinionLink.findUnique({ where: { url: post.url } })
         if (existing) {
           duplicateCount++
           continue
         }
 
+        const text = `${post.title} ${post.content}`
+        
+        // Step 1: Lexicon-based sentiment + priority (instant)
+        const sentimentResult = analyzeSentiment(text)
+        const priorityResult = calculatePriority(text, post.engagementCount, sentimentResult.sentiment)
+        
+        // Step 2: Location detection from DB (comprehensive 515 DPC)
+        const loc = await detectLocationFromDB(text)
+        
+        // Step 3: Try LLM for AI summary (more contextual, may fail gracefully)
+        // Sequential to avoid 429 rate limit. Wait 1s between calls.
+        let aiSummary = `Sentimen: ${sentimentResult.sentiment}. Kategori: ${priorityResult.category}. Urgency: ${priorityResult.urgencyScore}/100. Lokasi: ${loc.regencyName || loc.provinceName || 'Nasional'}.`
+        let finalSentiment = sentimentResult.sentiment
+        let finalPriority = priorityResult.priority
+        let finalCategory = priorityResult.category
+        let finalKeywords: string[] = []
+        
+        try {
+          const llmResult = await aiGenerateOpinionSummaryLLM(post.title, post.content || '')
+          aiSummary = llmResult.summary
+          // LLM result overrides lexicon if LLM is confident
+          if (llmResult.sentiment && llmResult.sentiment !== 'NEUTRAL') {
+            finalSentiment = llmResult.sentiment
+          }
+          if (llmResult.priority) {
+            const order = { HIGH: 3, MEDIUM: 2, LOW: 1 }
+            if (order[llmResult.priority as keyof typeof order] > order[finalPriority as keyof typeof order]) {
+              finalPriority = llmResult.priority
+            }
+          }
+          if (llmResult.category && llmResult.category !== 'LAINNYA') {
+            finalCategory = llmResult.category
+          }
+          finalKeywords = llmResult.keywords
+          aiProcessed++
+        } catch (e: any) {
+          console.error('[LLM] Opinion summary failed, using lexicon:', e.message)
+          aiFailed++
+        }
+        // Wait 1s before next LLM call to avoid rate limit
+        await new Promise(r => setTimeout(r, 1000))
+
         await db.publicOpinionLink.create({
           data: {
             url: post.url,
             platform: post.platform,
             title: post.title.substring(0, 500),
-            content: post.content.substring(0, 1000),
+            content: (post.content || '').substring(0, 1000),
             author: post.author,
             authorHandle: post.authorHandle,
             publishedAt: post.publishedAt,
@@ -90,25 +133,25 @@ export async function POST(request: NextRequest) {
             provinceName: loc.provinceName,
             regencyCode: loc.regencyCode,
             regencyName: loc.regencyName,
-            sentiment: sentimentResult.sentiment,
-            priority: priorityResult.priority,
+            sentiment: finalSentiment,
+            priority: finalPriority,
             urgencyScore: priorityResult.urgencyScore,
-            category: priorityResult.category,
-            keywords: JSON.stringify({ source: post.source }),
-            aiSummary: `Sentimen: ${sentimentResult.sentiment}. Kategori: ${priorityResult.category}. Urgency: ${priorityResult.urgencyScore}/100. Lokasi: ${loc.regencyName || loc.provinceName || 'Nasional'}.`,
+            category: finalCategory,
+            keywords: JSON.stringify({ lexicon: sentimentResult.matchedNegative.concat(sentimentResult.matchedPositive).slice(0, 8), llm: finalKeywords }),
+            aiSummary,
             status: 'NEW',
             sourceMethod: 'AUTO',
           },
         })
         savedCount++
-        if (priorityResult.priority === 'HIGH') newHigh++
-        else if (priorityResult.priority === 'MEDIUM') newMedium++
+        if (finalPriority === 'HIGH') newHigh++
+        else if (finalPriority === 'MEDIUM') newMedium++
       }
 
       return NextResponse.json({
         success: true,
-        message: `Scan otomatis selesai. ${savedCount} link baru disimpan, ${duplicateCount} duplikat dilewati. ${newHigh} HIGH priority, ${newMedium} MEDIUM priority. Sumber: ${sources.join(', ')}.`,
-        data: { saved: savedCount, duplicates: duplicateCount, newHigh, newMedium, sources },
+        message: `Scan otomatis + AI analisis selesai. ${savedCount} link baru, ${duplicateCount} duplikat. ${newHigh} HIGH, ${newMedium} MEDIUM. AI berhasil: ${aiProcessed}, AI gagal (fallback lexicon): ${aiFailed}. Sumber: ${sources.join(', ')}.`,
+        data: { saved: savedCount, duplicates: duplicateCount, newHigh, newMedium, aiProcessed, aiFailed, sources },
       })
     }
 
@@ -121,7 +164,14 @@ export async function POST(request: NextRequest) {
     const text = `${title} ${content || ''}`
     const sentimentResult = analyzeSentiment(text)
     const priorityResult = calculatePriority(text, 0, sentimentResult.sentiment)
-    const loc = detectLocation(text)
+    const loc = await detectLocationFromDB(text)
+
+    // Try LLM for better summary
+    let aiSummary = `Sentimen: ${sentimentResult.sentiment}. Kategori: ${priorityResult.category}. Urgency: ${priorityResult.urgencyScore}/100. Lokasi: ${loc.regencyName || loc.provinceName || 'Nasional'}.`
+    try {
+      const llmResult = await aiGenerateOpinionSummaryLLM(title, content || '')
+      aiSummary = llmResult.summary
+    } catch (e: any) { /* fallback to lexicon */ }
 
     const link = await db.publicOpinionLink.create({
       data: {
@@ -135,12 +185,13 @@ export async function POST(request: NextRequest) {
         priority: priorityResult.priority,
         urgencyScore: priorityResult.urgencyScore,
         category: priorityResult.category,
+        aiSummary,
         status: 'NEW',
         sourceMethod: 'MANUAL',
       },
     })
 
-    return NextResponse.json({ success: true, data: link, message: 'Link ditambahkan' })
+    return NextResponse.json({ success: true, data: link, message: 'Link ditambahkan & dianalisis AI' })
   } catch (e: any) {
     console.error('[Opinion Links POST] Error:', e)
     return NextResponse.json({ success: false, error: e.message }, { status: 500 })

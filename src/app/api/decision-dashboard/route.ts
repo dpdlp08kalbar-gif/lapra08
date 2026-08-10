@@ -85,29 +85,42 @@ export async function GET(request: NextRequest) {
     .slice(0, 3)
     .map(([platform, stats]) => ({ platform, ...stats }))
 
-  // 4. Action items untuk DPN/DPD/DPC
-  const actionItems: { wilayah: string, aksi: string, prioritas: string, deadline: string }[] = []
+  // 4. Action items untuk DPN/DPD/DPC — TIDAK MENYESATKAN
+  // Logic baru: cek kombinasi total mention + sentiment negatif + priority
+  const actionItems: { wilayah: string, aksi: string, prioritas: string, deadline: string, alasan: string }[] = []
   for (const w of topWilayahUrgent) {
     if (w.high > 0) {
       actionItems.push({
         wilayah: w.name,
-        aksi: `Segera lakukan klarifikasi publik + kunjungan lapangan`,
+        aksi: `Segera lakukan klarifikasi publik + kunjungan lapangan ke lokasi isu`,
         prioritas: 'TINGGI',
         deadline: '1x24 jam',
+        alasan: `${w.high} mention HIGH priority + ${w.negative} sentimen negatif di wilayah ini`,
       })
     } else if (w.negative > 0) {
       actionItems.push({
         wilayah: w.name,
-        aksi: `Siapkan statement + koordinasi dengan dinas terkait`,
+        aksi: `Siapkan statement resmi + koordinasi dengan dinas terkait + respons cepat`,
         prioritas: 'SEDANG',
         deadline: '3x24 jam',
+        alasan: `${w.negative} sentimen negatif terdeteksi di wilayah ini`,
+      })
+    } else if (w.total >= 5) {
+      // Total mention banyak tapi tidak ada negatif — masih perlu monitor intensif
+      actionItems.push({
+        wilayah: w.name,
+        aksi: `Monitor intensif + siapkan konten positif untuk counter narrative jika muncul isu`,
+        prioritas: 'SEDANG',
+        deadline: 'Mingguan',
+        alasan: `${w.total} mention terdeteksi di wilayah ini — aktivitas publik tinggi`,
       })
     } else if (w.total > 0) {
       actionItems.push({
         wilayah: w.name,
-        aksi: `Monitor perkembangan opini + dokumentasikan`,
+        aksi: `Monitor perkembangan opini + dokumentasikan untuk laporan bulanan`,
         prioritas: 'RENDAH',
         deadline: 'Mingguan',
+        alasan: `${w.total} mention di wilayah ini, sentimen dominan netral`,
       })
     }
   }

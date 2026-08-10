@@ -1222,14 +1222,17 @@ function DecisionDashboardTab() {
             <div className="space-y-2">
               {data.actionItems.map((a: any, i: number) => (
                 <div key={i} className="rounded border p-3">
-                  <div className="flex items-center gap-2 mb-1">
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
                     <Badge className={`text-[10px] ${a.prioritas === 'TINGGI' ? 'bg-red-100 text-red-800' : a.prioritas === 'SEDANG' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>
                       {a.prioritas}
                     </Badge>
                     <Badge variant="outline" className="text-[10px]"><MapPin className="w-2.5 h-2.5 mr-0.5" />{a.wilayah}</Badge>
                     <Badge variant="outline" className="text-[10px]"><Calendar className="w-2.5 h-2.5 mr-0.5" />{a.deadline}</Badge>
                   </div>
-                  <p className="text-sm">{a.aksi}</p>
+                  <p className="text-sm font-medium">{a.aksi}</p>
+                  {a.alasan && (
+                    <p className="text-[11px] text-muted-foreground mt-1 italic">Alasan: {a.alasan}</p>
+                  )}
                 </div>
               ))}
             </div>

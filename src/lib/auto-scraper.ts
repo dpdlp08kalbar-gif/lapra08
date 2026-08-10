@@ -167,8 +167,8 @@ export async function scrapeAuto(): Promise<{
   const skipped: string[] = []
   const allPosts: ScrapedPost[] = []
 
-  // YouTube via yt-dlp (free, no API key)
-  const yt = await scrapeYouTube(15)
+  // YouTube via yt-dlp (free, no API key) — REDUCED to 5 untuk avoid LLM rate limit
+  const yt = await scrapeYouTube(5)
   if (yt.length > 0) {
     sources.push(`YouTube (yt-dlp, ${yt.length} videos)`)
     allPosts.push(...yt)
@@ -176,8 +176,8 @@ export async function scrapeAuto(): Promise<{
     skipped.push('YouTube (yt-dlp blocked or no results)')
   }
 
-  // Google News RSS (free, no API key)
-  const news = await scrapeGoogleNews(20)
+  // Google News RSS (free, no API key) — REDUCED to 5
+  const news = await scrapeGoogleNews(5)
   if (news.length > 0) {
     sources.push(`Google News RSS (${news.length} articles)`)
     allPosts.push(...news)
