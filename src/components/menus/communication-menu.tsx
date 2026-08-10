@@ -48,6 +48,7 @@ export function CommunicationMenu() {
     { key: 'essay-polls', label: 'Essay Polling & AI Auto-Pertanyaan', icon: Brain, desc: 'AI generate pertanyaan essay otomatis + analisis jawaban' },
     { key: 'opinion-links', label: 'Link Analisis Publik', icon: ExternalLink, desc: 'Dashboard semua link medsos yang sudah dianalisis' },
     { key: 'decision', label: 'Decision Dashboard', icon: Target, desc: 'Sintesis AI untuk pengambil keputusan politik' },
+    { key: 'agents', label: 'AI Agent Monitor', icon: Activity, desc: 'Multi-Agent System status + background jobs + sync events' },
   ]
 
   return (
@@ -75,6 +76,7 @@ export function CommunicationMenu() {
       {tab === 'essay-polls' && <EssayPollsTab />}
       {tab === 'opinion-links' && <OpinionLinksTab />}
       {tab === 'decision' && <DecisionDashboardTab />}
+      {tab === 'agents' && <AgentsMonitorTab />}
     </div>
   )
 }
@@ -1949,6 +1951,258 @@ function DecisionDashboardTab() {
           </CardContent>
         </Card>
       )}
+    </div>
+  )
+}
+
+// ============================================================
+// TAB 7: AI AGENT MONITOR — Multi-Agent System status & control
+// ============================================================
+function AgentsMonitorTab() {
+  const addToast = useToastStore((s) => s.addToast)
+  const [loading, setLoading] = useState(true)
+  const [data, setData] = useState<any>(null)
+  const [triggering, setTriggering] = useState<string | null>(null)
+
+  const loadData = useCallback(() => {
+    setLoading(true)
+    api('/api/agents/status').then(res => {
+      setData(res?.data || res)
+    }).catch(() => setData(null)).finally(() => setLoading(false))
+  }, [])
+
+  useEffect(() => {
+    loadData()
+    const interval = setInterval(loadData, 10000)
+    return () => clearInterval(interval)
+  }, [loadData])
+
+  const handleTrigger = async (agent: string) => {
+    setTriggering(agent)
+    try {
+      const res = await fetch('/api/agents/status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+        body: JSON.stringify({ agent }),
+      })
+      const r = await res.json()
+      if (!r.success) throw new Error(r.error)
+      addToast(`${agent} agent executed successfully`, 'success')
+      loadData()
+    } catch (e: any) {
+      addToast(e.message, 'error')
+    } finally {
+      setTriggering(null)
+    }
+  }
+
+  const handleToggleJob = async (jobId: string) => {
+    try {
+      const res = await fetch('/api/agents/jobs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+        body: JSON.stringify({ action: 'toggle', jobId }),
+      })
+      const r = await res.json()
+      if (!r.success) throw new Error(r.error)
+      addToast(r.message, 'success')
+      loadData()
+    } catch (e: any) {
+      addToast(e.message, 'error')
+    }
+  }
+
+  const handleRunJobNow = async (jobId: string) => {
+    try {
+      const res = await fetch('/api/agents/jobs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+        body: JSON.stringify({ action: 'run_now', jobId }),
+      })
+      const r = await res.json()
+      if (!r.success) throw new Error(r.error)
+      addToast('Job triggered to run now (background)', 'success')
+      setTimeout(loadData, 2000)
+    } catch (e: any) {
+      addToast(e.message, 'error')
+    }
+  }
+
+  if (loading) return <LoadingState />
+  if (!data) return <ErrorState title="Gagal memuat agent status" onRetry={loadData} />
+
+  return (
+    <div className="space-y-4">
+      <Card className="border-emerald-200 bg-gradient-to-br from-emerald-50 via-cyan-50 to-blue-50">
+        <CardContent className="p-5">
+          <div className="flex items-start gap-4">
+            <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-emerald-600 via-cyan-600 to-blue-600 flex items-center justify-center shadow-lg shrink-0">
+              <Activity className="w-7 h-7 text-white" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-bold text-lg mb-1">AI Agent Monitor — Multi-Agent System</h3>
+              <p className="text-sm text-muted-foreground mb-3">
+                Sistem otonom 4 AI Agents (Scraper, TrustIndex, EssayResponse, Orchestrator) yang bekerja paralel
+                dengan sinkronisasi real-time antar menu. Background jobs berjalan periodik tanpa block UI.
+              </p>
+              <div className="grid grid-cols-3 gap-2 text-xs">
+                <div className="rounded bg-white/70 p-2">
+                  <div className="font-bold text-lg">{data.syncEvents?.pending || 0}</div>
+                  <div className="text-[10px] text-muted-foreground">Pending Sync Events</div>
+                </div>
+                <div className="rounded bg-white/70 p-2">
+                  <div className="font-bold text-lg text-emerald-700">{data.syncEvents?.completedToday || 0}</div>
+                  <div className="text-[10px] text-muted-foreground">Syncs Completed Today</div>
+                </div>
+                <div className="rounded bg-white/70 p-2">
+                  <div className="font-bold text-lg text-blue-700">{data.jobs?.filter((j: any) => j.isActive).length || 0}</div>
+                  <div className="text-[10px] text-muted-foreground">Active Background Jobs</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Zap className="w-5 h-5 text-orange-600" /> Manual Trigger Agent Pipeline
+          </CardTitle>
+          <CardDescription>Klik untuk eksekusi agent manual (background, non-blocking)</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={() => handleTrigger('scraper')} disabled={triggering !== null} className="bg-gradient-to-r from-orange-600 to-red-600 text-white">
+              {triggering === 'scraper' ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Sparkles className="w-4 h-4 mr-1" />}
+              Scraper Agent (Scrape + Trust Index)
+            </Button>
+            <Button onClick={() => handleTrigger('trust')} disabled={triggering !== null} variant="outline">
+              {triggering === 'trust' ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-1" />}
+              Trust Index Agent (Recompute)
+            </Button>
+            <Button onClick={() => handleTrigger('orchestrator')} disabled={triggering !== null} variant="outline">
+              {triggering === 'orchestrator' ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Brain className="w-4 h-4 mr-1" />}
+              Full Orchestrator Pipeline
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Agent Statistics (auto-refresh 10s)</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {data.agents?.length === 0 ? (
+            <EmptyState icon={Activity} title="Belum ada agent dijalankan" description="Klik tombol trigger di atas untuk mulai." />
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Agent</TableHead>
+                  <TableHead className="text-center">Total</TableHead>
+                  <TableHead className="text-center">Success</TableHead>
+                  <TableHead className="text-center">Failed</TableHead>
+                  <TableHead className="text-center">Rate</TableHead>
+                  <TableHead className="text-center">Avg</TableHead>
+                  <TableHead className="text-center">Tokens</TableHead>
+                  <TableHead className="text-center">Records</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.agents?.map((agent: any, i: number) => (
+                  <TableRow key={i}>
+                    <TableCell className="font-semibold text-sm">{agent.name}</TableCell>
+                    <TableCell className="text-center">{agent.total}</TableCell>
+                    <TableCell className="text-center text-emerald-600 font-bold">{agent.success}</TableCell>
+                    <TableCell className="text-center text-red-600">{agent.failed}</TableCell>
+                    <TableCell className="text-center">
+                      <Badge className={agent.successRate >= 80 ? 'bg-emerald-100 text-emerald-800' : agent.successRate >= 50 ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800'}>
+                        {agent.successRate}%
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-center text-xs">{agent.avgDurationMs}ms</TableCell>
+                    <TableCell className="text-center text-xs">{agent.totalTokens.toLocaleString()}</TableCell>
+                    <TableCell className="text-center text-xs">{agent.totalRecords}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2"><Calendar className="w-5 h-5 text-blue-600" /> Background Jobs (Auto-Ingestion)</CardTitle>
+          <CardDescription>Jobs berjalan periodik di background — non-blocking UI</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            {data.jobs?.map((job: any) => (
+              <div key={job.id} className="rounded border p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="text-[10px]">{job.jobType}</Badge>
+                      <Badge className={`text-[10px] ${job.isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>
+                        {job.isActive ? 'ACTIVE' : 'PAUSED'}
+                      </Badge>
+                      <span className="font-semibold text-sm">{job.jobName}</span>
+                    </div>
+                    <div className="text-[11px] text-muted-foreground mt-1">
+                      Every {job.intervalMinutes}min • Last: {job.lastRunAt ? formatDateTimeID(job.lastRunAt) : 'never'} • Next: {formatDateTimeID(job.nextRunAt)} •
+                      Runs: {job.totalRuns} (✓{job.successCount}/✗{job.failureCount})
+                      {job.lastDurationMs ? ` • ${job.lastDurationMs}ms` : ''}
+                    </div>
+                    {job.lastError && (
+                      <div className="text-[10px] text-red-600 mt-1">⚠️ {job.lastError.substring(0, 100)}</div>
+                    )}
+                  </div>
+                  <div className="flex gap-1">
+                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleRunJobNow(job.id)}>
+                      <Zap className="w-3 h-3 mr-1" /> Run Now
+                    </Button>
+                    <Button size="sm" variant={job.isActive ? 'outline' : 'default'} className="h-7 text-xs" onClick={() => handleToggleJob(job.id)}>
+                      {job.isActive ? 'Pause' : 'Activate'}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Recent Agent Logs (last 50 actions)</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {data.recentLogs?.length === 0 ? (
+            <EmptyState icon={Activity} title="Belum ada agent logs" description="Trigger agent di atas untuk mulai." />
+          ) : (
+            <div className="space-y-1 max-h-96 overflow-y-auto">
+              {data.recentLogs?.slice(0, 30).map((log: any) => (
+                <div key={log.id} className="rounded border p-2 text-xs">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Badge className={`text-[9px] ${log.status === 'SUCCESS' ? 'bg-emerald-100 text-emerald-800' : log.status === 'FAILED' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'}`}>
+                      {log.status}
+                    </Badge>
+                    <span className="font-semibold">{log.agentName}.{log.action}</span>
+                    {log.durationMs && <span className="text-muted-foreground">{log.durationMs}ms</span>}
+                    {log.recordsAffected > 0 && <Badge variant="outline" className="text-[9px]">{log.recordsAffected} records</Badge>}
+                    {log.llmTokensUsed > 0 && <Badge variant="outline" className="text-[9px]">{log.llmTokensUsed} tokens</Badge>}
+                  </div>
+                  {log.error && <div className="text-red-600 text-[10px]">{log.error.substring(0, 150)}</div>}
+                  <div className="text-[9px] text-muted-foreground">{formatDateTimeID(log.startedAt)}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }

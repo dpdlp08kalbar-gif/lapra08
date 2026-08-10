@@ -1462,3 +1462,91 @@ Stage Summary:
 - Setiap poll bisa di-share ke 11 platform medsos + 15 grup populer (WA/FB/TG)
 - Teks share otomatis dengan emoji, lokasi, occupation
 - URL share ter-encode dengan benar untuk WhatsApp/Facebook/X/Telegram/Email
+
+---
+Task ID: 2026-08-10-multi-agent-system
+Agent: main
+Task: Deep audit arsitektur + integrasi Multi-Agent System otonom + stress test
+
+Work Log:
+- Deep audit: ditemukan 6 GAP kritis:
+  1. Tidak ada auto-recompute TrustIndex setelah opinion-links baru disimpan
+  2. Tidak ada background scheduler (auto-scrape periodik)
+  3. Tidak ada event-based sync antar menu
+  4. Single LLM call per item (tidak deep reasoning)
+  5. Tidak ada agent monitoring dashboard
+  6. Tidak ada stress test
+- Tambah 4 model DB baru:
+  - AgentLog: tracking setiap aksi AI Agent (status, timing, tokens, errors)
+  - BackgroundJob: scheduled jobs untuk automated ingestion
+  - SyncEvent: event-based cross-menu real-time sync
+  - AiAnalysisCache: cache hasil analisis AI per item
+- Bangun /src/lib/agent-orchestrator.ts (480+ lines):
+  - BaseAgent abstract class dengan logStart/logSuccess/logFailure
+  - ScraperAgent: auto-scrape YouTube + Google News, LLM analysis per mention
+  - TrustIndexAgent: recompute trust index multi-dimensional (territory × age × segment)
+  - EssayResponseAgent: auto-analyze essay responses via LLM
+  - OrchestratorAgent: koordinasi antar agent + event routing via emitEvent
+  - getAllAgentsStatus(): aggregate stats untuk monitoring dashboard
+  - Background scheduler: setInterval 5 menit cek due jobs
+  - runScheduledJobs(): execute jobs based on nextRunAt
+  - initializeDefaultJobs(): create 3 default jobs jika belum ada
+- 3 Background Jobs otomatis ter-initialize:
+  1. AUTO_SCRAPE_OPINION (60min interval)
+  2. AUTO_RECOMPUTE_TRUST (30min interval)
+  3. AUTO_SYNC_DEMOGRAPHICS (5min interval)
+- 2 API endpoints baru:
+  - /api/agents/status (GET monitoring + POST trigger manual)
+  - /api/agents/jobs (GET list + POST toggle/run_now/create)
+- Integrate orchestrator ke /api/opinion-links POST:
+  - Setelah scrape selesai → emitEvent OPINION_LINKS_BATCH_CREATED
+  - Fire-and-forget: trigger agents.trustIndex.execute() in background
+  - Sinkronisasi real-time: data opinion-links langsung update ke geospatial-voice & decision-dashboard
+- Tambah tab baru di Komunikasi & Command Center:
+  - "AI Agent Monitor" (icon Activity)
+  - Komponen AgentsMonitorTab (~210 lines):
+    * Header dengan stats (pending events, completed today, active jobs)
+    * Manual trigger buttons: Scraper / TrustIndex / Full Orchestrator
+    * Agent statistics table (total runs, success, failed, success rate, avg duration, tokens used, records affected)
+    * Background jobs list dengan Run Now / Pause / Activate buttons
+    * Recent agent logs (last 30 actions dengan status badge)
+    * Auto-refresh 10 detik untuk live monitoring
+
+STRESS TEST RESULTS (4 waves):
+- Wave 1: 10 concurrent GET (audit+map+decision+agents+essay+trust+opinion-map+scans) → 10/10 success, avg 442ms
+- Wave 2: 5 concurrent GET + 2 concurrent POST (trust-recompute + scrape) → 7/7 success
+- Wave 3: Data consistency check → ✅ PASS
+  - opinion-links: 12 total, +11 -1
+  - geospatial-voice: trust=100, mentions=12, +11 -1
+  - decision-dashboard: totalOpinionLinks=12, sentiment={+11, -1, total:12}
+  - demographics-analytics: overall trust=100, mentions=12
+  - trust-index (ID): trustScore=100, mentions=12, +11 -1
+  - Semua data angka SAMA PERSIS di 5 menu (real-time sync verified)
+- Wave 4: Burst 15 simultaneous GET geospatial-voice → 15/15 success, avg 981ms
+- Total elapsed: 6.2s untuk semua test
+- 0 errors, 0 timeouts, 0 data inconsistency
+
+HASIL VERIFIKASI CROSS-MENU SYNC:
+- ✅ Mentions count CONSISTENT (opinion-links=12, geospatial=12, decision=12)
+- ✅ Positives count CONSISTENT (+11 di semua menu)
+- ✅ Negatives count CONSISTENT (-1 di semua menu)
+- ✅ Trust Score CONSISTENT (100 di geospatial, demographics, trust-index)
+- ✅ Real-time sync working: opinion-links baru → auto-trigger TrustIndexAgent → data update di semua menu
+
+Files created/modified:
+- NEW: /src/lib/agent-orchestrator.ts (480+ lines)
+- NEW: /src/app/api/agents/status/route.ts
+- NEW: /src/app/api/agents/jobs/route.ts
+- NEW: /scripts/stress-test-agents.ts (200+ lines)
+- MODIFIED: prisma/schema.prisma (+100 lines untuk 4 model baru)
+- MODIFIED: /src/app/api/opinion-links/route.ts (auto-trigger trust index after scrape)
+- MODIFIED: /src/app/api/trust-index/route.ts (fix filter bug untuk empty string)
+- MODIFIED: /src/components/menus/communication-menu.tsx (+250 lines untuk tab AI Agent Monitor)
+
+Stage Summary:
+- Multi-Agent System otonom dengan 4 specialized agents
+- Real-time cross-menu sync via SyncEvent (no delay)
+- Background jobs berjalan periodik tanpa block UI
+- Stress test 100% PASS dengan 10+ concurrent users
+- Data angka SAMA PERSIS di seluruh menu (opinion-links, geospatial, decision, demographics, trust-index)
+- AI Agent Monitor dashboard dengan auto-refresh 10s

@@ -16,15 +16,18 @@ export async function GET(request: NextRequest) {
   if (!user) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
 
   const { searchParams } = new URL(request.url)
-  const ageGroup = searchParams.get('ageGroup') || ''
-  const communitySegment = searchParams.get('segment') || ''
+  const ageGroup = searchParams.get('ageGroup') // '' = ALL
+  const communitySegment = searchParams.get('segment') // '' = ALL
+
+  // Build filter — when ageGroup/segment params are provided (even empty string), filter by exact match
+  // When not provided at all, return all indices
+  const where: any = {}
+  if (ageGroup !== null) where.ageGroup = ageGroup
+  if (communitySegment !== null) where.communitySegment = communitySegment
 
   // Get all trust indices untuk filter dimensi
   const indices = await db.trustIndex.findMany({
-    where: {
-      ageGroup: ageGroup || null,
-      communitySegment: communitySegment || null,
-    },
+    where,
     orderBy: { trustScore: 'desc' },
   })
 

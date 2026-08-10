@@ -1255,3 +1255,108 @@ model TerritoryHierarchyCache {
 }
 
 
+
+// ============================================================
+// MULTI-AGENT SYSTEM - AI Agent Ecosystem untuk sinkronisasi otonom
+// ============================================================
+
+// 1. AGENT_LOG - log setiap aksi AI Agent
+model AgentLog {
+  id              String   @id @default(cuid())
+  agentName       String   // ScraperAgent | SentimentAgent | LocationAgent | DemographicAgent | TrustIndexAgent | DecisionAgent | OrchestratorAgent
+  agentType       String   // SCRAPER | ANALYZER | SYNC | ORCHESTRATOR | SCHEDULER
+  action          String   // cth: scrape_opinion, analyze_sentiment, recompute_trust_index, sync_demographics
+  // Status & timing
+  status          String   @default("RUNNING") // RUNNING | SUCCESS | FAILED | TIMEOUT
+  startedAt       DateTime @default(now())
+  finishedAt      DateTime?
+  durationMs      Int?
+  // Result & metadata
+  input           String?  // JSON: input parameters
+  output          String?  // JSON: result summary
+  error           String?
+  // Token usage (untuk cost monitoring)
+  llmTokensUsed   Int      @default(0)
+  llmCalls        Int      @default(0)
+  // Relations
+  recordsAffected Int      @default(0)
+  parentJobId     String?  // BackgroundJob ID jika dipicu oleh job
+
+  @@index([agentName, status, startedAt])
+  @@index([parentJobId])
+  @@index([status, startedAt])
+}
+
+// 2. BACKGROUND_JOB - scheduled jobs untuk automated ingestion
+model BackgroundJob {
+  id              String   @id @default(cuid())
+  jobType         String   // AUTO_SCRAPE_OPINION | AUTO_RECOMPUTE_TRUST | AUTO_SYNC_DEMOGRAPHICS | DEEP_ANALYSIS
+  jobName         String   // human-readable
+  // Schedule
+  intervalMinutes Int      @default(60) // run every X minutes
+  nextRunAt       DateTime @default(now())
+  lastRunAt      DateTime?
+  lastStatus      String?  // SUCCESS | FAILED | RUNNING
+  lastDurationMs  Int?
+  lastError       String?
+  // Active control
+  isActive        Boolean  @default(true)
+  // Stats
+  totalRuns       Int      @default(0)
+  successCount    Int      @default(0)
+  failureCount    Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([isActive, nextRunAt])
+  @@index([jobType])
+}
+
+// 3. SYNC_EVENT - event untuk cross-menu real-time sync
+model SyncEvent {
+  id              String   @id @default(cuid())
+  eventType       String   // OPINION_LINK_CREATED | OPINION_LINK_UPDATED | TRUST_INDEX_RECOMPUTED | ESSAY_RESPONSE_SUBMITTED | DEMOGRAPHICS_UPDATED
+  sourceAgent     String   // agent yang trigger event
+  sourceMenu      String   // cth: opinion-scanner, audit-ai, essay-polls
+  targetMenu      String   // cth: geospatial-voice, decision-dashboard
+  // Payload
+  payload         String   // JSON: data yang sync
+  territoryCode   String?  // wilayah yang affected (jika spesifik)
+  // Processing status
+  status          String   @default("PENDING") // PENDING | PROCESSING | COMPLETED | FAILED
+  processedAt     DateTime?
+  processedBy     String?  // agent yang process
+  error           String?
+  createdAt       DateTime @default(now())
+
+  @@index([eventType, status, createdAt])
+  @@index([targetMenu, status])
+  @@index([territoryCode])
+}
+
+// 4. AI_ANALYSIS_CACHE - cache hasil analisis AI per item (untuk efisiensi)
+model AiAnalysisCache {
+  id              String   @id @default(cuid())
+  cacheKey        String   @unique // cth: "opinion:<opinionLinkId>" or "essay:<responseId>"
+  itemType        String   // OPINION_LINK | ESSAY_RESPONSE | SCAN_RESULT
+  itemId          String
+  // Cached analysis
+  sentiment       String?
+  priority        String?
+  urgencyScore    Float?
+  category        String?
+  keywords        String?  // JSON
+  summary         String?
+  // Reasoning trace (untuk deep reasoning transparency)
+  reasoningSteps  String?  // JSON: array of reasoning steps
+  aiProvider      String?  // llm | lexicon | hybrid
+  llmTokensUsed   Int      @default(0)
+  // Validity
+  isValid         Boolean  @default(true)
+  expiresAt       DateTime?
+  createdAt       DateTime @default(now())
+
+  @@unique([itemType, itemId])
+  @@index([cacheKey])
+  @@index([itemType, sentiment])
+}

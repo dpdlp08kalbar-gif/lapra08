@@ -1,6 +1,8 @@
 // LAPRA 08 - API: Public Opinion Links (AI ENGINE: Lexicon + LLM)
 // GET - List all analyzed public opinion links (with RBAC + filters)
 // POST - Add link manually OR auto-scrape + AI analysis (lexicon + LLM hybrid)
+//
+// INTEGRATED: Multi-Agent System — auto-trigger TrustIndexAgent after new opinion links
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getUserFromRequest } from '@/lib/server-helpers'
@@ -9,6 +11,7 @@ import {
   analyzeSentiment, calculatePriority, detectLocationFromDB,
   aiGenerateOpinionSummaryLLM
 } from '@/lib/ai-engine'
+import { OrchestratorAgent } from '@/lib/agent-orchestrator'
 
 // GET - List opinion links
 export async function GET(request: NextRequest) {
@@ -146,6 +149,27 @@ export async function POST(request: NextRequest) {
         savedCount++
         if (finalPriority === 'HIGH') newHigh++
         else if (finalPriority === 'MEDIUM') newMedium++
+      }
+
+      // === AUTO-TRIGGER TrustIndexAgent (background, non-blocking) ===
+      // Sinkronisasi real-time: data baru di opinion-links langsung update ke geospatial voice & decision dashboard
+      if (savedCount > 0) {
+        OrchestratorAgent.emitEvent({
+          eventType: 'OPINION_LINKS_BATCH_CREATED',
+          sourceAgent: 'OpinionLinksAPI',
+          sourceMenu: 'opinion-links',
+          targetMenu: 'geospatial-voice,decision-dashboard',
+          payload: { savedCount, newHigh, newMedium },
+          territoryCode: null,
+        }).catch(e => console.error('[OpinionLinks] Sync event emit failed:', e.message))
+        // Fire-and-forget: trigger trust index recompute in background
+        import('@/lib/agent-orchestrator').then(async ({ agents }) => {
+          try {
+            await agents.trustIndex.execute({ triggerSource: 'opinion-links-auto' })
+          } catch (e: any) {
+            console.error('[OpinionLinks] Auto trust index recompute failed:', e.message)
+          }
+        })
       }
 
       return NextResponse.json({
