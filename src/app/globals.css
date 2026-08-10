@@ -173,3 +173,170 @@
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
 }
+
+/* ============================================================
+   READABILITY ENHANCEMENT - Naikkan ukuran teks minimal
+   Solusi: text-[8-11px] terlalu kecil, naikkan ke text-[13px]
+   ============================================================ */
+
+/* Naikkan root font-size (default browser 16px → 17px) */
+html {
+  font-size: 17px;
+}
+
+/* Override class Tailwind untuk text-xs (12px) jadi 13.5px */
+.text-xs {
+  font-size: 0.8rem !important; /* ~13.5px dari 17px root */
+  line-height: 1.4 !important;
+}
+
+/* Override text-[8px], text-[9px], text-[10px], text-[11px] jadi minimal 13px */
+.text-\[8px\],
+.text-\[9px\],
+.text-\[10px\],
+.text-\[11px\] {
+  font-size: 0.78rem !important; /* ~13.3px */
+  line-height: 1.4 !important;
+}
+
+/* Override text-[12px] (jarang dipakai tapi pastikan) */
+.text-\[12px\] {
+  font-size: 0.85rem !important;
+  line-height: 1.4 !important;
+}
+
+/* Naikkan text-muted-foreground opacity supaya lebih terbaca */
+.text-muted-foreground {
+  opacity: 0.95 !important;
+}
+
+/* Badge minimum font-size 12px */
+.badge,
+[class*="Badge"] {
+  font-size: 0.78rem !important;
+  min-height: 1.5rem !important;
+  padding: 0.125rem 0.5rem !important;
+}
+
+/* Table cells minimum readable */
+table td, table th {
+  font-size: 0.875rem !important;
+  padding: 0.5rem 0.75rem !important;
+}
+
+/* Button default font-size minimum */
+button {
+  font-size: 0.875rem !important;
+}
+
+/* Label minimum 13px */
+label {
+  font-size: 0.85rem !important;
+}
+
+/* Input minimum readable */
+input, textarea, select {
+  font-size: 0.95rem !important;
+}
+
+/* Dropdown menu items */
+[data-radix-collection-item],
+[role="option"],
+[role="menuitem"] {
+  font-size: 0.9rem !important;
+  padding: 0.5rem 0.75rem !important;
+  min-height: 2.25rem !important;
+}
+
+/* Sidebar nav items */
+nav button, nav a {
+  font-size: 0.9rem !important;
+}
+
+/* Stat card labels & values */
+.stat-card-label, .stat-card-value {
+  font-size: 0.875rem !important;
+}
+
+/* News ticker / running text */
+.animate-marquee {
+  font-size: 0.95rem !important;
+}
+
+/* ============================================================
+   READABILITY ENHANCEMENT V2 - Naikkan lebih lanjut
+   ============================================================ */
+
+/* Naikkan root font-size ke 18px (dari 17px) */
+html {
+  font-size: 18px;
+}
+
+/* Override text-sm (14px default) jadi 15px untuk readability paragraf */
+.text-sm {
+  font-size: 0.92rem !important; /* ~16.5px dari 18px root */
+  line-height: 1.55 !important;
+}
+
+/* Naikkan text-muted-foreground opacity lebih tinggi */
+.text-muted-foreground {
+  opacity: 1 !important;
+  color: hsl(215.4 16.3% 36.9%) !important; /* lebih gelap dari default */
+}
+
+/* Paragraf description di cards */
+p, .text-muted-foreground {
+  line-height: 1.6 !important;
+}
+
+/* Card description minimum */
+.card-description, [class*="CardDescription"] {
+  font-size: 0.92rem !important;
+  line-height: 1.5 !important;
+  color: hsl(215.4 16.3% 40%) !important;
+}
+
+/* News ticker text bigger */
+.animate-marquee {
+  font-size: 1rem !important;
+  font-weight: 500 !important;
+}
+
+/* Code/ID text minimum */
+code, .font-mono, [class*="font-mono"] {
+  font-size: 0.85rem !important;
+}
+
+/* Stat card values lebih besar */
+.text-2xl {
+  font-size: 1.75rem !important;
+}
+.text-3xl {
+  font-size: 2rem !important;
+}
+.text-4xl {
+  font-size: 2.25rem !important;
+}
+
+/* Tab buttons minimum readable */
+button[class*="rounded-lg"] {
+  font-size: 0.875rem !important;
+  min-height: 2.5rem !important;
+  padding: 0.5rem 0.875rem !important;
+}
+
+/* Dialog content minimum */
+[data-radix-dialog-content], [role="dialog"] {
+  font-size: 0.95rem !important;
+}
+
+/* Dialog title */
+[data-radix-dialog-title], [role="dialog"] h2 {
+  font-size: 1.15rem !important;
+}
+
+/* Dialog description */
+[data-radix-dialog-description] {
+  font-size: 0.95rem !important;
+  line-height: 1.5 !important;
+}

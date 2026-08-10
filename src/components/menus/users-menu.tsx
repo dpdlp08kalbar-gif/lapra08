@@ -389,7 +389,7 @@ function SecurityTab() {
                   <div className="min-w-0 flex-1">
                     <div className="font-semibold text-sm">{s.key.replace(/_/g, ' ')}</div>
                     <div className="text-xs text-muted-foreground mt-0.5">{s.description}</div>
-                    <Badge variant="outline" className={`text-[10px] mt-2 ${
+                    <Badge variant="outline" className={`text-[13px] mt-2 ${
                       s.isActive
                         ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                         : 'bg-gray-50 text-gray-500 border-gray-200'

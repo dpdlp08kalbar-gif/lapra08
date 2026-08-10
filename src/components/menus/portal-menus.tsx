@@ -187,7 +187,7 @@ export function BerandaMenu() {
                         {a.isPinned && <Pin className="w-3 h-3 text-orange-500 shrink-0" />}
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{a.content}</p>
-                      <div className="text-[10px] text-muted-foreground mt-1 flex items-center gap-2">
+                      <div className="text-[13px] text-muted-foreground mt-1 flex items-center gap-2">
                         <span>{formatDateTimeID(a.createdAt)}</span>
                         <span>•</span>
                         <span>{a.createdBy?.fullName || 'Admin'}</span>
@@ -252,7 +252,7 @@ function StatCardModern({ label, value, icon: Icon, gradient, subtitle }: any) {
         </div>
         <div className="text-2xl font-black text-slate-800 tracking-tight">{value}</div>
         <div className="text-sm text-slate-500 font-medium mt-0.5">{label}</div>
-        {subtitle && <div className="text-[10px] text-slate-400 mt-1">{subtitle}</div>}
+        {subtitle && <div className="text-[13px] text-slate-400 mt-1">{subtitle}</div>}
       </div>
     </div>
   )
@@ -281,7 +281,7 @@ function HierarchyItem({ level, desc, count, color }: any) {
     <div className="flex items-center justify-between">
       <div>
         <div className={`text-xs font-bold ${color}`}>{level}</div>
-        <div className="text-[10px] text-slate-400">{desc}</div>
+        <div className="text-[13px] text-slate-400">{desc}</div>
       </div>
       <div className="text-lg font-black text-white">{count}</div>
     </div>
@@ -441,21 +441,21 @@ function TentangLAPRASection() {
             <div className="flex items-start gap-3">
               <CalendarDays className="w-5 h-5 text-emerald-600 mt-0.5 shrink-0" />
               <div>
-                <div className="text-xs text-muted-foreground">Tanggal Pelantikan</div>
+                <div className="text-sm text-muted-foreground">Tanggal Pelantikan</div>
                 <div className="text-sm font-semibold">{content.pelantikanDate}</div>
               </div>
             </div>
             <div className="flex items-start gap-3">
               <MapPin className="w-5 h-5 text-emerald-600 mt-0.5 shrink-0" />
               <div>
-                <div className="text-xs text-muted-foreground">Tempat Pelantikan</div>
+                <div className="text-sm text-muted-foreground">Tempat Pelantikan</div>
                 <div className="text-sm font-semibold">{content.pelantikanTempat}</div>
               </div>
             </div>
             <div className="flex items-start gap-3">
               <Users className="w-5 h-5 text-emerald-600 mt-0.5 shrink-0" />
               <div>
-                <div className="text-xs text-muted-foreground">Dilantik oleh</div>
+                <div className="text-sm text-muted-foreground">Dilantik oleh</div>
                 <div className="text-sm font-semibold">{content.pelantik}</div>
               </div>
             </div>
@@ -889,7 +889,7 @@ function ProfileDocumentSection({ type }: { type: 'AD_ART' | 'LEGALITAS' }) {
           </div>
           <div>
             <h3 className="text-base font-bold">{meta.title}</h3>
-            <p className="text-xs text-muted-foreground">{docs.length} dokumen</p>
+            <p className="text-sm text-muted-foreground">{docs.length} dokumen</p>
           </div>
         </div>
         {isSuperAdmin && (
@@ -917,13 +917,13 @@ function ProfileDocumentSection({ type }: { type: 'AD_ART' | 'LEGALITAS' }) {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <h4 className="font-semibold text-sm truncate">{doc.title}</h4>
-                      <Badge variant="secondary" className="uppercase text-[10px]">{doc.fileType || 'file'}</Badge>
-                      <Badge variant="outline" className="text-[10px]">{formatSize(doc.fileSize)}</Badge>
+                      <Badge variant="secondary" className="uppercase text-[13px]">{doc.fileType || 'file'}</Badge>
+                      <Badge variant="outline" className="text-[13px]">{formatSize(doc.fileSize)}</Badge>
                     </div>
                     {doc.description && (
                       <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{doc.description}</p>
                     )}
-                    <div className="text-[10px] text-muted-foreground mt-2">
+                    <div className="text-[13px] text-muted-foreground mt-2">
                       Diunggah oleh {doc.uploadedBy || '-'} • {formatDateTimeID(doc.uploadedAt || doc.updatedAt)}
                     </div>
                   </div>
@@ -1291,14 +1291,14 @@ function GaleriVideoManager() {
                       <PlayCircle className="w-10 h-10 text-red-600" />
                     </div>
                   </div>
-                  <Badge variant="outline" className="absolute top-2 left-2 text-[10px] bg-black/70 text-white border-white/20">
+                  <Badge variant="outline" className="absolute top-2 left-2 text-[13px] bg-black/70 text-white border-white/20">
                     {item.videoType === 'YOUTUBE' ? 'YouTube' : 'MP4 Upload'}
                   </Badge>
                 </div>
                 <div className="p-2">
                   <div className="font-medium text-xs truncate">{item.title}</div>
                   <div className="flex items-center justify-between mt-1">
-                    <Badge variant="outline" className="text-[10px]">{categories[item.category] || item.category}</Badge>
+                    <Badge variant="outline" className="text-[13px]">{categories[item.category] || item.category}</Badge>
                     <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-red-600 hover:bg-red-50"
                       onClick={(e) => { e.stopPropagation(); setDeleteItem(item) }}>
                       <Trash2 className="w-3 h-3" />
@@ -1505,9 +1505,9 @@ function ArsipBeritaPentingManager() {
                     )}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <Badge variant="outline" className={`text-[10px] ${cc.color}`}>{cc.label}</Badge>
+                        <Badge variant="outline" className={`text-[13px] ${cc.color}`}>{cc.label}</Badge>
                         {b.source === 'WEB_SYNC' && (
-                          <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700 border-blue-200">
+                          <Badge variant="outline" className="text-[13px] bg-blue-50 text-blue-700 border-blue-200">
                             <Globe className="w-2.5 h-2.5 mr-0.5" /> {b.sourceName || 'Web'}
                           </Badge>
                         )}
@@ -1519,7 +1519,7 @@ function ArsipBeritaPentingManager() {
                           <strong>Catatan Arsip:</strong> {b.bookmarkNote}
                         </div>
                       )}
-                      <div className="flex items-center gap-2 mt-2 text-[10px] text-muted-foreground">
+                      <div className="flex items-center gap-2 mt-2 text-[13px] text-muted-foreground">
                         <span>Diarsipkan: {formatDateTimeID(b.bookmarkedAt)}</span>
                         {b.sourceUrl && (
                           <a href={b.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
@@ -1652,10 +1652,10 @@ function MediaSiaranManager() {
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <Badge variant="outline" className="text-[10px] mb-1 bg-indigo-50 text-indigo-700 border-indigo-200">Siaran Pers</Badge>
+                    <Badge variant="outline" className="text-[13px] mb-1 bg-indigo-50 text-indigo-700 border-indigo-200">Siaran Pers</Badge>
                     <div className="font-bold text-sm">{a.title}</div>
                     <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{a.content}</p>
-                    <div className="flex items-center gap-2 mt-2 text-[10px] text-muted-foreground">
+                    <div className="flex items-center gap-2 mt-2 text-[13px] text-muted-foreground">
                       <span>{a.publishDate ? formatDateID(a.publishDate) : formatDateTimeID(a.createdAt)}</span>
                       <span>•</span>
                       <span>{a.createdBy?.fullName || 'DPN LAPRA 08'}</span>
@@ -1782,7 +1782,7 @@ function MajalahManager() {
                 <div className="p-3">
                   <div className="font-bold text-sm truncate">{item.title}</div>
                   {item.description && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{item.description}</p>}
-                  <div className="text-[10px] text-muted-foreground mt-2">{formatDateID(item.uploadedAt)}</div>
+                  <div className="text-[13px] text-muted-foreground mt-2">{formatDateID(item.uploadedAt)}</div>
                 </div>
                 <Button variant="destructive" size="sm"
                   className="absolute top-2 right-2 h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
@@ -1870,7 +1870,7 @@ function MajalahManager() {
                     onChange={(e) => setPdfFile(e.target.files?.[0] || null)} />
                   <FileText className="w-6 h-6 text-slate-400 mx-auto mb-1" />
                   <div className="text-xs font-medium">Upload PDF Majalah</div>
-                  <div className="text-[10px] text-muted-foreground mt-0.5">Maks 10MB</div>
+                  <div className="text-[13px] text-muted-foreground mt-0.5">Maks 10MB</div>
                 </div>
               )}
             </div>
@@ -2017,7 +2017,7 @@ function GalleryManager() {
                 <img src={item.fileUrl} alt={item.title} className="w-full h-40 object-cover" />
                 <div className="p-2">
                   <div className="font-medium text-xs truncate">{item.title}</div>
-                  <Badge variant="outline" className="text-[10px] mt-1">{categories[item.category] || item.category}</Badge>
+                  <Badge variant="outline" className="text-[13px] mt-1">{categories[item.category] || item.category}</Badge>
                 </div>
                 <Button variant="destructive" size="sm"
                   className="absolute top-2 right-2 h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
@@ -2278,15 +2278,15 @@ function AnnouncementManager() {
                       </div>
                       <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{a.content}</p>
                       <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                        <Badge variant="outline" className={`text-[10px] ${cc.color}`}>{cc.label}</Badge>
-                        <Badge variant="outline" className={`text-[10px] ${tc.color}`}>{tc.label}</Badge>
+                        <Badge variant="outline" className={`text-[13px] ${cc.color}`}>{cc.label}</Badge>
+                        <Badge variant="outline" className={`text-[13px] ${tc.color}`}>{tc.label}</Badge>
                         {/* Badge sumber untuk WEB_SYNC */}
                         {isWebSync && (
-                          <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700 border-blue-200">
+                          <Badge variant="outline" className="text-[13px] bg-blue-50 text-blue-700 border-blue-200">
                             <Globe className="w-2.5 h-2.5 mr-0.5" /> {a.sourceName || 'Web'}
                           </Badge>
                         )}
-                        <span className="text-[10px] text-muted-foreground">
+                        <span className="text-[13px] text-muted-foreground">
                           {a.publishDate ? formatDateID(a.publishDate) : formatDateTimeID(a.createdAt)}
                         </span>
                       </div>
@@ -2313,7 +2313,7 @@ function AnnouncementManager() {
                     {/* Badge READ-ONLY untuk WEB_SYNC */}
                     {isWebSync && (
                       <div className="absolute top-2 right-2">
-                        <Badge variant="outline" className="text-[9px] bg-slate-50 text-slate-500 border-slate-200">
+                        <Badge variant="outline" className="text-[13px] bg-slate-50 text-slate-500 border-slate-200">
                           <Lock className="w-2.5 h-2.5 mr-0.5" /> Read-Only
                         </Badge>
                       </div>
@@ -2593,15 +2593,15 @@ function AnnouncementManager() {
               </div>
               {syncResult.newBerita && syncResult.newBerita.length > 0 && (
                 <div className="space-y-1">
-                  <div className="text-xs font-semibold text-muted-foreground">Berita baru ditambahkan:</div>
+                  <div className="text-sm font-semibold text-muted-foreground">Berita baru ditambahkan:</div>
                   {syncResult.newBerita.slice(0, 5).map((b: any, i: number) => (
                     <div key={i} className="text-xs p-2 rounded bg-white border">
                       <div className="font-medium line-clamp-1">{b.title}</div>
-                      <div className="text-[10px] text-muted-foreground">{b.sourceName}</div>
+                      <div className="text-[13px] text-muted-foreground">{b.sourceName}</div>
                     </div>
                   ))}
                   {syncResult.newBerita.length > 5 && (
-                    <div className="text-[10px] text-muted-foreground">+ {syncResult.newBerita.length - 5} berita lainnya</div>
+                    <div className="text-[13px] text-muted-foreground">+ {syncResult.newBerita.length - 5} berita lainnya</div>
                   )}
                 </div>
               )}
@@ -2826,9 +2826,9 @@ function ProgramContentManager({ title, description, icon: Icon, category, accen
                       <div className="font-bold text-sm">{item.title}</div>
                       {item.description && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{item.description}</p>}
                       <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                        <Badge variant="outline" className={`text-[10px] ${sc.color}`}>{sc.label}</Badge>
-                        {item.location && <span className="text-[10px] text-muted-foreground">📍 {item.location}</span>}
-                        {item.date && <span className="text-[10px] text-muted-foreground">📅 {formatDateID(item.date)}</span>}
+                        <Badge variant="outline" className={`text-[13px] ${sc.color}`}>{sc.label}</Badge>
+                        {item.location && <span className="text-[13px] text-muted-foreground">📍 {item.location}</span>}
+                        {item.date && <span className="text-[13px] text-muted-foreground">📅 {formatDateID(item.date)}</span>}
                       </div>
                     </div>
                     <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -3073,10 +3073,10 @@ function KtaPendaftaranForm() {
               <div className="text-xs text-emerald-600 mt-2">Simpan nomor ini untuk cek status permohonan Anda.</div>
             </div>
             <div className="grid grid-cols-2 gap-3 text-sm text-left bg-slate-50 rounded-xl p-3 border">
-              <div><div className="text-xs text-muted-foreground">Nama</div><div className="font-medium">{success.fullName}</div></div>
-              <div><div className="text-xs text-muted-foreground">Wilayah</div><div className="font-medium">{success.territory?.name}</div></div>
-              <div><div className="text-xs text-muted-foreground">Status</div><Badge className="bg-amber-100 text-amber-700 text-xs w-fit">PENDING</Badge></div>
-              <div><div className="text-xs text-muted-foreground">Tanggal</div><div className="font-medium">{formatDateTimeID(success.createdAt)}</div></div>
+              <div><div className="text-sm text-muted-foreground">Nama</div><div className="font-medium">{success.fullName}</div></div>
+              <div><div className="text-sm text-muted-foreground">Wilayah</div><div className="font-medium">{success.territory?.name}</div></div>
+              <div><div className="text-sm text-muted-foreground">Status</div><Badge className="bg-amber-100 text-amber-700 text-xs w-fit">PENDING</Badge></div>
+              <div><div className="text-sm text-muted-foreground">Tanggal</div><div className="font-medium">{formatDateTimeID(success.createdAt)}</div></div>
             </div>
             <Button onClick={() => setSuccess(null)} className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white">
               Daftar Pemohon Lain
@@ -3218,7 +3218,7 @@ function KtaPendaftaranForm() {
                       <div className="w-full p-6 rounded-lg border bg-slate-50 flex flex-col items-center gap-2">
                         <FileText className="w-10 h-10 text-red-500" />
                         <div className="text-sm font-medium">{idCardFile.name}</div>
-                        <div className="text-xs text-muted-foreground">{(idCardFile.size / 1024 / 1024).toFixed(2)} MB</div>
+                        <div className="text-sm text-muted-foreground">{(idCardFile.size / 1024 / 1024).toFixed(2)} MB</div>
                       </div>
                     )}
                     <Button type="button" variant="destructive" size="sm" className="absolute top-2 right-2" onClick={() => setIdCardFile(null)}>
@@ -3327,24 +3327,24 @@ function KtaCekStatus() {
                       <ScIcon className="w-7 h-7" />
                     </div>
                     <div>
-                      <div className="text-xs text-muted-foreground">Status Permohonan</div>
+                      <div className="text-sm text-muted-foreground">Status Permohonan</div>
                       <Badge variant="outline" className={`text-sm ${sc.color}`}>{sc.label}</Badge>
                     </div>
                   </div>
                   <p className="text-sm text-muted-foreground mb-4">{sc.desc}</p>
                   <div className="grid grid-cols-2 gap-3 text-sm bg-white rounded-lg p-4 border">
-                    <div><div className="text-xs text-muted-foreground">Nomor Pendaftaran</div><div className="font-mono font-bold text-emerald-700">{result.applicationNumber}</div></div>
-                    <div><div className="text-xs text-muted-foreground">Nama Pemohon</div><div className="font-medium">{result.fullName}</div></div>
-                    <div><div className="text-xs text-muted-foreground">Wilayah DPC</div><div className="font-medium">{result.territory?.name || '-'}</div></div>
-                    <div><div className="text-xs text-muted-foreground">Tanggal Daftar</div><div className="font-medium">{formatDateTimeID(result.createdAt)}</div></div>
+                    <div><div className="text-sm text-muted-foreground">Nomor Pendaftaran</div><div className="font-mono font-bold text-emerald-700">{result.applicationNumber}</div></div>
+                    <div><div className="text-sm text-muted-foreground">Nama Pemohon</div><div className="font-medium">{result.fullName}</div></div>
+                    <div><div className="text-sm text-muted-foreground">Wilayah DPC</div><div className="font-medium">{result.territory?.name || '-'}</div></div>
+                    <div><div className="text-sm text-muted-foreground">Tanggal Daftar</div><div className="font-medium">{formatDateTimeID(result.createdAt)}</div></div>
                     {result.ktaNumber && (
-                      <div className="col-span-2"><div className="text-xs text-muted-foreground">Nomor KTA</div><div className="font-mono font-bold text-emerald-700 text-base">{result.ktaNumber}</div></div>
+                      <div className="col-span-2"><div className="text-sm text-muted-foreground">Nomor KTA</div><div className="font-mono font-bold text-emerald-700 text-base">{result.ktaNumber}</div></div>
                     )}
                     {result.ktaIssuedAt && (
-                      <div><div className="text-xs text-muted-foreground">Diterbitkan</div><div className="font-medium">{formatDateID(result.ktaIssuedAt)}</div></div>
+                      <div><div className="text-sm text-muted-foreground">Diterbitkan</div><div className="font-medium">{formatDateID(result.ktaIssuedAt)}</div></div>
                     )}
                     {result.ktaExpiryDate && (
-                      <div><div className="text-xs text-muted-foreground">Berlaku Sampai</div><div className="font-medium">{formatDateID(result.ktaExpiryDate)}</div></div>
+                      <div><div className="text-sm text-muted-foreground">Berlaku Sampai</div><div className="font-medium">{formatDateID(result.ktaExpiryDate)}</div></div>
                     )}
                   </div>
                   {result.rejectionReason && (
@@ -3484,8 +3484,8 @@ function KtaAdminReview() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <div className="font-bold text-sm">{a.fullName}</div>
-                          <Badge variant="outline" className={`text-[10px] ${sc.color}`}>{sc.label}</Badge>
-                          {a.canReview && <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200">Bisa Review</Badge>}
+                          <Badge variant="outline" className={`text-[13px] ${sc.color}`}>{sc.label}</Badge>
+                          {a.canReview && <Badge variant="outline" className="text-[13px] bg-emerald-50 text-emerald-700 border-emerald-200">Bisa Review</Badge>}
                         </div>
                         <div className="font-mono text-xs text-emerald-700 mt-0.5">{a.applicationNumber}</div>
                         <div className="text-xs text-muted-foreground mt-1">
@@ -3493,7 +3493,7 @@ function KtaAdminReview() {
                           {a.nik && ` • NIK: ${a.nik}`}
                           {a.passportNumber && ` • Paspor: ${a.passportNumber}`}
                         </div>
-                        <div className="text-[10px] text-muted-foreground mt-1">{formatDateTimeID(a.createdAt)}</div>
+                        <div className="text-[13px] text-muted-foreground mt-1">{formatDateTimeID(a.createdAt)}</div>
                         {a.ktaNumber && (
                           <div className="mt-2 inline-flex items-center gap-1 px-2 py-1 rounded bg-emerald-100 text-emerald-800 text-xs font-mono">
                             <IdCard className="w-3 h-3" /> {a.ktaNumber}
@@ -3554,25 +3554,25 @@ function KtaAdminReview() {
                   <h4 className="text-sm font-semibold">Biodata Pemohon</h4>
                   <div className="rounded-lg bg-slate-50 border p-3 space-y-1.5">
                     <div className="grid grid-cols-2 gap-2">
-                      <div><span className="text-xs text-muted-foreground">Nama:</span><div className="font-medium">{reviewItem.fullName}</div></div>
-                      <div><span className="text-xs text-muted-foreground">Gender:</span><div className="font-medium">{reviewItem.gender === 'L' ? 'Laki-laki' : reviewItem.gender === 'P' ? 'Perempuan' : '-'}</div></div>
-                      <div><span className="text-xs text-muted-foreground">TTL:</span><div className="font-medium">{reviewItem.birthPlace}, {reviewItem.birthDate ? formatDateID(reviewItem.birthDate) : '-'}</div></div>
-                      <div><span className="text-xs text-muted-foreground">Gol. Darah:</span><div className="font-medium">{reviewItem.bloodType || '-'}</div></div>
-                      <div><span className="text-xs text-muted-foreground">Pekerjaan:</span><div className="font-medium">{reviewItem.occupation || '-'}</div></div>
-                      <div><span className="text-xs text-muted-foreground">Status:</span><div className="font-medium">{reviewItem.maritalStatus || '-'}</div></div>
-                      <div><span className="text-xs text-muted-foreground">Ukuran Baju:</span><div className="font-medium">{reviewItem.shirtSize || '-'}</div></div>
-                      <div><span className="text-xs text-muted-foreground">Wilayah:</span><div className="font-medium">{reviewItem.territory?.name}</div></div>
+                      <div><span className="text-sm text-muted-foreground">Nama:</span><div className="font-medium">{reviewItem.fullName}</div></div>
+                      <div><span className="text-sm text-muted-foreground">Gender:</span><div className="font-medium">{reviewItem.gender === 'L' ? 'Laki-laki' : reviewItem.gender === 'P' ? 'Perempuan' : '-'}</div></div>
+                      <div><span className="text-sm text-muted-foreground">TTL:</span><div className="font-medium">{reviewItem.birthPlace}, {reviewItem.birthDate ? formatDateID(reviewItem.birthDate) : '-'}</div></div>
+                      <div><span className="text-sm text-muted-foreground">Gol. Darah:</span><div className="font-medium">{reviewItem.bloodType || '-'}</div></div>
+                      <div><span className="text-sm text-muted-foreground">Pekerjaan:</span><div className="font-medium">{reviewItem.occupation || '-'}</div></div>
+                      <div><span className="text-sm text-muted-foreground">Status:</span><div className="font-medium">{reviewItem.maritalStatus || '-'}</div></div>
+                      <div><span className="text-sm text-muted-foreground">Ukuran Baju:</span><div className="font-medium">{reviewItem.shirtSize || '-'}</div></div>
+                      <div><span className="text-sm text-muted-foreground">Wilayah:</span><div className="font-medium">{reviewItem.territory?.name}</div></div>
                     </div>
                     <div className="border-t pt-2 mt-2">
-                      <div><span className="text-xs text-muted-foreground">NIK:</span><div className="font-mono font-medium">{reviewItem.nik || '-'}</div></div>
-                      <div><span className="text-xs text-muted-foreground">Paspor:</span><div className="font-mono font-medium">{reviewItem.passportNumber || '-'}</div></div>
-                      <div><span className="text-xs text-muted-foreground">WA:</span><div className="font-medium">{reviewItem.phone}</div></div>
-                      <div><span className="text-xs text-muted-foreground">Email:</span><div className="font-medium">{reviewItem.email || '-'}</div></div>
-                      <div><span className="text-xs text-muted-foreground">Alamat:</span><div className="text-xs">{reviewItem.address || '-'}</div></div>
+                      <div><span className="text-sm text-muted-foreground">NIK:</span><div className="font-mono font-medium">{reviewItem.nik || '-'}</div></div>
+                      <div><span className="text-sm text-muted-foreground">Paspor:</span><div className="font-mono font-medium">{reviewItem.passportNumber || '-'}</div></div>
+                      <div><span className="text-sm text-muted-foreground">WA:</span><div className="font-medium">{reviewItem.phone}</div></div>
+                      <div><span className="text-sm text-muted-foreground">Email:</span><div className="font-medium">{reviewItem.email || '-'}</div></div>
+                      <div><span className="text-sm text-muted-foreground">Alamat:</span><div className="text-xs">{reviewItem.address || '-'}</div></div>
                     </div>
                     {reviewItem.applicantNotes && (
                       <div className="border-t pt-2 mt-2">
-                        <div className="text-xs text-muted-foreground">Catatan Pemohon:</div>
+                        <div className="text-sm text-muted-foreground">Catatan Pemohon:</div>
                         <div className="text-xs italic p-2 bg-amber-50 rounded">{reviewItem.applicantNotes}</div>
                       </div>
                     )}
@@ -3807,10 +3807,10 @@ function PengaduanManager() {
                   <div className="font-semibold text-sm">{c.subject}</div>
                   <p className="text-xs text-muted-foreground mt-1 line-clamp-3">{c.message}</p>
                   <div className="flex items-center justify-between mt-2">
-                    <Badge variant={c.status === 'RESOLVED' ? 'default' : 'outline'} className={`text-[10px] ${c.status === 'RESOLVED' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                    <Badge variant={c.status === 'RESOLVED' ? 'default' : 'outline'} className={`text-[13px] ${c.status === 'RESOLVED' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
                       {c.status === 'RESOLVED' ? 'Selesai' : c.status === 'READ' ? 'Dibaca' : 'Baru'}
                     </Badge>
-                    <span className="text-[10px] text-muted-foreground">{formatDateTimeID(c.createdAt)}</span>
+                    <span className="text-[13px] text-muted-foreground">{formatDateTimeID(c.createdAt)}</span>
                   </div>
                 </div>
               ))}
@@ -4022,7 +4022,7 @@ function LokasiSekretariatManager() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="font-bold text-sm leading-tight">{loc.name}</div>
-                    <Badge variant="outline" className={`text-[10px] mt-1 ${lc.color}`}>{lc.label}</Badge>
+                    <Badge variant="outline" className={`text-[13px] mt-1 ${lc.color}`}>{lc.label}</Badge>
                   </div>
                 </div>
                 <div className="space-y-2 text-xs text-muted-foreground">
@@ -4136,14 +4136,14 @@ function HubungiKamiManager() {
                 return (
                   <div key={m.id} className="rounded-xl border p-3 bg-white">
                     <div className="flex items-center justify-between gap-2 mb-1">
-                      <Badge variant="outline" className={`text-[10px] ${pc.color}`}>{pc.label}</Badge>
-                      <Badge variant={m.status === 'RESOLVED' ? 'default' : m.status === 'READ' ? 'secondary' : 'outline'} className={`text-[10px] ${m.status === 'RESOLVED' ? 'bg-emerald-50 text-emerald-700' : m.status === 'READ' ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'}`}>
+                      <Badge variant="outline" className={`text-[13px] ${pc.color}`}>{pc.label}</Badge>
+                      <Badge variant={m.status === 'RESOLVED' ? 'default' : m.status === 'READ' ? 'secondary' : 'outline'} className={`text-[13px] ${m.status === 'RESOLVED' ? 'bg-emerald-50 text-emerald-700' : m.status === 'READ' ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'}`}>
                         {m.status === 'RESOLVED' ? 'Selesai' : m.status === 'READ' ? 'Dibaca' : 'Baru'}
                       </Badge>
                     </div>
                     <div className="font-semibold text-sm">{m.subject}</div>
                     <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{m.message}</p>
-                    <div className="text-[10px] text-muted-foreground mt-2">{m.name} • {formatDateTimeID(m.createdAt)}</div>
+                    <div className="text-[13px] text-muted-foreground mt-2">{m.name} • {formatDateTimeID(m.createdAt)}</div>
                   </div>
                 )
               })}
@@ -4213,7 +4213,7 @@ function FaqManager() {
                 className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium border bg-white hover:bg-accent transition-colors">
                 <Icon className="w-3.5 h-3.5" />
                 <span className={v.color.split(' ').slice(1, 3).join(' ')}>{v.label}</span>
-                <Badge variant="outline" className="text-[10px]">{count}</Badge>
+                <Badge variant="outline" className="text-[13px]">{count}</Badge>
               </button>
             )
           })}
@@ -4231,7 +4231,7 @@ function FaqManager() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="font-semibold text-sm">{faq.q}</div>
-                    <Badge variant="outline" className={`text-[10px] mt-1 ${cat.color}`}>{cat.label}</Badge>
+                    <Badge variant="outline" className={`text-[13px] mt-1 ${cat.color}`}>{cat.label}</Badge>
                   </div>
                   <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform shrink-0 mt-1 ${isOpen ? 'rotate-90' : ''}`} />
                 </button>
@@ -4367,26 +4367,26 @@ function AuditAIRespondingDialog({ open, onOpenChange }: { open: boolean, onOpen
               <div className="grid grid-cols-4 gap-3">
                 <div className="rounded-lg border p-3 text-center bg-slate-50">
                   <div className="text-2xl font-bold">{stats.total}</div>
-                  <div className="text-[10px] text-muted-foreground">Total Keluhan</div>
+                  <div className="text-[13px] text-muted-foreground">Total Keluhan</div>
                 </div>
                 <div className="rounded-lg border p-3 text-center bg-red-50 border-red-200">
                   <div className="text-2xl font-bold text-red-700">{stats.high}</div>
-                  <div className="text-[10px] text-red-600">Prioritas Tinggi</div>
+                  <div className="text-[13px] text-red-600">Prioritas Tinggi</div>
                 </div>
                 <div className="rounded-lg border p-3 text-center bg-amber-50 border-amber-200">
                   <div className="text-2xl font-bold text-amber-700">{stats.medium}</div>
-                  <div className="text-[10px] text-amber-600">Prioritas Sedang</div>
+                  <div className="text-[13px] text-amber-600">Prioritas Sedang</div>
                 </div>
                 <div className="rounded-lg border p-3 text-center bg-blue-50 border-blue-200">
                   <div className="text-2xl font-bold text-blue-700">{stats.ignored}</div>
-                  <div className="text-[10px] text-blue-600">Terabaikan</div>
+                  <div className="text-[13px] text-blue-600">Terabaikan</div>
                 </div>
               </div>
             )}
 
             {/* Priority filter */}
             <div className="flex gap-2 items-center">
-              <span className="text-xs font-semibold text-muted-foreground">Filter Prioritas:</span>
+              <span className="text-sm font-semibold text-muted-foreground">Filter Prioritas:</span>
               <Button size="sm" variant={filterPriority === '' ? 'default' : 'outline'} className="h-7 text-xs" onClick={() => { setFilterPriority(''); if (scanResult) loadComplaints(scanResult.id) }}>Semua</Button>
               <Button size="sm" variant={filterPriority === 'HIGH' ? 'default' : 'outline'} className="h-7 text-xs bg-red-600 hover:bg-red-700 text-white" onClick={() => { setFilterPriority('HIGH'); if (scanResult) loadComplaints(scanResult.id) }}>Tinggi</Button>
               <Button size="sm" variant={filterPriority === 'MEDIUM' ? 'default' : 'outline'} className="h-7 text-xs bg-amber-600 hover:bg-amber-700 text-white" onClick={() => { setFilterPriority('MEDIUM'); if (scanResult) loadComplaints(scanResult.id) }}>Sedang</Button>
@@ -4409,18 +4409,18 @@ function AuditAIRespondingDialog({ open, onOpenChange }: { open: boolean, onOpen
                       <div className="flex items-start gap-3">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap mb-1">
-                            <Badge className={`text-[10px] ${priBadge}`}>{c.priority}</Badge>
-                            <Badge variant="outline" className="text-[10px]">{platformIcon} {c.platform}</Badge>
-                            <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200">
+                            <Badge className={`text-[13px] ${priBadge}`}>{c.priority}</Badge>
+                            <Badge variant="outline" className="text-[13px]">{platformIcon} {c.platform}</Badge>
+                            <Badge variant="outline" className="text-[13px] bg-emerald-50 text-emerald-700 border-emerald-200">
                               <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1" />REAL
                             </Badge>
-                            <Badge variant="outline" className={`text-[10px] ${c.sentiment === 'NEGATIVE' ? 'bg-red-50 text-red-700' : c.sentiment === 'POSITIVE' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-50 text-slate-700'}`}>
+                            <Badge variant="outline" className={`text-[13px] ${c.sentiment === 'NEGATIVE' ? 'bg-red-50 text-red-700' : c.sentiment === 'POSITIVE' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-50 text-slate-700'}`}>
                               {c.sentiment}
                             </Badge>
-                            <Badge variant="outline" className="text-[10px] bg-purple-50 text-purple-700">{c.category}</Badge>
-                            {c.regencyName && <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700"><MapPin className="w-2.5 h-2.5 mr-0.5" />{c.regencyName}</Badge>}
-                            {c.provinceName && !c.regencyName && <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700"><MapPin className="w-2.5 h-2.5 mr-0.5" />{c.provinceName}</Badge>}
-                            <Badge variant="outline" className={`text-[10px] ${c.responseStatus === 'IGNORED' ? 'bg-red-50 text-red-700' : c.responseStatus === 'RESPONDED' ? 'bg-emerald-50 text-emerald-700' : c.responseStatus === 'IN_PROGRESS' ? 'bg-amber-50 text-amber-700' : 'bg-slate-50 text-slate-500'}`}>
+                            <Badge variant="outline" className="text-[13px] bg-purple-50 text-purple-700">{c.category}</Badge>
+                            {c.regencyName && <Badge variant="outline" className="text-[13px] bg-blue-50 text-blue-700"><MapPin className="w-2.5 h-2.5 mr-0.5" />{c.regencyName}</Badge>}
+                            {c.provinceName && !c.regencyName && <Badge variant="outline" className="text-[13px] bg-blue-50 text-blue-700"><MapPin className="w-2.5 h-2.5 mr-0.5" />{c.provinceName}</Badge>}
+                            <Badge variant="outline" className={`text-[13px] ${c.responseStatus === 'IGNORED' ? 'bg-red-50 text-red-700' : c.responseStatus === 'RESPONDED' ? 'bg-emerald-50 text-emerald-700' : c.responseStatus === 'IN_PROGRESS' ? 'bg-amber-50 text-amber-700' : 'bg-slate-50 text-slate-500'}`}>
                               {c.responseStatus === 'IGNORED' ? '⚠ TERABAIKAN' : c.responseStatus === 'RESPONDED' ? '✓ Direspon' : c.responseStatus === 'IN_PROGRESS' ? '⏳ Proses' : 'ℹ Info (No Response Needed)'}
                             </Badge>
                           </div>
@@ -4435,7 +4435,7 @@ function AuditAIRespondingDialog({ open, onOpenChange }: { open: boolean, onOpen
                               <strong>AI Rekomendasi:</strong> {c.aiRecommendation}
                             </div>
                           )}
-                          <div className="flex items-center gap-3 mt-2 text-[10px] text-muted-foreground">
+                          <div className="flex items-center gap-3 mt-2 text-[13px] text-muted-foreground">
                             <span>📅 {formatDateTimeID(c.publishedAt)}</span>
                             <span>💬 {c.engagementCount} engagement</span>
                             <span>⚡ Urgency: {c.urgencyScore}/100</span>
@@ -4495,9 +4495,9 @@ function AuditAIRespondingDialog({ open, onOpenChange }: { open: boolean, onOpen
                           <TableCell className="text-center text-amber-700">{w.medium}</TableCell>
                           <TableCell className="text-center text-blue-700">{w.low}</TableCell>
                           <TableCell>
-                            {w.high > 0 ? <Badge className="bg-red-100 text-red-800 text-[10px]">⚠ KRITIS - Wajib Respon</Badge> :
-                             w.medium > 0 ? <Badge className="bg-amber-100 text-amber-800 text-[10px]">⚠ Perlu Perhatian</Badge> :
-                             <Badge variant="outline" className="text-[10px]">Monitor</Badge>}
+                            {w.high > 0 ? <Badge className="bg-red-100 text-red-800 text-[13px]">⚠ KRITIS - Wajib Respon</Badge> :
+                             w.medium > 0 ? <Badge className="bg-amber-100 text-amber-800 text-[13px]">⚠ Perlu Perhatian</Badge> :
+                             <Badge variant="outline" className="text-[13px]">Monitor</Badge>}
                           </TableCell>
                         </TableRow>
                       ))}

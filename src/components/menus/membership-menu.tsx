@@ -274,7 +274,7 @@ export function MembershipMenu() {
                               <code className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">
                                 {m.memberNumber}
                               </code>
-                              <div className="text-[10px] text-muted-foreground mt-0.5">{levelLabel}</div>
+                              <div className="text-[13px] text-muted-foreground mt-0.5">{levelLabel}</div>
                             </TableCell>
                             <TableCell className="font-medium">
                               <div>
@@ -292,7 +292,7 @@ export function MembershipMenu() {
                                 {m.territory.name}
                               </Badge>
                               {!canEdit && (
-                                <Badge variant="outline" className="text-[10px] ml-1 bg-amber-50 text-amber-700 border-amber-200">
+                                <Badge variant="outline" className="text-[13px] ml-1 bg-amber-50 text-amber-700 border-amber-200">
                                   Read-Only
                                 </Badge>
                               )}

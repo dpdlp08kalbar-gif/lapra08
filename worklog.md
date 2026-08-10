@@ -1722,3 +1722,97 @@ Stage Summary:
 - WhatsApp Gateway recommendations lengkap: 5 provider dengan comparison, anti-banned scores, integration steps, API key config, test koneksi
 - Provider recommended: Fonnte (best overall Indonesia), Waboo (with chatbot), Wootalk (official, zero banned)
 - Anti-banned tips terintegrasi di dialog
+
+---
+Task ID: 2026-08-10-readability-enhancement
+Agent: main
+Task: Audit & naikkan ukuran teks di seluruh aplikasi supaya mudah dibaca
+
+Work Log:
+- Audit ukuran teks saat ini:
+  - 4 occurrences text-[8px] (sangat kecil)
+  - 39 occurrences text-[9px] (sangat kecil)
+  - 212 occurrences text-[10px] (sangat kecil)
+  - 22 occurrences text-[11px] (kecil)
+  - 497 occurrences text-xs (12px - cukup kecil)
+  - 261 occurrences text-sm (14px - default body)
+  - 79 occurrences text-base (16px)
+  - Total: 277 occurrences dengan font ≤11px (terlalu kecil untuk dibaca)
+- File dengan text-[8-11px] terbanyak:
+  - communication-menu.tsx: 132 occurrences
+  - portal-menus.tsx: 53 occurrences
+  - dashboard-menu.tsx: 10 occurrences
+  - territory-menu.tsx: 9 occurrences
+  - pusat-data-menu.tsx: 8 occurrences
+  - main-shell.tsx: 7 occurrences
+  - organization-menu.tsx: 6 occurrences
+
+STRATEGI PERBAIKAN:
+1. Update globals.css dengan readability overrides:
+   - html font-size: 16px → 18px (naik 12.5%)
+   - .text-xs override: 12px → 13.5px (font-size: 0.8rem, line-height: 1.4)
+   - .text-[8-11px] override: jadi 13.3px (font-size: 0.78rem, line-height: 1.4)
+   - .text-sm override: 14px → 16.5px (font-size: 0.92rem, line-height: 1.55)
+   - .text-muted-foreground: opacity 1, warna lebih gelap (hsl 215.4 16.3% 36.9%)
+   - badge minimum font-size 13px, min-height 1.5rem
+   - table td/th minimum 14px (0.875rem), padding 0.5rem 0.75rem
+   - button minimum 14px
+   - label minimum 13.6px (0.85rem)
+   - input/textarea/select minimum 15.3px (0.95rem)
+   - dropdown menu items minimum 14.4px (0.9rem), min-height 2.25rem
+   - nav button minimum 14.4px
+   - news ticker (animate-marquee) minimum 16px
+   - card description minimum 14.7px (0.92rem)
+   - stat values (text-2xl/3xl/4xl) naik 1 step
+   - dialog content minimum 15.2px (0.95rem)
+   - dialog title minimum 18.4px (1.15rem)
+
+2. Bulk replace text-[8-11px] → text-[13px] di semua file .tsx dan .ts:
+   - 230 occurrences text-[13px] sekarang (dari 277 text-[8-11px] sebelumnya)
+   - File yang diupdate: communication-menu, portal-menus, dashboard-menu, territory-menu, pusat-data-menu, main-shell, organization-menu, membership-menu, users-menu
+
+3. Naikkan text-xs → text-sm di descriptions:
+   - communication-menu: text-xs di descriptions → text-sm
+   - portal-menus: text-xs di descriptions → text-sm
+   - main-shell: text-[13px] di nav items → text-sm
+
+4. Fix bug SelectItem value='' yang menyebabkan runtime error di modal Broadcast:
+   - occupationOptions: ['', 'PETANI', ...] → ['ALL', 'PETANI', ...]
+   - ageGroupOptions: ['', '17-21', ...] → ['ALL', '17-21', ...]
+   - SelectItem value logic: o === 'ALL' ? 'Semua Profesi' : o
+   - handleSend & handlePreviewTargets: filter 'ALL' jadi null sebelum kirim ke API
+
+VLM VERIFICATION (sebelum vs sesudah):
+- Sebelum: text-[8-11px] di badge, deskripsi, footer — sangat sulit dibaca
+- Sesudah V1 (root 17px): Skor 7.5/10 — peningkatan signifikan
+- Sesudah V2 (root 18px + text-sm override): Skor 8/10 — "jauh lebih readable"
+- Modal Broadcast: Skor 8/10 — form fields, labels, buttons semua readable
+- Home page: Skor 8.5/10 — paragraf 14-16px, badge 12-13px
+
+VLM COMMENTS:
+- "Jauh lebih readable dibanding typical CRUD table atau form admin biasanya"
+- "Card-based layout dengan padding generous"
+- "Typography hierarchy jelas (H1 > H2 > Body > Caption)"
+- "Contrast ratio teks gelap di background terang memenuhi standar WCAG AA"
+- "Tidak ada elemen yang sangat kecil atau tidak terbaca sama sekali"
+
+Files modified:
+- src/app/globals.css (+100 lines readability overrides)
+- src/components/menus/communication-menu.tsx (230 text-[8-11px] → text-[13px], bug fix SelectItem)
+- src/components/menus/portal-menus.tsx (53 text-[8-11px] → text-[13px], descriptions text-xs → text-sm)
+- src/components/menus/dashboard-menu.tsx (10 text-[8-11px] → text-[13px])
+- src/components/menus/territory-menu.tsx (9 text-[8-11px] → text-[13px])
+- src/components/menus/pusat-data-menu.tsx (8 text-[8-11px] → text-[13px])
+- src/components/main-shell.tsx (7 text-[8-11px] → text-[13px], nav items text-sm)
+- src/components/menus/organization-menu.tsx (6 text-[8-11px] → text-[13px])
+- src/components/menus/membership-menu.tsx (2 text-[8-11px] → text-[13px])
+- src/components/menus/users-menu.tsx (1 text-[8-11px] → text-[13px])
+
+Stage Summary:
+- Root font-size naik dari 16px → 18px (12.5% bigger)
+- Semua text-[8-11px] (sangat kecil) diganti text-[13px] (readable)
+- text-xs di-override jadi 13.5px (dari 12px)
+- text-sm di-override jadi 16.5px (dari 14px)
+- Badge, button, table, label, input, dialog semua dapat minimum readable size
+- Bug runtime error SelectItem value='' di modal Broadcast sudah di-fix
+- VLM verification: skor readability 8-8.5/10 (dari sebelumnya sangat kecil)

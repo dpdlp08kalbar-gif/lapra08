@@ -498,23 +498,23 @@ function TerritoryNode({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-semibold text-sm truncate">{territory.name}</span>
-            <Badge variant="outline" className={`text-[10px] ${LEVEL_COLORS[territory.level]}`}>
+            <Badge variant="outline" className={`text-[13px] ${LEVEL_COLORS[territory.level]}`}>
               {LEVEL_LABELS[territory.level]}
             </Badge>
-            <code className="text-[10px] font-mono bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
+            <code className="text-[13px] font-mono bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
               {territory.code}
             </code>
             {territory.isActive ? (
-              <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200">
+              <Badge variant="outline" className="text-[13px] bg-emerald-50 text-emerald-700 border-emerald-200">
                 Aktif
               </Badge>
             ) : (
-              <Badge variant="outline" className="text-[10px] bg-gray-50 text-gray-500 border-gray-200">
+              <Badge variant="outline" className="text-[13px] bg-gray-50 text-gray-500 border-gray-200">
                 Nonaktif
               </Badge>
             )}
             {territory.canEdit === false && canCreate && (
-              <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 border-amber-200">
+              <Badge variant="outline" className="text-[13px] bg-amber-50 text-amber-700 border-amber-200">
                 Read-Only
               </Badge>
             )}
@@ -745,7 +745,7 @@ function TerritoryFlatList({
                         </div>
                       </td>
                       <td className="p-3">
-                        <Badge variant="outline" className={`text-[10px] ${LEVEL_COLORS[t.level]}`}>
+                        <Badge variant="outline" className={`text-[13px] ${LEVEL_COLORS[t.level]}`}>
                           {LEVEL_LABELS[t.level]}
                         </Badge>
                       </td>
@@ -756,7 +756,7 @@ function TerritoryFlatList({
                         {ketua ? (
                           <div>
                             <div className="font-medium">{ketua.fullName}</div>
-                            <div className="text-muted-foreground text-[10px]">{ketua.positionName}</div>
+                            <div className="text-muted-foreground text-[13px]">{ketua.positionName}</div>
                           </div>
                         ) : (
                           <span className="text-muted-foreground italic">Belum ada</span>
@@ -774,11 +774,11 @@ function TerritoryFlatList({
                       </td>
                       <td className="p-3 text-center">
                         {t.isActive ? (
-                          <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200">
+                          <Badge variant="outline" className="text-[13px] bg-emerald-50 text-emerald-700 border-emerald-200">
                             Aktif
                           </Badge>
                         ) : (
-                          <Badge variant="outline" className="text-[10px] bg-gray-50 text-gray-500 border-gray-200">
+                          <Badge variant="outline" className="text-[13px] bg-gray-50 text-gray-500 border-gray-200">
                             Nonaktif
                           </Badge>
                         )}

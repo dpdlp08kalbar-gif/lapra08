@@ -72,7 +72,7 @@ export function MainShell({ children }: { children: React.ReactNode }) {
               <div className="font-black text-base leading-tight bg-gradient-to-r from-orange-400 via-yellow-400 to-orange-500 bg-clip-text text-transparent">
                 LAPRA 08
               </div>
-              <div className="text-[10px] text-slate-400 truncate uppercase tracking-wider">
+              <div className="text-[13px] text-slate-400 truncate uppercase tracking-wider">
                 Portal Sistem Informasi
               </div>
             </div>
@@ -108,7 +108,7 @@ export function MainShell({ children }: { children: React.ReactNode }) {
 
         {/* Divider */}
         {!sidebarCollapsed ? (
-          <div className="pt-3 pb-1 px-3 text-[9px] font-bold text-slate-500 uppercase tracking-widest">
+          <div className="pt-3 pb-1 px-3 text-[13px] font-bold text-slate-500 uppercase tracking-widest">
             Sistem Administrasi
           </div>
         ) : (
@@ -123,7 +123,7 @@ export function MainShell({ children }: { children: React.ReactNode }) {
             <button
               key={menu.id}
               onClick={() => { setActiveMenu(menu.key); setMobileOpen(false) }}
-              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium transition-all duration-200 group ${
+              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 group ${
                 isActive
                   ? 'bg-gradient-to-r from-orange-600 to-red-600 text-white shadow-lg shadow-orange-600/30'
                   : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/40'
@@ -161,7 +161,7 @@ export function MainShell({ children }: { children: React.ReactNode }) {
             </Avatar>
             <div className="min-w-0 flex-1">
               <div className="text-xs font-semibold truncate text-slate-200">{user.fullName}</div>
-              <div className="text-[10px] text-slate-400 truncate">
+              <div className="text-[13px] text-slate-400 truncate">
                 {ROLE_LABELS[user.role]} • {user.territoryName}
               </div>
             </div>
@@ -213,7 +213,7 @@ export function MainShell({ children }: { children: React.ReactNode }) {
                   {sidebarCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
                 </Button>
                 <div className="hidden sm:block">
-                  <div className="text-[11px] text-slate-400 uppercase tracking-wider">Portal LAPRA 08</div>
+                  <div className="text-[13px] text-slate-400 uppercase tracking-wider">Portal LAPRA 08</div>
                   <div className="font-bold text-sm leading-tight">
                     {menus.find(m => m.key === activeMenu)?.label || 'Beranda'}
                   </div>
@@ -226,7 +226,7 @@ export function MainShell({ children }: { children: React.ReactNode }) {
                 </Badge>
                 <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300">
                   <ShieldOff className="w-3 h-3" />
-                  <span className="text-[11px] font-medium">Dev Mode</span>
+                  <span className="text-sm font-medium">Dev Mode</span>
                 </div>
               </div>
             </div>
@@ -237,7 +237,7 @@ export function MainShell({ children }: { children: React.ReactNode }) {
                 <div className="flex items-center gap-2 px-4">
                   <div className="flex items-center gap-1.5 shrink-0">
                     <Megaphone className="w-3.5 h-3.5 text-yellow-300 animate-pulse" />
-                    <span className="text-[10px] font-bold text-yellow-300 uppercase tracking-wider hidden sm:block">Info Terkini</span>
+                    <span className="text-[13px] font-bold text-yellow-300 uppercase tracking-wider hidden sm:block">Info Terkini</span>
                   </div>
                   <div className="flex-1 overflow-hidden">
                     <div className="flex gap-12 animate-marquee whitespace-nowrap">
@@ -269,7 +269,7 @@ export function MainShell({ children }: { children: React.ReactNode }) {
             <div className="text-xs">
               © 2026 LAPRA 08 — Perkumpulan Laskar Prabowo 08. All rights reserved.
             </div>
-            <div className="text-[10px] text-slate-500">
+            <div className="text-[13px] text-slate-500">
               Sistem Informasi Internal • DPN → DPD → DPC • 514 DPC Terhubung
             </div>
           </div>

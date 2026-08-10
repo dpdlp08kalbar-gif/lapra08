@@ -243,7 +243,7 @@ export function DashboardMenu() {
                           <div className="font-bold text-sm leading-tight truncate">
                             {territory.name}
                           </div>
-                          <div className="text-[10px] opacity-75 mt-0.5">
+                          <div className="text-[13px] opacity-75 mt-0.5">
                             Kode: {territory.code}
                             {territory.provinceCode && ` • ${territory.provinceCode}`}
                           </div>
@@ -306,32 +306,32 @@ export function DashboardMenu() {
                   <div className="text-2xl font-black text-emerald-900">
                     {stats.global.totalDomestic}
                   </div>
-                  <div className="text-[10px] text-emerald-600">anggota Indonesia</div>
+                  <div className="text-[13px] text-emerald-600">anggota Indonesia</div>
                 </div>
                 <div className="rounded-lg border p-3 bg-purple-50 border-purple-200">
                   <div className="text-xs text-purple-700 font-medium">Internasional</div>
                   <div className="text-2xl font-black text-purple-900">
                     {stats.global.totalInternational}
                   </div>
-                  <div className="text-[10px] text-purple-600">anggota luar negeri</div>
+                  <div className="text-[13px] text-purple-600">anggota luar negeri</div>
                 </div>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
                 <div className="rounded-lg border p-2 bg-purple-50 border-purple-200">
                   <div className="text-lg font-bold text-purple-700">{stats.global.totalCountries}</div>
-                  <div className="text-[10px] text-purple-600">Negara (DPN)</div>
+                  <div className="text-[13px] text-purple-600">Negara (DPN)</div>
                 </div>
                 <div className="rounded-lg border p-2 bg-blue-50 border-blue-200">
                   <div className="text-lg font-bold text-blue-700">{stats.global.totalProvinces}</div>
-                  <div className="text-[10px] text-blue-600">Provinsi (DPD)</div>
+                  <div className="text-[13px] text-blue-600">Provinsi (DPD)</div>
                 </div>
                 <div className="rounded-lg border p-2 bg-emerald-50 border-emerald-200">
                   <div className="text-lg font-bold text-emerald-700">{stats.global.totalRegencies}</div>
-                  <div className="text-[10px] text-emerald-600">Kab/Kota (DPC)</div>
+                  <div className="text-[13px] text-emerald-600">Kab/Kota (DPC)</div>
                 </div>
                 <div className="rounded-lg border p-2 bg-pink-50 border-pink-200">
                   <div className="text-lg font-bold text-pink-700">{stats.global.totalDpdLn || 0}</div>
-                  <div className="text-[10px] text-pink-600">DPD Luar Negeri</div>
+                  <div className="text-[13px] text-pink-600">DPD Luar Negeri</div>
                 </div>
               </div>
               <div className="mt-2 text-center text-xs text-muted-foreground">
@@ -427,7 +427,7 @@ function QuickStat({
       </div>
       <div>
         <div className="text-lg font-bold leading-tight">{value}</div>
-        <div className="text-[10px] text-muted-foreground">{label}</div>
+        <div className="text-[13px] text-muted-foreground">{label}</div>
       </div>
     </div>
   )
@@ -466,11 +466,11 @@ function LevelStat({
         </div>
         <div>
           <div className="font-bold text-sm leading-tight">{label}</div>
-          <div className="text-[10px] opacity-75">{subLabel}</div>
+          <div className="text-[13px] opacity-75">{subLabel}</div>
         </div>
       </div>
       <div className="text-2xl font-black">{count}</div>
-      <div className="text-[10px] opacity-75 mt-1 font-mono">{ktaFormat}</div>
+      <div className="text-[13px] opacity-75 mt-1 font-mono">{ktaFormat}</div>
     </div>
   )
 }

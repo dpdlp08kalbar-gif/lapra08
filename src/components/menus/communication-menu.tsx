@@ -204,14 +204,14 @@ function OpinionScannerTab() {
                 <div className="flex items-start gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap mb-1">
-                      <Badge className={`text-[10px] ${priBadge}`}>{link.priority}</Badge>
-                      <Badge variant="outline" className="text-[10px] gap-1">{platformIcon(link.platform)} {link.platform}</Badge>
-                      <Badge variant="outline" className={`text-[10px] ${link.sentiment === 'NEGATIVE' ? 'bg-red-50 text-red-700' : link.sentiment === 'POSITIVE' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-50 text-slate-700'}`}>
+                      <Badge className={`text-[13px] ${priBadge}`}>{link.priority}</Badge>
+                      <Badge variant="outline" className="text-[13px] gap-1">{platformIcon(link.platform)} {link.platform}</Badge>
+                      <Badge variant="outline" className={`text-[13px] ${link.sentiment === 'NEGATIVE' ? 'bg-red-50 text-red-700' : link.sentiment === 'POSITIVE' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-50 text-slate-700'}`}>
                         {link.sentiment}
                       </Badge>
-                      <Badge variant="outline" className="text-[10px] bg-purple-50 text-purple-700">{link.category}</Badge>
-                      {link.provinceName && <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700"><MapPin className="w-2.5 h-2.5 mr-0.5" />{link.regencyName || link.provinceName}</Badge>}
-                      <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200">
+                      <Badge variant="outline" className="text-[13px] bg-purple-50 text-purple-700">{link.category}</Badge>
+                      {link.provinceName && <Badge variant="outline" className="text-[13px] bg-blue-50 text-blue-700"><MapPin className="w-2.5 h-2.5 mr-0.5" />{link.regencyName || link.provinceName}</Badge>}
+                      <Badge variant="outline" className="text-[13px] bg-emerald-50 text-emerald-700 border-emerald-200">
                         <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1" />REAL
                       </Badge>
                     </div>
@@ -223,7 +223,7 @@ function OpinionScannerTab() {
                         <strong>AI:</strong> {link.aiSummary}
                       </div>
                     )}
-                    <div className="flex items-center gap-3 mt-2 text-[10px] text-muted-foreground">
+                    <div className="flex items-center gap-3 mt-2 text-[13px] text-muted-foreground">
                       <span>📅 {formatDateTimeID(link.publishedAt || link.createdAt)}</span>
                       {link.engagementCount > 0 && <span>💬 {link.engagementCount}</span>}
                       <span>⚡ {link.urgencyScore}/100</span>
@@ -368,8 +368,8 @@ function GeospatialVoiceTab() {
             {/* Trust Index gauge */}
             <div className="text-center">
               <div className={`text-4xl font-bold ${trustColor.text}`}>{currentTrust.toFixed(1)}</div>
-              <div className="text-[10px] text-muted-foreground">Trust Index</div>
-              <div className={`text-[10px] ${trustColor.text} font-semibold`}>
+              <div className="text-[13px] text-muted-foreground">Trust Index</div>
+              <div className={`text-[13px] ${trustColor.text} font-semibold`}>
                 {currentTrust >= 70 ? 'TINGGI' : currentTrust >= 55 ? 'CENDERUNG POSITIF' : currentTrust >= 45 ? 'NETRAL' : currentTrust >= 30 ? 'CENDERUNG NEGATIF' : 'RENDAH'}
               </div>
             </div>
@@ -394,12 +394,12 @@ function GeospatialVoiceTab() {
                 >
                   {b.name}
                 </button>
-                <span className="text-[10px] text-muted-foreground">({levelLabels[b.level] || b.level})</span>
+                <span className="text-[13px] text-muted-foreground">({levelLabels[b.level] || b.level})</span>
               </span>
             ))}
             <ChevronRight className="w-3 h-3 text-muted-foreground" />
             <span className="text-xs font-bold text-orange-600">{current.name}</span>
-            <span className="text-[10px] text-muted-foreground">({levelLabels[current.level] || current.level})</span>
+            <span className="text-[13px] text-muted-foreground">({levelLabels[current.level] || current.level})</span>
           </div>
         </CardContent>
       </Card>
@@ -473,11 +473,11 @@ function GeospatialVoiceTab() {
                       <div className={`w-2 h-12 rounded-full ${color.bg}`} />
                       <div className="flex-1 min-w-0">
                         <div className="font-semibold text-sm truncate">{loc.name}</div>
-                        <div className="text-[11px] text-muted-foreground">
+                        <div className="text-[13px] text-muted-foreground">
                           {loc.totalPopulation.toLocaleString('id-ID')} pop • {loc.totalVoters.toLocaleString('id-ID')} voters • {loc.totalMentions} mentions
                         </div>
                         {loc.totalMentions > 0 && (
-                          <div className="text-[10px] text-muted-foreground mt-0.5">
+                          <div className="text-[13px] text-muted-foreground mt-0.5">
                             <span className="text-emerald-600">+{loc.sentimentPositive}</span> {' '}
                             <span className="text-red-600">-{loc.sentimentNegative}</span>
                           </div>
@@ -485,7 +485,7 @@ function GeospatialVoiceTab() {
                       </div>
                       <div className="text-right">
                         <div className={`text-xl font-bold ${color.text}`}>{loc.trustScore.toFixed(1)}</div>
-                        <div className="text-[9px] text-muted-foreground">trust</div>
+                        <div className="text-[13px] text-muted-foreground">trust</div>
                       </div>
                       {loc.canDrillDown && <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />}
                     </button>
@@ -574,8 +574,8 @@ function GeospatialVoiceTab() {
                       <span className="text-xs font-semibold">{ag.label}</span>
                       <span className={`text-sm font-bold ${getTrustColor(ag.trustScore).text}`}>{ag.trustScore}</span>
                     </div>
-                    <p className="text-[10px] text-muted-foreground italic mb-1">{ag.desc}</p>
-                    <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                    <p className="text-[13px] text-muted-foreground italic mb-1">{ag.desc}</p>
+                    <div className="flex items-center gap-3 text-[13px] text-muted-foreground">
                       <span>{ag.voters.toLocaleString('id-ID')} voters ({ag.percentage}%)</span>
                       <span className="text-emerald-600">+{ag.sentimentPositive}</span>
                       <span className="text-red-600">-{ag.sentimentNegative}</span>
@@ -619,8 +619,8 @@ function GeospatialVoiceTab() {
                       <span className="text-xs font-semibold">{seg.label}</span>
                       <span className={`text-sm font-bold ${getTrustColor(seg.trustScore).text}`}>{seg.trustScore}</span>
                     </div>
-                    <p className="text-[10px] text-muted-foreground italic mb-1">{seg.desc}</p>
-                    <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                    <p className="text-[13px] text-muted-foreground italic mb-1">{seg.desc}</p>
+                    <div className="flex items-center gap-3 text-[13px] text-muted-foreground">
                       <span>{seg.population.toLocaleString('id-ID')} ({seg.percentage}%)</span>
                       <span className="text-emerald-600">+{seg.sentimentPositive}</span>
                       <span className="text-red-600">-{seg.sentimentNegative}</span>
@@ -648,10 +648,10 @@ function GeospatialVoiceTab() {
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <Badge variant="outline" className="text-[9px]">{link.platform}</Badge>
-                        <Badge variant="outline" className={`text-[9px] ${link.sentiment === 'NEGATIVE' ? 'bg-red-50 text-red-700' : link.sentiment === 'POSITIVE' ? 'bg-emerald-50 text-emerald-700' : ''}`}>{link.sentiment}</Badge>
-                        <Badge variant="outline" className={`text-[9px] ${link.priority === 'HIGH' ? 'bg-red-100 text-red-800' : link.priority === 'MEDIUM' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>{link.priority}</Badge>
-                        {link.regencyName && <Badge variant="outline" className="text-[9px] bg-blue-50 text-blue-700"><MapPin className="w-2.5 h-2.5 mr-0.5" />{link.regencyName}</Badge>}
+                        <Badge variant="outline" className="text-[13px]">{link.platform}</Badge>
+                        <Badge variant="outline" className={`text-[13px] ${link.sentiment === 'NEGATIVE' ? 'bg-red-50 text-red-700' : link.sentiment === 'POSITIVE' ? 'bg-emerald-50 text-emerald-700' : ''}`}>{link.sentiment}</Badge>
+                        <Badge variant="outline" className={`text-[13px] ${link.priority === 'HIGH' ? 'bg-red-100 text-red-800' : link.priority === 'MEDIUM' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>{link.priority}</Badge>
+                        {link.regencyName && <Badge variant="outline" className="text-[13px] bg-blue-50 text-blue-700"><MapPin className="w-2.5 h-2.5 mr-0.5" />{link.regencyName}</Badge>}
                       </div>
                       <a href={link.url} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-blue-600 hover:underline line-clamp-1">{link.title}</a>
                       {link.aiSummary && <p className="text-xs text-muted-foreground mt-1 line-clamp-2 italic">{link.aiSummary}</p>}
@@ -740,8 +740,8 @@ function BroadcastComposerTab() {
         body: JSON.stringify({
           scope: form.targetScope,
           territoryCode: form.targetTerritoryCode || null,
-          occupation: form.targetOccupation || null,
-          ageGroup: form.targetAgeGroup || null,
+          occupation: form.targetOccupation && form.targetOccupation !== 'ALL' ? form.targetOccupation : null,
+          ageGroup: form.targetAgeGroup && form.targetAgeGroup !== 'ALL' ? form.targetAgeGroup : null,
           onlyLapraMembers: form.onlyLapraMembers,
           onlyOptIn: true,
         }),
@@ -779,8 +779,8 @@ function BroadcastComposerTab() {
           target: {
             scope: form.targetScope,
             territoryCode: form.targetTerritoryCode || null,
-            occupation: form.targetOccupation || null,
-            ageGroup: form.targetAgeGroup || null,
+            occupation: form.targetOccupation && form.targetOccupation !== 'ALL' ? form.targetOccupation : null,
+            ageGroup: form.targetAgeGroup && form.targetAgeGroup !== 'ALL' ? form.targetAgeGroup : null,
             onlyLapraMembers: form.onlyLapraMembers,
             onlyOptIn: true,
           },
@@ -819,8 +819,8 @@ function BroadcastComposerTab() {
     { value: 'REGENCY', label: 'Per Kabupaten/Kota (DPC)' },
   ]
 
-  const occupationOptions = ['', 'PETANI', 'NELAYAN', 'UMKM', 'PELAJAR', 'GURU', 'BURUH', 'LAINNYA']
-  const ageGroupOptions = ['', '17-21', '22-30', '31-40', '41-60', '61+']
+  const occupationOptions = ['ALL', 'PETANI', 'NELAYAN', 'UMKM', 'PELAJAR', 'GURU', 'BURUH', 'LAINNYA']
+  const ageGroupOptions = ['ALL', '17-21', '22-30', '31-40', '41-60', '61+']
 
   if (loading) return <LoadingState />
 
@@ -872,11 +872,11 @@ function BroadcastComposerTab() {
                   <TableRow key={b.id}>
                     <TableCell className="font-medium text-sm">{b.title}</TableCell>
                     <TableCell>
-                      <Badge variant="outline" className="text-[10px]">{b.channel}</Badge>
+                      <Badge variant="outline" className="text-[13px]">{b.channel}</Badge>
                     </TableCell>
                     <TableCell className="text-center text-sm">{b.recipientCount}</TableCell>
                     <TableCell>
-                      <Badge className={`text-[10px] ${b.status === 'SENT' ? 'bg-emerald-100 text-emerald-800' : b.status === 'QUEUED' ? 'bg-amber-100 text-amber-800' : b.status === 'PARTIAL' ? 'bg-orange-100 text-orange-800' : b.status === 'FAILED' ? 'bg-red-100 text-red-800' : 'bg-slate-100 text-slate-800'}`}>
+                      <Badge className={`text-[13px] ${b.status === 'SENT' ? 'bg-emerald-100 text-emerald-800' : b.status === 'QUEUED' ? 'bg-amber-100 text-amber-800' : b.status === 'PARTIAL' ? 'bg-orange-100 text-orange-800' : b.status === 'FAILED' ? 'bg-red-100 text-red-800' : 'bg-slate-100 text-slate-800'}`}>
                         {b.status}
                       </Badge>
                     </TableCell>
@@ -925,7 +925,7 @@ function BroadcastComposerTab() {
                         <ch.icon className="w-4 h-4" />
                         <span className="text-sm font-semibold">{ch.label}</span>
                       </div>
-                      <span className={`text-[10px] ${active ? 'text-orange-100' : 'text-muted-foreground'}`}>{ch.desc}</span>
+                      <span className={`text-[13px] ${active ? 'text-orange-100' : 'text-muted-foreground'}`}>{ch.desc}</span>
                     </button>
                   )
                 })}
@@ -969,7 +969,7 @@ function BroadcastComposerTab() {
                     <Select value={form.targetOccupation} onValueChange={(v) => setForm({ ...form, targetOccupation: v })}>
                       <SelectTrigger className="h-9"><SelectValue placeholder="Semua" /></SelectTrigger>
                       <SelectContent>
-                        {occupationOptions.map(o => <SelectItem key={o || 'ALL'} value={o}>{o || 'Semua Profesi'}</SelectItem>)}
+                        {occupationOptions.map(o => <SelectItem key={o} value={o}>{o === 'ALL' ? 'Semua Profesi' : o}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
@@ -978,7 +978,7 @@ function BroadcastComposerTab() {
                     <Select value={form.targetAgeGroup} onValueChange={(v) => setForm({ ...form, targetAgeGroup: v })}>
                       <SelectTrigger className="h-9"><SelectValue placeholder="Semua" /></SelectTrigger>
                       <SelectContent>
-                        {ageGroupOptions.map(a => <SelectItem key={a || 'ALL'} value={a}>{a || 'Semua Usia'}</SelectItem>)}
+                        {ageGroupOptions.map(a => <SelectItem key={a} value={a}>{a === 'ALL' ? 'Semua Usia' : a}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
@@ -1007,28 +1007,28 @@ function BroadcastComposerTab() {
                     <div className="grid grid-cols-3 gap-2 text-center text-xs">
                       <div className="rounded bg-emerald-50 p-1.5">
                         <div className="font-bold text-emerald-700">{targetPreview.totalFound}</div>
-                        <div className="text-[9px]">Total Found</div>
+                        <div className="text-[13px]">Total Found</div>
                       </div>
                       <div className="rounded bg-emerald-50 p-1.5">
                         <div className="font-bold text-emerald-700">{targetPreview.totalOptIn}</div>
-                        <div className="text-[9px]">WA Opt-in</div>
+                        <div className="text-[13px]">WA Opt-in</div>
                       </div>
                       <div className="rounded bg-amber-50 p-1.5">
                         <div className="font-bold text-amber-700">{targetPreview.totalSkipped}</div>
-                        <div className="text-[9px]">Skipped</div>
+                        <div className="text-[13px]">Skipped</div>
                       </div>
                     </div>
                     {targetPreview.sampleContacts && targetPreview.sampleContacts.length > 0 && (
                       <div>
-                        <div className="text-[10px] font-semibold text-muted-foreground mb-1">Sample kontak (5 dari {targetPreview.totalOptIn}):</div>
+                        <div className="text-[13px] font-semibold text-muted-foreground mb-1">Sample kontak (5 dari {targetPreview.totalOptIn}):</div>
                         <div className="space-y-1">
                           {targetPreview.sampleContacts.map((c: any, i: number) => (
-                            <div key={i} className="text-[11px] flex items-center justify-between rounded bg-slate-50 px-2 py-1">
+                            <div key={i} className="text-[13px] flex items-center justify-between rounded bg-slate-50 px-2 py-1">
                               <div>
                                 <span className="font-semibold">{c.name}</span>
                                 <span className="text-muted-foreground ml-2">{c.phone}</span>
                               </div>
-                              <div className="text-[10px]">
+                              <div className="text-[13px]">
                                 {c.territoryName} • {c.occupation || '-'} • {c.ageGroup || '-'}
                               </div>
                             </div>
@@ -1043,10 +1043,10 @@ function BroadcastComposerTab() {
 
             {/* Message content with variable buttons */}
             <div className="space-y-2">
-              <Label>Isi Pesan * <span className="text-xs text-muted-foreground">(klik variabel untuk sisipkan otomatis)</span></Label>
+              <Label>Isi Pesan * <span className="text-sm text-muted-foreground">(klik variabel untuk sisipkan otomatis)</span></Label>
               <div className="flex flex-wrap gap-1 mb-1">
                 {['nama', 'wilayah', 'tanggal', 'waktu', 'profesi', 'gender'].map(v => (
-                  <Button key={v} type="button" size="sm" variant="outline" className="h-6 text-[10px]"
+                  <Button key={v} type="button" size="sm" variant="outline" className="h-6 text-[13px]"
                     onClick={() => insertVariable(v)}>
                     {`{${v}}`}
                   </Button>
@@ -1054,7 +1054,7 @@ function BroadcastComposerTab() {
               </div>
               <Textarea value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })}
                 placeholder="Assalamualaikum {nama}, kami dari LAPRA 08 {wilayah} mengundang Bapak/Ibu untuk hadir rapat pada {tanggal}..." rows={5} required />
-              <div className="text-xs text-muted-foreground">{form.content.length} karakter • Variabel akan otomatis di-resolve per kontak</div>
+              <div className="text-sm text-muted-foreground">{form.content.length} karakter • Variabel akan otomatis di-resolve per kontak</div>
             </div>
 
             {/* Schedule + image */}
@@ -1196,12 +1196,12 @@ function BroadcastStatsDialog({ broadcast, onClose }: { broadcast: any; onClose:
                 <div className="bg-gradient-to-r from-orange-500 to-red-600 h-full transition-all" style={{ width: `${stats.stats.progress}%` }} />
               </div>
               <div className="grid grid-cols-4 gap-2 mt-3 text-center text-xs">
-                <div className="rounded bg-amber-50 p-1.5"><div className="font-bold text-amber-700">{stats.stats.queued}</div><div className="text-[9px]">Antrian</div></div>
-                <div className="rounded bg-emerald-50 p-1.5"><div className="font-bold text-emerald-700">{stats.stats.sent}</div><div className="text-[9px]">Terkirim</div></div>
-                <div className="rounded bg-red-50 p-1.5"><div className="font-bold text-red-700">{stats.stats.failed}</div><div className="text-[9px]">Gagal</div></div>
-                <div className="rounded bg-slate-100 p-1.5"><div className="font-bold text-slate-700">{stats.stats.blocked}</div><div className="text-[9px]">Blocked</div></div>
+                <div className="rounded bg-amber-50 p-1.5"><div className="font-bold text-amber-700">{stats.stats.queued}</div><div className="text-[13px]">Antrian</div></div>
+                <div className="rounded bg-emerald-50 p-1.5"><div className="font-bold text-emerald-700">{stats.stats.sent}</div><div className="text-[13px]">Terkirim</div></div>
+                <div className="rounded bg-red-50 p-1.5"><div className="font-bold text-red-700">{stats.stats.failed}</div><div className="text-[13px]">Gagal</div></div>
+                <div className="rounded bg-slate-100 p-1.5"><div className="font-bold text-slate-700">{stats.stats.blocked}</div><div className="text-[13px]">Blocked</div></div>
               </div>
-              <div className="text-[10px] text-muted-foreground mt-2 text-center">
+              <div className="text-[13px] text-muted-foreground mt-2 text-center">
                 Total: {stats.stats.total} • Success rate: {stats.stats.successRate}%
               </div>
             </div>
@@ -1224,9 +1224,9 @@ function BroadcastStatsDialog({ broadcast, onClose }: { broadcast: any; onClose:
                       <div key={i} className="rounded border p-2 text-xs">
                         <div className="flex items-center justify-between mb-1">
                           <span className="font-semibold">{m.recipientName}</span>
-                          <span className="text-[10px] text-muted-foreground">{m.recipientTerritory}</span>
+                          <span className="text-[13px] text-muted-foreground">{m.recipientTerritory}</span>
                         </div>
-                        <p className="text-[11px] text-muted-foreground line-clamp-2">{m.personalizedContent}</p>
+                        <p className="text-[13px] text-muted-foreground line-clamp-2">{m.personalizedContent}</p>
                       </div>
                     ))}
                   </div>
@@ -1244,10 +1244,10 @@ function BroadcastStatsDialog({ broadcast, onClose }: { broadcast: any; onClose:
                       <div key={i} className="rounded border border-red-200 p-2 text-xs">
                         <div className="flex items-center justify-between mb-1">
                           <span className="font-semibold">{m.recipientName}</span>
-                          <Badge variant="outline" className={`text-[9px] ${m.status === 'BLOCKED' ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'}`}>{m.status}</Badge>
+                          <Badge variant="outline" className={`text-[13px] ${m.status === 'BLOCKED' ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'}`}>{m.status}</Badge>
                         </div>
-                        <div className="text-[10px] text-red-700">{m.errorCode}: {m.errorMessage}</div>
-                        <div className="text-[9px] text-muted-foreground mt-1">Retry: {m.retryCount}/3</div>
+                        <div className="text-[13px] text-red-700">{m.errorCode}: {m.errorMessage}</div>
+                        <div className="text-[13px] text-muted-foreground mt-1">Retry: {m.retryCount}/3</div>
                       </div>
                     ))}
                   </div>
@@ -1493,26 +1493,26 @@ function EssayPollsTab() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1 flex-wrap">
                       {p.isAiGenerated && (
-                        <Badge className="text-[10px] bg-purple-100 text-purple-800">
+                        <Badge className="text-[13px] bg-purple-100 text-purple-800">
                           <Sparkles className="w-2.5 h-2.5 mr-0.5" />AI GENERATED
                         </Badge>
                       )}
-                      <Badge variant="outline" className={`text-[10px] ${p.status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-700' : p.status === 'CLOSED' ? 'bg-slate-50 text-slate-700' : 'bg-amber-50 text-amber-700'}`}>
+                      <Badge variant="outline" className={`text-[13px] ${p.status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-700' : p.status === 'CLOSED' ? 'bg-slate-50 text-slate-700' : 'bg-amber-50 text-amber-700'}`}>
                         {p.status}
                       </Badge>
                       {p.sourceSentiment && (
-                        <Badge variant="outline" className={`text-[10px] ${p.sourceSentiment === 'NEGATIVE' ? 'bg-red-50 text-red-700' : p.sourceSentiment === 'POSITIVE' ? 'bg-emerald-50 text-emerald-700' : ''}`}>
+                        <Badge variant="outline" className={`text-[13px] ${p.sourceSentiment === 'NEGATIVE' ? 'bg-red-50 text-red-700' : p.sourceSentiment === 'POSITIVE' ? 'bg-emerald-50 text-emerald-700' : ''}`}>
                           {p.sourceSentiment}
                         </Badge>
                       )}
-                      {p.targetOccupation && <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700">{p.targetOccupation}</Badge>}
-                      {p.provinceName && <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700"><MapPin className="w-2.5 h-2.5 mr-0.5" />{p.regencyName || p.provinceName}</Badge>}
-                      <Badge variant="outline" className="text-[10px]">{p._count?.responses || 0} respon</Badge>
+                      {p.targetOccupation && <Badge variant="outline" className="text-[13px] bg-blue-50 text-blue-700">{p.targetOccupation}</Badge>}
+                      {p.provinceName && <Badge variant="outline" className="text-[13px] bg-blue-50 text-blue-700"><MapPin className="w-2.5 h-2.5 mr-0.5" />{p.regencyName || p.provinceName}</Badge>}
+                      <Badge variant="outline" className="text-[13px]">{p._count?.responses || 0} respon</Badge>
                     </div>
                     <div className="font-semibold text-sm">{p.title}</div>
                     <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{p.question}</p>
                     {p.description && <p className="text-xs text-purple-700 mt-1 italic line-clamp-1">{p.description}</p>}
-                    <div className="text-[10px] text-muted-foreground mt-2">
+                    <div className="text-[13px] text-muted-foreground mt-2">
                       📅 {formatDateTimeID(p.createdAt)} • oleh {p.createdBy?.fullName || '?'}
                     </div>
                   </div>
@@ -1566,18 +1566,18 @@ function EssayPollsTab() {
               {showTopicSuggestions && topicSuggestions && (
                 <div className="space-y-3">
                   {/* Quick stats */}
-                  <div className="text-[10px] text-purple-700">
+                  <div className="text-[13px] text-purple-700">
                     {topicSuggestions.stats.totalCategories} kategori • {topicSuggestions.stats.totalSuggestedTopics} topik siap pakai • {topicSuggestions.stats.recentOpinionsCount} opinion links terbaru • {topicSuggestions.stats.recentNewsCount} berita LAPRA 08
                   </div>
 
                   {/* Category chips */}
                   <div>
-                    <div className="text-[10px] font-semibold text-muted-foreground mb-1">📚 Pilih Kategori Isu:</div>
+                    <div className="text-[13px] font-semibold text-muted-foreground mb-1">📚 Pilih Kategori Isu:</div>
                     <div className="flex flex-wrap gap-1">
                       {topicSuggestions.categories.map(cat => (
                         <button key={cat.id} type="button"
                           onClick={() => setActiveCategory(activeCategory === cat.id ? null : cat.id)}
-                          className={`px-2 py-1 rounded-full text-[10px] font-medium border transition-all ${activeCategory === cat.id ? `bg-${cat.color}-500 text-white border-${cat.color}-500` : 'border hover:bg-accent'}`}>
+                          className={`px-2 py-1 rounded-full text-[13px] font-medium border transition-all ${activeCategory === cat.id ? `bg-${cat.color}-500 text-white border-${cat.color}-500` : 'border hover:bg-accent'}`}>
                           {cat.icon} {cat.label}
                         </button>
                       ))}
@@ -1590,19 +1590,19 @@ function EssayPollsTab() {
                     if (!cat) return null
                     return (
                       <div className="rounded bg-white border p-2 space-y-1">
-                        <div className="text-[10px] font-semibold text-muted-foreground mb-1">
+                        <div className="text-[13px] font-semibold text-muted-foreground mb-1">
                           {cat.icon} {cat.label} — {cat.description}
                         </div>
                         <div className="space-y-1">
                           {cat.suggestedTopics.map((t: any, i: number) => (
                             <button key={i} type="button"
                               onClick={() => applyTopicSuggestion(t.topic, t.occupation)}
-                              className="w-full text-left p-1.5 rounded border hover:bg-accent text-[11px] transition-all">
+                              className="w-full text-left p-1.5 rounded border hover:bg-accent text-[13px] transition-all">
                               <div className="flex items-start justify-between gap-2">
                                 <span className="flex-1">{t.topic}</span>
                                 <div className="flex gap-1 shrink-0">
-                                  {t.occupation && t.occupation !== 'UMUM' && <Badge variant="outline" className="text-[9px]">{t.occupation}</Badge>}
-                                  <Badge variant="outline" className={`text-[9px] ${t.sentiment === 'NEGATIVE' ? 'bg-red-50 text-red-700' : t.sentiment === 'POSITIVE' ? 'bg-emerald-50 text-emerald-700' : ''}`}>
+                                  {t.occupation && t.occupation !== 'UMUM' && <Badge variant="outline" className="text-[13px]">{t.occupation}</Badge>}
+                                  <Badge variant="outline" className={`text-[13px] ${t.sentiment === 'NEGATIVE' ? 'bg-red-50 text-red-700' : t.sentiment === 'POSITIVE' ? 'bg-emerald-50 text-emerald-700' : ''}`}>
                                     {t.sentiment}
                                   </Badge>
                                 </div>
@@ -1617,20 +1617,20 @@ function EssayPollsTab() {
                   {/* Recent trending opinions (auto-detected from DB) */}
                   {topicSuggestions.recentOpinions && topicSuggestions.recentOpinions.length > 0 && (
                     <div>
-                      <div className="text-[10px] font-semibold text-muted-foreground mb-1">🔥 Trending Issues (dari Opinion Scanner terbaru):</div>
+                      <div className="text-[13px] font-semibold text-muted-foreground mb-1">🔥 Trending Issues (dari Opinion Scanner terbaru):</div>
                       <div className="space-y-1 max-h-32 overflow-y-auto">
                         {topicSuggestions.recentOpinions.slice(0, 5).map((o: any, i: number) => (
                           <button key={i} type="button"
                             onClick={() => applyOpinionAsTopic(o)}
-                            className="w-full text-left p-1.5 rounded border hover:bg-accent text-[11px] transition-all">
+                            className="w-full text-left p-1.5 rounded border hover:bg-accent text-[13px] transition-all">
                             <div className="flex items-start justify-between gap-2">
                               <span className="flex-1 line-clamp-1">{o.title}</span>
                               <div className="flex gap-1 shrink-0">
-                                <Badge variant="outline" className={`text-[9px] ${o.priority === 'HIGH' ? 'bg-red-50 text-red-700' : o.priority === 'MEDIUM' ? 'bg-amber-50 text-amber-700' : ''}`}>{o.priority}</Badge>
-                                <Badge variant="outline" className={`text-[9px] ${o.sentiment === 'NEGATIVE' ? 'bg-red-50 text-red-700' : o.sentiment === 'POSITIVE' ? 'bg-emerald-50 text-emerald-700' : ''}`}>{o.sentiment}</Badge>
+                                <Badge variant="outline" className={`text-[13px] ${o.priority === 'HIGH' ? 'bg-red-50 text-red-700' : o.priority === 'MEDIUM' ? 'bg-amber-50 text-amber-700' : ''}`}>{o.priority}</Badge>
+                                <Badge variant="outline" className={`text-[13px] ${o.sentiment === 'NEGATIVE' ? 'bg-red-50 text-red-700' : o.sentiment === 'POSITIVE' ? 'bg-emerald-50 text-emerald-700' : ''}`}>{o.sentiment}</Badge>
                               </div>
                             </div>
-                            {o.location && o.location !== 'Nasional' && <div className="text-[9px] text-muted-foreground mt-0.5">📍 {o.location} • 💬 {o.engagement} engagement</div>}
+                            {o.location && o.location !== 'Nasional' && <div className="text-[13px] text-muted-foreground mt-0.5">📍 {o.location} • 💬 {o.engagement} engagement</div>}
                           </button>
                         ))}
                       </div>
@@ -1640,15 +1640,15 @@ function EssayPollsTab() {
                   {/* Recent LAPRA 08 news */}
                   {topicSuggestions.recentNews && topicSuggestions.recentNews.length > 0 && (
                     <div>
-                      <div className="text-[10px] font-semibold text-muted-foreground mb-1">📰 Berita LAPRA 08 Terbaru (auto-sync):</div>
+                      <div className="text-[13px] font-semibold text-muted-foreground mb-1">📰 Berita LAPRA 08 Terbaru (auto-sync):</div>
                       <div className="space-y-1 max-h-32 overflow-y-auto">
                         {topicSuggestions.recentNews.slice(0, 5).map((n: any, i: number) => (
                           <button key={i} type="button"
                             onClick={() => applyTopicSuggestion(n.title, n.occupation)}
-                            className="w-full text-left p-1.5 rounded border hover:bg-accent text-[11px] transition-all">
+                            className="w-full text-left p-1.5 rounded border hover:bg-accent text-[13px] transition-all">
                             <div className="flex items-start justify-between gap-2">
                               <span className="flex-1 line-clamp-1">{n.title}</span>
-                              <Badge variant="outline" className="text-[9px]">{n.source}</Badge>
+                              <Badge variant="outline" className="text-[13px]">{n.source}</Badge>
                             </div>
                           </button>
                         ))}
@@ -1658,7 +1658,7 @@ function EssayPollsTab() {
                 </div>
               )}
               {showTopicSuggestions && !topicSuggestions && (
-                <div className="text-[11px] text-purple-700 italic">Loading topic suggestions...</div>
+                <div className="text-[13px] text-purple-700 italic">Loading topic suggestions...</div>
               )}
             </div>
           )}
@@ -1666,7 +1666,7 @@ function EssayPollsTab() {
           {/* Step 1: Input form */}
           <form onSubmit={handleGetSuggestions} className="space-y-3">
             <div className="space-y-2">
-              <Label>Topik Isu / Berita * <span className="text-[10px] text-muted-foreground">(atau klik saran di atas untuk auto-fill)</span></Label>
+              <Label>Topik Isu / Berita * <span className="text-[13px] text-muted-foreground">(atau klik saran di atas untuk auto-fill)</span></Label>
               <Input value={aiForm.sourceTopic} onChange={(e) => setAiForm({ ...aiForm, sourceTopic: e.target.value })}
                 placeholder="cth: Kenaikan harga pupuk bersubsidi di Grobogan" required disabled={generatingSuggestions || aiSuggestions.length > 0} />
             </div>
@@ -1713,14 +1713,14 @@ function EssayPollsTab() {
                     <button key={i} type="button" onClick={() => setSelectedSuggestionIdx(i)}
                       className={`w-full text-left rounded-lg border-2 p-3 transition-all ${isSelected ? 'border-purple-500 bg-purple-50 shadow-md' : 'border-slate-200 hover:border-purple-300 hover:bg-accent'}`}>
                       <div className="flex items-center justify-between mb-1">
-                        <Badge variant="outline" className="text-[10px] bg-purple-100 text-purple-800">
+                        <Badge variant="outline" className="text-[13px] bg-purple-100 text-purple-800">
                           {approachLabels[q.approach] || q.approach} #{i + 1}
                         </Badge>
-                        <Badge variant="outline" className="text-[10px]">{q.targetOccupation}</Badge>
+                        <Badge variant="outline" className="text-[13px]">{q.targetOccupation}</Badge>
                       </div>
                       <div className="font-semibold text-sm mb-1">{q.title}</div>
                       <p className="text-xs text-muted-foreground line-clamp-3">{q.question}</p>
-                      <p className="text-[11px] text-purple-700 italic mt-1 line-clamp-1">{q.description}</p>
+                      <p className="text-[13px] text-purple-700 italic mt-1 line-clamp-1">{q.description}</p>
                     </button>
                   )
                 })}
@@ -1779,20 +1779,20 @@ function EssayPollsTab() {
                   return (
                     <div key={i} className="rounded border bg-white p-2">
                       <div className="flex items-center justify-between mb-1">
-                        <Badge variant="outline" className="text-[9px]">{approachLabels[q.approach] || q.approach}</Badge>
+                        <Badge variant="outline" className="text-[13px]">{approachLabels[q.approach] || q.approach}</Badge>
                         <Button type="button" size="sm" variant="ghost" className="h-6 text-xs" onClick={() => applyManualSuggestion(q)}>
                           <Plus className="w-3 h-3 mr-0.5" /> Pakai
                         </Button>
                       </div>
                       <div className="text-xs font-semibold">{q.title}</div>
-                      <p className="text-[11px] text-muted-foreground line-clamp-2 mt-0.5">{q.question}</p>
+                      <p className="text-[13px] text-muted-foreground line-clamp-2 mt-0.5">{q.question}</p>
                     </div>
                   )
                 })}
               </div>
             )}
             {!loadingManualSuggestions && manualSuggestions.length === 0 && (
-              <p className="text-[11px] text-purple-700 italic">Klik tombol di kanan atas untuk generate 5 varian pertanyaan AI. Anda bisa pakai sebagai starting point, lalu edit sesuai kebutuhan.</p>
+              <p className="text-[13px] text-purple-700 italic">Klik tombol di kanan atas untuk generate 5 varian pertanyaan AI. Anda bisa pakai sebagai starting point, lalu edit sesuai kebutuhan.</p>
             )}
           </div>
 
@@ -1865,24 +1865,24 @@ function EssayPollsTab() {
               <div className="grid grid-cols-3 gap-2 text-center">
                 <div className="rounded border bg-emerald-50 p-2">
                   <div className="text-2xl font-bold text-emerald-700">{detailPoll.sentimentStats?.POSITIVE || 0}</div>
-                  <div className="text-[10px]">Positif</div>
+                  <div className="text-[13px]">Positif</div>
                 </div>
                 <div className="rounded border bg-slate-50 p-2">
                   <div className="text-2xl font-bold text-slate-700">{detailPoll.sentimentStats?.NEUTRAL || 0}</div>
-                  <div className="text-[10px]">Netral</div>
+                  <div className="text-[13px]">Netral</div>
                 </div>
                 <div className="rounded border bg-red-50 p-2">
                   <div className="text-2xl font-bold text-red-700">{detailPoll.sentimentStats?.NEGATIVE || 0}</div>
-                  <div className="text-[10px]">Negatif</div>
+                  <div className="text-[13px]">Negatif</div>
                 </div>
               </div>
               <div>
                 <Label className="text-xs font-semibold">Top Wilayah Responden:</Label>
                 <div className="flex flex-wrap gap-1 mt-1">
                   {(detailPoll.topLocations || []).map((loc: any) => (
-                    <Badge key={loc.code} variant="outline" className="text-[10px]">{loc.code}: {loc.count}</Badge>
+                    <Badge key={loc.code} variant="outline" className="text-[13px]">{loc.code}: {loc.count}</Badge>
                   ))}
-                  {(detailPoll.topLocations || []).length === 0 && <span className="text-xs text-muted-foreground">Belum ada responden</span>}
+                  {(detailPoll.topLocations || []).length === 0 && <span className="text-sm text-muted-foreground">Belum ada responden</span>}
                 </div>
               </div>
               {detailPoll.responses && detailPoll.responses.length > 0 && (
@@ -1892,16 +1892,16 @@ function EssayPollsTab() {
                     {detailPoll.responses.slice(0, 10).map((r: any) => (
                       <div key={r.id} className="rounded border p-2 text-xs">
                         <div className="flex items-center gap-2 mb-1">
-                          <Badge variant="outline" className={`text-[9px] ${r.aiSentiment === 'NEGATIVE' ? 'bg-red-50 text-red-700' : r.aiSentiment === 'POSITIVE' ? 'bg-emerald-50 text-emerald-700' : ''}`}>
+                          <Badge variant="outline" className={`text-[13px] ${r.aiSentiment === 'NEGATIVE' ? 'bg-red-50 text-red-700' : r.aiSentiment === 'POSITIVE' ? 'bg-emerald-50 text-emerald-700' : ''}`}>
                             {r.aiSentiment || 'BELUM'}
                           </Badge>
-                          {r.occupation && <Badge variant="outline" className="text-[9px]">{r.occupation}</Badge>}
-                          {r.ageGroup && <Badge variant="outline" className="text-[9px]">{r.ageGroup}</Badge>}
-                          {r.regencyCode && <Badge variant="outline" className="text-[9px]">{r.regencyCode}</Badge>}
-                          <span className="text-[10px] text-muted-foreground ml-auto">{r.wordCount} kata</span>
+                          {r.occupation && <Badge variant="outline" className="text-[13px]">{r.occupation}</Badge>}
+                          {r.ageGroup && <Badge variant="outline" className="text-[13px]">{r.ageGroup}</Badge>}
+                          {r.regencyCode && <Badge variant="outline" className="text-[13px]">{r.regencyCode}</Badge>}
+                          <span className="text-[13px] text-muted-foreground ml-auto">{r.wordCount} kata</span>
                         </div>
                         <p className="text-xs line-clamp-3">{r.answer}</p>
-                        {r.aiSummary && <p className="text-[10px] text-purple-700 mt-1 italic">{r.aiSummary}</p>}
+                        {r.aiSummary && <p className="text-[13px] text-purple-700 mt-1 italic">{r.aiSummary}</p>}
                       </div>
                     ))}
                   </div>
@@ -1973,8 +1973,8 @@ function ShareToSocialMediaDialog({ poll, onClose }: { poll: any; onClose: () =>
             <div className="font-semibold text-sm">{poll.title}</div>
             <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{poll.question}</p>
             <div className="mt-2 flex items-center gap-2 flex-wrap">
-              {poll.targetOccupation && poll.targetOccupation !== 'UMUM' && <Badge variant="outline" className="text-[10px]">{poll.targetOccupation}</Badge>}
-              {poll.provinceName && <Badge variant="outline" className="text-[10px]"><MapPin className="w-2.5 h-2.5 mr-0.5" />{poll.regencyName || poll.provinceName}</Badge>}
+              {poll.targetOccupation && poll.targetOccupation !== 'UMUM' && <Badge variant="outline" className="text-[13px]">{poll.targetOccupation}</Badge>}
+              {poll.provinceName && <Badge variant="outline" className="text-[13px]"><MapPin className="w-2.5 h-2.5 mr-0.5" />{poll.regencyName || poll.provinceName}</Badge>}
             </div>
           </div>
 
@@ -1983,7 +1983,7 @@ function ShareToSocialMediaDialog({ poll, onClose }: { poll: any; onClose: () =>
             <Label className="text-xs font-semibold">Teks Share (bisa edit):</Label>
             <Textarea value={customText || shareText} onChange={(e) => setCustomText(e.target.value)} rows={4}
               placeholder="Teks yang akan dibagikan ke medsos..." />
-            <div className="text-[10px] text-muted-foreground">{(customText || shareText).length} karakter + URL</div>
+            <div className="text-[13px] text-muted-foreground">{(customText || shareText).length} karakter + URL</div>
           </div>
 
           {/* Poll URL */}
@@ -2019,7 +2019,7 @@ function ShareToSocialMediaDialog({ poll, onClose }: { poll: any; onClose: () =>
           {/* Groups tab */}
           {activeTab === 'groups' && (
             <div className="space-y-3">
-              <div className="rounded-lg bg-amber-50 border border-amber-200 p-2 text-[11px] text-amber-800">
+              <div className="rounded-lg bg-amber-50 border border-amber-200 p-2 text-[13px] text-amber-800">
                 <AlertTriangle className="w-3.5 h-3.5 inline mr-1" />
                 Klik grup untuk membuka platform share. Anda akan diarahkan ke WhatsApp Web / Facebook / Telegram,
                 lalu pilih grup spesifik di akun Anda.
@@ -2043,8 +2043,8 @@ function ShareToSocialMediaDialog({ poll, onClose }: { poll: any; onClose: () =>
                               <span className="text-base">{platformIcon}</span>
                               <div className="flex-1 min-w-0">
                                 <div className="font-semibold text-xs">{group.name}</div>
-                                <div className="text-[10px] text-muted-foreground line-clamp-1">{group.description}</div>
-                                <div className="text-[9px] text-purple-600 italic mt-0.5">{group.shareHint}</div>
+                                <div className="text-[13px] text-muted-foreground line-clamp-1">{group.description}</div>
+                                <div className="text-[13px] text-purple-600 italic mt-0.5">{group.shareHint}</div>
                               </div>
                             </div>
                           </button>
@@ -2191,19 +2191,19 @@ function OpinionLinksTab() {
                     <div className="flex items-start gap-3">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1 flex-wrap">
-                          <Badge className={`text-[10px] ${priBadge}`}>{link.priority}</Badge>
-                          <Badge variant="outline" className="text-[10px] gap-1">{platformIcon(link.platform)}{link.platform}</Badge>
-                          <Badge variant="outline" className={`text-[10px] ${link.sentiment === 'NEGATIVE' ? 'bg-red-50 text-red-700' : link.sentiment === 'POSITIVE' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-50 text-slate-700'}`}>{link.sentiment}</Badge>
-                          <Badge variant="outline" className="text-[10px] bg-purple-50 text-purple-700">{link.category}</Badge>
-                          {link.regencyName && <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700"><MapPin className="w-2.5 h-2.5 mr-0.5" />{link.regencyName}</Badge>}
-                          <Badge variant="outline" className={`text-[10px] ${link.status === 'NEW' ? 'bg-amber-50 text-amber-700' : link.status === 'ADDRESSED' ? 'bg-emerald-50 text-emerald-700' : ''}`}>{link.status}</Badge>
+                          <Badge className={`text-[13px] ${priBadge}`}>{link.priority}</Badge>
+                          <Badge variant="outline" className="text-[13px] gap-1">{platformIcon(link.platform)}{link.platform}</Badge>
+                          <Badge variant="outline" className={`text-[13px] ${link.sentiment === 'NEGATIVE' ? 'bg-red-50 text-red-700' : link.sentiment === 'POSITIVE' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-50 text-slate-700'}`}>{link.sentiment}</Badge>
+                          <Badge variant="outline" className="text-[13px] bg-purple-50 text-purple-700">{link.category}</Badge>
+                          {link.regencyName && <Badge variant="outline" className="text-[13px] bg-blue-50 text-blue-700"><MapPin className="w-2.5 h-2.5 mr-0.5" />{link.regencyName}</Badge>}
+                          <Badge variant="outline" className={`text-[13px] ${link.status === 'NEW' ? 'bg-amber-50 text-amber-700' : link.status === 'ADDRESSED' ? 'bg-emerald-50 text-emerald-700' : ''}`}>{link.status}</Badge>
                         </div>
                         <a href={link.url} target="_blank" rel="noopener noreferrer"
                           className="text-sm font-semibold text-blue-600 hover:underline line-clamp-1">
                           {link.title}
                         </a>
                         {link.content && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{link.content}</p>}
-                        <div className="flex items-center gap-3 mt-2 text-[10px] text-muted-foreground">
+                        <div className="flex items-center gap-3 mt-2 text-[13px] text-muted-foreground">
                           <span>📅 {formatDateTimeID(link.publishedAt || link.createdAt)}</span>
                           {link.engagementCount > 0 && <span>💬 {link.engagementCount}</span>}
                           <span>⚡ {link.urgencyScore}/100</span>
@@ -2320,15 +2320,15 @@ function DecisionDashboardTab() {
                   <div className={`text-3xl font-bold ${data.sentimentIndex >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                     {data.sentimentIndex > 0 ? '+' : ''}{data.sentimentIndex}
                   </div>
-                  <div className="text-[10px] text-muted-foreground">Sentiment Index (-100 s/d +100)</div>
+                  <div className="text-[13px] text-muted-foreground">Sentiment Index (-100 s/d +100)</div>
                 </div>
                 <div>
                   <div className="text-3xl font-bold text-orange-600">{data.stats.totalOpinionLinks}</div>
-                  <div className="text-[10px] text-muted-foreground">Total Mention Dianalisis</div>
+                  <div className="text-[13px] text-muted-foreground">Total Mention Dianalisis</div>
                 </div>
                 <div>
                   <div className="text-3xl font-bold text-red-600">{data.stats.needsAction}</div>
-                  <div className="text-[10px] text-muted-foreground">Perlu Tindakan</div>
+                  <div className="text-[13px] text-muted-foreground">Perlu Tindakan</div>
                 </div>
               </div>
             </div>
@@ -2410,15 +2410,15 @@ function DecisionDashboardTab() {
               {data.actionItems.map((a: any, i: number) => (
                 <div key={i} className="rounded border p-3">
                   <div className="flex items-center gap-2 mb-1 flex-wrap">
-                    <Badge className={`text-[10px] ${a.prioritas === 'TINGGI' ? 'bg-red-100 text-red-800' : a.prioritas === 'SEDANG' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>
+                    <Badge className={`text-[13px] ${a.prioritas === 'TINGGI' ? 'bg-red-100 text-red-800' : a.prioritas === 'SEDANG' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>
                       {a.prioritas}
                     </Badge>
-                    <Badge variant="outline" className="text-[10px]"><MapPin className="w-2.5 h-2.5 mr-0.5" />{a.wilayah}</Badge>
-                    <Badge variant="outline" className="text-[10px]"><Calendar className="w-2.5 h-2.5 mr-0.5" />{a.deadline}</Badge>
+                    <Badge variant="outline" className="text-[13px]"><MapPin className="w-2.5 h-2.5 mr-0.5" />{a.wilayah}</Badge>
+                    <Badge variant="outline" className="text-[13px]"><Calendar className="w-2.5 h-2.5 mr-0.5" />{a.deadline}</Badge>
                   </div>
                   <p className="text-sm font-medium">{a.aksi}</p>
                   {a.alasan && (
-                    <p className="text-[11px] text-muted-foreground mt-1 italic">Alasan: {a.alasan}</p>
+                    <p className="text-[13px] text-muted-foreground mt-1 italic">Alasan: {a.alasan}</p>
                   )}
                 </div>
               ))}
@@ -2432,7 +2432,7 @@ function DecisionDashboardTab() {
         <Card>
           <CardHeader><CardTitle className="text-base">Top Kategori Isu</CardTitle></CardHeader>
           <CardContent>
-            {data.topKategori.length === 0 ? <p className="text-xs text-muted-foreground">Belum ada data.</p> : (
+            {data.topKategori.length === 0 ? <p className="text-sm text-muted-foreground">Belum ada data.</p> : (
               <div className="space-y-2">
                 {data.topKategori.map((k: any, i: number) => (
                   <div key={i} className="flex items-center justify-between">
@@ -2447,7 +2447,7 @@ function DecisionDashboardTab() {
         <Card>
           <CardHeader><CardTitle className="text-base">Top Platform (Engagement)</CardTitle></CardHeader>
           <CardContent>
-            {data.topPlatform.length === 0 ? <p className="text-xs text-muted-foreground">Belum ada data.</p> : (
+            {data.topPlatform.length === 0 ? <p className="text-sm text-muted-foreground">Belum ada data.</p> : (
               <div className="space-y-2">
                 {data.topPlatform.map((p: any, i: number) => (
                   <div key={i} className="flex items-center justify-between">
@@ -2576,15 +2576,15 @@ function AgentsMonitorTab() {
               <div className="grid grid-cols-3 gap-2 text-xs">
                 <div className="rounded bg-white/70 p-2">
                   <div className="font-bold text-lg">{data.syncEvents?.pending || 0}</div>
-                  <div className="text-[10px] text-muted-foreground">Pending Sync Events</div>
+                  <div className="text-[13px] text-muted-foreground">Pending Sync Events</div>
                 </div>
                 <div className="rounded bg-white/70 p-2">
                   <div className="font-bold text-lg text-emerald-700">{data.syncEvents?.completedToday || 0}</div>
-                  <div className="text-[10px] text-muted-foreground">Syncs Completed Today</div>
+                  <div className="text-[13px] text-muted-foreground">Syncs Completed Today</div>
                 </div>
                 <div className="rounded bg-white/70 p-2">
                   <div className="font-bold text-lg text-blue-700">{data.jobs?.filter((j: any) => j.isActive).length || 0}</div>
-                  <div className="text-[10px] text-muted-foreground">Active Background Jobs</div>
+                  <div className="text-[13px] text-muted-foreground">Active Background Jobs</div>
                 </div>
               </div>
             </div>
@@ -2673,19 +2673,19 @@ function AgentsMonitorTab() {
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <Badge variant="outline" className="text-[10px]">{job.jobType}</Badge>
-                      <Badge className={`text-[10px] ${job.isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>
+                      <Badge variant="outline" className="text-[13px]">{job.jobType}</Badge>
+                      <Badge className={`text-[13px] ${job.isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>
                         {job.isActive ? 'ACTIVE' : 'PAUSED'}
                       </Badge>
                       <span className="font-semibold text-sm">{job.jobName}</span>
                     </div>
-                    <div className="text-[11px] text-muted-foreground mt-1">
+                    <div className="text-[13px] text-muted-foreground mt-1">
                       Every {job.intervalMinutes}min • Last: {job.lastRunAt ? formatDateTimeID(job.lastRunAt) : 'never'} • Next: {formatDateTimeID(job.nextRunAt)} •
                       Runs: {job.totalRuns} (✓{job.successCount}/✗{job.failureCount})
                       {job.lastDurationMs ? ` • ${job.lastDurationMs}ms` : ''}
                     </div>
                     {job.lastError && (
-                      <div className="text-[10px] text-red-600 mt-1">⚠️ {job.lastError.substring(0, 100)}</div>
+                      <div className="text-[13px] text-red-600 mt-1">⚠️ {job.lastError.substring(0, 100)}</div>
                     )}
                   </div>
                   <div className="flex gap-1">
@@ -2715,16 +2715,16 @@ function AgentsMonitorTab() {
               {data.recentLogs?.slice(0, 30).map((log: any) => (
                 <div key={log.id} className="rounded border p-2 text-xs">
                   <div className="flex items-center gap-2 mb-1">
-                    <Badge className={`text-[9px] ${log.status === 'SUCCESS' ? 'bg-emerald-100 text-emerald-800' : log.status === 'FAILED' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'}`}>
+                    <Badge className={`text-[13px] ${log.status === 'SUCCESS' ? 'bg-emerald-100 text-emerald-800' : log.status === 'FAILED' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'}`}>
                       {log.status}
                     </Badge>
                     <span className="font-semibold">{log.agentName}.{log.action}</span>
                     {log.durationMs && <span className="text-muted-foreground">{log.durationMs}ms</span>}
-                    {log.recordsAffected > 0 && <Badge variant="outline" className="text-[9px]">{log.recordsAffected} records</Badge>}
-                    {log.llmTokensUsed > 0 && <Badge variant="outline" className="text-[9px]">{log.llmTokensUsed} tokens</Badge>}
+                    {log.recordsAffected > 0 && <Badge variant="outline" className="text-[13px]">{log.recordsAffected} records</Badge>}
+                    {log.llmTokensUsed > 0 && <Badge variant="outline" className="text-[13px]">{log.llmTokensUsed} tokens</Badge>}
                   </div>
-                  {log.error && <div className="text-red-600 text-[10px]">{log.error.substring(0, 150)}</div>}
-                  <div className="text-[9px] text-muted-foreground">{formatDateTimeID(log.startedAt)}</div>
+                  {log.error && <div className="text-red-600 text-[13px]">{log.error.substring(0, 150)}</div>}
+                  <div className="text-[13px] text-muted-foreground">{formatDateTimeID(log.startedAt)}</div>
                 </div>
               ))}
             </div>
@@ -2866,27 +2866,27 @@ function GatewayProvidersDialog({ open, onOpenChange }: { open: boolean; onOpenC
                     <div className="flex-1">
                       <div className="flex items-center gap-2 flex-wrap mb-1">
                         <span className="font-bold text-base">{p.name}</span>
-                        <Badge variant="outline" className="text-[10px]">{p.country}</Badge>
-                        {p.recommended && <Badge className="text-[10px] bg-purple-100 text-purple-800">⭐ RECOMMENDED</Badge>}
-                        {p.isActive && <Badge className="text-[10px] bg-emerald-100 text-emerald-800">✓ ACTIVE</Badge>}
-                        {p.isConfigured && <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700">🔑 CONFIGURED</Badge>}
+                        <Badge variant="outline" className="text-[13px]">{p.country}</Badge>
+                        {p.recommended && <Badge className="text-[13px] bg-purple-100 text-purple-800">⭐ RECOMMENDED</Badge>}
+                        {p.isActive && <Badge className="text-[13px] bg-emerald-100 text-emerald-800">✓ ACTIVE</Badge>}
+                        {p.isConfigured && <Badge variant="outline" className="text-[13px] bg-blue-50 text-blue-700">🔑 CONFIGURED</Badge>}
                       </div>
-                      <p className="text-xs text-muted-foreground">{p.description}</p>
-                      <div className="text-[11px] text-muted-foreground mt-1">
+                      <p className="text-sm text-muted-foreground">{p.description}</p>
+                      <div className="text-[13px] text-muted-foreground mt-1">
                         <strong>Pricing:</strong> {p.pricing} • <strong>API:</strong> <code>{p.apiEndpoint}</code>
                       </div>
                     </div>
                     {/* Scores */}
-                    <div className="grid grid-cols-2 gap-1 text-[10px] text-center ml-2">
-                      <div className="rounded bg-slate-100 p-1"><div className="font-bold">{p.antiBannedScore}</div><div className="text-[8px]">Anti-Banned</div></div>
-                      <div className="rounded bg-slate-100 p-1"><div className="font-bold">{p.scalabilityScore}</div><div className="text-[8px]">Skalabilitas</div></div>
-                      <div className="rounded bg-slate-100 p-1"><div className="font-bold">{p.pricingScore}</div><div className="text-[8px]">Harga</div></div>
-                      <div className="rounded bg-slate-100 p-1"><div className="font-bold">{p.easeOfUse}</div><div className="text-[8px]">Kemudahan</div></div>
+                    <div className="grid grid-cols-2 gap-1 text-[13px] text-center ml-2">
+                      <div className="rounded bg-slate-100 p-1"><div className="font-bold">{p.antiBannedScore}</div><div className="text-[13px]">Anti-Banned</div></div>
+                      <div className="rounded bg-slate-100 p-1"><div className="font-bold">{p.scalabilityScore}</div><div className="text-[13px]">Skalabilitas</div></div>
+                      <div className="rounded bg-slate-100 p-1"><div className="font-bold">{p.pricingScore}</div><div className="text-[13px]">Harga</div></div>
+                      <div className="rounded bg-slate-100 p-1"><div className="font-bold">{p.easeOfUse}</div><div className="text-[13px]">Kemudahan</div></div>
                     </div>
                   </div>
 
                   {/* Pros/cons */}
-                  <div className="grid grid-cols-2 gap-2 text-[11px] mt-2">
+                  <div className="grid grid-cols-2 gap-2 text-[13px] mt-2">
                     <div>
                       <div className="font-semibold text-emerald-700 mb-0.5">✅ Pros:</div>
                       <ul className="space-y-0.5">
@@ -2904,13 +2904,13 @@ function GatewayProvidersDialog({ open, onOpenChange }: { open: boolean; onOpenC
                   {/* Features */}
                   <div className="mt-2 flex flex-wrap gap-1">
                     {p.features.map((f: string, i: number) => (
-                      <span key={i} className="text-[10px] bg-slate-100 rounded px-1.5 py-0.5">{f}</span>
+                      <span key={i} className="text-[13px] bg-slate-100 rounded px-1.5 py-0.5">{f}</span>
                     ))}
                   </div>
 
                   {/* Recommendation reason */}
                   {p.recommendationReason && (
-                    <div className="mt-2 rounded bg-purple-50 border border-purple-200 p-2 text-[11px] text-purple-800 italic">
+                    <div className="mt-2 rounded bg-purple-50 border border-purple-200 p-2 text-[13px] text-purple-800 italic">
                       💡 {p.recommendationReason}
                     </div>
                   )}
@@ -2918,13 +2918,13 @@ function GatewayProvidersDialog({ open, onOpenChange }: { open: boolean; onOpenC
                   {/* Integration steps (expandable) */}
                   {selectedProviderId === p.id && (
                     <div className="mt-2 rounded bg-blue-50 border border-blue-200 p-2 space-y-2">
-                      <div className="text-[11px] font-semibold text-blue-800">📋 Langkah Integrasi:</div>
-                      <ol className="text-[11px] space-y-0.5 list-decimal ml-4">
+                      <div className="text-[13px] font-semibold text-blue-800">📋 Langkah Integrasi:</div>
+                      <ol className="text-[13px] space-y-0.5 list-decimal ml-4">
                         {p.integrationSteps.map((step: string, i: number) => <li key={i}>{step}</li>)}
                       </ol>
 
-                      <div className="text-[11px] font-semibold text-blue-800 mt-2">🔧 Example API Call:</div>
-                      <pre className="text-[10px] bg-white border rounded p-2 overflow-x-auto">
+                      <div className="text-[13px] font-semibold text-blue-800 mt-2">🔧 Example API Call:</div>
+                      <pre className="text-[13px] bg-white border rounded p-2 overflow-x-auto">
 {`${p.examplePayload.method} ${p.examplePayload.url}
 Headers: ${JSON.stringify(p.examplePayload.headers, null, 2)}
 Body: ${JSON.stringify(p.examplePayload.body, null, 2)}`}
@@ -2932,7 +2932,7 @@ Body: ${JSON.stringify(p.examplePayload.body, null, 2)}`}
 
                       {/* API key form */}
                       <div className="mt-2 rounded bg-white border p-2 space-y-2">
-                        <div className="text-[11px] font-semibold">🔑 Konfigurasi API Key untuk {p.name}:</div>
+                        <div className="text-[13px] font-semibold">🔑 Konfigurasi API Key untuk {p.name}:</div>
                         <div className="grid grid-cols-2 gap-2">
                           <Input type="password" placeholder="API Key / Token" value={apiKeyForm.apiKey}
                             onChange={(e) => setApiKeyForm({ ...apiKeyForm, apiKey: e.target.value })} className="h-8 text-xs" />

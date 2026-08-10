@@ -339,7 +339,7 @@ function TerritoryCard({ territory, onClick, canManage, onEdit, onDelete }: {
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           <div className="font-semibold text-sm truncate">{territory.name}</div>
-          <code className="text-[10px] font-mono bg-muted px-1.5 py-0.5 rounded">{territory.code}</code>
+          <code className="text-[13px] font-mono bg-muted px-1.5 py-0.5 rounded">{territory.code}</code>
           <div className="text-xs text-muted-foreground mt-1">
             {territory._count?.children || 0} DPC • {territory._count?.members || 0} anggota
           </div>
@@ -607,7 +607,7 @@ function PengurusSection({ level, territoryId, territoryFilter }: {
                   <div className="text-xs text-orange-600 font-medium">{p.positionName}</div>
                   <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
                     {p.phone && <span className="flex items-center gap-0.5"><Phone className="w-3 h-3" />{p.phone}</span>}
-                    {p.territory && <Badge variant="outline" className="text-[10px]">{p.territory.name}</Badge>}
+                    {p.territory && <Badge variant="outline" className="text-[13px]">{p.territory.name}</Badge>}
                   </div>
                 </div>
                 {/* Ikon Edit & Hapus eksplisit di sudut kanan atas */}
@@ -954,12 +954,12 @@ function SKSection({ level, territoryId, territoryFilter }: {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="font-medium text-sm truncate">{d.title}</div>
-                  <code className="text-[10px] font-mono bg-muted px-1 rounded">{d.skNumber}</code>
+                  <code className="text-[13px] font-mono bg-muted px-1 rounded">{d.skNumber}</code>
                   <div className="text-xs text-muted-foreground mt-1">
                     {d.issuedBy} • {formatDateID(d.issuedAt)}
                   </div>
                   {d.ocrStatus === 'COMPLETED' && (
-                    <Badge variant="outline" className="text-[10px] mt-1 bg-emerald-50 text-emerald-700 border-emerald-200">
+                    <Badge variant="outline" className="text-[13px] mt-1 bg-emerald-50 text-emerald-700 border-emerald-200">
                       <FileCheck className="w-3 h-3 mr-1" /> OCR Selesai
                     </Badge>
                   )}
@@ -1114,7 +1114,7 @@ function OcrPreviewDialog({ preview, onClose, onConfirm }: {
                 />
                 <div className="flex-1 grid grid-cols-2 gap-2">
                   <div>
-                    <Label className="text-[10px]">Nama Lengkap</Label>
+                    <Label className="text-[13px]">Nama Lengkap</Label>
                     <Input
                       value={p.fullName || ''}
                       onChange={(e) => setEditable(prev => prev.map(x => x.id === p.id ? { ...x, fullName: e.target.value } : x))}
@@ -1122,7 +1122,7 @@ function OcrPreviewDialog({ preview, onClose, onConfirm }: {
                     />
                   </div>
                   <div>
-                    <Label className="text-[10px]">Jabatan</Label>
+                    <Label className="text-[13px]">Jabatan</Label>
                     <Input
                       value={p.positionName || ''}
                       onChange={(e) => setEditable(prev => prev.map(x => x.id === p.id ? { ...x, positionName: e.target.value } : x))}
@@ -1130,7 +1130,7 @@ function OcrPreviewDialog({ preview, onClose, onConfirm }: {
                     />
                   </div>
                   <div>
-                    <Label className="text-[10px]">WhatsApp</Label>
+                    <Label className="text-[13px]">WhatsApp</Label>
                     <Input
                       value={p.phone || ''}
                       onChange={(e) => setEditable(prev => prev.map(x => x.id === p.id ? { ...x, phone: e.target.value } : x))}
@@ -1139,7 +1139,7 @@ function OcrPreviewDialog({ preview, onClose, onConfirm }: {
                     />
                   </div>
                   <div>
-                    <Label className="text-[10px]">Email</Label>
+                    <Label className="text-[13px]">Email</Label>
                     <Input
                       value={p.email || ''}
                       onChange={(e) => setEditable(prev => prev.map(x => x.id === p.id ? { ...x, email: e.target.value } : x))}

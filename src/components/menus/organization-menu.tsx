@@ -294,11 +294,11 @@ function PositionsTab() {
                           <div className="font-semibold truncate">{p.fullName}</div>
                           <div className="text-sm text-orange-600 font-medium">{p.positionName}</div>
                           <div className="flex items-center gap-2 mt-1">
-                            <Badge variant="outline" className={`text-[10px] ${LEVEL_COLORS[p.level]}`}>
+                            <Badge variant="outline" className={`text-[13px] ${LEVEL_COLORS[p.level]}`}>
                               <Icon className="w-3 h-3 mr-1" />
                               {LEVEL_LABELS[p.level].split(' (')[0]}
                             </Badge>
-                            <Badge variant="outline" className="text-[10px]">
+                            <Badge variant="outline" className="text-[13px]">
                               {p.territory.name}
                             </Badge>
                           </div>
@@ -337,7 +337,7 @@ function PositionsTab() {
                           </div>
                         )}
                         {p.startDate && (
-                          <div className="text-[10px]">
+                          <div className="text-[13px]">
                             Sejak: {formatDateID(p.startDate)}
                           </div>
                         )}
@@ -531,16 +531,16 @@ function SKTab() {
                         </DropdownMenu>
                       </div>
                       <div className="mt-2 flex flex-wrap gap-1.5">
-                        <Badge variant="outline" className={`text-[10px] ${ocrConfig.color}`}>
+                        <Badge variant="outline" className={`text-[13px] ${ocrConfig.color}`}>
                           <OcrIcon className={`w-3 h-3 mr-1 ${d.ocrStatus === 'PROCESSING' ? 'animate-spin' : ''}`} />
                           {ocrConfig.label}
                         </Badge>
                         {d.fileType && (
-                          <Badge variant="outline" className={`text-[10px] ${fileConfig.color}`}>
+                          <Badge variant="outline" className={`text-[13px] ${fileConfig.color}`}>
                             {fileConfig.label}
                           </Badge>
                         )}
-                        <Badge variant="outline" className="text-[10px]">
+                        <Badge variant="outline" className="text-[13px]">
                           {d.territory.name}
                         </Badge>
                       </div>
