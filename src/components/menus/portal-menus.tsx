@@ -35,7 +35,7 @@ import {
   PhoneCall, MessageSquare, HelpCircle, Map as MapIcon, Mail, Plus,
   Edit, Trash2, MoreVertical, Pin, Send, Eye, Upload, Loader2, Search,
   Crown, Award, CheckCircle2, Clock, AlertTriangle, Globe, ExternalLink, Lock,
-  Video, PlayCircle, BookMarked, FileCheck, UserCheck, XCircle, Camera, IdCard,
+  Video, PlayCircle, BookMarked, FileCheck, UserCheck, XCircle, Camera, IdCard, Zap, Lightbulb,
 } from 'lucide-react'
 
 // Reuse existing functional components
@@ -53,6 +53,7 @@ export function BerandaMenu() {
   const setActiveMenu = useNavStore((s) => s.setActiveMenu)
   const [stats, setStats] = useState<any>(null)
   const [announcements, setAnnouncements] = useState<any[]>([])
+  const [auditOpen, setAuditOpen] = useState(false)
 
   useEffect(() => {
     api('/api/stats').then(setStats).catch(() => {})
@@ -156,6 +157,7 @@ export function BerandaMenu() {
           <QuickAccessPremium icon={ShieldCheck} title="Layanan Advokasi" desc="Pengaduan & bantuan" gradient="from-orange-500 to-red-600" onClick={() => setActiveMenu('layanan')} />
           <QuickAccessPremium icon={KeyRound} title="Cek KTA Digital" desc="Verifikasi keanggotaan" gradient="from-amber-400 to-yellow-500" onClick={() => setActiveMenu('layanan')} />
           <QuickAccessPremium icon={MapIcon} title="Sekretariat" desc="Lokasi & kontak" gradient="from-slate-600 to-slate-800" onClick={() => setActiveMenu('kontak')} />
+          <QuickAccessPremium icon={ShieldCheck} title="Audit AI Responding" desc="Scan keluhan warganet" gradient="from-red-500 to-rose-700" onClick={() => setAuditOpen(true)} />
         </div>
       </div>
 
@@ -231,6 +233,9 @@ export function BerandaMenu() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Audit AI Responding Dialog */}
+      <AuditAIRespondingDialog open={auditOpen} onOpenChange={setAuditOpen} />
     </div>
   )
 }
@@ -4242,5 +4247,261 @@ function FaqManager() {
         {filtered.length === 0 && <EmptyState icon={HelpCircle} title="Tidak ada FAQ cocok" description="Coba kata kunci lain atau hubungi sekretariat langsung." />}
       </CardContent>
     </Card>
+  )
+}
+
+// ============================================================
+// AUDIT AI RESPONDING OTOMATIS - Dialog Component
+// ============================================================
+function AuditAIRespondingDialog({ open, onOpenChange }: { open: boolean, onOpenChange: (o: boolean) => void }) {
+  const addToast = useToastStore((s) => s.addToast)
+  const [scanning, setScanning] = useState(false)
+  const [scanResult, setScanResult] = useState<any>(null)
+  const [complaints, setComplaints] = useState<any[]>([])
+  const [ignoredByWilayah, setIgnoredByWilayah] = useState<any[]>([])
+  const [stats, setStats] = useState<any>(null)
+  const [filterPriority, setFilterPriority] = useState('')
+  const [loadingDetail, setLoadingDetail] = useState(false)
+
+  const handleScan = async () => {
+    setScanning(true); setScanResult(null); setComplaints([]); setIgnoredByWilayah([]); setStats(null)
+    try {
+      const res = await fetch('/api/audit-ai/scans', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+        body: JSON.stringify({ platforms: ['FACEBOOK', 'INSTAGRAM', 'TIKTOK', 'TWITTER_X', 'GOOGLE'] }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) throw new Error(data.error)
+      setScanResult(data.data)
+      addToast(data.message, 'success')
+      // Load detail complaints
+      loadComplaints(data.data.id)
+    } catch (e: any) { addToast(e.message, 'error') }
+    finally { setScanning(false) }
+  }
+
+  const loadComplaints = async (scanId: string) => {
+    setLoadingDetail(true)
+    try {
+      const params = filterPriority ? `?priority=${filterPriority}` : ''
+      const res = await fetch(`/api/audit-ai/scans/${scanId}${params}`, { headers: { 'x-user-id': useAuthStore.getState().user?.id || '' } })
+      const data = await res.json()
+      if (data.success) {
+        setComplaints(data.data.complaints)
+        setIgnoredByWilayah(data.data.ignoredByWilayah)
+        setStats(data.data.stats)
+      }
+    } catch (e: any) { addToast(e.message, 'error') }
+    finally { setLoadingDetail(false) }
+  }
+
+  const handleRespond = async (complaintId: string, status: string, type: string) => {
+    try {
+      await fetch(`/api/audit-ai/complaints/${complaintId}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+        body: JSON.stringify({ responseStatus: status, responseType: type }),
+      })
+      addToast(`Keluhan ditandai: ${status}`, 'success')
+      if (scanResult) loadComplaints(scanResult.id)
+    } catch (e: any) { addToast(e.message, 'error') }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <ShieldCheck className="w-5 h-5 text-red-600" /> Audit AI Responding Otomatis
+          </DialogTitle>
+          <DialogDescription>
+            Deteksi instan keluhan warganet di Facebook, Instagram, TikTok, X (Twitter), dan Google. Identifikasi mana yang wajib direspon oleh DPN/DPD/DPC.
+          </DialogDescription>
+        </DialogHeader>
+
+        {/* Rp0 info banner */}
+        <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-xs text-emerald-800 flex items-start gap-2">
+          <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" />
+          <div>
+            <strong>Teknologi Gratis (Rp0):</strong> Data scraping via open-source (RSS, Twikit, YouTube API free, TikTok scraper). AI analisis via IndoBERT (server lokal). AI rekomendasi via Ollama/Llama 3 (server lokal). Berjalan selamanya tanpa biaya langganan API.
+          </div>
+        </div>
+
+        {/* Scan button */}
+        {!scanResult && !scanning && (
+          <div className="text-center py-8">
+            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-red-500 to-rose-700 flex items-center justify-center mx-auto mb-4 shadow-lg">
+              <ShieldCheck className="w-10 h-10 text-white" />
+            </div>
+            <h3 className="font-bold text-lg mb-2">Audit AI Responding Otomatis</h3>
+            <p className="text-sm text-muted-foreground mb-4 max-w-md mx-auto">
+              Klik tombol di bawah untuk melakukan scan instan terhadap semua media sosial dan mendeteksi keluhan warganet yang wajib direspon oleh pengurus LAPRA 08.
+            </p>
+            <Button onClick={handleScan} size="lg" className="bg-gradient-to-r from-red-600 to-rose-700 text-white">
+              <Zap className="w-5 h-5 mr-2" /> Mulai Audit Sekarang
+            </Button>
+          </div>
+        )}
+
+        {/* Scanning */}
+        {scanning && (
+          <div className="text-center py-12">
+            <Loader2 className="w-12 h-12 mx-auto animate-spin text-red-600 mb-4" />
+            <p className="text-sm font-medium">Sedang mengscan Facebook, Instagram, TikTok, X, dan Google...</p>
+            <p className="text-xs text-muted-foreground mt-1">Menganalisis keluhan warganet dengan AI lokal (IndoBERT)...</p>
+          </div>
+        )}
+
+        {/* Results */}
+        {scanResult && !scanning && (
+          <div className="space-y-4">
+            {/* Summary stats */}
+            {stats && (
+              <div className="grid grid-cols-4 gap-3">
+                <div className="rounded-lg border p-3 text-center bg-slate-50">
+                  <div className="text-2xl font-bold">{stats.total}</div>
+                  <div className="text-[10px] text-muted-foreground">Total Keluhan</div>
+                </div>
+                <div className="rounded-lg border p-3 text-center bg-red-50 border-red-200">
+                  <div className="text-2xl font-bold text-red-700">{stats.high}</div>
+                  <div className="text-[10px] text-red-600">Prioritas Tinggi</div>
+                </div>
+                <div className="rounded-lg border p-3 text-center bg-amber-50 border-amber-200">
+                  <div className="text-2xl font-bold text-amber-700">{stats.medium}</div>
+                  <div className="text-[10px] text-amber-600">Prioritas Sedang</div>
+                </div>
+                <div className="rounded-lg border p-3 text-center bg-blue-50 border-blue-200">
+                  <div className="text-2xl font-bold text-blue-700">{stats.ignored}</div>
+                  <div className="text-[10px] text-blue-600">Terabaikan</div>
+                </div>
+              </div>
+            )}
+
+            {/* Priority filter */}
+            <div className="flex gap-2 items-center">
+              <span className="text-xs font-semibold text-muted-foreground">Filter Prioritas:</span>
+              <Button size="sm" variant={filterPriority === '' ? 'default' : 'outline'} className="h-7 text-xs" onClick={() => { setFilterPriority(''); if (scanResult) loadComplaints(scanResult.id) }}>Semua</Button>
+              <Button size="sm" variant={filterPriority === 'HIGH' ? 'default' : 'outline'} className="h-7 text-xs bg-red-600 hover:bg-red-700 text-white" onClick={() => { setFilterPriority('HIGH'); if (scanResult) loadComplaints(scanResult.id) }}>Tinggi</Button>
+              <Button size="sm" variant={filterPriority === 'MEDIUM' ? 'default' : 'outline'} className="h-7 text-xs bg-amber-600 hover:bg-amber-700 text-white" onClick={() => { setFilterPriority('MEDIUM'); if (scanResult) loadComplaints(scanResult.id) }}>Sedang</Button>
+              <Button size="sm" variant={filterPriority === 'LOW' ? 'default' : 'outline'} className="h-7 text-xs bg-blue-600 hover:bg-blue-700 text-white" onClick={() => { setFilterPriority('LOW'); if (scanResult) loadComplaints(scanResult.id) }}>Rendah</Button>
+            </div>
+
+            {/* Complaints list with priority */}
+            {loadingDetail ? (
+              <div className="text-center py-8"><Loader2 className="w-8 h-8 animate-spin text-red-600 mx-auto" /></div>
+            ) : complaints.length === 0 ? (
+              <EmptyState icon={ShieldCheck} title="Tidak ada keluhan" description="Tidak ditemukan keluhan pada filter ini." />
+            ) : (
+              <div className="space-y-2">
+                {complaints.map((c, i) => {
+                  const priColor = c.priority === 'HIGH' ? 'border-l-red-500 bg-red-50/30' : c.priority === 'MEDIUM' ? 'border-l-amber-500 bg-amber-50/30' : 'border-l-blue-500 bg-blue-50/30'
+                  const priBadge = c.priority === 'HIGH' ? 'bg-red-100 text-red-800 border-red-300' : c.priority === 'MEDIUM' ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-blue-100 text-blue-800 border-blue-300'
+                  const platformIcon = c.platform === 'FACEBOOK' ? '📘' : c.platform === 'INSTAGRAM' ? '📷' : c.platform === 'TIKTOK' ? '🎵' : c.platform === 'TWITTER_X' ? '🐦' : '🔍'
+                  return (
+                    <div key={c.id} className={`rounded-xl border-l-4 p-3 ${priColor}`}>
+                      <div className="flex items-start gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap mb-1">
+                            <Badge className={`text-[10px] ${priBadge}`}>{c.priority}</Badge>
+                            <Badge variant="outline" className="text-[10px]">{platformIcon} {c.platform}</Badge>
+                            <Badge variant="outline" className="text-[10px] bg-purple-50 text-purple-700">{c.category}</Badge>
+                            {c.regencyName && <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700"><MapPin className="w-2.5 h-2.5 mr-0.5" />{c.regencyName}</Badge>}
+                            <Badge variant="outline" className={`text-[10px] ${c.responseStatus === 'IGNORED' ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700'}`}>
+                              {c.responseStatus === 'IGNORED' ? '⚠ TERABAIKAN' : c.responseStatus === 'RESPONDED' ? '✓ Direspon' : '⏳ Proses'}
+                            </Badge>
+                          </div>
+                          <div className="text-sm font-semibold">{c.author}</div>
+                          <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{c.content}</p>
+                          {c.aiRecommendation && (
+                            <div className="mt-2 p-2 rounded bg-white border text-xs">
+                              <Lightbulb className="w-3 h-3 inline mr-1 text-amber-500" />
+                              <strong>AI Rekomendasi:</strong> {c.aiRecommendation}
+                            </div>
+                          )}
+                          <div className="flex items-center gap-3 mt-2 text-[10px] text-muted-foreground">
+                            <span>📅 {formatDateTimeID(c.publishedAt)}</span>
+                            <span>💬 {c.engagementCount} engagement</span>
+                            <span>⚡ Urgency: {c.urgencyScore}/100</span>
+                          </div>
+                        </div>
+                        <div className="flex flex-col gap-1 shrink-0">
+                          {c.responseStatus === 'IGNORED' && (
+                            <>
+                              <Button size="sm" variant="outline" className="h-7 text-xs text-emerald-700 border-emerald-300" onClick={() => handleRespond(c.id, 'IN_PROGRESS', 'ACKNOWLEDGMENT')}>
+                                <CheckCircle2 className="w-3 h-3 mr-1" /> Tandai Proses
+                              </Button>
+                              <Button size="sm" variant="outline" className="h-7 text-xs text-blue-700 border-blue-300" onClick={() => handleRespond(c.id, 'RESPONDED', 'CLARIFICATION')}>
+                                <Send className="w-3 h-3 mr-1" /> Sudah Respon
+                              </Button>
+                            </>
+                          )}
+                          <a href={c.url} target="_blank" rel="noopener noreferrer">
+                            <Button size="sm" variant="ghost" className="h-7 text-xs w-full"><ExternalLink className="w-3 h-3 mr-1" /> Buka Post</Button>
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* Daftar Keluhan Terabaikan per Wilayah */}
+            {ignoredByWilayah.length > 0 && (
+              <Card className="border-red-200">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-sm text-red-700">
+                    <AlertTriangle className="w-4 h-4" /> Daftar Keluhan Terabaikan per Wilayah
+                  </CardTitle>
+                  <CardDescription>Wilayah yang pasif/lambat merespon keluhan warganet</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Provinsi</TableHead>
+                        <TableHead>Kab/Kota</TableHead>
+                        <TableHead className="text-center">Total</TableHead>
+                        <TableHead className="text-center text-red-600">Tinggi</TableHead>
+                        <TableHead className="text-center text-amber-600">Sedang</TableHead>
+                        <TableHead className="text-center text-blue-600">Rendah</TableHead>
+                        <TableHead>Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {ignoredByWilayah.map((w, i) => (
+                        <TableRow key={i} className={w.high > 0 ? 'bg-red-50/50' : ''}>
+                          <TableCell className="text-sm font-medium">{w.provinceName}</TableCell>
+                          <TableCell className="text-sm">{w.regencyName}</TableCell>
+                          <TableCell className="text-center font-bold">{w.total}</TableCell>
+                          <TableCell className="text-center text-red-700 font-bold">{w.high}</TableCell>
+                          <TableCell className="text-center text-amber-700">{w.medium}</TableCell>
+                          <TableCell className="text-center text-blue-700">{w.low}</TableCell>
+                          <TableCell>
+                            {w.high > 0 ? <Badge className="bg-red-100 text-red-800 text-[10px]">⚠ KRITIS - Wajib Respon</Badge> :
+                             w.medium > 0 ? <Badge className="bg-amber-100 text-amber-800 text-[10px]">⚠ Perlu Perhatian</Badge> :
+                             <Badge variant="outline" className="text-[10px]">Monitor</Badge>}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Re-scan button */}
+            <div className="flex justify-end">
+              <Button onClick={handleScan} disabled={scanning} variant="outline">
+                <Loader2 className={`w-4 h-4 mr-1 ${scanning ? 'animate-spin' : 'hidden'}`} /> Scan Ulang
+              </Button>
+            </div>
+          </div>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Tutup</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }

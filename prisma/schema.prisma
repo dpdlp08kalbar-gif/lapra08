@@ -84,6 +84,7 @@ model User {
   aspirationsReviewed Aspiration[] @relation("AspirationReviewer")
   alertNotifications AlertNotification[]
   aiRecommendations AIRecommendation[]
+  auditScans     AuditScan[]
 }
 
 // ============================================================
@@ -951,3 +952,71 @@ model AIRecommendation {
   @@index([status, priority])
   @@index([scope, provinceCode, regencyCode])
 }
+
+// ============================================================
+// AUDIT AI RESPONDING OTOMATIS - Deteksi Keluhan Warganet
+// ============================================================
+
+// Scan Session - setiap kali tombol "Audit AI" ditekan
+model AuditScan {
+  id              String   @id @default(cuid())
+  triggeredById   String
+  triggeredBy     User     @relation(fields: [triggeredById], references: [id])
+  // Scan metadata
+  platforms       String   @default("[]") // JSON: ["FACEBOOK","INSTAGRAM","TIKTOK","TWITTER_X","GOOGLE"]
+  totalMentions   Int      @default(0)
+  totalComplaints Int      @default(0)
+  needsResponse   Int      @default(0) // complaints yang wajib direspon
+  ignoredCount    Int      @default(0) // complaints terabaikan (no response dari pengurus)
+  // Status
+  status          String   @default("COMPLETED") // RUNNING | COMPLETED | FAILED
+  // RBAC scope
+  scope           String   @default("NATIONAL")
+  provinceCode    String?
+  regencyCode     String?
+  createdAt       DateTime @default(now())
+  // Relations
+  complaints      AuditComplaint[]
+}
+
+// Audit Complaint - keluhan warganet yang terdeteksi
+model AuditComplaint {
+  id              String   @id @default(cuid())
+  scanId          String
+  scan            AuditScan @relation(fields: [scanId], references: [id], onDelete: Cascade)
+  // Source
+  platform        String   // FACEBOOK | INSTAGRAM | TIKTOK | TWITTER_X | GOOGLE
+  author          String   // nama akun warganet
+  authorHandle    String?  // @username
+  content         String   // isi keluhan/post
+  url             String   // link ke post asli
+  publishedAt     DateTime
+  // Location (auto-detected from content or author profile)
+  provinceCode    String?
+  provinceName    String?
+  regencyCode     String?
+  regencyName     String?
+  // AI Analysis
+  priority        String   // HIGH | MEDIUM | LOW
+  urgencyScore    Float    @default(0) // 0-100, higher = more urgent
+  category        String   // PEMBANGUNAN | KEBIJAKAN | INFRASTRUKTUR | SOSIAL | KEAMANAN | LAINNYA
+  sentiment       String   @default("NEGATIVE") // mostly negative for complaints
+  keywords        String?  // JSON: detected keywords
+  // Response status
+  responseStatus  String   @default("IGNORED") // IGNORED | RESPONDED | IN_PROGRESS | ESCALATED
+  responseBy      String?  // who responded (orgPosition/user)
+  responseType    String?  // CLARIFICATION | FIELD_VISIT | ACKNOWLEDGMENT | ESCALATION
+  respondedAt     DateTime?
+  responseTime    Int?     // minutes to respond (null = belum direspon)
+  // AI Recommendation
+  aiRecommendation String? // suggested action text
+  aiActionType    String?  // FIELD_VISIT | CLARIFICATION | REPORT_UP | COORDINATE | MONITOR
+  // Metadata
+  engagementCount Int      @default(0) // likes + comments + shares
+  createdAt       DateTime @default(now())
+
+  @@index([scanId, priority])
+  @@index([provinceCode, regencyCode, responseStatus])
+  @@index([priority, responseStatus])
+}
+
