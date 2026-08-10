@@ -1926,3 +1926,66 @@ Stage Summary:
 - View count, channel name, dan kategori juga ditampilkan
 - Video player dialog diperbaiki dengan embedUrl fallback + link ke YouTube
 - Tidak ada lagi video dengan thumbnail kosong/broken
+
+---
+Task ID: 2026-08-10-seed-data-gateway-scheduler
+Agent: main
+Task: Tambah data Events + Assets + Finance + Konfigurasi WA Gateway + Background Scheduler startup
+
+Work Log:
+- Seed 10 Events LAPRA 08 (total now 11):
+  - Rapat Pleno DPN (evaluasi Q3 2026, Jakarta)
+  - Pelantikan DPC Pontianak Kota
+  - Bakti Sosial donor darah DPD Kalbar (PMI Pontianak)
+  - Deklarasi DPD Jawa Timur (JX International Expo, 5000 target)
+  - Mobilisasi Kader Asta Cita (Lapangan Pancasila, 1000 target)
+  - Workshop Digitalisasi Sistem Informasi
+  - Halal Bi Halal DPN-DPD-DPC se-Indonesia (Istora Senayan, 10000 target)
+  - Rapat Koordinasi DPD Kalbar (14 DPC)
+  - Aksi Sosial Distribusi Sembako (500 KK)
+  - Bakti Sosial gratis gunting rambut untuk lansia (200 lansia)
+
+- Seed 6 Assets/Logistik (total now 7):
+  - Kemeja Seragam Hitam LAPRA 08 (5000 pcs, SKU: LAPRA-KM-HITAM)
+  - Bendera LAPRA 08 3x2m (600 pcs, bahan parasonic)
+  - Pin/Lencana LAPRA 08 (10000 pcs, logam emas)
+  - Banner Spanduk Custom (200 lembar, flexi custom)
+  - Lanyard ID Card (8000 pcs, oranye-merah)
+  - Plakat Penghargaan (150 pcs, akrilik 25x30cm)
+
+- Seed 20 Finance Transactions (total now 22):
+  - Income: Rp 52.500.000 (iuran DPD/DPC + donasi Hashim + sponsor BUMN + merchandising)
+  - Expense: Rp 24.850.000 (sewa sekretariat + sewa Istora + cetak kemeja/banner/plakat + operasional + sembako)
+  - Balance: Rp 27.650.000
+
+- Konfigurasi WA Gateway:
+  - Active provider: FONNTE (anti-banned 85/100)
+  - Backup: WABOO (anti-banned 80/100)
+  - API key placeholder disimpan (user ganti dengan token asli dari fonnte.com)
+  - Rate limit: 5/min, 100/hour, 500/day
+  - Anti-banned: 3-10s random delay, batch 20 pause 60s
+
+- Background Scheduler Startup (instrumentation.ts):
+  - File baru: src/instrumentation.ts — auto-called by Next.js saat server boot
+  - Auto-initialize default jobs jika belum ada
+  - Auto-initialize broadcast engine config
+  - Auto-start background scheduler (checks every 5 minutes)
+  - Initial job run 10s after startup
+  - Log confirmation: "[Instrumentation] ✅ Background scheduler started"
+  - 3 active jobs auto-running:
+    * Auto-process sync events (5min, runs: 3, success: 3)
+    * Auto-recompute Trust Index (30min, runs: 2, success: 2)
+    * Auto-scrape YouTube + Google News (60min, runs: 1, success: 1)
+
+Files created:
+- NEW: /scripts/seed-data-lengkap.ts (150 lines: Events + Assets + Finance)
+- NEW: /scripts/setup-wa-gateway-scheduler.ts (50 lines: Fonnte + Waboo config)
+- NEW: /src/instrumentation.ts (35 lines: auto-start scheduler)
+
+VERIFICATION:
+- Events: 11 total (10 baru) ✅
+- Assets: 7 total (6 baru) ✅
+- Finance: 22 transactions (20 baru), balance Rp 27.650.000 ✅
+- WA Gateway: FONNTE active + WABOO backup, both CONFIGURED ✅
+- Background scheduler: 3 jobs auto-running, 100% success rate ✅
+- Server log: "Background scheduler started" on boot ✅
