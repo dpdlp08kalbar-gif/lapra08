@@ -3405,8 +3405,11 @@ function ApiIntegrationTab() {
 
   const platforms = [
     { id: 'WHATSAPP_BUSINESS', label: 'WhatsApp Business API', icon: MessageSquare, color: 'emerald', desc: 'Kirim pesan WhatsApp ke kontak yang opt-in via Meta Cloud API' },
-    { id: 'FACEBOOK_PAGE', label: 'Facebook Page', icon: Globe, color: 'blue', desc: 'Posting ke Facebook Page LAPRA 08 via Graph API' },
-    { id: 'INSTAGRAM_BUSINESS', label: 'Instagram Business', icon: Heart, color: 'purple', desc: 'Posting ke Instagram Business via Graph API' },
+    { id: 'FACEBOOK_PAGE', label: 'Facebook Page (Audit + Posting)', icon: Globe, color: 'blue', desc: 'Posting ke Facebook Page LAPRA 08 + AUDIT keluhan warganet via Graph API (Page Access Token)' },
+    { id: 'INSTAGRAM_BUSINESS', label: 'Instagram Business (Audit + Posting)', icon: Heart, color: 'purple', desc: 'Posting ke Instagram Business + AUDIT komentar warganet via Graph API (IG Business Account)' },
+    { id: 'YOUTUBE', label: 'YouTube Data API v3 (Audit)', icon: Video, color: 'red', desc: 'AUDIT video YouTube yang mention LAPRA 08 + REAL komentar (GRATIS, 10.000 quota/hari)' },
+    { id: 'TIKTOK', label: 'TikTok Display API (Audit)', icon: Video, color: 'pink', desc: 'AUDIT video TikTok dengan hashtag #laskarprabowo08 (perlu Research API approval)' },
+    { id: 'X_TWITTER', label: 'X API v2 (Audit)', icon: MessageSquare, color: 'slate', desc: 'AUDIT tweet mentioning LAPRA 08 (Basic tier $100/bln)' },
   ]
 
   return (
@@ -3501,7 +3504,12 @@ function ApiConfigDialog({ platform, integration, onOpenChange, onSuccess }: any
     finally { setLoading(false) }
   }
 
-  const platformLabel = platform === 'WHATSAPP_BUSINESS' ? 'WhatsApp Business API' : platform === 'FACEBOOK_PAGE' ? 'Facebook Page' : 'Instagram Business'
+  const platformLabel = platform === 'WHATSAPP_BUSINESS' ? 'WhatsApp Business API' :
+    platform === 'FACEBOOK_PAGE' ? 'Facebook Page (Audit + Posting)' :
+    platform === 'INSTAGRAM_BUSINESS' ? 'Instagram Business (Audit + Posting)' :
+    platform === 'YOUTUBE' ? 'YouTube Data API v3 (Audit)' :
+    platform === 'TIKTOK' ? 'TikTok Display API (Audit)' :
+    platform === 'X_TWITTER' ? 'X API v2 (Audit)' : platform
 
   return (
     <Dialog open={true} onOpenChange={onOpenChange}>
@@ -3510,7 +3518,7 @@ function ApiConfigDialog({ platform, integration, onOpenChange, onSuccess }: any
         <form onSubmit={handleSubmit} className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2"><Label>Display Name</Label><Input value={form.displayName} onChange={(e) => setForm({ ...form, displayName: e.target.value })} placeholder="cth: LAPRA 08 Official WA" /></div>
-            <div className="space-y-2"><Label>Phone Number</Label><Input value={form.phoneNumber} onChange={(e) => setForm({ ...form, phoneNumber: e.target.value })} placeholder="+62 811-9090-08" /></div>
+            <div className="space-y-2"><Label>Phone Number (WA only)</Label><Input value={form.phoneNumber} onChange={(e) => setForm({ ...form, phoneNumber: e.target.value })} placeholder="+62 811-9090-08" /></div>
           </div>
           {platform === 'WHATSAPP_BUSINESS' && (
             <>
@@ -3526,14 +3534,47 @@ function ApiConfigDialog({ platform, integration, onOpenChange, onSuccess }: any
           )}
           {platform === 'FACEBOOK_PAGE' && (
             <>
-              <div className="space-y-2"><Label>Page ID</Label><Input value={form.pageId} onChange={(e) => setForm({ ...form, pageId: e.target.value })} /></div>
-              <div className="space-y-2"><Label>Page Access Token</Label><Input value={form.pageAccessToken} onChange={(e) => setForm({ ...form, pageAccessToken: e.target.value })} type="password" /></div>
+              <div className="space-y-2"><Label>Page ID</Label><Input value={form.pageId} onChange={(e) => setForm({ ...form, pageId: e.target.value })} placeholder="cth: 100087654321" /></div>
+              <div className="space-y-2"><Label>Page Access Token</Label><Input value={form.pageAccessToken} onChange={(e) => setForm({ ...form, pageAccessToken: e.target.value })} type="password" placeholder="EAAG..." /></div>
+              <div className="rounded-lg bg-blue-50 border border-blue-200 p-2 text-xs text-blue-800">
+                <strong>Cara dapat (GRATIS):</strong> Buat Meta App di developers.facebook.com → add Facebook Login → dapatkan Page Access Token untuk Page LAPRA 08. Setelah dikonfigurasi, sistem akan otomatis baca REAL Facebook posts + REAL komentar warganet setiap tombol "Audit AI" ditekan.
+              </div>
             </>
           )}
           {platform === 'INSTAGRAM_BUSINESS' && (
             <>
-              <div className="space-y-2"><Label>IG Business Account ID</Label><Input value={form.igBusinessAccountId} onChange={(e) => setForm({ ...form, igBusinessAccountId: e.target.value })} /></div>
-              <div className="space-y-2"><Label>IG Access Token</Label><Input value={form.igAccessToken} onChange={(e) => setForm({ ...form, igAccessToken: e.target.value })} type="password" /></div>
+              <div className="space-y-2"><Label>IG Business Account ID</Label><Input value={form.igBusinessAccountId} onChange={(e) => setForm({ ...form, igBusinessAccountId: e.target.value })} placeholder="17841..." /></div>
+              <div className="space-y-2"><Label>IG Access Token</Label><Input value={form.igAccessToken} onChange={(e) => setForm({ ...form, igAccessToken: e.target.value })} type="password" placeholder="IGQVJ..." /></div>
+              <div className="rounded-lg bg-purple-50 border border-purple-200 p-2 text-xs text-purple-800">
+                <strong>Cara dapat (GRATIS):</strong> Convert akun IG LAPRA 08 ke Business → link ke Facebook Page → gunakan Graph API Explorer untuk dapat IG Business Account ID + access token. Setelah dikonfigurasi, sistem otomatis baca REAL Instagram media + REAL komentar.
+              </div>
+            </>
+          )}
+          {platform === 'YOUTUBE' && (
+            <>
+              <div className="space-y-2"><Label>YouTube Data API v3 Key</Label><Input value={form.apiKey} onChange={(e) => setForm({ ...form, apiKey: e.target.value })} type="password" placeholder="AIza..." /></div>
+              <div className="rounded-lg bg-red-50 border border-red-200 p-2 text-xs text-red-800">
+                <strong>Cara dapat (GRATIS — 10.000 quota/hari):</strong> Google Cloud Console → Create Project → enable "YouTube Data API v3" → Credentials → Create API Key. Setelah dikonfigurasi, sistem otomatis baca REAL video YouTube yang mention "LAPRA 08" + REAL komentar.
+              </div>
+            </>
+          )}
+          {platform === 'TIKTOK' && (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2"><Label>Client Key</Label><Input value={form.apiKey} onChange={(e) => setForm({ ...form, apiKey: e.target.value })} /></div>
+                <div className="space-y-2"><Label>Client Secret</Label><Input value={form.apiSecret} onChange={(e) => setForm({ ...form, apiSecret: e.target.value })} type="password" /></div>
+              </div>
+              <div className="rounded-lg bg-pink-50 border border-pink-200 p-2 text-xs text-pink-800">
+                <strong>Cara dapat:</strong> Daftar di developers.tiktok.com → buat app → request Research API access (perlu approval dari TikTok). Setelah approval, sistem baca REAL video TikTok dengan hashtag #laskarprabowo08 + REAL komentar.
+              </div>
+            </>
+          )}
+          {platform === 'X_TWITTER' && (
+            <>
+              <div className="space-y-2"><Label>X API v2 Bearer Token</Label><Input value={form.apiSecret} onChange={(e) => setForm({ ...form, apiSecret: e.target.value })} type="password" placeholder="AAAAAAAAAAAAAAAA..." /></div>
+              <div className="rounded-lg bg-slate-50 border border-slate-200 p-2 text-xs text-slate-800">
+                <strong>Cara dapat (Basic tier $100/bln):</strong> Daftar di developer.x.com → pilih Basic tier ($100/bln) → buat app → dapatkan Bearer Token. Setelah dikonfigurasi, sistem baca REAL tweet mentioning "LAPRA 08" + REAL replies.
+              </div>
             </>
           )}
           <div className="space-y-2"><Label>Webhook URL (opsional)</Label><Input value={form.webhookUrl} onChange={(e) => setForm({ ...form, webhookUrl: e.target.value })} placeholder="https://app.lapra08.id/api/webhook/wa" /></div>

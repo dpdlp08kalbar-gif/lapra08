@@ -4319,10 +4319,20 @@ function AuditAIRespondingDialog({ open, onOpenChange }: { open: boolean, onOpen
         </DialogHeader>
 
         {/* Rp0 info banner */}
-        <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-xs text-emerald-800 flex items-start gap-2">
-          <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" />
-          <div>
-            <strong>100% REAL Data — Teknologi Gratis (Rp0):</strong> Scraper mengambil REAL mention warganet langsung dari Google News RSS (indexing Facebook, Instagram, TikTok, X/Twitter, dan berita Google). Tanpa API key, tanpa biaya langganan. Setiap keluhan yang ditampilkan adalah post/media nyata yang bisa Anda klik dan buka di sumber aslinya. Sentiment analysis menggunakan Indonesian lexicon (lokal). Priority scoring berdasarkan engagement + sentimen + lokasi + kategori keluhan.
+        <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-900 flex items-start gap-2">
+          <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+          <div className="flex-1">
+            <strong>TRANSPARANSI SUMBER DATA (jujur, tidak mengarang):</strong>
+            <div className="mt-2 space-y-1">
+              <div>✅ <strong>Sumber UTAMA (selalu jalan, gratis):</strong> Google News RSS — REAL artikel berita yang menyebut LAPRA 08 dari MetroTVNews, Atjeh Watch, Harian Batak Pos, dll. Hasil yang Anda lihat sekarang adalah data dari sumber ini.</div>
+              <div>🔒 <strong>Akses DIRECT ke Facebook + Instagram:</strong> Perlu Meta Graph API (Page Access Token). Cara: buat Meta App gratis di developers.facebook.com → dapatkan Page Access Token untuk akun FB LAPRA 08 resmi → masukkan di menu <strong>Admin → Integrasi API</strong>. Setelah itu, sistem akan langsung baca REAL post FB + REAL komentar warganet.</div>
+              <div>🔒 <strong>Akses DIRECT ke YouTube:</strong> Perlu YouTube Data API v3 key (gratis, 10.000 quota/hari). Cara: Google Cloud Console → enable YouTube Data API v3 → buat API key → masukkan di Integrasi API. Setelah itu sistem baca REAL video YouTube + REAL komentar.</div>
+              <div>🔒 <strong>Akses DIRECT ke TikTok:</strong> Perlu TikTok Research API (gratis, perlu approval dari TikTok). Setelah approval, sistem baca REAL video TikTok dengan hashtag #laskarprabowo08.</div>
+              <div>🔒 <strong>Akses DIRECT ke X/Twitter:</strong> Perlu X API v2 Bearer Token (Basic tier $100/bln). Sistem baca REAL tweet mentioning LAPRA 08.</div>
+            </div>
+            <div className="mt-2 pt-2 border-t border-amber-200">
+              <strong>Status saat ini:</strong> Belum ada API key terkonfigurasi. Sistem berjalan pakai Google News RSS (REAL artikel berita, bukan REAL post medsos langsung). Untuk akses direct medsos, konfigurasi API key di menu Admin → Komunikasi & Command Center → Integrasi API.
+            </div>
           </div>
         </div>
 
