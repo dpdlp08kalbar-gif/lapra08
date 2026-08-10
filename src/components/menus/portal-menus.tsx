@@ -2794,6 +2794,11 @@ function ProgramContentManager({ title, description, icon: Icon, category, accen
   const [ocrLoading, setOcrLoading] = useState(false)
   const [ocrResult, setOcrResult] = useState<any>(null)
   const [pdfLevel, setPdfLevel] = useState('DPN')
+  // === State untuk dynamic territory selection (dari DB Struktur Organisasi) ===
+  const [territories, setTerritories] = useState<any[]>([])
+  const [selectedProvCode, setSelectedProvCode] = useState('')
+  const [selectedRegencyCode, setSelectedRegencyCode] = useState('')
+  const [regencies, setRegencies] = useState<any[]>([])
 
   const loadData = () => {
     setLoading(true)
@@ -2804,16 +2809,66 @@ function ProgramContentManager({ title, description, icon: Icon, category, accen
   }
   useEffect(() => { loadData() }, [])
 
+  // === Load territories dari DB saat dialog PDF dibuka ===
+  useEffect(() => {
+    if (pdfUploadOpen && territories.length === 0) {
+      api('/api/territory').then((all: any[]) => {
+        const provs = all.filter(t => t.level === 'PROVINCE')
+        const regs = all.filter(t => t.level === 'REGENCY')
+        setTerritories(provs)
+        setRegencies(regs)
+      }).catch(() => {})
+    }
+  }, [pdfUploadOpen, territories.length])
+
+  // === Update regencies saat provinsi dipilih ===
+  const filteredRegencies = selectedProvCode
+    ? regencies.filter(r => {
+        // Find province territory by code to get its ID
+        const prov = territories.find(p => p.code === selectedProvCode)
+        return prov && r.parentId === prov.id
+      })
+    : []
+
+  // === Get territory name dari code ===
+  const getTerritoryName = () => {
+    if (pdfLevel === 'DPN') return 'Pusat Nasional (DPN)'
+    if (pdfLevel === 'DPD' && selectedProvCode) {
+      const prov = territories.find(p => p.code === selectedProvCode)
+      return prov?.name || selectedProvCode
+    }
+    if (pdfLevel === 'DPC' && selectedRegencyCode) {
+      const reg = regencies.find(r => r.code === selectedRegencyCode)
+      return reg?.name || selectedRegencyCode
+    }
+    return ''
+  }
+
+  // === Get territory code untuk kirim ke API ===
+  const getTerritoryCode = () => {
+    if (pdfLevel === 'DPN') return 'ID'
+    if (pdfLevel === 'DPD') return selectedProvCode
+    if (pdfLevel === 'DPC') return selectedRegencyCode
+    return ''
+  }
+
   // === Handle PDF Upload + OCR ===
   const handlePdfUpload = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!pdfFile) { addToast('Pilih file PDF dulu', 'error'); return }
+    
+    // Validate territory selection
+    if (pdfLevel === 'DPD' && !selectedProvCode) { addToast('Pilih provinsi (DPD) dulu', 'error'); return }
+    if (pdfLevel === 'DPC' && !selectedRegencyCode) { addToast('Pilih kabupaten/kota (DPC) dulu', 'error'); return }
+    
     setOcrLoading(true)
     setOcrResult(null)
     try {
       const formData = new FormData()
       formData.append('file', pdfFile)
       formData.append('level', pdfLevel)
+      formData.append('territoryCode', getTerritoryCode())
+      formData.append('territoryName', getTerritoryName())
       const res = await fetch('/api/program-kerja/upload-pdf', {
         method: 'POST',
         headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
@@ -2831,6 +2886,8 @@ function ProgramContentManager({ title, description, icon: Icon, category, accen
   const handleSaveOcrResult = async () => {
     if (!ocrResult) return
     setSaving(true)
+    const territoryName = getTerritoryName() || ocrResult.territoryName || pdfLevel
+    const territoryCode = getTerritoryCode()
     try {
       // Save each program as separate item
       const programs = ocrResult.programs || []
@@ -2840,7 +2897,7 @@ function ProgramContentManager({ title, description, icon: Icon, category, accen
           id: `prog_${Date.now()}`,
           title: ocrResult.title || 'Program Kerja',
           description: ocrResult.aiSummary || ocrResult.rawOcrText || '',
-          location: ocrResult.territoryName || pdfLevel,
+          location: territoryName,
           date: ocrResult.period || '',
           status: 'DIRENCANAKAN',
           category,
@@ -2848,7 +2905,8 @@ function ProgramContentManager({ title, description, icon: Icon, category, accen
           uploadedAt: new Date().toISOString(),
           pdfUrl: ocrResult.fileUrl,
           ocrResult: true,
-          level: ocrResult.level || pdfLevel,
+          level: pdfLevel,
+          territoryCode,
         }
         await fetch('/api/gallery', {
           method: 'POST',
@@ -2862,7 +2920,7 @@ function ProgramContentManager({ title, description, icon: Icon, category, accen
             id: `prog_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
             title: prog.name || 'Program',
             description: prog.description || '',
-            location: `${ocrResult.territoryName || pdfLevel} | Timeline: ${prog.timeline || '-'} | Target: ${prog.target || '-'} | Anggaran: ${prog.budget || '-'}`,
+            location: `${territoryName} | Timeline: ${prog.timeline || '-'} | Target: ${prog.target || '-'} | Anggaran: ${prog.budget || '-'}`,
             date: ocrResult.period || '',
             status: 'DIRENCANAKAN',
             category,
@@ -2870,7 +2928,8 @@ function ProgramContentManager({ title, description, icon: Icon, category, accen
             uploadedAt: new Date().toISOString(),
             pdfUrl: ocrResult.fileUrl,
             ocrResult: true,
-            level: ocrResult.level || pdfLevel,
+            level: pdfLevel,
+            territoryCode,
             priority: prog.priority || 99,
           }
           await fetch('/api/gallery', {
@@ -2880,8 +2939,9 @@ function ProgramContentManager({ title, description, icon: Icon, category, accen
           })
         }
       }
-      addToast(`${programs.length || 1} program kerja berhasil disimpan dari PDF`, 'success')
+      addToast(`${programs.length || 1} program kerja berhasil disimpan dari PDF (${territoryName})`, 'success')
       setPdfUploadOpen(false); setPdfFile(null); setOcrResult(null)
+      setSelectedProvCode(''); setSelectedRegencyCode('')
       loadData()
     } catch (e: any) { addToast(e.message, 'error') }
     finally { setSaving(false) }
@@ -3121,17 +3181,84 @@ function ProgramContentManager({ title, description, icon: Icon, category, accen
 
             {!ocrResult && (
               <form onSubmit={handlePdfUpload} className="space-y-3">
+                {/* Pilih Tingkat Kepengurusan (dari Struktur Organisasi) */}
                 <div className="space-y-2">
-                  <Label>Tingkat Wilayah *</Label>
+                  <Label>Tingkat Kepengurusan *</Label>
                   <div className="flex gap-2">
-                    {['DPN', 'DPD', 'DPC'].map(lvl => (
-                      <button key={lvl} type="button" onClick={() => setPdfLevel(lvl)}
-                        className={`px-3 py-2 rounded-lg text-sm font-medium border transition-all ${pdfLevel === lvl ? 'bg-blue-600 text-white border-blue-600' : 'border hover:bg-accent'}`}>
-                        {lvl === 'DPN' ? '🏛️ DPN (Nasional)' : lvl === 'DPD' ? '🗺️ DPD (Provinsi)' : '🏙️ DPC (Kab/Kota)'}
+                    {[
+                      { lvl: 'DPN', label: '🏛️ DPN', desc: 'Pusat Nasional' },
+                      { lvl: 'DPD', label: '🗺️ DPD', desc: 'Provinsi' },
+                      { lvl: 'DPC', label: '🏙️ DPC', desc: 'Kabupaten/Kota' },
+                    ].map(opt => (
+                      <button key={opt.lvl} type="button"
+                        onClick={() => { setPdfLevel(opt.lvl); setSelectedProvCode(''); setSelectedRegencyCode('') }}
+                        className={`flex-1 px-3 py-2.5 rounded-lg text-sm font-medium border transition-all ${pdfLevel === opt.lvl ? 'bg-blue-600 text-white border-blue-600' : 'border hover:bg-accent'}`}>
+                        <div className="font-semibold">{opt.label}</div>
+                        <div className={`text-[13px] ${pdfLevel === opt.lvl ? 'text-blue-100' : 'text-muted-foreground'}`}>{opt.desc}</div>
                       </button>
                     ))}
                   </div>
                 </div>
+
+                {/* DPN: show static info */}
+                {pdfLevel === 'DPN' && (
+                  <div className="rounded-lg bg-blue-50 border border-blue-200 p-2 text-sm text-blue-800">
+                    🏛️ <strong>Pusat Nasional (DPN)</strong> — Program Kerja Nasional LAPRA 08
+                  </div>
+                )}
+
+                {/* DPD: dropdown provinsi dari DB Struktur Organisasi */}
+                {pdfLevel === 'DPD' && (
+                  <div className="space-y-2">
+                    <Label>Pilih DPD (Provinsi) *</Label>
+                    <Select value={selectedProvCode} onValueChange={(v) => { setSelectedProvCode(v); setSelectedRegencyCode('') }}>
+                      <SelectTrigger><SelectValue placeholder="Pilih provinsi..." /></SelectTrigger>
+                      <SelectContent>
+                        {territories.map(t => (
+                          <SelectItem key={t.code} value={t.code}>{t.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <div className="text-[13px] text-muted-foreground">
+                      {territories.length} DPD tersedia dari database Struktur Organisasi
+                    </div>
+                  </div>
+                )}
+
+                {/* DPC: dropdown provinsi → lalu dropdown kab/kota */}
+                {pdfLevel === 'DPC' && (
+                  <div className="space-y-2">
+                    <div className="space-y-1">
+                      <Label>Pilih DPD (Provinsi) *</Label>
+                      <Select value={selectedProvCode} onValueChange={(v) => { setSelectedProvCode(v); setSelectedRegencyCode('') }}>
+                        <SelectTrigger><SelectValue placeholder="Pilih provinsi dulu..." /></SelectTrigger>
+                        <SelectContent>
+                          {territories.map(t => (
+                            <SelectItem key={t.code} value={t.code}>{t.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {selectedProvCode && (
+                      <div className="space-y-1">
+                        <Label>Pilih DPC (Kabupaten/Kota) *</Label>
+                        <Select value={selectedRegencyCode} onValueChange={setSelectedRegencyCode}>
+                          <SelectTrigger><SelectValue placeholder="Pilih kabupaten/kota..." /></SelectTrigger>
+                          <SelectContent>
+                            {filteredRegencies.map(r => (
+                              <SelectItem key={r.code} value={r.code}>{r.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <div className="text-[13px] text-muted-foreground">
+                          {filteredRegencies.length} DPC tersedia di provinsi ini
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Upload file PDF */}
                 <div className="space-y-2">
                   <Label>File PDF Program Kerja *</Label>
                   {pdfFile ? (
@@ -3154,18 +3281,23 @@ function ProgramContentManager({ title, description, icon: Icon, category, accen
                     </div>
                   )}
                 </div>
+
+                {/* Info cara kerja */}
                 <div className="rounded-lg bg-blue-50 border border-blue-200 p-2 text-xs text-blue-800">
                   <strong>📋 Cara kerja:</strong>
                   <ol className="list-decimal ml-4 mt-1 space-y-0.5">
+                    <li>Pilih tingkat: DPN / DPD / DPC (terhubung ke database Struktur Organisasi)</li>
+                    <li>Pilih wilayah spesifik (provinsi/kab-kota dari DB)</li>
                     <li>Upload PDF Program Kerja</li>
                     <li>Sistem OCR otomatis baca isi PDF via VLM (Vision Language Model)</li>
                     <li>AI analisis: extract program, timeline, target, anggaran, prioritas</li>
                     <li>Preview hasil → konfirmasi → simpan</li>
                   </ol>
                 </div>
+
                 <DialogFooter>
                   <Button type="button" variant="outline" onClick={() => setPdfUploadOpen(false)}>Batal</Button>
-                  <Button type="submit" disabled={!pdfFile || ocrLoading} className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
+                  <Button type="submit" disabled={!pdfFile || ocrLoading || (pdfLevel === 'DPD' && !selectedProvCode) || (pdfLevel === 'DPC' && !selectedRegencyCode)} className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
                     {ocrLoading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Sparkles className="w-4 h-4 mr-1" />}
                     {ocrLoading ? 'OCR + AI menganalisis...' : 'Upload & OCR'}
                   </Button>

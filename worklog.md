@@ -2034,3 +2034,46 @@ Files created/modified:
 - NEW: /src/app/api/program-kerja/upload-pdf/route.ts (120 lines: PDF upload + VLM OCR + AI prompt)
 - MODIFIED: /src/components/menus/portal-menus.tsx (+250 lines: PDF upload dialog + OCR result preview + save logic)
 - MODIFIED: import Sparkles dari lucide-react
+
+---
+Task ID: 2026-08-10-program-kerja-dynamic-territory
+Agent: main
+Task: Update dialog Upload PDF Program Kerja — DPN/DPD/DPC dinamis dari DB Struktur Organisasi
+
+Work Log:
+- User insight: pilihan DPN/DPD/DPC di dialog Upload PDF harus terhubung ke database Struktur Organisasi (sama seperti menu Pusat Data Organisasi), bukan tombol statis
+- Update ProgramContentManager di portal-menus.tsx:
+  - State baru: territories[], regencies[], selectedProvCode, selectedRegencyCode
+  - useEffect: load territories dari /api/territory saat dialog PDF dibuka
+  - filteredRegencies: filter regencies berdasarkan provinsi yang dipilih (parentId matching)
+  - getTerritoryName(): return nama wilayah dari DB (DPN → "Pusat Nasional", DPD → nama provinsi, DPC → nama kab/kota)
+  - getTerritoryCode(): return kode wilayah dari DB
+  - handlePdfUpload: kirim territoryCode + territoryName ke API
+  - handleSaveOcrResult: simpan dengan territoryCode + territoryName dari DB
+- Update dialog UI:
+  - 3 tombol level: DPN (Pusat Nasional) / DPD (Provinsi) / DPC (Kabupaten/Kota)
+  - Conditional rendering:
+    * DPN → info statis "Pusat Nasional (DPN) — Program Kerja Nasional LAPRA 08"
+    * DPD → dropdown "Pilih DPD (Provinsi)" dengan 44 provinsi dari DB + info "44 DPD tersedia dari database Struktur Organisasi"
+    * DPC → dropdown provinsi dulu → lalu dropdown kab/kota di provinsi tersebut + info "X DPC tersedia di provinsi ini"
+  - Validation: tombol "Upload & OCR" disabled jika DPD dipilih tapi provinsi belum dipilih, atau DPC dipilih tapi kab/kota belum dipilih
+  - Info cara kerja updated: "Pilih tingkat: DPN/DPD/DPC (terhubung ke database Struktur Organisasi)"
+- Reset state saat dialog ditutup: selectedProvCode='', selectedRegencyCode=''
+
+VLM VERIFICATION:
+- ✅ 3 tombol pilihan: DPN (aktif/biru), DPD (Provinsi), DPC (Kabupaten/Kota)
+- ✅ DPN → tampil info "Pusat Nasional (DPN)"
+- ✅ DPD → dropdown "Pilih DPD (Provinsi)" + teks "44 DPD tersedia dari database Struktur Organisasi"
+- ✅ Dropdown terhubung ke DB (44 provinsi dari /api/territory)
+- ✅ Conditional rendering: dropdown provinsi muncul hanya saat DPD/DPC dipilih
+
+Files modified:
+- src/components/menus/portal-menus.tsx (update ProgramContentManager: +60 lines dynamic territory state + conditional rendering)
+
+Stage Summary:
+- Dialog Upload PDF Program Kerja sekarang terhubung ke database Struktur Organisasi
+- DPN → Pusat Nasional (otomatis)
+- DPD → dropdown 44 provinsi dari DB
+- DPC → dropdown provinsi → dropdown kab/kota di provinsi tersebut (515 DPC)
+- territoryCode + territoryName dikirim ke API + disimpan di program items
+- Sesuai dengan struktur menu Pusat Data Organisasi
