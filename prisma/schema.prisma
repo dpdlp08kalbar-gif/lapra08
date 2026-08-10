@@ -82,6 +82,8 @@ model User {
   pollsCreated  Poll[]
   crisisZonesResolved CrisisZone[] @relation("CrisisResolver")
   aspirationsReviewed Aspiration[] @relation("AspirationReviewer")
+  alertNotifications AlertNotification[]
+  aiRecommendations AIRecommendation[]
 }
 
 // ============================================================
@@ -764,4 +766,188 @@ model VoterContact {
   @@index([provinceCode])
   @@index([occupation, provinceCode])
   @@index([whatsappOptIn, isActive])
+}
+
+// ============================================================
+// SOCIAL LISTENING & COMMAND LASKAR AI (Rp0 API Cost)
+// ============================================================
+
+// Data Sources - platform yang di-monitor
+model SocialSource {
+  id              String   @id @default(cuid())
+  platform        String   // GOOGLE_NEWS | TWITTER_X | YOUTUBE | TIKTOK | FACEBOOK | INSTAGRAM | RSS_FEED
+  name            String   // cth: "Google News - Prabowo", "RSS Detik", "Twitter @prabowo"
+  url             String?  // source URL or RSS feed URL
+  isActive        Boolean  @default(true)
+  // Keywords to monitor (JSON array)
+  keywords        String   @default("[]") // cth: ["Prabowo","Laskar Prabowo","Kabinet Merah Putih"]
+  // Last sync info
+  lastSyncAt      DateTime?
+  lastSyncStatus  String?  // SUCCESS | ERROR | PARTIAL
+  lastSyncCount   Int      @default(0)
+  mentions        SocialMention[]
+  // RBAC scope
+  scope           String   @default("NATIONAL") // NATIONAL | PROVINCE | REGENCY
+  provinceCode    String?
+  regencyCode     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([platform, isActive])
+  @@index([scope, provinceCode])
+}
+
+// Social Mentions - individual mentions/posts found
+model SocialMention {
+  id              String   @id @default(cuid())
+  sourceId        String
+  source          SocialSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  // Original content
+  platform        String   // GOOGLE_NEWS | TWITTER_X | YOUTUBE | TIKTOK | FACEBOOK | INSTAGRAM
+  title           String
+  content         String   // snippet/excerpt
+  url             String   // link to original
+  author          String?  // author/account name
+  authorFollowers Int?
+  // Metadata
+  publishedAt     DateTime
+  engagementCount Int      @default(0) // likes + comments + shares
+  // Location (for geo-filtering)
+  provinceCode    String?
+  regencyCode     String?
+  // AI Analysis (filled by NLP engine)
+  sentiment       String?  // POSITIVE | NEUTRAL | NEGATIVE
+  sentimentScore  Float?   // -1.0 to 1.0
+  category        String?  // PEMBANGUNAN | KEBIJAKAN | KEBUTUHAN_MASYARAKAT | LAINNYA
+  language        String?  // id | jv | su | min | etc
+  keywords        String?  // JSON: detected keywords
+  // Reputation impact
+  reputationImpact Float?  // -100 to 100 (how much this affects reputation)
+  // Status
+  isProcessed     Boolean  @default(false) // NLP processed?
+  isAlertTriggered Boolean @default(false) // triggered alert?
+  createdAt       DateTime @default(now())
+
+  @@index([sourceId])
+  @@index([sentiment, publishedAt])
+  @@index([provinceCode, regencyCode])
+  @@index([isProcessed])
+}
+
+// Reputation Index - daily aggregate score
+model ReputationIndex {
+  id              String   @id @default(cuid())
+  date            DateTime // specific day
+  // Scope
+  scope           String   // NATIONAL | PROVINCE | REGENCY
+  provinceCode    String?
+  regencyCode     String?
+  // Target
+  target          String   // PRESIDENT_PRABOWO | CABINET | LAPRA_08 | MINISTER_{name}
+  // Scores (0-100)
+  positiveScore   Float    @default(0)
+  negativeScore   Float    @default(0)
+  neutralScore    Float    @default(0)
+  overallIndex    Float    @default(50) // 0=very bad, 100=excellent
+  trend           String   @default("STABLE") // UP | DOWN | STABLE
+  // Mention counts
+  totalMentions   Int      @default(0)
+  positiveMentions Int     @default(0)
+  negativeMentions Int     @default(0)
+  neutralMentions Int      @default(0)
+  // Top categories
+  topCategories   String?  // JSON: {PEMBANGUNAN: 45, KEBIJAKAN: 30, ...}
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([date, scope, provinceCode, regencyCode, target])
+  @@index([date, target])
+  @@index([scope, provinceCode, regencyCode])
+}
+
+// Alert Rules - rules for early warning
+model AlertRule {
+  id              String   @id @default(cuid())
+  name            String   // cth: "Negatif >60% di Grobogan"
+  // Trigger conditions
+  conditionType   String   // SENTIMENT_THRESHOLD | VOLUME_SPIKE | KEYWORD_MATCH
+  threshold       Float    @default(0.6) // cth: 0.6 = 60% negative
+  timeWindowHours Int      @default(2) // check last 2 hours
+  // Scope
+  scope           String   @default("NATIONAL") // NATIONAL | PROVINCE | REGENCY
+  provinceCode    String?
+  regencyCode     String?
+  // Target
+  target          String   @default("PRESIDENT_PRABOWO")
+  // Notification
+  notifyChannel   String   @default("TELEGRAM") // TELEGRAM | WHATSAPP | IN_APP
+  notifyTarget    String?  // Telegram chat ID or WA group ID
+  // Status
+  isActive        Boolean  @default(true)
+  lastTriggeredAt DateTime?
+  triggerCount    Int      @default(0)
+  notifications   AlertNotification[]
+  createdAt       DateTime @default(now())
+
+  @@index([scope, provinceCode, regencyCode, isActive])
+}
+
+// Alert Notifications - when alert triggers
+model AlertNotification {
+  id              String   @id @default(cuid())
+  ruleId          String?
+  rule            AlertRule? @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+  // Who received this alert
+  recipientId     String?
+  recipient       User?    @relation(fields: [recipientId], references: [id], onDelete: SetNull)
+  // Alert details
+  type            String   // SENTIMENT_SPIKE | VOLUME_SPIKE | KEYWORD_MATCH
+  severity        String   @default("HIGH") // LOW | MEDIUM | HIGH | CRITICAL
+  title           String
+  message         String
+  // Scope
+  provinceCode    String?
+  regencyCode     String?
+  // Data
+  mentionCount    Int      @default(0)
+  negativePercentage Float?
+  triggeredMentions String? // JSON: array of mention IDs
+  // Status
+  status          String   @default("NEW") // NEW | READ | ACKNOWLEDGED | RESOLVED
+  // Notification delivery
+  notifiedVia     String?  // TELEGRAM | WHATSAPP | IN_APP
+  notifiedAt      DateTime?
+  deliveryStatus  String?  // SENT | FAILED | PENDING
+  recommendations AIRecommendation[]
+  createdAt       DateTime @default(now())
+
+  @@index([status, severity])
+  @@index([provinceCode, regencyCode])
+}
+
+// AI Recommendations - generated by local AI (Ollama/Llama 3)
+model AIRecommendation {
+  id              String   @id @default(cuid())
+  alertId         String?
+  alert           AlertNotification? @relation(fields: [alertId], references: [id], onDelete: SetNull)
+  // Context
+  context         String   // summary of situation
+  scope           String   // NATIONAL | PROVINCE | REGENCY
+  provinceCode    String?
+  regencyCode     String?
+  // AI output
+  recommendation  String   // the action recommendation text
+  actionType      String   // FIELD_VISIT | CLARIFICATION | REPORT_UP | COORDINATE | MONITOR
+  priority        String   @default("HIGH") // LOW | MEDIUM | HIGH | URGENT
+  // Status
+  status          String   @default("PENDING") // PENDING | APPROVED | REJECTED | EXECUTED
+  approvedById    String?
+  approvedBy      User?    @relation(fields: [approvedById], references: [id])
+  approvedAt      DateTime?
+  executionNotes  String?
+  executedAt      DateTime?
+  createdAt       DateTime @default(now())
+
+  @@index([status, priority])
+  @@index([scope, provinceCode, regencyCode])
 }

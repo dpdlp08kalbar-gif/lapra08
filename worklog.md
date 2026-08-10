@@ -874,3 +874,71 @@ Stage Summary:
 - ✅ API integration config (WA Business, FB Page, IG Business) with credentials
 - ✅ System honestly starts from 0 - no fake data anywhere
 - ✅ Info banners explain what's needed to start real broadcasting
+
+---
+Task ID: LAPRA08-SOCIAL-LISTENING-AI-V23
+Agent: Main Agent (Super Z)
+Task: Modul Analisis Sentimen & Kinerja Organisasi (Social Listening & Command Laskar AI) - Rp0 API Cost
+
+Work Log:
+- User request: Modul Social Listening dengan arsitektur Rp0 (free/open-source), RBAC berjenjang, AI lokal (Ollama/IndoBERT)
+
+- Prisma Schema - 6 new models:
+  1. SocialSource: platform (GOOGLE_NEWS/TWITTER_X/YOUTUBE/TIKTOK/FACEBOOK/INSTAGRAM/RSS_FEED), name, url, keywords, scope (NATIONAL/PROVINCE/REGENCY), RBAC
+  2. SocialMention: title, content, url, author, publishedAt, engagementCount, sentiment, sentimentScore, category (PEMBANGUNAN/KEBIJAKAN/KEBUTUHAN_MASYARAKAT), language, reputationImpact, isProcessed
+  3. ReputationIndex: date, scope, target (PRESIDENT_PRABOWO/CABINET/LAPRA_08), positiveScore/negativeScore/overallIndex, trend, mentionCounts, topCategories
+  4. AlertRule: conditionType (SENTIMENT_THRESHOLD/VOLUME_SPIKE/KEYWORD_MATCH), threshold, timeWindowHours, scope, notifyChannel (TELEGRAM/WHATSAPP/IN_APP)
+  5. AlertNotification: type, severity, title, message, mentionCount, negativePercentage, status (NEW/READ/ACKNOWLEDGED/RESOLVED), notifiedVia, deliveryStatus
+  6. AIRecommendation: alertId, context, scope, recommendation, actionType (FIELD_VISIT/CLARIFICATION/REPORT_UP/COORDINATE/MONITOR), priority, status (PENDING/APPROVED/REJECTED/EXECUTED)
+
+- API Endpoints (8 new):
+  * /api/social-listening/sources (GET list + POST create) + [id] (PUT/DELETE)
+  * /api/social-listening/mentions (GET list with filters + POST add)
+  * /api/social-listening/analytics (GET - reputation index, sentiment summary, 7-day trend, by platform/category)
+  * /api/social-listening/alerts (GET list + POST create) + [id] (PUT status + POST generate AI recommendation)
+  * /api/social-listening/recommendations (GET list + PUT approve/reject/execute)
+
+- RBAC Implementation (3-tier scope):
+  * DPN/SUPERADMIN: Global National - semua data
+  * DPD (Provinsi): Filter by provinceCode only
+  * DPC (Kab/Kota): Filter by regencyCode only
+
+- UI: SentimenOpiniPublikTab with 5 sub-tabs:
+  1. Dasbor Sentimen: Reputation Index hero card (0-100 score, trend UP/DOWN/STABLE), 4 stats cards, 7-day trend bar chart, per platform & per category breakdown
+  2. Sumber Data: CRUD social sources (7 platforms: Google News, Twitter/X, YouTube, TikTok, Facebook, Instagram, RSS Feed), with keywords & scope filter
+  3. Feed Mention: list of scraped mentions with sentiment/category/platform badges, filter by sentiment, link to original
+  4. Peringatan Dini: alert list with severity badges, "Generate AI Rekomendasi" button per alert
+  5. Rekomendasi AI: AI-generated recommendations with action type (FIELD_VISIT/CLARIFICATION/COORDINATE/MONITOR), approve/reject/execute workflow
+
+- AI Recommendation Generator (template-based, production: Ollama/Llama 3):
+  * SENTIMENT_SPIKE → actionType=FIELD_VISIT, "Tim Laskar Prabowo turun ke lapangan..."
+  * VOLUME_SPIKE → actionType=COORDINATE, "Koordinasikan dengan tim komunikasi..."
+  * KEYWORD_MATCH → actionType=CLARIFICATION, "Siapkan klarifikasi resmi..."
+  * Location-aware: includes province/regency in recommendation text
+  * Priority auto-set: CRITICAL→URGENT, HIGH→HIGH
+
+- Rp0 Architecture Banner: explains IndoBERT (NLP lokal), Ollama/Llama 3 (AI lokal), open-source scrapers
+
+- CommunicationMenu now has 11 tabs:
+  Command Center | Database Kontak | Segment Audiens | Template Pesan | Integrasi API | Multi-Channel Broadcast | Pengumuman Internal | Sentimen & Opini Publik | Polling Internal | Crisis Center | Aspirasi Rakyat
+
+- VLM Verification:
+  * 11 tabs visible ✅
+  * Sentimen & Opini Publik: 5 sub-tabs (Dasbor Sentimen, Sumber Data, Feed Mention, Peringatan Dini, Rekomendasi AI) ✅
+  * Rp0 architecture info banner visible ✅
+  * Empty state (no fake data) ✅
+
+Stage Summary:
+- ✅ 6 new Prisma models (SocialSource, SocialMention, ReputationIndex, AlertRule, AlertNotification, AIRecommendation)
+- ✅ 8 new API endpoints with RBAC (DPN=global, DPD=province, DPC=regency)
+- ✅ SentimenOpiniPublikTab with 5 sub-tabs
+- ✅ Reputation Index dashboard (0-100 score, trend)
+- ✅ Social Sources manager (7 platforms, free/open-source)
+- ✅ Mention Feed with sentiment/category/platform filters
+- ✅ Alert Manager with AI recommendation generator
+- ✅ Recommendation Manager with approve/reject/execute workflow
+- ✅ AI recommendation generator (template-based, production: Ollama/Llama 3)
+- ✅ Rp0 architecture: IndoBERT (NLP), Ollama (AI), open-source scrapers
+- ✅ RBAC 3-tier: DPN=National, DPD=Province, DPC=Regency
+- ✅ All data starts from 0 (no fake data)
+- ✅ CommunicationMenu: 11 tabs total

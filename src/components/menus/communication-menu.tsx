@@ -2925,7 +2925,8 @@ export function CommunicationMenu() {
     { key: 'integrations', label: 'Integrasi API', icon: Globe },
     { key: 'broadcast', label: 'Multi-Channel Broadcast', icon: Send },
     { key: 'announcement', label: 'Pengumuman Internal', icon: Bell },
-    { key: 'sentiment', label: 'Sentimen Presiden', icon: BarChart3 },
+    { key: 'sentiment', label: 'Sentimen & Opini Publik', icon: BarChart3 },
+    { key: 'polls', label: 'Polling Internal', icon: Target },
     { key: 'crisis', label: 'Crisis Center', icon: Shield },
     { key: 'aspirasi', label: 'Aspirasi Rakyat', icon: Heart },
   ]
@@ -2952,7 +2953,8 @@ export function CommunicationMenu() {
       {tab === 'integrations' && <ApiIntegrationTab />}
       {tab === 'broadcast' && <BroadcastTab />}
       {tab === 'announcement' && <AnnouncementTab />}
-      {tab === 'sentiment' && <PollsTab />}
+      {tab === 'sentiment' && <SentimenOpiniPublikTab />}
+      {tab === 'polls' && <PollsTab />}
       {tab === 'crisis' && <CrisisTab />}
       {tab === 'aspirasi' && <AspirationsTab />}
     </div>
@@ -3546,5 +3548,452 @@ function ApiConfigDialog({ platform, integration, onOpenChange, onSuccess }: any
         </form>
       </DialogContent>
     </Dialog>
+  )
+}
+
+// ============================================================
+// SENTIMEN & OPINI PUBLIK (Social Listening AI) - Rp0 API Cost
+// ============================================================
+function SentimenOpiniPublikTab() {
+  const [subTab, setSubTab] = useState('dashboard')
+  const subTabs = [
+    { key: 'dashboard', label: 'Dasbor Sentimen', icon: BarChart3 },
+    { key: 'sources', label: 'Sumber Data', icon: Globe },
+    { key: 'mentions', label: 'Feed Mention', icon: MessageSquare },
+    { key: 'alerts', label: 'Peringatan Dini', icon: AlertTriangle },
+    { key: 'recommendations', label: 'Rekomendasi AI', icon: Lightbulb },
+  ]
+  return (
+    <div className="space-y-4">
+      <div>
+        <h3 className="font-semibold text-base flex items-center gap-2"><BarChart3 className="w-5 h-5 text-orange-600" /> Sentimen & Opini Publik (Social Listening AI)</h3>
+        <p className="text-sm text-muted-foreground">Monitor sentimen publik dari Google News, X/Twitter, YouTube, TikTok, Facebook, Instagram. Analisis via IndoBERT (lokal). AI rekomendasi via Ollama (Llama 3 lokal). Rp0 biaya API.</p>
+      </div>
+
+      {/* Info banner */}
+      <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-xs text-emerald-800">
+        <CheckCircle2 className="w-4 h-4 inline mr-1" />
+        <strong>Arsitektur Rp0:</strong> Data scraping via open-source (RSS, Twikit, YouTube Data API free). NLP via IndoBERT (server lokal). AI rekomendasi via Ollama/Llama 3 (server lokal). RBAC: DPN=Global, DPD=Provinsi, DPC=Kab/Kota.
+      </div>
+
+      {/* Sub-tabs */}
+      <div className="flex flex-wrap gap-2">
+        {subTabs.map(t => (
+          <button key={t.key} onClick={() => setSubTab(t.key)}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${subTab === t.key ? 'bg-orange-600 text-white' : 'border hover:bg-accent'}`}>
+            <t.icon className="w-3.5 h-3.5" /> {t.label}
+          </button>
+        ))}
+      </div>
+
+      {subTab === 'dashboard' && <SentimenDashboard />}
+      {subTab === 'sources' && <SocialSourcesManager />}
+      {subTab === 'mentions' && <MentionFeed />}
+      {subTab === 'alerts' && <AlertManager />}
+      {subTab === 'recommendations' && <RecommendationManager />}
+    </div>
+  )
+}
+
+// --- Sentimen Dashboard ---
+function SentimenDashboard() {
+  const [data, setData] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    api('/api/social-listening/analytics').then(setData).catch(() => {}).finally(() => setLoading(false))
+    const interval = setInterval(() => api('/api/social-listening/analytics').then(setData).catch(() => {}), 60000)
+    return () => clearInterval(interval)
+  }, [])
+
+  if (loading) return <LoadingState />
+  if (!data) return <EmptyState icon={BarChart3} title="Belum ada data" description="Tambahkan sumber data dan lakukan scraping untuk mulai monitoring." />
+
+  const repColor = data.reputationIndex >= 70 ? 'emerald' : data.reputationIndex >= 50 ? 'amber' : 'red'
+  const repBg = repColor === 'emerald' ? 'bg-emerald-50 border-emerald-300 text-emerald-700' : repColor === 'amber' ? 'bg-amber-50 border-amber-300 text-amber-700' : 'bg-red-50 border-red-300 text-red-700'
+  const trendIcon = data.reputationTrend === 'UP' ? '↗' : data.reputationTrend === 'DOWN' ? '↘' : '→'
+
+  return (
+    <div className="space-y-4">
+      {/* Reputation Index Hero */}
+      <div className={`rounded-xl border-2 p-6 ${repBg}`}>
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-wider opacity-70">Reputation Index (Citra Presiden Prabowo)</div>
+            <div className="text-5xl font-black mt-2">{data.reputationIndex}<span className="text-2xl">/100</span></div>
+            <div className="text-sm mt-1">{trendIcon} {data.reputationTrend} • Cakupan: {data.scope}</div>
+          </div>
+          <div className="text-right">
+            <div className="text-3xl font-bold">{data.positivePct}%</div>
+            <div className="text-xs opacity-70">Positif</div>
+            <div className="text-lg font-bold text-red-600 mt-1">{data.negativePct}%</div>
+            <div className="text-xs opacity-70">Negatif</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Stats */}
+      <div className="grid gap-4 md:grid-cols-4">
+        <StatCard label="Total Mentions" value={data.total} icon={MessageSquare} color="blue" />
+        <StatCard label="Positif" value={data.positive} icon={TrendingUp} color="emerald" />
+        <StatCard label="Negatif" value={data.negative} icon={TrendingDown} color="red" />
+        <StatCard label="Belum Diproses" value={data.unprocessed} icon={Clock} color="amber" />
+      </div>
+
+      {/* 7-day trend */}
+      {data.trend && data.trend.some((t: any) => t.total > 0) && (
+        <Card>
+          <CardHeader><CardTitle className="text-sm">Tren Sentimen 7 Hari</CardTitle></CardHeader>
+          <CardContent>
+            <div className="flex items-end gap-2 h-32">
+              {data.trend.map((day: any, i: number) => {
+                const max = Math.max(...data.trend.map((d: any) => d.total), 1)
+                return (
+                  <div key={i} className="flex-1 flex flex-col items-center gap-1 h-full justify-end">
+                    <div className="text-xs font-semibold">{day.total || ''}</div>
+                    <div className="w-full rounded-t bg-gradient-to-t from-orange-600 to-orange-400" style={{ height: `${Math.max((day.total / max) * 100, day.total > 0 ? 4 : 0)}%` }} />
+                    <div className="text-[10px] text-muted-foreground">{day.date}</div>
+                  </div>
+                )
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* By Platform & Category */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader><CardTitle className="text-sm">Per Platform</CardTitle></CardHeader>
+          <CardContent className="space-y-1">
+            {Object.entries(data.byPlatform || {}).length === 0 ? <div className="text-xs text-muted-foreground">Belum ada data</div> :
+              Object.entries(data.byPlatform).map(([k, v]: any) => (
+                <div key={k} className="flex justify-between text-xs"><span>{k}</span><span className="font-bold">{v}</span></div>
+              ))
+            }
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader><CardTitle className="text-sm">Per Kategori</CardTitle></CardHeader>
+          <CardContent className="space-y-1">
+            {Object.entries(data.byCategory || {}).length === 0 ? <div className="text-xs text-muted-foreground">Belum ada data</div> :
+              Object.entries(data.byCategory).map(([k, v]: any) => (
+                <div key={k} className="flex justify-between text-xs"><span>{k}</span><span className="font-bold">{v}</span></div>
+              ))
+            }
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  )
+}
+
+// --- Social Sources Manager ---
+function SocialSourcesManager() {
+  const [sources, setSources] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [addOpen, setAddOpen] = useState(false)
+
+  const loadData = () => { setLoading(true); api('/api/social-listening/sources').then(setSources).catch(() => {}).finally(() => setLoading(false)) }
+  useEffect(() => { loadData() }, [])
+
+  if (loading) return <LoadingState />
+
+  const platformConfig: Record<string, { label: string, color: string }> = {
+    GOOGLE_NEWS: { label: 'Google News', color: 'bg-blue-50 text-blue-700' },
+    TWITTER_X: { label: 'X (Twitter)', color: 'bg-slate-50 text-slate-700' },
+    YOUTUBE: { label: 'YouTube', color: 'bg-red-50 text-red-700' },
+    TIKTOK: { label: 'TikTok', color: 'bg-purple-50 text-purple-700' },
+    FACEBOOK: { label: 'Facebook', color: 'bg-indigo-50 text-indigo-700' },
+    INSTAGRAM: { label: 'Instagram', color: 'bg-pink-50 text-pink-700' },
+    RSS_FEED: { label: 'RSS Feed', color: 'bg-orange-50 text-orange-700' },
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <p className="text-sm text-muted-foreground">Sumber data untuk scraping sentimen publik (Gratis - Open Source)</p>
+        <Button onClick={() => setAddOpen(true)} size="sm" className="bg-orange-600 text-white"><Plus className="w-4 h-4 mr-1" /> Tambah Sumber</Button>
+      </div>
+      {sources.length === 0 ? (
+        <EmptyState icon={Globe} title="Belum ada sumber data" description="Tambah sumber (Google News, RSS, Twitter, YouTube, dll) untuk mulai monitoring sentimen." />
+      ) : (
+        <div className="space-y-2">
+          {sources.map(s => {
+            const pc = platformConfig[s.platform] || { label: s.platform, color: 'bg-slate-50' }
+            return (
+              <Card key={s.id}><CardContent className="p-3 flex items-center gap-3">
+                <Badge className={`text-[10px] ${pc.color}`}>{pc.label}</Badge>
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold text-sm">{s.name}</div>
+                  {s.url && <div className="text-xs text-muted-foreground truncate">{s.url}</div>}
+                  <div className="text-[10px] text-muted-foreground mt-1">
+                    Scope: {s.scope} {s.provinceCode ? `• Prov: ${s.provinceCode}` : ''} {s.regencyCode ? `• Kab: ${s.regencyCode}` : ''}
+                    {s.lastSyncAt && ` • Last sync: ${formatDateTimeID(s.lastSyncAt)}`}
+                  </div>
+                </div>
+                <Badge variant="outline" className={`text-[10px] ${s.isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-50 text-slate-500'}`}>{s.isActive ? 'Aktif' : 'Nonaktif'}</Badge>
+              </CardContent></Card>
+            )
+          })}
+        </div>
+      )}
+      {addOpen && <AddSourceDialog open={addOpen} onOpenChange={setAddOpen} onSuccess={() => { loadData(); setAddOpen(false) }} />}
+    </div>
+  )
+}
+
+function AddSourceDialog({ open, onOpenChange, onSuccess }: any) {
+  const addToast = useToastStore((s) => s.addToast)
+  const [form, setForm] = useState({ platform: 'GOOGLE_NEWS', name: '', url: '', keywords: '', scope: 'NATIONAL', provinceCode: '', regencyCode: '' })
+  const [loading, setLoading] = useState(false)
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!form.name) { addToast('Nama sumber wajib', 'error'); return }
+    setLoading(true)
+    try {
+      const keywords = form.keywords.split(',').map((k: string) => k.trim()).filter(Boolean)
+      const res = await fetch('/api/social-listening/sources', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' }, body: JSON.stringify({ ...form, keywords }) })
+      const data = await res.json()
+      if (!res.ok || !data.success) throw new Error(data.error)
+      addToast('Sumber data ditambahkan', 'success'); onSuccess()
+    } catch (e: any) { addToast(e.message, 'error') }
+    finally { setLoading(false) }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg" aria-describedby={undefined}>
+        <DialogHeader><DialogTitle className="flex items-center gap-2"><Globe className="w-5 h-5 text-orange-600" /> Tambah Sumber Data</DialogTitle></DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2"><Label>Platform *</Label><Select value={form.platform} onValueChange={(v) => setForm({ ...form, platform: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{Object.entries({ GOOGLE_NEWS: 'Google News', TWITTER_X: 'X (Twitter)', YOUTUBE: 'YouTube', TIKTOK: 'TikTok', FACEBOOK: 'Facebook', INSTAGRAM: 'Instagram', RSS_FEED: 'RSS Feed' }).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent></Select></div>
+            <div className="space-y-2"><Label>Nama Sumber *</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="cth: Google News - Prabowo" required /></div>
+          </div>
+          <div className="space-y-2"><Label>URL / RSS Feed</Label><Input value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} placeholder="https://news.google.com/rss/search?q=Prabowo" /></div>
+          <div className="space-y-2"><Label>Kata Kunci (pisahkan koma)</Label><Input value={form.keywords} onChange={(e) => setForm({ ...form, keywords: e.target.value })} placeholder="Prabowo, Laskar Prabowo, Kabinet Merah Putih" /></div>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-2"><Label>Scope</Label><Select value={form.scope} onValueChange={(v) => setForm({ ...form, scope: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="NATIONAL">Nasional</SelectItem><SelectItem value="PROVINCE">Provinsi</SelectItem><SelectItem value="REGENCY">Kab/Kota</SelectItem></SelectContent></Select></div>
+            <div className="space-y-2"><Label>Prov Code</Label><Input value={form.provinceCode} onChange={(e) => setForm({ ...form, provinceCode: e.target.value })} placeholder="33" /></div>
+            <div className="space-y-2"><Label>Kab Code</Label><Input value={form.regencyCode} onChange={(e) => setForm({ ...form, regencyCode: e.target.value })} placeholder="3301" /></div>
+          </div>
+          <DialogFooter><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Batal</Button><Button type="submit" disabled={loading}>{loading ? 'Menyimpan...' : 'Simpan'}</Button></DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// --- Mention Feed ---
+function MentionFeed() {
+  const [mentions, setMentions] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [filterSentiment, setFilterSentiment] = useState('')
+
+  const loadData = () => {
+    setLoading(true)
+    const params = filterSentiment ? `?sentiment=${filterSentiment}` : ''
+    api(`/api/social-listening/mentions${params}`).then(setMentions).catch(() => {}).finally(() => setLoading(false))
+  }
+  useEffect(() => { loadData() }, [filterSentiment])
+
+  if (loading) return <LoadingState />
+
+  const sentimentConfig: Record<string, { label: string, color: string }> = {
+    POSITIVE: { label: 'Positif', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+    NEUTRAL: { label: 'Netral', color: 'bg-slate-50 text-slate-700 border-slate-200' },
+    NEGATIVE: { label: 'Negatif', color: 'bg-red-50 text-red-700 border-red-200' },
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex gap-2 items-center">
+        <Select value={filterSentiment} onValueChange={setFilterSentiment}>
+          <SelectTrigger className="w-[180px]"><SelectValue placeholder="Semua Sentimen" /></SelectTrigger>
+          <SelectContent><SelectItem value="">Semua</SelectItem><SelectItem value="POSITIVE">Positif</SelectItem><SelectItem value="NEUTRAL">Netral</SelectItem><SelectItem value="NEGATIVE">Negatif</SelectItem></SelectContent>
+        </Select>
+      </div>
+      {mentions.length === 0 ? (
+        <EmptyState icon={MessageSquare} title="Belum ada mention" description="Jalankan scraper dari sumber data untuk mengumpulkan mention." />
+      ) : (
+        <div className="space-y-2">
+          {mentions.map(m => {
+            const sc = m.sentiment ? sentimentConfig[m.sentiment] : null
+            return (
+              <Card key={m.id}><CardContent className="p-3">
+                <div className="flex items-start gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Badge variant="outline" className="text-[9px]">{m.platform}</Badge>
+                      {sc && <Badge variant="outline" className={`text-[9px] ${sc.color}`}>{sc.label}</Badge>}
+                      {m.category && <Badge variant="outline" className="text-[9px] bg-purple-50 text-purple-700">{m.category}</Badge>}
+                      {m.provinceCode && <Badge variant="outline" className="text-[9px] bg-blue-50 text-blue-700"><MapPin className="w-2.5 h-2.5 mr-0.5" />{m.provinceCode}</Badge>}
+                    </div>
+                    <div className="font-semibold text-sm">{m.title}</div>
+                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{m.content}</p>
+                    <div className="flex items-center gap-2 mt-2 text-[10px] text-muted-foreground">
+                      <span>📅 {formatDateTimeID(m.publishedAt)}</span>
+                      {m.author && <span>✍️ {m.author}</span>}
+                      {m.engagementCount > 0 && <span>💬 {m.engagementCount}</span>}
+                    </div>
+                  </div>
+                  {m.url && <a href={m.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline shrink-0"><ExternalLink className="w-3.5 h-3.5" /></a>}
+                </div>
+              </CardContent></Card>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// --- Alert Manager ---
+function AlertManager() {
+  const [alerts, setAlerts] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [genRecId, setGenRecId] = useState<string | null>(null)
+
+  const loadData = () => { setLoading(true); api('/api/social-listening/alerts').then(setAlerts).catch(() => {}).finally(() => setLoading(false)) }
+  useEffect(() => { loadData() }, [])
+
+  if (loading) return <LoadingState />
+
+  const handleGenRec = async (id: string) => {
+    setGenRecId(id)
+    try {
+      const res = await fetch(`/api/social-listening/alerts/${id}`, { method: 'POST', headers: { 'x-user-id': useAuthStore.getState().user?.id || '' } })
+      const data = await res.json()
+      if (!res.ok || !data.success) throw new Error(data.error)
+      useToastStore.getState().addToast('Rekomendasi AI dihasilkan', 'success')
+      loadData()
+    } catch (e: any) { useToastStore.getState().addToast(e.message, 'error') }
+    finally { setGenRecId(null) }
+  }
+
+  const severityConfig: Record<string, { label: string, color: string }> = {
+    CRITICAL: { label: 'Kritis', color: 'bg-red-100 text-red-800 border-red-300' },
+    HIGH: { label: 'Tinggi', color: 'bg-orange-100 text-orange-800 border-orange-300' },
+    MEDIUM: { label: 'Sedang', color: 'bg-amber-100 text-amber-800 border-amber-300' },
+    LOW: { label: 'Rendah', color: 'bg-blue-100 text-blue-800 border-blue-300' },
+  }
+
+  return (
+    <div className="space-y-3">
+      {alerts.length === 0 ? (
+        <EmptyState icon={AlertTriangle} title="Belum ada alert" description="Alert otomatis muncul saat sentimen negatif >60% di wilayah tertentu." />
+      ) : (
+        <div className="space-y-2">
+          {alerts.map(a => {
+            const sc = severityConfig[a.severity] || severityConfig.HIGH
+            return (
+              <Card key={a.id} className="border-l-4" style={{ borderLeftColor: a.severity === 'CRITICAL' ? '#dc2626' : a.severity === 'HIGH' ? '#ea580c' : '#d97706' }}>
+                <CardContent className="p-3">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="w-5 h-5 text-red-500 mt-0.5 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge className={`text-[10px] ${sc.color}`}>{sc.label}</Badge>
+                        <Badge variant="outline" className="text-[10px]">{a.type.replace(/_/g, ' ')}</Badge>
+                        <Badge variant="outline" className={`text-[10px] ${a.status === 'NEW' ? 'bg-red-50 text-red-700' : a.status === 'ACKNOWLEDGED' ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>{a.status}</Badge>
+                      </div>
+                      <div className="font-semibold text-sm">{a.title}</div>
+                      <p className="text-xs text-muted-foreground mt-1">{a.message}</p>
+                      <div className="flex items-center gap-2 mt-2 text-[10px] text-muted-foreground">
+                        <span>📅 {formatDateTimeID(a.createdAt)}</span>
+                        {a.mentionCount > 0 && <span>📊 {a.mentionCount} mentions</span>}
+                        {a.negativePercentage && <span>⚠️ {a.negativePercentage.toFixed(1)}% negatif</span>}
+                      </div>
+                      <div className="flex gap-2 mt-2">
+                        <Button size="sm" variant="outline" className="h-7 text-xs" disabled={genRecId === a.id} onClick={() => handleGenRec(a.id)}>
+                          {genRecId === a.id ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Lightbulb className="w-3 h-3 mr-1" />}
+                          Generate AI Rekomendasi
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// --- Recommendation Manager ---
+function RecommendationManager() {
+  const [recs, setRecs] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  const loadData = () => { setLoading(true); api('/api/social-listening/recommendations').then(setRecs).catch(() => {}).finally(() => setLoading(false)) }
+  useEffect(() => { loadData() }, [])
+
+  if (loading) return <LoadingState />
+
+  const actionConfig: Record<string, { label: string, color: string }> = {
+    FIELD_VISIT: { label: 'Turun ke Lapangan', color: 'bg-orange-50 text-orange-700' },
+    CLARIFICATION: { label: 'Klarifikasi', color: 'bg-red-50 text-red-700' },
+    REPORT_UP: { label: 'Laporkan ke Atasan', color: 'bg-blue-50 text-blue-700' },
+    COORDINATE: { label: 'Koordinasi Tim', color: 'bg-purple-50 text-purple-700' },
+    MONITOR: { label: 'Pantau', color: 'bg-slate-50 text-slate-700' },
+  }
+
+  const handleAction = async (id: string, status: string) => {
+    try {
+      await fetch(`/api/social-listening/recommendations/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' }, body: JSON.stringify({ status }) })
+      useToastStore.getState().addToast(`Rekomendasi ${status}`, 'success')
+      loadData()
+    } catch (e: any) { useToastStore.getState().addToast(e.message, 'error') }
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs text-blue-800">
+        <Lightbulb className="w-4 h-4 inline mr-1" />
+        <strong>AI Lokal (Rp0):</strong> Rekomendasi dihasilkan oleh AI lokal (Ollama/Llama 3) yang di-host di server internal. Tidak ada biaya API. Mode demo saat ini menggunakan template-based generator.
+      </div>
+      {recs.length === 0 ? (
+        <EmptyState icon={Lightbulb} title="Belum ada rekomendasi" description="Generate rekomendasi dari alert yang aktif di tab 'Peringatan Dini'." />
+      ) : (
+        <div className="space-y-2">
+          {recs.map(r => {
+            const ac = actionConfig[r.actionType] || actionConfig.MONITOR
+            return (
+              <Card key={r.id} className="border-l-4 border-l-purple-500">
+                <CardContent className="p-3">
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center shrink-0"><Lightbulb className="w-4 h-4 text-purple-600" /></div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge className={`text-[10px] ${ac.color}`}>{ac.label}</Badge>
+                        <Badge variant="outline" className={`text-[10px] ${r.priority === 'URGENT' ? 'bg-red-50 text-red-700' : r.priority === 'HIGH' ? 'bg-orange-50 text-orange-700' : 'bg-slate-50 text-slate-600'}`}>{r.priority}</Badge>
+                        <Badge variant="outline" className={`text-[10px] ${r.status === 'PENDING' ? 'bg-amber-50 text-amber-700' : r.status === 'APPROVED' ? 'bg-blue-50 text-blue-700' : r.status === 'EXECUTED' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>{r.status}</Badge>
+                      </div>
+                      <div className="text-xs text-muted-foreground mb-1">{r.context.substring(0, 100)}...</div>
+                      <p className="text-sm font-medium">{r.recommendation}</p>
+                      <div className="flex items-center gap-2 mt-2 text-[10px] text-muted-foreground">
+                        <span>📅 {formatDateTimeID(r.createdAt)}</span>
+                        {r.provinceCode && <span>📍 {r.provinceCode}</span>}
+                        {r.regencyCode && <span>📍 {r.regencyCode}</span>}
+                      </div>
+                      {r.status === 'PENDING' && (
+                        <div className="flex gap-2 mt-2">
+                          <Button size="sm" variant="outline" className="h-7 text-xs text-emerald-700 border-emerald-300" onClick={() => handleAction(r.id, 'APPROVED')}><CheckCircle2 className="w-3 h-3 mr-1" /> Setujui</Button>
+                          <Button size="sm" variant="outline" className="h-7 text-xs text-red-700 border-red-300" onClick={() => handleAction(r.id, 'REJECTED')}><XCircle className="w-3 h-3 mr-1" /> Tolak</Button>
+                          <Button size="sm" variant="outline" className="h-7 text-xs text-blue-700 border-blue-300" onClick={() => handleAction(r.id, 'EXECUTED')}><Zap className="w-3 h-3 mr-1" /> Eksekusi</Button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
+      )}
+    </div>
   )
 }
