@@ -343,6 +343,7 @@ model Broadcast {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   deliveryLogs  BroadcastDeliveryLog[]
+  messages      BroadcastMessage[] // queue per-recipient personalized
 
   @@index([channel, status])
 }
@@ -1359,4 +1360,67 @@ model AiAnalysisCache {
   @@unique([itemType, itemId])
   @@index([cacheKey])
   @@index([itemType, sentiment])
+}
+
+// ============================================================
+// BROADCAST MESSAGE QUEUE — Personalisasi per-recipient + anti-banned
+// ============================================================
+
+// BroadcastMessage - queue per-recipient dengan pesan yang sudah di-personalisasi
+// {nama}, {wilayah} sudah di-resolve jadi nilai asli per kontak
+model BroadcastMessage {
+  id              String   @id @default(cuid())
+  broadcastId     String
+  broadcast       Broadcast @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
+  contactId       String?
+  // Recipient info (snapshot saat queue dibuat)
+  recipientName   String
+  recipientPhone  String
+  recipientTerritory String? // cth: "DPC Pontianak" / "DPD Kalbar"
+  // Personalized message (variabel {nama} & {wilayah} sudah di-resolve)
+  personalizedContent String
+  // Queue status
+  status          String   @default("QUEUED") // QUEUED | SENDING | SENT | DELIVERED | READ | FAILED | BLOCKED
+  queueOrder     Int      @default(0) // urutan pengiriman (untuk rate limit anti-banned)
+  // Tracking
+  sentAt          DateTime?
+  deliveredAt     DateTime?
+  readAt          DateTime?
+  // Error handling
+  errorCode       String?
+  errorMessage    String?
+  retryCount      Int      @default(0)
+  maxRetries      Int      @default(3)
+  // API response
+  platformMessageId String?
+  // Anti-banned: random delay untuk setiap message
+  scheduledSendAt DateTime? // waktu kirim yang dijadwalkan (dengan delay random)
+  // Metadata
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([broadcastId, status])
+  @@index([status, scheduledSendAt])
+  @@index([contactId])
+}
+
+// BroadcastEngineConfig - konfigurasi broadcast engine (rate limit, anti-banned settings)
+model BroadcastEngineConfig {
+  id              String   @id @default(cuid())
+  // Rate limiting (anti-banned)
+  messagesPerMinute    Int @default(5)  // max 5 pesan per menit per nomor pengirim
+  messagesPerHour      Int @default(100) // max 100 pesan per jam
+  messagesPerDay       Int @default(500) // max 500 pesan per hari
+  // Random delay (ms) antar pesan
+  minDelayMs           Int @default(2000) // 2 detik min
+  maxDelayMs           Int @default(8000) // 8 detik max
+  // Batch size (berapa pesan per batch sebelum jeda panjang)
+  batchSize            Int @default(20)
+  batchPauseMs         Int @default(60000) // 1 menit jeda setiap 20 pesan
+  // Provider config
+  provider             String @default("WHATSAPP_BUSINESS_API") // WHATSAPP_BUSINESS_API | WAPBLOOM | WAAMI | FOSSWARES | GATEWAY_API
+  isActive             Boolean @default(true)
+  updatedAt            DateTime @updatedAt
+
+  @@unique([id])
 }

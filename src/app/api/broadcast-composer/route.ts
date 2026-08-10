@@ -1,9 +1,18 @@
 // LAPRA 08 - API: Broadcast Composer
 // GET - List templates or broadcasts
-// POST - Save template / Send broadcast
+// POST - Save template / Send broadcast (with dynamic contact resolution + queue)
+//
+// INTEGRATED:
+// 1. Dynamic contact resolution dari DB per wilayah (DPN/DPD/DPC) + segment
+// 2. Message queuing anti-banned (rate limit + batch + random delay)
+// 3. Variable personalization ({nama}, {wilayah}, {tanggal}, {profesi})
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getUserFromRequest } from '@/lib/server-helpers'
+import {
+  resolveTargetContacts, buildMessageQueue, initDefaultEngineConfig,
+  type BroadcastTarget,
+} from '@/lib/broadcast-engine'
 
 // GET - List templates or recent broadcasts
 export async function GET(request: NextRequest) {
@@ -71,22 +80,26 @@ export async function POST(request: NextRequest) {
 
     // === Send broadcast mode ===
     if (body.action === 'send') {
-      const { title, content, channels, segmentId, scheduleAt, imageUrl, videoUrl, linkUrl, attachedEssayPollId } = body
+      const { title, content, channels, scheduleAt, imageUrl, videoUrl, linkUrl, attachedEssayPollId, target } = body
       if (!title || !content || !channels || channels.length === 0) {
         return NextResponse.json({ success: false, error: 'Title, content, channels wajib' }, { status: 400 })
       }
 
-      // Count recipients
-      let recipientCount = 0
-      if (segmentId) {
-        recipientCount = await db.contact.count({
-          where: { audienceSegments: { some: { id: segmentId } }, whatsappOptIn: true },
-        })
-      } else {
-        recipientCount = await db.contact.count({ where: { whatsappOptIn: true } })
+      await initDefaultEngineConfig()
+
+      // === STEP 1: Resolve target contacts dari DB berdasarkan wilayah + segment ===
+      // Target format: { scope: 'PROVINCE' | 'REGENCY' | 'ALL', territoryCode, ageGroup, occupation, onlyLapraMembers, segmentId }
+      const broadcastTarget: BroadcastTarget = target || { scope: 'ALL', onlyOptIn: true }
+      const resolved = await resolveTargetContacts(broadcastTarget)
+
+      if (resolved.contacts.length === 0) {
+        return NextResponse.json({
+          success: false,
+          error: `Tidak ada kontak WhatsApp opt-in yang cocok dengan filter: ${resolved.filterDescription}. Total ditemukan: ${resolved.totalFound}, WA opt-in: ${resolved.totalOptIn}.`,
+        }, { status: 400 })
       }
 
-      // Build full content (append essay poll URL if attached)
+      // === STEP 2: Build full content (append essay poll URL if attached) ===
       let fullContent = content
       if (attachedEssayPollId) {
         const poll = await db.essayPoll.findUnique({ where: { id: attachedEssayPollId } })
@@ -96,6 +109,7 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      // === STEP 3: Create broadcast record ===
       const broadcast = await db.broadcast.create({
         data: {
           title: title.substring(0, 200),
@@ -103,8 +117,8 @@ export async function POST(request: NextRequest) {
           channel: channels[0], // Primary channel
           channels: JSON.stringify(channels),
           status: scheduleAt ? 'QUEUED' : 'PENDING',
-          targetScope: JSON.stringify({ segmentId: segmentId || null, scope: 'all' }),
-          recipientCount,
+          targetScope: JSON.stringify({ target: broadcastTarget, filterDescription: resolved.filterDescription }),
+          recipientCount: resolved.contacts.length,
           imageUrl: imageUrl || null,
           videoUrl: videoUrl || null,
           linkUrl: linkUrl || null,
@@ -113,10 +127,32 @@ export async function POST(request: NextRequest) {
         },
       })
 
+      // === STEP 4: Build message queue (personalized per recipient) ===
+      // Hanya build queue untuk WhatsApp channel (FB/IG/Email pakai API masing-masing, tidak perlu queue per-recipient)
+      let queueResult = { queued: 0, totalEstimatedMs: 0 }
+      if (channels.includes('WHATSAPP')) {
+        queueResult = await buildMessageQueue(broadcast.id, resolved.contacts, fullContent)
+      }
+
+      // === STEP 5: Update broadcast status ===
+      const finalStatus = scheduleAt ? 'QUEUED' : 'PENDING'
+      await db.broadcast.update({
+        where: { id: broadcast.id },
+        data: { status: finalStatus },
+      })
+
+      const estMinutes = Math.ceil(queueResult.totalEstimatedMs / 60000)
       return NextResponse.json({
         success: true,
         data: broadcast,
-        message: `Broadcast ${scheduleAt ? 'dijadwalkan' : 'dibuat'}. Target: ${recipientCount} penerima.`,
+        message: `Broadcast dibuat & ${queueResult.queued} pesan masuk antrian. Target: ${resolved.filterDescription}. Estimasi selesai: ${estMinutes} menit (anti-banned rate limit).`,
+        queue: {
+          totalQueued: queueResult.queued,
+          estimatedMinutes: estMinutes,
+          filterDescription: resolved.filterDescription,
+          totalFound: resolved.totalFound,
+          totalOptIn: resolved.totalOptIn,
+        },
       })
     }
 

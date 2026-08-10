@@ -671,7 +671,7 @@ function GeospatialVoiceTab() {
 }
 
 // ============================================================
-// TAB 3: BROADCAST COMPOSER
+// TAB 3: BROADCAST COMPOSER — Dynamic Target + Anti-Banned Queue + Variable Personalization
 // ============================================================
 function BroadcastComposerTab() {
   const addToast = useToastStore((s) => s.addToast)
@@ -681,12 +681,27 @@ function BroadcastComposerTab() {
   const [loading, setLoading] = useState(true)
   const [composerOpen, setComposerOpen] = useState(false)
   const [templateOpen, setTemplateOpen] = useState(false)
+  const [broadcastStatsOpen, setBroadcastStatsOpen] = useState<any>(null)
 
   // Composer form
   const [form, setForm] = useState({
     title: '', content: '', channels: ['WHATSAPP'],
     scheduleAt: '', imageUrl: '', attachedEssayPollId: '',
+    // Target config (dynamic contact resolution)
+    targetScope: 'ALL' as 'ALL' | 'NATIONAL' | 'PROVINCE' | 'REGENCY',
+    targetTerritoryCode: '',
+    targetOccupation: '',
+    targetAgeGroup: '',
+    onlyLapraMembers: false,
   })
+
+  // Target resolution state (preview contacts)
+  const [targetPreview, setTargetPreview] = useState<any>(null)
+  const [resolvingTargets, setResolvingTargets] = useState(false)
+  const [sending, setSending] = useState(false)
+
+  // Territories for dropdown
+  const [territories, setTerritories] = useState<any[]>([])
 
   const loadData = useCallback(() => {
     setLoading(true)
@@ -701,12 +716,55 @@ function BroadcastComposerTab() {
     }).catch(() => {}).finally(() => setLoading(false))
   }, [])
 
+  // Load territories when target scope changes
+  useEffect(() => {
+    if (form.targetScope === 'PROVINCE' || form.targetScope === 'REGENCY') {
+      api(`/api/broadcast-composer/targets?level=${form.targetScope}`).then(res => {
+        setTerritories(Array.isArray(res) ? res : (res?.data || []))
+      }).catch(() => setTerritories([]))
+    } else {
+      setTerritories([])
+    }
+  }, [form.targetScope])
+
   useEffect(() => { loadData() }, [loadData])
 
-  if (loading) return <LoadingState />
+  // Preview target contacts (resolve dari DB)
+  const handlePreviewTargets = async () => {
+    setResolvingTargets(true)
+    setTargetPreview(null)
+    try {
+      const res = await fetch('/api/broadcast-composer/targets', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+        body: JSON.stringify({
+          scope: form.targetScope,
+          territoryCode: form.targetTerritoryCode || null,
+          occupation: form.targetOccupation || null,
+          ageGroup: form.targetAgeGroup || null,
+          onlyLapraMembers: form.onlyLapraMembers,
+          onlyOptIn: true,
+        }),
+      })
+      const data = await res.json()
+      if (!data.success) throw new Error(data.error)
+      setTargetPreview(data.data)
+    } catch (e: any) {
+      addToast(e.message, 'error')
+    } finally {
+      setResolvingTargets(false)
+    }
+  }
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    // Validate target
+    if ((form.targetScope === 'PROVINCE' || form.targetScope === 'REGENCY') && !form.targetTerritoryCode) {
+      addToast('Pilih wilayah target (provinsi/kab-kota) dulu', 'error')
+      return
+    }
+
+    setSending(true)
     try {
       const res = await fetch('/api/broadcast-composer', {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
@@ -717,22 +775,53 @@ function BroadcastComposerTab() {
           scheduleAt: form.scheduleAt || null,
           imageUrl: form.imageUrl || null,
           attachedEssayPollId: form.attachedEssayPollId || null,
+          target: {
+            scope: form.targetScope,
+            territoryCode: form.targetTerritoryCode || null,
+            occupation: form.targetOccupation || null,
+            ageGroup: form.targetAgeGroup || null,
+            onlyLapraMembers: form.onlyLapraMembers,
+            onlyOptIn: true,
+          },
         }),
       })
       const data = await res.json()
       if (!res.ok || !data.success) throw new Error(data.error)
       addToast(data.message, 'success')
-      setForm({ title: '', content: '', channels: ['WHATSAPP'], scheduleAt: '', imageUrl: '', attachedEssayPollId: '' })
+      // Reset form
+      setForm({
+        title: '', content: '', channels: ['WHATSAPP'],
+        scheduleAt: '', imageUrl: '', attachedEssayPollId: '',
+        targetScope: 'ALL', targetTerritoryCode: '', targetOccupation: '', targetAgeGroup: '', onlyLapraMembers: false,
+      })
+      setTargetPreview(null)
       setComposerOpen(false); loadData()
     } catch (e: any) { addToast(e.message, 'error') }
+    finally { setSending(false) }
+  }
+
+  // Quick insert variable helper
+  const insertVariable = (varName: string) => {
+    setForm({ ...form, content: form.content + `{${varName}}` })
   }
 
   const channels = [
-    { id: 'WHATSAPP', label: 'WhatsApp', icon: Send, color: 'emerald' },
-    { id: 'FACEBOOK', label: 'Facebook', icon: Facebook, color: 'blue' },
-    { id: 'INSTAGRAM', label: 'Instagram', icon: Instagram, color: 'purple' },
-    { id: 'EMAIL', label: 'Email', icon: FileText, color: 'slate' },
+    { id: 'WHATSAPP', label: 'WhatsApp', icon: Send, color: 'emerald', desc: 'Anti-banned queue + dynamic contacts' },
+    { id: 'FACEBOOK', label: 'Facebook', icon: Facebook, color: 'blue', desc: 'Posting ke FB Page' },
+    { id: 'INSTAGRAM', label: 'Instagram', icon: Instagram, color: 'purple', desc: 'Posting ke IG Business' },
+    { id: 'EMAIL', label: 'Email', icon: FileText, color: 'slate', desc: 'Kirim email massal' },
   ]
+
+  const scopeOptions = [
+    { value: 'ALL', label: 'Semua Indonesia (Nasional / DPN)' },
+    { value: 'PROVINCE', label: 'Per Provinsi (DPD)' },
+    { value: 'REGENCY', label: 'Per Kabupaten/Kota (DPC)' },
+  ]
+
+  const occupationOptions = ['', 'PETANI', 'NELAYAN', 'UMKM', 'PELAJAR', 'GURU', 'BURUH', 'LAINNYA']
+  const ageGroupOptions = ['', '17-21', '22-30', '31-40', '41-60', '61+']
+
+  if (loading) return <LoadingState />
 
   return (
     <div className="space-y-4">
@@ -746,7 +835,7 @@ function BroadcastComposerTab() {
       <div className="flex justify-between items-center">
         <div>
           <h3 className="font-semibold text-base">Broadcast Composer</h3>
-          <p className="text-sm text-muted-foreground">Buat & jadwalkan broadcast multi-channel dengan template variabel + attach essay poll</p>
+          <p className="text-sm text-muted-foreground">Dynamic target DB + anti-banned message queue + variabel otomatis {`{nama}`} {`{wilayah}`} {`{tanggal}`}</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => setTemplateOpen(true)}><FileText className="w-4 h-4 mr-1" /> Template</Button>
@@ -771,6 +860,7 @@ function BroadcastComposerTab() {
                   <TableHead className="text-center">Penerima</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Tanggal</TableHead>
+                  <TableHead></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -782,11 +872,16 @@ function BroadcastComposerTab() {
                     </TableCell>
                     <TableCell className="text-center text-sm">{b.recipientCount}</TableCell>
                     <TableCell>
-                      <Badge className={`text-[10px] ${b.status === 'SENT' ? 'bg-emerald-100 text-emerald-800' : b.status === 'QUEUED' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-800'}`}>
+                      <Badge className={`text-[10px] ${b.status === 'SENT' ? 'bg-emerald-100 text-emerald-800' : b.status === 'QUEUED' ? 'bg-amber-100 text-amber-800' : b.status === 'PARTIAL' ? 'bg-orange-100 text-orange-800' : b.status === 'FAILED' ? 'bg-red-100 text-red-800' : 'bg-slate-100 text-slate-800'}`}>
                         {b.status}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-xs">{formatDateTimeID(b.createdAt)}</TableCell>
+                    <TableCell>
+                      <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setBroadcastStatsOpen(b)}>
+                        <Eye className="w-3 h-3 mr-1" /> Stats
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -795,43 +890,170 @@ function BroadcastComposerTab() {
         </CardContent>
       </Card>
 
-      {/* Composer dialog */}
-      <Dialog open={composerOpen} onOpenChange={setComposerOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+      {/* Composer dialog — NEW with dynamic target + preview + variable personalization */}
+      <Dialog open={composerOpen} onOpenChange={(o) => { setComposerOpen(o); if (!o) setTargetPreview(null) }}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><Send className="w-5 h-5 text-orange-600" /> Buat Broadcast Baru</DialogTitle>
-            <DialogDescription>Pilih channel, isi pesan, jadwalkan jika perlu</DialogDescription>
+            <DialogDescription>
+              Pilih channel, target wilayah (DPN/DPD/DPC), isi pesan dengan variabel otomatis. Sistem akan resolve kontak dari DB & jadwalkan pengiriman anti-banned.
+            </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSend} className="space-y-3">
+            {/* Title */}
             <div className="space-y-2">
               <Label>Judul Broadcast *</Label>
               <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })}
                 placeholder="cth: Pengumuman Rapat DPD 15 Agustus 2026" required />
             </div>
 
+            {/* Channel selector */}
             <div className="space-y-2">
               <Label>Pilih Channel (bisa lebih dari satu) *</Label>
-              <div className="flex flex-wrap gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {channels.map(ch => {
                   const active = form.channels.includes(ch.id)
                   return (
                     <button key={ch.id} type="button"
                       onClick={() => setForm({ ...form, channels: active ? form.channels.filter((c: string) => c !== ch.id) : [...form.channels, ch.id] })}
-                      className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition-all ${active ? 'bg-orange-600 text-white border-orange-600' : 'border hover:bg-accent'}`}>
-                      <ch.icon className="w-4 h-4" /> {ch.label}
+                      className={`flex flex-col items-start gap-1 p-3 rounded-lg border text-left transition-all ${active ? 'bg-orange-600 text-white border-orange-600' : 'border hover:bg-accent'}`}>
+                      <div className="flex items-center gap-2">
+                        <ch.icon className="w-4 h-4" />
+                        <span className="text-sm font-semibold">{ch.label}</span>
+                      </div>
+                      <span className={`text-[10px] ${active ? 'text-orange-100' : 'text-muted-foreground'}`}>{ch.desc}</span>
                     </button>
                   )
                 })}
               </div>
             </div>
 
+            {/* === TARGET WILAYAH (Dynamic Database Contact Resolution) === */}
+            {form.channels.includes('WHATSAPP') && (
+              <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Users className="w-4 h-4 text-emerald-700" />
+                  <Label className="text-sm font-semibold text-emerald-800">Target Audiens (Dynamic Database Resolution)</Label>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Scope Wilayah *</Label>
+                    <Select value={form.targetScope} onValueChange={(v) => setForm({ ...form, targetScope: v as any, targetTerritoryCode: '' })}>
+                      <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {scopeOptions.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {(form.targetScope === 'PROVINCE' || form.targetScope === 'REGENCY') && (
+                    <div className="space-y-1">
+                      <Label className="text-xs">{form.targetScope === 'PROVINCE' ? 'Provinsi (DPD)' : 'Kabupaten/Kota (DPC)'} *</Label>
+                      <Select value={form.targetTerritoryCode} onValueChange={(v) => setForm({ ...form, targetTerritoryCode: v })}>
+                        <SelectTrigger className="h-9"><SelectValue placeholder="Pilih wilayah..." /></SelectTrigger>
+                        <SelectContent>
+                          {territories.map(t => <SelectItem key={t.code} value={t.code}>{t.name} ({t.contactCount} kontak)</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Profesi (opsional)</Label>
+                    <Select value={form.targetOccupation} onValueChange={(v) => setForm({ ...form, targetOccupation: v })}>
+                      <SelectTrigger className="h-9"><SelectValue placeholder="Semua" /></SelectTrigger>
+                      <SelectContent>
+                        {occupationOptions.map(o => <SelectItem key={o || 'ALL'} value={o}>{o || 'Semua Profesi'}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Kelompok Usia (opsional)</Label>
+                    <Select value={form.targetAgeGroup} onValueChange={(v) => setForm({ ...form, targetAgeGroup: v })}>
+                      <SelectTrigger className="h-9"><SelectValue placeholder="Semua" /></SelectTrigger>
+                      <SelectContent>
+                        {ageGroupOptions.map(a => <SelectItem key={a || 'ALL'} value={a}>{a || 'Semua Usia'}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Filter Khusus</Label>
+                    <label className="flex items-center gap-2 h-9 cursor-pointer">
+                      <input type="checkbox" checked={form.onlyLapraMembers} onChange={(e) => setForm({ ...form, onlyLapraMembers: e.target.checked })}
+                        className="w-4 h-4 rounded" />
+                      <span className="text-xs">Pengurus LAPRA 08 saja</span>
+                    </label>
+                  </div>
+                </div>
+
+                <Button type="button" variant="outline" size="sm" onClick={handlePreviewTargets} disabled={resolvingTargets}>
+                  {resolvingTargets ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Search className="w-3 h-3 mr-1" />}
+                  {resolvingTargets ? 'Mengambil kontak...' : 'Preview Target Kontak'}
+                </Button>
+
+                {/* Target preview results */}
+                {targetPreview && (
+                  <div className="rounded-lg bg-white border p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="text-xs font-semibold text-emerald-700">{targetPreview.filterDescription}</div>
+                      <Badge className="bg-emerald-100 text-emerald-800">{targetPreview.totalOptIn} WA opt-in</Badge>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                      <div className="rounded bg-emerald-50 p-1.5">
+                        <div className="font-bold text-emerald-700">{targetPreview.totalFound}</div>
+                        <div className="text-[9px]">Total Found</div>
+                      </div>
+                      <div className="rounded bg-emerald-50 p-1.5">
+                        <div className="font-bold text-emerald-700">{targetPreview.totalOptIn}</div>
+                        <div className="text-[9px]">WA Opt-in</div>
+                      </div>
+                      <div className="rounded bg-amber-50 p-1.5">
+                        <div className="font-bold text-amber-700">{targetPreview.totalSkipped}</div>
+                        <div className="text-[9px]">Skipped</div>
+                      </div>
+                    </div>
+                    {targetPreview.sampleContacts && targetPreview.sampleContacts.length > 0 && (
+                      <div>
+                        <div className="text-[10px] font-semibold text-muted-foreground mb-1">Sample kontak (5 dari {targetPreview.totalOptIn}):</div>
+                        <div className="space-y-1">
+                          {targetPreview.sampleContacts.map((c: any, i: number) => (
+                            <div key={i} className="text-[11px] flex items-center justify-between rounded bg-slate-50 px-2 py-1">
+                              <div>
+                                <span className="font-semibold">{c.name}</span>
+                                <span className="text-muted-foreground ml-2">{c.phone}</span>
+                              </div>
+                              <div className="text-[10px]">
+                                {c.territoryName} • {c.occupation || '-'} • {c.ageGroup || '-'}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Message content with variable buttons */}
             <div className="space-y-2">
-              <Label>Isi Pesan * <span className="text-xs text-muted-foreground">(boleh pakai variabel: {'{nama}'}, {'{wilayah}'}, {'{tanggal}'})</span></Label>
+              <Label>Isi Pesan * <span className="text-xs text-muted-foreground">(klik variabel untuk sisipkan otomatis)</span></Label>
+              <div className="flex flex-wrap gap-1 mb-1">
+                {['nama', 'wilayah', 'tanggal', 'waktu', 'profesi', 'gender'].map(v => (
+                  <Button key={v} type="button" size="sm" variant="outline" className="h-6 text-[10px]"
+                    onClick={() => insertVariable(v)}>
+                    {`{${v}}`}
+                  </Button>
+                ))}
+              </div>
               <Textarea value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })}
-                placeholder="Assalamualaikum {nama}, kami dari LAPRA 08 {wilayah} mengundang Bapak/Ibu untuk..." rows={6} required />
-              <div className="text-xs text-muted-foreground">{form.content.length} karakter</div>
+                placeholder="Assalamualaikum {nama}, kami dari LAPRA 08 {wilayah} mengundang Bapak/Ibu untuk hadir rapat pada {tanggal}..." rows={5} required />
+              <div className="text-xs text-muted-foreground">{form.content.length} karakter • Variabel akan otomatis di-resolve per kontak</div>
             </div>
 
+            {/* Schedule + image */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label>Jadwalkan (opsional)</Label>
@@ -845,16 +1067,30 @@ function BroadcastComposerTab() {
               </div>
             </div>
 
-            <div className="rounded-lg bg-blue-50 border border-blue-200 p-2 text-xs text-blue-800">
-              <Users className="w-3.5 h-3.5 inline mr-1" />
-              <strong>Estimasi penerima:</strong> {contactsStats.optIn} kontak WA opt-in
+            {/* Estimate */}
+            <div className="rounded-lg bg-blue-50 border border-blue-200 p-2 text-xs text-blue-800 flex items-start gap-2">
+              <Users className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+              <div>
+                <strong>Estimasi pengiriman:</strong>{' '}
+                {targetPreview ? (
+                  <>
+                    {targetPreview.totalOptIn} kontak WA opt-in akan menerima pesan personalisasi ({`{nama}`} & {`{wilayah}`} otomatis di-resolve).
+                    Anti-banned: ~2-8 detik random delay per pesan, batch 20 pesan/jeda 1 menit.
+                    {!targetPreview.totalOptIn && ' ⚠️ Tidak ada kontak opt-in — jalankan resolve target dulu.'}
+                  </>
+                ) : (
+                  <>
+                    {contactsStats.optIn} kontak WA opt-in tersedia. Klik "Preview Target Kontak" untuk lihat kontak yang akan menerima pesan berdasarkan filter di atas.
+                  </>
+                )}
+              </div>
             </div>
 
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setComposerOpen(false)}>Batal</Button>
-              <Button type="submit" className="bg-gradient-to-r from-orange-600 to-red-600 text-white">
-                <Send className="w-4 h-4 mr-1" />
-                {form.scheduleAt ? 'Jadwalkan' : 'Kirim Broadcast'}
+              <Button type="button" variant="outline" onClick={() => { setComposerOpen(false); setTargetPreview(null) }}>Batal</Button>
+              <Button type="submit" disabled={sending || (targetPreview?.totalOptIn === 0)} className="bg-gradient-to-r from-orange-600 to-red-600 text-white">
+                {sending ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Send className="w-4 h-4 mr-1" />}
+                {sending ? 'Memproses & queue...' : form.scheduleAt ? 'Jadwalkan Broadcast' : 'Kirim Broadcast (Anti-Banned Queue)'}
               </Button>
             </DialogFooter>
           </form>
@@ -883,7 +1119,140 @@ function BroadcastComposerTab() {
           <DialogFooter><Button variant="outline" onClick={() => setTemplateOpen(false)}>Tutup</Button></DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Broadcast stats dialog */}
+      {broadcastStatsOpen && (
+        <BroadcastStatsDialog broadcast={broadcastStatsOpen} onClose={() => setBroadcastStatsOpen(null)} />
+      )}
     </div>
+  )
+}
+
+// === BROADCAST STATS DIALOG (queue progress + anti-banned tracking) ===
+function BroadcastStatsDialog({ broadcast, onClose }: { broadcast: any; onClose: () => void }) {
+  const [stats, setStats] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [processing, setProcessing] = useState(false)
+
+  const loadData = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/broadcast-composer/${broadcast.id}/stats`, {
+        headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+      })
+      const data = await res.json()
+      if (data.success) setStats(data.data)
+    } catch (e) { /* ignore */ }
+    finally { setLoading(false) }
+  }, [broadcast.id])
+
+  useEffect(() => {
+    loadData()
+    const interval = setInterval(loadData, 5000) // auto-refresh every 5s
+    return () => clearInterval(interval)
+  }, [loadData])
+
+  const handleProcessQueue = async () => {
+    setProcessing(true)
+    try {
+      const res = await fetch(`/api/broadcast-composer/${broadcast.id}/queue`, {
+        method: 'POST',
+        headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+      })
+      const data = await res.json()
+      if (data.success) {
+        useToastStore.getState().addToast(data.message, 'success')
+        loadData()
+      }
+    } catch (e: any) { useToastStore.getState().addToast(e.message, 'error') }
+    finally { setProcessing(false) }
+  }
+
+  if (loading) return <LoadingState />
+
+  return (
+    <Dialog open={true} onOpenChange={onClose}>
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2"><Activity className="w-5 h-5 text-orange-600" /> Broadcast Stats: {broadcast.title}</DialogTitle>
+          <DialogDescription>Progress pengiriman + anti-banned queue tracking</DialogDescription>
+        </DialogHeader>
+
+        {stats && (
+          <div className="space-y-3">
+            {/* Progress bar */}
+            <div className="rounded-lg bg-slate-50 border p-3">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-semibold">Progress Pengiriman</span>
+                <span className="text-2xl font-bold text-orange-600">{stats.stats.progress}%</span>
+              </div>
+              <div className="w-full bg-slate-200 rounded-full h-3 overflow-hidden">
+                <div className="bg-gradient-to-r from-orange-500 to-red-600 h-full transition-all" style={{ width: `${stats.stats.progress}%` }} />
+              </div>
+              <div className="grid grid-cols-4 gap-2 mt-3 text-center text-xs">
+                <div className="rounded bg-amber-50 p-1.5"><div className="font-bold text-amber-700">{stats.stats.queued}</div><div className="text-[9px]">Antrian</div></div>
+                <div className="rounded bg-emerald-50 p-1.5"><div className="font-bold text-emerald-700">{stats.stats.sent}</div><div className="text-[9px]">Terkirim</div></div>
+                <div className="rounded bg-red-50 p-1.5"><div className="font-bold text-red-700">{stats.stats.failed}</div><div className="text-[9px]">Gagal</div></div>
+                <div className="rounded bg-slate-100 p-1.5"><div className="font-bold text-slate-700">{stats.stats.blocked}</div><div className="text-[9px]">Blocked</div></div>
+              </div>
+              <div className="text-[10px] text-muted-foreground mt-2 text-center">
+                Total: {stats.stats.total} • Success rate: {stats.stats.successRate}%
+              </div>
+            </div>
+
+            {/* Process queue button */}
+            {stats.stats.queued > 0 && (
+              <Button onClick={handleProcessQueue} disabled={processing} className="w-full bg-gradient-to-r from-orange-600 to-red-600 text-white">
+                {processing ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Zap className="w-4 h-4 mr-1" />}
+                {processing ? 'Memproses batch...' : `Proses Antrian (${stats.stats.queued} pesan menunggu)`}
+              </Button>
+            )}
+
+            {/* Sample sent messages (personalized) */}
+            {stats.sentMessages && stats.sentMessages.length > 0 && (
+              <Card>
+                <CardHeader><CardTitle className="text-sm">Sample Pesan Terkirim (Personalisasi Aktif)</CardTitle></CardHeader>
+                <CardContent>
+                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                    {stats.sentMessages.map((m: any, i: number) => (
+                      <div key={i} className="rounded border p-2 text-xs">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-semibold">{m.recipientName}</span>
+                          <span className="text-[10px] text-muted-foreground">{m.recipientTerritory}</span>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground line-clamp-2">{m.personalizedContent}</p>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Failed messages */}
+            {stats.failedMessages && stats.failedMessages.length > 0 && (
+              <Card className="border-red-200">
+                <CardHeader><CardTitle className="text-sm text-red-700">Pesan Gagal/Blocked ({stats.failedMessages.length})</CardTitle></CardHeader>
+                <CardContent>
+                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                    {stats.failedMessages.map((m: any, i: number) => (
+                      <div key={i} className="rounded border border-red-200 p-2 text-xs">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-semibold">{m.recipientName}</span>
+                          <Badge variant="outline" className={`text-[9px] ${m.status === 'BLOCKED' ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'}`}>{m.status}</Badge>
+                        </div>
+                        <div className="text-[10px] text-red-700">{m.errorCode}: {m.errorMessage}</div>
+                        <div className="text-[9px] text-muted-foreground mt-1">Retry: {m.retryCount}/3</div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
+
+        <DialogFooter><Button variant="outline" onClick={onClose}>Tutup</Button></DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
