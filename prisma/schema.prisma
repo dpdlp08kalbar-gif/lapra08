@@ -46,6 +46,7 @@ model Territory {
   crisisZones   CrisisZone[]
   voterContacts VoterContact[]
   contacts      Contact[]
+  essayPolls    EssayPoll[]
 }
 
 // ============================================================
@@ -85,6 +86,8 @@ model User {
   alertNotifications AlertNotification[]
   aiRecommendations AIRecommendation[]
   auditScans     AuditScan[]
+  essayPollsCreated EssayPoll[]
+  opinionLinksReviewed PublicOpinionLink[] @relation("OpinionReviewer")
 }
 
 // ============================================================
@@ -1018,5 +1021,120 @@ model AuditComplaint {
   @@index([scanId, priority])
   @@index([provinceCode, regencyCode, responseStatus])
   @@index([priority, responseStatus])
+}
+
+// ============================================================
+// ESSAY POLLING - Pertanyaan Essay + Auto-Generate via AI
+// ============================================================
+
+// EssayPoll - polling dengan jawaban essay bebas (bukan pilihan ganda)
+model EssayPoll {
+  id              String   @id @default(cuid())
+  title           String
+  question        String   // pertanyaan essay utama
+  description     String?
+  // AI-generated fields
+  isAiGenerated   Boolean  @default(false) // true jika di-generate oleh AI
+  sourceTopic     String?  // topik asal (cth: "Kenaikan harga pupuk")
+  sourceUrl       String?  // URL berita/event yang jadi inspirasi
+  sourceSentiment String?  // POSITIVE | NEUTRAL | NEGATIVE
+  // Targeting
+  targetScope     String   @default("NATIONAL") // NATIONAL | PROVINCE | REGENCY
+  provinceCode    String?
+  regencyCode     String?
+  // Demographics target
+  targetAgeGroup  String?  // 18-25 | 26-35 | 36-50 | 51+
+  targetOccupation String? // PETANI | NELAYAN | UMKM | PELAJAR | etc
+  // Scheduling
+  status          String   @default("DRAFT") // DRAFT | ACTIVE | CLOSED | ARCHIVED
+  scheduledAt     DateTime?
+  closesAt        DateTime?
+  broadcastSentAt DateTime?
+  broadcastRecipientCount Int @default(0)
+  // Ownership
+  territoryId     String
+  territory       Territory @relation(fields: [territoryId], references: [id])
+  createdById     String
+  createdBy       User     @relation(fields: [createdById], references: [id])
+  responses       EssayResponse[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([territoryId, status])
+  @@index([provinceCode, regencyCode])
+}
+
+// EssayResponse - jawaban essay bebas dari responden
+model EssayResponse {
+  id              String   @id @default(cuid())
+  pollId          String
+  poll            EssayPoll @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  respondentName  String?
+  respondentPhone String?
+  ageGroup        String?
+  gender          String?
+  occupation      String?
+  provinceCode    String?
+  regencyCode     String?
+  districtCode    String?
+  // The essay answer
+  answer          String   // jawaban essay bebas
+  wordCount       Int      @default(0)
+  // AI analysis of the answer
+  aiSentiment     String?  // POSITIVE | NEUTRAL | NEGATIVE
+  aiScore         Float?   // 0-100, quality / urgency score
+  aiCategory      String?  // kategori topik yang dibahas
+  aiSummary       String?  // ringkasan AI
+  aiKeywords      String?  // JSON: extracted keywords
+  isProcessed     Boolean  @default(false) // true jika sudah di-AI-analisis
+  ipAddress       String?
+  submittedAt     DateTime @default(now())
+
+  @@index([pollId, aiSentiment])
+  @@index([pollId, provinceCode])
+}
+
+// ============================================================
+// PUBLIC OPINION LINK - Link tersimpan yang sudah dianalisis
+// ============================================================
+
+// PublicOpinionLink - daftar link dari medsos yang sudah dianalisis pendapat publik
+model PublicOpinionLink {
+  id              String   @id @default(cuid())
+  url             String   @unique // link asli ke post/video/artikel
+  platform        String   // YOUTUBE | GOOGLE | FACEBOOK | INSTAGRAM | TIKTOK | TWITTER_X
+  title           String
+  content         String?  // snippet/caption
+  author          String?
+  authorHandle    String?
+  publishedAt    DateTime?
+  engagementCount Int      @default(0) // views/likes/comments
+  // Lokasi terdeteksi
+  provinceCode    String?
+  provinceName    String?
+  regencyCode    String?
+  regencyName    String?
+  // Hasil analisis
+  sentiment       String   @default("NEUTRAL")
+  priority        String   @default("LOW")
+  urgencyScore    Float    @default(0)
+  category        String   @default("LAINNYA")
+  keywords        String?  // JSON
+  aiSummary       String?
+  // Pengelolaan
+  status          String   @default("NEW") // NEW | REVIEWED | ADDRESSED | ARCHIVED
+  reviewedById    String?
+  reviewedBy      User?    @relation("OpinionReviewer", fields: [reviewedById], references: [id])
+  reviewedAt      DateTime?
+  reviewNotes     String?
+  // Sumber
+  scanId          String?  // ID scan yang menemukan link ini
+  sourceMethod    String   @default("AUTO") // AUTO | MANUAL
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([platform, status])
+  @@index([provinceCode, regencyCode, status])
+  @@index([priority, status])
 }
 
