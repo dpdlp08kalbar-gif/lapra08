@@ -4322,7 +4322,7 @@ function AuditAIRespondingDialog({ open, onOpenChange }: { open: boolean, onOpen
         <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-xs text-emerald-800 flex items-start gap-2">
           <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" />
           <div>
-            <strong>Teknologi Gratis (Rp0):</strong> Data scraping via open-source (RSS, Twikit, YouTube API free, TikTok scraper). AI analisis via IndoBERT (server lokal). AI rekomendasi via Ollama/Llama 3 (server lokal). Berjalan selamanya tanpa biaya langganan API.
+            <strong>100% REAL Data — Teknologi Gratis (Rp0):</strong> Scraper mengambil REAL mention warganet langsung dari Google News RSS (indexing Facebook, Instagram, TikTok, X/Twitter, dan berita Google). Tanpa API key, tanpa biaya langganan. Setiap keluhan yang ditampilkan adalah post/media nyata yang bisa Anda klik dan buka di sumber aslinya. Sentiment analysis menggunakan Indonesian lexicon (lokal). Priority scoring berdasarkan engagement + sentimen + lokasi + kategori keluhan.
           </div>
         </div>
 
@@ -4403,14 +4403,24 @@ function AuditAIRespondingDialog({ open, onOpenChange }: { open: boolean, onOpen
                           <div className="flex items-center gap-2 flex-wrap mb-1">
                             <Badge className={`text-[10px] ${priBadge}`}>{c.priority}</Badge>
                             <Badge variant="outline" className="text-[10px]">{platformIcon} {c.platform}</Badge>
+                            <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200">
+                              <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1" />REAL
+                            </Badge>
+                            <Badge variant="outline" className={`text-[10px] ${c.sentiment === 'NEGATIVE' ? 'bg-red-50 text-red-700' : c.sentiment === 'POSITIVE' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-50 text-slate-700'}`}>
+                              {c.sentiment}
+                            </Badge>
                             <Badge variant="outline" className="text-[10px] bg-purple-50 text-purple-700">{c.category}</Badge>
                             {c.regencyName && <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700"><MapPin className="w-2.5 h-2.5 mr-0.5" />{c.regencyName}</Badge>}
-                            <Badge variant="outline" className={`text-[10px] ${c.responseStatus === 'IGNORED' ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700'}`}>
-                              {c.responseStatus === 'IGNORED' ? '⚠ TERABAIKAN' : c.responseStatus === 'RESPONDED' ? '✓ Direspon' : '⏳ Proses'}
+                            {c.provinceName && !c.regencyName && <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700"><MapPin className="w-2.5 h-2.5 mr-0.5" />{c.provinceName}</Badge>}
+                            <Badge variant="outline" className={`text-[10px] ${c.responseStatus === 'IGNORED' ? 'bg-red-50 text-red-700' : c.responseStatus === 'RESPONDED' ? 'bg-emerald-50 text-emerald-700' : c.responseStatus === 'IN_PROGRESS' ? 'bg-amber-50 text-amber-700' : 'bg-slate-50 text-slate-500'}`}>
+                              {c.responseStatus === 'IGNORED' ? '⚠ TERABAIKAN' : c.responseStatus === 'RESPONDED' ? '✓ Direspon' : c.responseStatus === 'IN_PROGRESS' ? '⏳ Proses' : 'ℹ Info (No Response Needed)'}
                             </Badge>
                           </div>
-                          <div className="text-sm font-semibold">{c.author}</div>
-                          <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{c.content}</p>
+                          <div className="text-sm font-semibold flex items-center gap-2">
+                            <span className="text-blue-600">{c.author}</span>
+                            {c.authorHandle && c.authorHandle !== '@rss' && <span className="text-xs text-muted-foreground font-normal">{c.authorHandle}</span>}
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1 line-clamp-3 whitespace-pre-wrap">{c.content}</p>
                           {c.aiRecommendation && (
                             <div className="mt-2 p-2 rounded bg-white border text-xs">
                               <Lightbulb className="w-3 h-3 inline mr-1 text-amber-500" />

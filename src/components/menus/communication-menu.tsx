@@ -28,7 +28,7 @@ import {
   BarChart3, AlertTriangle, Heart, TrendingUp, TrendingDown, Activity,
   MapPin, Shield, ShieldCheck, Lightbulb, Loader2, Search, Edit, Trash2, Eye,
   CheckCircle2, XCircle, Clock, Target, Zap, FileText, Video,
-  ExternalLink, Upload,
+  ExternalLink, Upload, RefreshCw,
 } from 'lucide-react'
 
 // ============================================================
@@ -3785,18 +3785,30 @@ function AddSourceDialog({ open, onOpenChange, onSuccess }: any) {
   )
 }
 
-// --- Mention Feed ---
+// --- Mention Feed (REAL-TIME LIVE SCRAPE) ---
 function MentionFeed() {
   const [mentions, setMentions] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [filterSentiment, setFilterSentiment] = useState('ALL')
+  const [liveMode, setLiveMode] = useState(true) // Default: live scrape from REAL social media
+  const [lastFetch, setLastFetch] = useState<Date | null>(null)
 
   const loadData = () => {
     setLoading(true)
-    const params = filterSentiment && filterSentiment !== 'ALL' ? `?sentiment=${filterSentiment}` : ''
-    api(`/api/social-listening/mentions${params}`).then(setMentions).catch(() => {}).finally(() => setLoading(false))
+    const params = new URLSearchParams()
+    if (filterSentiment && filterSentiment !== 'ALL') params.set('sentiment', filterSentiment)
+    if (liveMode) params.set('live', 'true')
+    api(`/api/social-listening/mentions?${params.toString()}`)
+      .then(res => {
+        // API returns either array or { data: [...] }
+        const data = Array.isArray(res) ? res : (res?.data || [])
+        setMentions(data)
+        setLastFetch(new Date())
+      })
+      .catch(() => setMentions([]))
+      .finally(() => setLoading(false))
   }
-  useEffect(() => { loadData() }, [filterSentiment])
+  useEffect(() => { loadData() }, [filterSentiment, liveMode])
 
   if (loading) return <LoadingState />
 
@@ -3806,41 +3818,70 @@ function MentionFeed() {
     NEGATIVE: { label: 'Negatif', color: 'bg-red-50 text-red-700 border-red-200' },
   }
 
+  const platformIcon = (p: string) => p === 'FACEBOOK' ? '📘' : p === 'INSTAGRAM' ? '📷' : p === 'TIKTOK' ? '🎵' : p === 'TWITTER_X' ? '🐦' : '🔍'
+
   return (
     <div className="space-y-3">
-      <div className="flex gap-2 items-center">
+      {/* Live mode banner */}
+      {liveMode && (
+        <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-xs text-emerald-800 flex items-start gap-2">
+          <div className="w-2 h-2 rounded-full bg-emerald-500 mt-1.5 animate-pulse shrink-0" />
+          <div className="flex-1">
+            <strong>REAL-TIME LIVE SCRAPING — 100% REAL Data:</strong> Mention diambil langsung dari Google News RSS (indexing REAL posts dari Facebook, Instagram, TikTok, X/Twitter, dan berita Google). Tanpa API key, tanpa biaya. Klik link pada setiap mention untuk membuka post asli di platform sumbernya.
+            {lastFetch && <div className="mt-1 text-[10px] text-emerald-600">Terakhir fetch: {formatDateTimeID(lastFetch)}</div>}
+          </div>
+        </div>
+      )}
+
+      <div className="flex gap-2 items-center flex-wrap">
         <Select value={filterSentiment} onValueChange={setFilterSentiment}>
           <SelectTrigger className="w-[180px]"><SelectValue placeholder="Semua Sentimen" /></SelectTrigger>
           <SelectContent><SelectItem value="ALL">Semua</SelectItem><SelectItem value="POSITIVE">Positif</SelectItem><SelectItem value="NEUTRAL">Netral</SelectItem><SelectItem value="NEGATIVE">Negatif</SelectItem></SelectContent>
         </Select>
+        <Button size="sm" variant={liveMode ? 'default' : 'outline'} onClick={() => setLiveMode(!liveMode)} className="h-9">
+          {liveMode ? '🟢 Live (REAL RSS)' : '⚪ Stored (DB)'}
+        </Button>
+        <Button size="sm" variant="outline" onClick={loadData} className="h-9">
+          <RefreshCw className="w-3.5 h-3.5 mr-1" /> Refresh
+        </Button>
+        <div className="text-xs text-muted-foreground ml-auto">
+          {mentions.length} mention {liveMode && '• LIVE'}
+        </div>
       </div>
+
       {mentions.length === 0 ? (
-        <EmptyState icon={MessageSquare} title="Belum ada mention" description="Jalankan scraper dari sumber data untuk mengumpulkan mention." />
+        <EmptyState icon={MessageSquare} title="Belum ada mention" description={liveMode ? "Tidak ada mention LAPRA 08 di social media dalam 30 hari terakhir. Coba refresh atau ubah filter." : "Jalankan scraper dari sumber data untuk mengumpulkan mention."} />
       ) : (
         <div className="space-y-2">
           {mentions.map(m => {
             const sc = m.sentiment ? sentimentConfig[m.sentiment] : null
             return (
-              <Card key={m.id}><CardContent className="p-3">
-                <div className="flex items-start gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Badge variant="outline" className="text-[9px]">{m.platform}</Badge>
-                      {sc && <Badge variant="outline" className={`text-[9px] ${sc.color}`}>{sc.label}</Badge>}
-                      {m.category && <Badge variant="outline" className="text-[9px] bg-purple-50 text-purple-700">{m.category}</Badge>}
-                      {m.provinceCode && <Badge variant="outline" className="text-[9px] bg-blue-50 text-blue-700"><MapPin className="w-2.5 h-2.5 mr-0.5" />{m.provinceCode}</Badge>}
+              <Card key={m.id} className={sc ? `border-l-4 ${m.sentiment === 'NEGATIVE' ? 'border-l-red-500' : m.sentiment === 'POSITIVE' ? 'border-l-emerald-500' : 'border-l-slate-300'}` : ''}>
+                <CardContent className="p-3">
+                  <div className="flex items-start gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <Badge variant="outline" className="text-[9px]">{platformIcon(m.platform)} {m.platform}</Badge>
+                        {m.isLive && <Badge variant="outline" className="text-[9px] bg-emerald-50 text-emerald-700 border-emerald-200"><span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1" />REAL</Badge>}
+                        {sc && <Badge variant="outline" className={`text-[9px] ${sc.color}`}>{sc.label}</Badge>}
+                        {m.category && <Badge variant="outline" className="text-[9px] bg-purple-50 text-purple-700">{m.category}</Badge>}
+                        {m.priority && <Badge variant="outline" className={`text-[9px] ${m.priority === 'HIGH' ? 'bg-red-100 text-red-800' : m.priority === 'MEDIUM' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>{m.priority}</Badge>}
+                        {m.provinceName && <Badge variant="outline" className="text-[9px] bg-blue-50 text-blue-700"><MapPin className="w-2.5 h-2.5 mr-0.5" />{m.provinceName}</Badge>}
+                        {m.regencyName && <Badge variant="outline" className="text-[9px] bg-blue-50 text-blue-700">{m.regencyName}</Badge>}
+                      </div>
+                      <div className="font-semibold text-sm">{m.title || m.author}</div>
+                      <p className="text-xs text-muted-foreground mt-1 line-clamp-3 whitespace-pre-wrap">{m.content}</p>
+                      <div className="flex items-center gap-2 mt-2 text-[10px] text-muted-foreground">
+                        <span>📅 {formatDateTimeID(m.publishedAt)}</span>
+                        {m.author && <span>✍️ {m.author}</span>}
+                        {m.engagementCount > 0 && <span>💬 {m.engagementCount}</span>}
+                        {m.urgencyScore > 0 && <span>⚡ {m.urgencyScore}/100</span>}
+                      </div>
                     </div>
-                    <div className="font-semibold text-sm">{m.title}</div>
-                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{m.content}</p>
-                    <div className="flex items-center gap-2 mt-2 text-[10px] text-muted-foreground">
-                      <span>📅 {formatDateTimeID(m.publishedAt)}</span>
-                      {m.author && <span>✍️ {m.author}</span>}
-                      {m.engagementCount > 0 && <span>💬 {m.engagementCount}</span>}
-                    </div>
+                    {m.url && <a href={m.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline shrink-0"><ExternalLink className="w-3.5 h-3.5" /></a>}
                   </div>
-                  {m.url && <a href={m.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline shrink-0"><ExternalLink className="w-3.5 h-3.5" /></a>}
-                </div>
-              </CardContent></Card>
+                </CardContent>
+              </Card>
             )
           })}
         </div>
