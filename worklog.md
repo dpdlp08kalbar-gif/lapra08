@@ -1989,3 +1989,48 @@ VERIFICATION:
 - WA Gateway: FONNTE active + WABOO backup, both CONFIGURED ✅
 - Background scheduler: 3 jobs auto-running, 100% success rate ✅
 - Server log: "Background scheduler started" on boot ✅
+
+---
+Task ID: 2026-08-10-program-kerja-pdf-ocr
+Agent: main
+Task: Tambah fitur Upload PDF Program Kerja + OCR + AI Analisis di menu Program & Kegiatan
+
+Work Log:
+- User insight: menu "Program Kerja" seharusnya menerima upload PDF dari DPN/DPD/DPC + OCR + AI analisis
+- Buat API /api/program-kerja/upload-pdf:
+  - Terima PDF (maks 20MB) via FormData
+  - Convert PDF ke base64 → kirim ke VLM (z-ai-web-dev-sdk createVision)
+  - VLM OCR: baca isi PDF + AI analisis dengan prompt terstruktur
+  - Extract: title, level (DPN/DPD/DPC), territory, period, programs (nama, deskripsi, timeline, target, anggaran, prioritas), topPriorities, categories, aiSummary
+  - Return JSON untuk preview → user konfirmasi → simpan
+- Update UI ProgramContentManager di portal-menus.tsx:
+  - Tombol baru "Upload PDF + OCR" (hanya untuk category=PROGRAM_KERJA)
+  - Info banner: "Upload PDF Program Kerja: DPN/DPD/DPC dapat upload dokumen PDF. Sistem OCR otomatis + AI analisis."
+  - Dialog upload PDF dengan pilihan level (DPN/DPD/DPC)
+  - Drag-drop file PDF (max 20MB)
+  - Loading state saat OCR + AI berjalan
+  - Preview hasil OCR: document info, extracted programs (dengan timeline/target/anggaran/prioritas), top priorities, AI summary
+  - Tombol "Simpan X Program" untuk konfirmasi
+  - Setiap program disimpan sebagai item terpisah dengan badge OCR + level + prioritas
+  - Link "Lihat PDF asli" untuk akses dokumen sumber
+  - Item yang dari OCR diberi badge "🤖 OCR" + level badge (DPN/DPD/DPC) + prioritas badge
+
+TEST RESULT (dengan PDF SK DPD Kalbar asli):
+- ✅ OCR berhasil baca PDF SK LAPRA 08 DPD Kalimantan Barat
+- ✅ Title: "Surat Keputusan DPN LAPRA 08 Nomor 016 tentang DPD Kalbar"
+- ✅ Level: DPD terdeteksi
+- ✅ Territory: "Provinsi Kalimantan Barat"
+- ✅ Period: "2024-2029"
+- ✅ 8 program terdeteksi dengan prioritas 1-5:
+  1. Penguatan Struktur Organisasi & Kaderisasi (Priority 1)
+  2. Pengelolaan Keuangan & Dana Operasional (Priority 2)
+  3. Advokasi Hukum & Perlindungan Anggota (Priority 3)
+  4. Pengembangan Ekonomi Kreatif & UMKM (Priority 4)
+  5. Kerukunan Antar Agama & Toleransi (Priority 5)
+- ✅ Top priorities: 5 program utama
+- ✅ AI Summary: analisis strategi restrukturisasi organisasi
+
+Files created/modified:
+- NEW: /src/app/api/program-kerja/upload-pdf/route.ts (120 lines: PDF upload + VLM OCR + AI prompt)
+- MODIFIED: /src/components/menus/portal-menus.tsx (+250 lines: PDF upload dialog + OCR result preview + save logic)
+- MODIFIED: import Sparkles dari lucide-react

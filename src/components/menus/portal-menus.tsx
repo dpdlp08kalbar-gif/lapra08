@@ -36,7 +36,7 @@ import {
   Edit, Trash2, MoreVertical, Pin, Send, Eye, Upload, Loader2, Search,
   RefreshCw,
   Crown, Award, CheckCircle2, Clock, AlertTriangle, Globe, ExternalLink, Lock,
-  Video, PlayCircle, BookMarked, FileCheck, UserCheck, XCircle, Camera, IdCard, Zap, Lightbulb,
+  Video, PlayCircle, BookMarked, FileCheck, UserCheck, XCircle, Camera, IdCard, Zap, Lightbulb, Sparkles,
   Youtube,
 } from 'lucide-react'
 
@@ -2788,6 +2788,12 @@ function ProgramContentManager({ title, description, icon: Icon, category, accen
   const [deleteItem, setDeleteItem] = useState<any>(null)
   const [form, setForm] = useState({ title: '', description: '', location: '', date: '', status: 'DIRENCANAKAN' })
   const [saving, setSaving] = useState(false)
+  // === State untuk PDF Upload + OCR ===
+  const [pdfUploadOpen, setPdfUploadOpen] = useState(false)
+  const [pdfFile, setPdfFile] = useState<File | null>(null)
+  const [ocrLoading, setOcrLoading] = useState(false)
+  const [ocrResult, setOcrResult] = useState<any>(null)
+  const [pdfLevel, setPdfLevel] = useState('DPN')
 
   const loadData = () => {
     setLoading(true)
@@ -2797,6 +2803,89 @@ function ProgramContentManager({ title, description, icon: Icon, category, accen
     }).catch(() => {}).finally(() => setLoading(false))
   }
   useEffect(() => { loadData() }, [])
+
+  // === Handle PDF Upload + OCR ===
+  const handlePdfUpload = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!pdfFile) { addToast('Pilih file PDF dulu', 'error'); return }
+    setOcrLoading(true)
+    setOcrResult(null)
+    try {
+      const formData = new FormData()
+      formData.append('file', pdfFile)
+      formData.append('level', pdfLevel)
+      const res = await fetch('/api/program-kerja/upload-pdf', {
+        method: 'POST',
+        headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+        body: formData,
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) throw new Error(data.error)
+      setOcrResult(data.data)
+      addToast(data.message, 'success')
+    } catch (e: any) { addToast(e.message, 'error') }
+    finally { setOcrLoading(false) }
+  }
+
+  // === Save OCR result as program items ===
+  const handleSaveOcrResult = async () => {
+    if (!ocrResult) return
+    setSaving(true)
+    try {
+      // Save each program as separate item
+      const programs = ocrResult.programs || []
+      if (programs.length === 0) {
+        // Save as single item with summary
+        const itemData = {
+          id: `prog_${Date.now()}`,
+          title: ocrResult.title || 'Program Kerja',
+          description: ocrResult.aiSummary || ocrResult.rawOcrText || '',
+          location: ocrResult.territoryName || pdfLevel,
+          date: ocrResult.period || '',
+          status: 'DIRENCANAKAN',
+          category,
+          uploadedBy: useAuthStore.getState().user?.fullName || 'Admin',
+          uploadedAt: new Date().toISOString(),
+          pdfUrl: ocrResult.fileUrl,
+          ocrResult: true,
+          level: ocrResult.level || pdfLevel,
+        }
+        await fetch('/api/gallery', {
+          method: 'POST',
+          headers: { 'x-user-id': useAuthStore.getState().user?.id || '', 'Content-Type': 'application/json' },
+          body: JSON.stringify(itemData),
+        })
+      } else {
+        // Save each program as separate item
+        for (const prog of programs) {
+          const itemData = {
+            id: `prog_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+            title: prog.name || 'Program',
+            description: prog.description || '',
+            location: `${ocrResult.territoryName || pdfLevel} | Timeline: ${prog.timeline || '-'} | Target: ${prog.target || '-'} | Anggaran: ${prog.budget || '-'}`,
+            date: ocrResult.period || '',
+            status: 'DIRENCANAKAN',
+            category,
+            uploadedBy: useAuthStore.getState().user?.fullName || 'Admin',
+            uploadedAt: new Date().toISOString(),
+            pdfUrl: ocrResult.fileUrl,
+            ocrResult: true,
+            level: ocrResult.level || pdfLevel,
+            priority: prog.priority || 99,
+          }
+          await fetch('/api/gallery', {
+            method: 'POST',
+            headers: { 'x-user-id': useAuthStore.getState().user?.id || '', 'Content-Type': 'application/json' },
+            body: JSON.stringify(itemData),
+          })
+        }
+      }
+      addToast(`${programs.length || 1} program kerja berhasil disimpan dari PDF`, 'success')
+      setPdfUploadOpen(false); setPdfFile(null); setOcrResult(null)
+      loadData()
+    } catch (e: any) { addToast(e.message, 'error') }
+    finally { setSaving(false) }
+  }
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -2865,6 +2954,9 @@ function ProgramContentManager({ title, description, icon: Icon, category, accen
     DITUNDA: { label: 'Ditunda', color: 'bg-red-50 text-red-700 border-red-200' },
   }
 
+  // Check if this is PROGRAM_KERJA category (supports PDF upload)
+  const supportsPdfUpload = category === 'PROGRAM_KERJA'
+
   return (
     <Card>
       <CardHeader>
@@ -2875,11 +2967,24 @@ function ProgramContentManager({ title, description, icon: Icon, category, accen
             </div>
             {title} ({items.length})
           </CardTitle>
-          <Button onClick={() => openEditor()} size="sm" className="bg-gradient-to-r from-orange-600 to-red-600 text-white">
-            <Plus className="w-4 h-4 mr-1" /> Tambah
-          </Button>
+          <div className="flex gap-2">
+            {supportsPdfUpload && (
+              <Button onClick={() => { setPdfUploadOpen(true); setOcrResult(null); setPdfFile(null) }} size="sm" variant="outline" className="bg-blue-50 border-blue-300 text-blue-700 hover:bg-blue-100">
+                <Upload className="w-4 h-4 mr-1" /> Upload PDF + OCR
+              </Button>
+            )}
+            <Button onClick={() => openEditor()} size="sm" className="bg-gradient-to-r from-orange-600 to-red-600 text-white">
+              <Plus className="w-4 h-4 mr-1" /> Tambah
+            </Button>
+          </div>
         </div>
-        <CardDescription className="text-xs">{description}</CardDescription>
+        <CardDescription className="text-sm">{description}</CardDescription>
+        {supportsPdfUpload && (
+          <div className="rounded-lg bg-blue-50 border border-blue-200 p-2 text-xs text-blue-800 mt-2">
+            <strong>📋 Upload PDF Program Kerja:</strong> DPN/DPD/DPC dapat upload dokumen Program Kerja format PDF.
+            Sistem akan <strong>OCR otomatis</strong> + <strong>AI analisis</strong> untuk extract: program utama, timeline, target, anggaran, prioritas.
+          </div>
+        )}
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="relative max-w-md">
@@ -2887,7 +2992,7 @@ function ProgramContentManager({ title, description, icon: Icon, category, accen
           <Input placeholder={`Cari ${title.toLowerCase()}...`} value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />
         </div>
         {filtered.length === 0 ? (
-          <EmptyState icon={Icon} title={`Belum ada ${title.toLowerCase()}`} description={`Klik 'Tambah' untuk mempublikasikan ${title.toLowerCase()}.`} />
+          <EmptyState icon={Icon} title={`Belum ada ${title.toLowerCase()}`} description={supportsPdfUpload ? `Klik 'Upload PDF + OCR' untuk upload dokumen Program Kerja, atau 'Tambah' untuk input manual.` : `Klik 'Tambah' untuk mempublikasikan ${title.toLowerCase()}.`} />
         ) : (
           <div className="space-y-2">
             {filtered.map((item) => {
@@ -2903,9 +3008,17 @@ function ProgramContentManager({ title, description, icon: Icon, category, accen
                       {item.description && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{item.description}</p>}
                       <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                         <Badge variant="outline" className={`text-[13px] ${sc.color}`}>{sc.label}</Badge>
+                        {item.ocrResult && <Badge variant="outline" className="text-[13px] bg-purple-50 text-purple-700">🤖 OCR</Badge>}
+                        {item.level && <Badge variant="outline" className="text-[13px] bg-blue-50 text-blue-700">{item.level}</Badge>}
                         {item.location && <span className="text-[13px] text-muted-foreground">📍 {item.location}</span>}
                         {item.date && <span className="text-[13px] text-muted-foreground">📅 {formatDateID(item.date)}</span>}
+                        {item.priority && <Badge variant="outline" className="text-[13px]">Prioritas #{item.priority}</Badge>}
                       </div>
+                      {item.pdfUrl && (
+                        <a href={item.pdfUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline mt-1">
+                          <FileText className="w-3 h-3" /> Lihat PDF asli
+                        </a>
+                      )}
                     </div>
                     <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-blue-600 hover:bg-blue-50" onClick={() => openEditor(item)}>
@@ -2992,6 +3105,144 @@ function ProgramContentManager({ title, description, icon: Icon, category, accen
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* === Dialog Upload PDF + OCR + AI Analisis === */}
+      {supportsPdfUpload && (
+        <Dialog open={pdfUploadOpen} onOpenChange={(o) => { setPdfUploadOpen(o); if (!o) { setOcrResult(null); setPdfFile(null) } }}>
+          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Upload className="w-5 h-5 text-blue-600" /> Upload PDF Program Kerja + OCR + AI Analisis
+              </DialogTitle>
+              <DialogDescription>
+                Upload dokumen Program Kerja format PDF. Sistem akan OCR otomatis + AI analisis untuk extract program, timeline, target, anggaran, prioritas.
+              </DialogDescription>
+            </DialogHeader>
+
+            {!ocrResult && (
+              <form onSubmit={handlePdfUpload} className="space-y-3">
+                <div className="space-y-2">
+                  <Label>Tingkat Wilayah *</Label>
+                  <div className="flex gap-2">
+                    {['DPN', 'DPD', 'DPC'].map(lvl => (
+                      <button key={lvl} type="button" onClick={() => setPdfLevel(lvl)}
+                        className={`px-3 py-2 rounded-lg text-sm font-medium border transition-all ${pdfLevel === lvl ? 'bg-blue-600 text-white border-blue-600' : 'border hover:bg-accent'}`}>
+                        {lvl === 'DPN' ? '🏛️ DPN (Nasional)' : lvl === 'DPD' ? '🗺️ DPD (Provinsi)' : '🏙️ DPC (Kab/Kota)'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>File PDF Program Kerja *</Label>
+                  {pdfFile ? (
+                    <div className="flex items-center gap-2 p-3 rounded-lg border bg-blue-50">
+                      <FileText className="w-5 h-5 text-blue-600" />
+                      <span className="text-sm font-medium flex-1">{pdfFile.name}</span>
+                      <span className="text-xs text-muted-foreground">{(pdfFile.size / 1024 / 1024).toFixed(1)} MB</span>
+                      <Button type="button" variant="ghost" size="sm" className="h-7 text-red-600" onClick={() => setPdfFile(null)}>
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="border-2 border-dashed rounded-xl p-8 text-center hover:border-blue-400 transition-colors cursor-pointer"
+                      onClick={() => document.getElementById('pdf-upload-input')?.click()}>
+                      <input type="file" id="pdf-upload-input" className="hidden" accept="application/pdf"
+                        onChange={(e) => setPdfFile(e.target.files?.[0] || null)} />
+                      <Upload className="w-10 h-10 text-blue-400 mx-auto mb-2" />
+                      <div className="text-sm font-medium">Klik untuk pilih file PDF</div>
+                      <div className="text-xs text-muted-foreground mt-1">Maksimal 20MB • Format PDF</div>
+                    </div>
+                  )}
+                </div>
+                <div className="rounded-lg bg-blue-50 border border-blue-200 p-2 text-xs text-blue-800">
+                  <strong>📋 Cara kerja:</strong>
+                  <ol className="list-decimal ml-4 mt-1 space-y-0.5">
+                    <li>Upload PDF Program Kerja</li>
+                    <li>Sistem OCR otomatis baca isi PDF via VLM (Vision Language Model)</li>
+                    <li>AI analisis: extract program, timeline, target, anggaran, prioritas</li>
+                    <li>Preview hasil → konfirmasi → simpan</li>
+                  </ol>
+                </div>
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => setPdfUploadOpen(false)}>Batal</Button>
+                  <Button type="submit" disabled={!pdfFile || ocrLoading} className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
+                    {ocrLoading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Sparkles className="w-4 h-4 mr-1" />}
+                    {ocrLoading ? 'OCR + AI menganalisis...' : 'Upload & OCR'}
+                  </Button>
+                </DialogFooter>
+              </form>
+            )}
+
+            {/* OCR Result Preview */}
+            {ocrResult && (
+              <div className="space-y-3">
+                <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-sm text-emerald-800">
+                  <CheckCircle2 className="w-4 h-4 inline mr-1" />
+                  <strong>OCR + AI Analisis berhasil!</strong> Berikut hasil extract dari PDF:
+                </div>
+
+                {/* Document info */}
+                <div className="rounded-lg border p-3 space-y-2">
+                  <div className="font-bold text-sm">{ocrResult.title || '(No title extracted)'}</div>
+                  <div className="flex items-center gap-2 flex-wrap text-xs">
+                    <Badge variant="outline" className="bg-blue-50 text-blue-700">{ocrResult.level || pdfLevel}</Badge>
+                    {ocrResult.territoryName && <Badge variant="outline">{ocrResult.territoryName}</Badge>}
+                    {ocrResult.period && <Badge variant="outline">{ocrResult.period}</Badge>}
+                  </div>
+                  {ocrResult.aiSummary && (
+                    <p className="text-sm text-muted-foreground italic mt-2">{ocrResult.aiSummary}</p>
+                  )}
+                </div>
+
+                {/* Extracted programs */}
+                {ocrResult.programs && ocrResult.programs.length > 0 ? (
+                  <div>
+                    <div className="text-sm font-semibold mb-2">📋 Program Terdeteksi ({ocrResult.programs.length}):</div>
+                    <div className="space-y-2 max-h-60 overflow-y-auto">
+                      {ocrResult.programs.map((prog: any, i: number) => (
+                        <div key={i} className="rounded border p-2 text-xs">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="font-semibold">{i + 1}. {prog.name}</span>
+                            {prog.priority && <Badge variant="outline" className="text-[13px]">Prioritas #{prog.priority}</Badge>}
+                          </div>
+                          {prog.description && <p className="text-muted-foreground">{prog.description}</p>}
+                          <div className="flex items-center gap-2 mt-1 text-[13px] text-muted-foreground">
+                            {prog.timeline && <span>📅 {prog.timeline}</span>}
+                            {prog.target && <span>👥 {prog.target}</span>}
+                            {prog.budget && <span>💰 {prog.budget}</span>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-sm text-muted-foreground italic">Tidak ada program terdeteksi dalam struktur. AI summary akan disimpan sebagai deskripsi.</div>
+                )}
+
+                {/* Top priorities */}
+                {ocrResult.topPriorities && ocrResult.topPriorities.length > 0 && (
+                  <div>
+                    <div className="text-sm font-semibold mb-1">⚡ Prioritas Utama:</div>
+                    <div className="flex flex-wrap gap-1">
+                      {ocrResult.topPriorities.map((p: string, i: number) => (
+                        <Badge key={i} variant="outline" className="text-[13px] bg-amber-50 text-amber-700">{i + 1}. {p}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => { setOcrResult(null); setPdfFile(null) }}>Upload Ulang</Button>
+                  <Button type="button" onClick={handleSaveOcrResult} disabled={saving} className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
+                    {saving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-1" />}
+                    {saving ? 'Menyimpan...' : `Simpan ${ocrResult.programs?.length || 1} Program`}
+                  </Button>
+                </DialogFooter>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+      )}
     </Card>
   )
 }
