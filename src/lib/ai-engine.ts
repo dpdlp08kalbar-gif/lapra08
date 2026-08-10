@@ -417,7 +417,174 @@ export async function detectLocationFromDB(text: string): Promise<{
   return { provinceCode: null, provinceName: null, regencyCode: null, regencyName: null }
 }
 
-// === LLM-BASED AI: ESSAY QUESTION GENERATOR ===
+// === LLM-BASED AI: MULTIPLE ESSAY QUESTION SUGGESTIONS ===
+// Generate 3-5 varian pertanyaan essay sekaligus untuk dipilih user
+export async function aiGenerateMultipleEssayQuestionsLLM(params: {
+  sourceTopic: string
+  sourceContent?: string
+  sourceUrl?: string
+  detectedLocation?: string
+  detectedOccupation?: string
+  detectedSentiment?: string
+  count?: number // default 4
+}): Promise<{
+  questions: Array<{
+    title: string
+    question: string
+    description: string
+    targetOccupation: string
+    approach: string // 'direct' | 'comparative' | 'solution-oriented' | 'emotional' | 'analytical'
+  }>
+  detectedLocation: string
+  detectedOccupation: string
+  detectedSentiment: string
+}> {
+  const { sourceTopic, sourceContent, sourceUrl, detectedLocation, detectedOccupation, detectedSentiment } = params
+  const count = Math.min(6, Math.max(3, params.count || 4))
+  
+  const maxRetries = 3
+  let lastError: any = null
+  
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const zai = await ZAI.create()
+      const prompt = `Anda adalah ahli politik Indonesia yang merancang survei opini publik untuk Laskar Prabowo 08 (LAPRA 08).
+
+KONTEKS:
+- Topik isu: ${sourceTopic}
+- Sentimen terdeteksi: ${detectedSentiment || 'tidak diketahui'}
+- Lokasi terdeteksi: ${detectedLocation || 'nasional/umum'}
+- Demografi target: ${detectedOccupation || 'umum'}
+- URL sumber: ${sourceUrl || 'tidak ada'}
+- Konten tambahan: ${sourceContent || 'tidak ada'}
+
+TUGAS:
+Buat ${count} VARIAN pertanyaan essay SURVEI OPINI PUBLIK dengan pendekatan BERBEDA-BEDA:
+1. Pendekatan LANGSUNG: bertanya pendapat langsung responden tentang isu
+2. Pendekatan KOMPARATIF: bandingkan dengan situasi lain / masa lalu
+3. Pendekatan SOLUSI: fokus mencari solusi yang diharapkan responden
+4. Pendekatan EMOSIONAL:Sentuhan emosi, dampak pribadi, perasaan responden
+5. Pendekatan ANALITIS: minta analisa sebab-akibat, faktor-faktor penyebab
+${count >= 6 ? '6. Pendekatan ASPIRATIF: minta usulan konkret untuk pimpinan/LAPRA 08' : ''}
+
+Setiap pertanyaan harus:
+1. Spesifik & kontekstual (kaitkan dengan lokasi terdeteksi)
+2. Mengundang penjelasan substantif (bukan ya/tidak)
+3. Bahasa Indonesia formal tapi mudah dipahami
+4. Sesuaikan ke target demografi
+
+Kembalikan HANYA JSON valid:
+{
+  "questions": [
+    {
+      "title": "judul survei (max 80 karakter, profesional)",
+      "question": "pertanyaan essay (max 300 karakter, mengundang penjelasan)",
+      "description": "deskripsi survei (max 200 karakter)",
+      "targetOccupation": "PETANI|NELAYAN|UMKM|PELAJAR|UMUM",
+      "approach": "direct|comparative|solution-oriented|emotional|analytical|aspiratif"
+    }
+  ]
+}
+
+Tidak ada teks tambahan di luar JSON.`
+
+      const completion = await zai.chat.completions.create({
+        messages: [
+          { role: 'system', content: 'Anda adalah AI ahli politik Indonesia untuk LAPRA 08. Selalu kembalikan JSON valid.' },
+          { role: 'user', content: prompt },
+        ],
+        temperature: 0.7,
+        max_tokens: 1500,
+      })
+
+      const rawContent = completion.choices[0]?.message?.content || ''
+      const jsonMatch = rawContent.match(/\{[\s\S]*\}/)
+      if (!jsonMatch) throw new Error('LLM tidak mengembalikan JSON valid')
+      
+      const result = JSON.parse(jsonMatch[0])
+      const questions = (result.questions || []).slice(0, count).map((q: any) => ({
+        title: (q.title || '').substring(0, 200),
+        question: (q.question || '').substring(0, 500),
+        description: (q.description || '').substring(0, 500),
+        targetOccupation: q.targetOccupation || 'UMUM',
+        approach: q.approach || 'direct',
+      }))
+      
+      return {
+        questions,
+        detectedLocation: detectedLocation || 'Indonesia',
+        detectedOccupation: detectedOccupation || 'UMUM',
+        detectedSentiment: detectedSentiment || 'NEUTRAL',
+      }
+    } catch (e: any) {
+      lastError = e
+      if (e.message?.includes('429') && attempt < maxRetries - 1) {
+        const waitMs = (attempt + 1) * 3000
+        console.log(`[LLM] 429 received, retry ${attempt + 1}/${maxRetries} after ${waitMs}ms...`)
+        await new Promise(r => setTimeout(r, waitMs))
+        continue
+      }
+      throw e
+    }
+  }
+  throw lastError
+}
+
+// Fallback: generate multiple questions using templates (when LLM fails)
+export function generateMultipleEssayQuestionsTemplate(params: {
+  sourceTopic: string
+  detectedLocation: string
+  detectedOccupation: string
+  detectedSentiment: string
+}): Array<{ title: string; question: string; description: string; targetOccupation: string; approach: string }> {
+  const { sourceTopic, detectedLocation, detectedOccupation, detectedSentiment } = params
+  const locName = detectedLocation || 'Indonesia'
+  const occupation = detectedOccupation || 'warga'
+  const occupationLower = occupation === 'UMUM' ? 'warga' : occupation.toLowerCase()
+  
+  const sentimentLabel = detectedSentiment === 'NEGATIVE' ? 'keprihatinan' :
+                          detectedSentiment === 'POSITIVE' ? 'apresiasi' : 'pandangan'
+  
+  return [
+    {
+      title: `Survei Langsung: ${sourceTopic.substring(0, 50)} di ${locName}`,
+      question: `Sebagai ${occupationLower} di ${locName}, apa ${sentimentLabel} Anda tentang "${sourceTopic}"? Jelaskan dampaknya pada kehidupan sehari-hari Anda.`,
+      description: `Pendekatan langsung. Target: ${occupation}. Lokasi: ${locName}.`,
+      targetOccupation: detectedOccupation,
+      approach: 'direct',
+    },
+    {
+      title: `Survei Komparatif: ${sourceTopic.substring(0, 50)}`,
+      question: `Bagaimana kondisi "${sourceTopic}" saat ini dibandingkan dengan situasi 1-2 tahun lalu di ${locName}? Apa yang berubah dan apa penyebabnya menurut Anda?`,
+      description: `Pendekatan komparatif. Minta analisis perubahan dari waktu ke waktu.`,
+      targetOccupation: detectedOccupation,
+      approach: 'comparative',
+    },
+    {
+      title: `Survei Solusi: ${sourceTopic.substring(0, 50)}`,
+      question: `Terhadap isu "${sourceTopic}" di ${locName}, solusi konkret apa yang Anda harapkan dari pemerintah dan LAPRA 08? Apa peran yang bisa Anda mainkan?`,
+      description: `Pendekatan solution-oriented. Minta usulan solusi konkret.`,
+      targetOccupation: detectedOccupation,
+      approach: 'solution-oriented',
+    },
+    {
+      title: `Survei Dampak Pribadi: ${sourceTopic.substring(0, 50)}`,
+      question: `Ceritakan pengalaman pribadi Anda terkait "${sourceTopic}" di ${locName}. Bagaimana hal ini memengaruhi emosi, kehidupan keluarga, dan harapan Anda ke depan?`,
+      description: `Pendekatan emosional. Minta cerita pengalaman pribadi.`,
+      targetOccupation: detectedOccupation,
+      approach: 'emotional',
+    },
+    {
+      title: `Survei Analitis: ${sourceTopic.substring(0, 50)}`,
+      question: `Menurut analisis Anda, apa faktor-faktor utama penyebab "${sourceTopic}" di ${locName}? Bagaimana hubungan sebab-akibatnya, dan apa yang harus diperbaiki?`,
+      description: `Pendekatan analitis. Minta analisis sebab-akibat.`,
+      targetOccupation: detectedOccupation,
+      approach: 'analytical',
+    },
+  ]
+}
+
+// === LLM-BASED AI: ESSAY QUESTION GENERATOR (single, for backward compat) ===
 // Pakai z-ai-web-dev-sdk untuk generate pertanyaan essay yang adaptif & berkualitas
 import ZAI from 'z-ai-web-dev-sdk'
 

@@ -58,9 +58,9 @@ export async function POST(request: NextRequest) {
 
     // === AI Generate mode (LLM-powered) ===
     if (body.action === 'ai_generate') {
-      const { sourceTopic, sourceUrl, sourceContent } = body
-      if (!sourceTopic && !sourceContent) {
-        return NextResponse.json({ success: false, error: 'sourceTopic atau sourceContent wajib' }, { status: 400 })
+      const { sourceTopic, sourceUrl, sourceContent, selectedSuggestion } = body
+      if (!sourceTopic && !sourceContent && !selectedSuggestion) {
+        return NextResponse.json({ success: false, error: 'sourceTopic atau sourceContent atau selectedSuggestion wajib' }, { status: 400 })
       }
 
       const text = `${sourceTopic || ''} ${sourceContent || ''}`
@@ -76,35 +76,47 @@ export async function POST(request: NextRequest) {
 
       const locName = loc.regencyName || loc.provinceName || 'Indonesia'
 
-      // Try LLM first (preferred)
+      // === Jika user pilih suggestion dari multiple AI suggestions ===
       let aiTitle = ''
       let aiQuestion = ''
       let aiDescription = ''
       let targetOccupation = detectedOccupation
       let llmSuccess = false
+      let approachLabel = 'direct'
 
-      try {
-        const llmResult = await aiGenerateEssayQuestionLLM({
-          sourceTopic: sourceTopic || sourceContent?.substring(0, 200) || 'isu terkini',
-          sourceContent,
-          sourceUrl,
-          detectedLocation: locName,
-          detectedOccupation,
-          detectedSentiment: sentimentResult.sentiment,
-        })
-        aiTitle = llmResult.title
-        aiQuestion = llmResult.question
-        aiDescription = llmResult.description
-        targetOccupation = llmResult.targetOccupation || detectedOccupation
+      if (selectedSuggestion && selectedSuggestion.title && selectedSuggestion.question) {
+        // Pakai selected suggestion dari multi-suggestions
+        aiTitle = selectedSuggestion.title
+        aiQuestion = selectedSuggestion.question
+        aiDescription = selectedSuggestion.description || `Pertanyaan AI dengan pendekatan ${selectedSuggestion.approach || 'direct'}.`
+        targetOccupation = selectedSuggestion.targetOccupation || detectedOccupation
+        approachLabel = selectedSuggestion.approach || 'direct'
         llmSuccess = true
-      } catch (e: any) {
-        console.error('[LLM] Essay question generation failed, using template fallback:', e.message)
-        // Fallback ke template lama
-        const sentimentLabel = sentimentResult.sentiment === 'NEGATIVE' ? 'keprihatinan' :
-                              sentimentResult.sentiment === 'POSITIVE' ? 'apresiasi' : 'pandangan netral'
-        aiTitle = `Survei Opini ${targetOccupation !== 'UMUM' ? targetOccupation.charAt(0) + targetOccupation.slice(1).toLowerCase() : 'Publik'}: ${sourceTopic || 'Isu Terkini'} di ${locName}`
-        aiQuestion = `Sebagai ${targetOccupation !== 'UMUM' ? targetOccupation.toLowerCase() : 'warga'} di ${locName}, apa ${sentimentLabel} Anda tentang "${sourceTopic || 'isu terkini'}"? Jelaskan dampaknya pada kehidupan sehari-hari Anda, serta solusi konkret yang Anda harapkan dari pemerintah dan LAPRA 08.`
-        aiDescription = `Survei otomatis (fallback template). Sentimen: ${sentimentResult.sentiment}. Target: ${targetOccupation} di ${locName}. Sumber: ${sourceUrl || 'topik manual'}.`
+      } else {
+        // Fallback: try LLM single generation (lama)
+        try {
+          const llmResult = await aiGenerateEssayQuestionLLM({
+            sourceTopic: sourceTopic || sourceContent?.substring(0, 200) || 'isu terkini',
+            sourceContent,
+            sourceUrl,
+            detectedLocation: locName,
+            detectedOccupation,
+            detectedSentiment: sentimentResult.sentiment,
+          })
+          aiTitle = llmResult.title
+          aiQuestion = llmResult.question
+          aiDescription = llmResult.description
+          targetOccupation = llmResult.targetOccupation || detectedOccupation
+          llmSuccess = true
+        } catch (e: any) {
+          console.error('[LLM] Essay question generation failed, using template fallback:', e.message)
+          // Fallback ke template lama
+          const sentimentLabel = sentimentResult.sentiment === 'NEGATIVE' ? 'keprihatinan' :
+                                sentimentResult.sentiment === 'POSITIVE' ? 'apresiasi' : 'pandangan netral'
+          aiTitle = `Survei Opini ${targetOccupation !== 'UMUM' ? targetOccupation.charAt(0) + targetOccupation.slice(1).toLowerCase() : 'Publik'}: ${sourceTopic || 'Isu Terkini'} di ${locName}`
+          aiQuestion = `Sebagai ${targetOccupation !== 'UMUM' ? targetOccupation.toLowerCase() : 'warga'} di ${locName}, apa ${sentimentLabel} Anda tentang "${sourceTopic || 'isu terkini'}"? Jelaskan dampaknya pada kehidupan sehari-hari Anda, serta solusi konkret yang Anda harapkan dari pemerintah dan LAPRA 08.`
+          aiDescription = `Survei otomatis (fallback template). Sentimen: ${sentimentResult.sentiment}. Target: ${targetOccupation} di ${locName}. Sumber: ${sourceUrl || 'topik manual'}.`
+        }
       }
 
       const targetScope = loc.regencyCode ? 'REGENCY' : loc.provinceCode ? 'PROVINCE' : 'NATIONAL'
@@ -113,7 +125,7 @@ export async function POST(request: NextRequest) {
         data: {
           title: aiTitle,
           question: aiQuestion,
-          description: aiDescription + (llmSuccess ? ' [Generated by LLM]' : ' [Generated by template fallback]'),
+          description: aiDescription + (llmSuccess ? ` [Generated by LLM, approach: ${approachLabel}]` : ' [Generated by template fallback]'),
           isAiGenerated: true,
           sourceTopic: sourceTopic || null,
           sourceUrl: sourceUrl || null,
@@ -131,7 +143,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         data: poll,
-        message: `Pertanyaan essay ${llmSuccess ? 'AI (LLM)' : 'template fallback'} di-generate. Lokasi: ${locName}. Target: ${targetOccupation}. Sentimen: ${sentimentResult.sentiment}.`,
+        message: `Pertanyaan essay ${llmSuccess ? `AI (LLM, approach: ${approachLabel})` : 'template fallback'} di-generate. Lokasi: ${locName}. Target: ${targetOccupation}. Sentimen: ${sentimentResult.sentiment}.`,
       })
     }
 

@@ -1381,3 +1381,84 @@ Stage Summary:
 - Breadcrumb navigable untuk drill-up/down
 - Data REAL: 1273 wilayah ter-seed, 10 opinion links → 4 territory + 14 demographic trust indices
 - Files: prisma/schema.prisma (+140 lines), src/lib/ai-engine.ts (no change), 3 new API routes, src/components/menus/communication-menu.tsx (rewrite OpinionMapTab → GeospatialVoiceTab, +400 lines)
+
+---
+Task ID: 2026-08-10-essay-multi-suggestions-share
+Agent: main
+Task: Tambah multiple AI question suggestions + AI saran di mode manual + share ke medsos & grup populer
+
+Work Log:
+- Tambah aiGenerateMultipleEssayQuestionsLLM() di /src/lib/ai-engine.ts:
+  - Generate 3-6 varian pertanyaan sekaligus dengan pendekatan berbeda
+  - 6 pendekatan: direct, comparative, solution-oriented, emotional, analytical, aspiratif
+  - Setiap varian punya title, question, description, targetOccupation, approach
+  - Retry+backoff untuk handle HTTP 429
+- Tambah generateMultipleEssayQuestionsTemplate() sebagai fallback ketika LLM gagal
+- Buat API endpoint baru: /api/essay-polls/ai-suggestions (POST)
+  - Generate 5 varian pertanyaan tanpa simpan ke DB (preview only)
+  - Return questions + detectedLocation + detectedOccupation + detectedSentiment + aiProvider
+- Update API /api/essay-polls POST ai_generate:
+  - Support parameter selectedSuggestion (object pertanyaan lengkap)
+  - Jika selectedSuggestion ada, langsung pakai (skip LLM call)
+  - Cocok untuk workflow: user lihat 5 saran → pilih satu → submit
+- Buat /src/lib/share-social.ts:
+  - 11 platform share: WhatsApp Personal, WhatsApp Web Group, Facebook Timeline, Facebook Group, X/Twitter, Telegram, Instagram DM, Email, LinkedIn, TikTok, Copy Link
+  - 15 preset Popular Groups dalam 6 kategori:
+    * Komunitas Lokal: Grup RT/RW, Warga Kota, Grup Diskusi Warga
+    * Kelompok Profesi: Paguyuban Petani, Nelayan, UMKM, Petani Indonesia, UMKM Indonesia
+    * Pendidikan: Orang Tua Murid
+    * Pemuda: Karang Taruna, Mahasiswa & Pelajar Aktif
+    * Politik: Partai/Relawan LAPRA 08, Info Pemilu & Politik Indonesia, Channel Berita Politik
+    * Agama: Organisasi Keagamaan
+  - buildShareText() helper untuk generate teks share otomatis dengan emoji, lokasi, occupation
+  - openShareUrl() untuk buka URL di new window
+  - copyToClipboard() dengan fallback untuk browser lama
+- Update UI EssayPollsTab di communication-menu.tsx:
+  - State baru: aiSuggestions[], aiSuggestionsMeta, generatingSuggestions, selectedSuggestionIdx, creatingFromSuggestion
+  - Workflow AI Generate dialog:
+    * Step 1: Input form (topik, URL, konten) → submit ke /ai-suggestions
+    * Step 2: Tampilkan 5 varian pertanyaan dalam card yang bisa di-klik
+    * Step 3: Pilih salah satu → tombol "Buat Poll dari Varian #N"
+  - Workflow Buat Manual + Saran AI:
+    * Form manual dengan tombol "Dapatkan Saran AI"
+    * Klik tombol → generate 5 varian pertanyaan di panel atas
+    * Tiap varian ada tombol "Pakai" → apply ke form manual (title, question, description terisi otomatis)
+    * User bisa edit form sebelum submit
+  - Tombol Share di setiap poll (icon Share2, warna biru)
+  - Detail dialog juga punya tombol "Share ke Medsos"
+- Buat komponen baru: ShareToSocialMediaDialog
+  - Preview poll yang akan di-share
+  - Text editor untuk custom share text
+  - URL poll yang akan di-share
+  - Tab navigation: "Platform Medsos" | "Grup Populer"
+  - Grid 11 tombol platform share (warna khas tiap platform)
+  - Grid grup populer dengan kategori (Komunitas Lokal, Kelompok Profesi, Pemuda, Politik, Agama, Pendidikan)
+  - Warning notice: user pilih grup spesifik di platform setelah URL share terbuka
+- Import lucide-react baru: Share2, Copy, MessageCircle, Mail, Linkedin
+- Import recharts sama, hanya tambah PolarAngleAxis (untuk RadialBarChart gauge)
+
+Test Results:
+- ✅ API /api/essay-polls/ai-suggestions: generate 5 varian pertanyaan PETANI Grobogan:
+  1. 🎯 Langsung: "Pendapat Petani Grobogan tentang Kenaikan Harga Pupuk"
+  2. 📊 Komparatif: "Perbandingan Kondisi Pupuk Masa Kini dan Masa Lalu"
+  3. 💡 Solusi: "Solusi Petani untuk Krisis Pupuk di Grobogan"
+  4. 💖 Emosional: "Dampak Kenaikan Pupuk terhadap Kehidupan Petani"
+  5. 🔬 Analitis: "Analisis Faktor Kenaikan Harga Pupuk di Grobogan"
+- ✅ Pilih varian #3 (Solusi) → poll berhasil dibuat dengan approach "solution-oriented"
+- ✅ Share helper test: 11 platform + 15 grup populer dengan URL share ter-encode benar
+- ✅ Build share text: emoji + lokasi + occupation ter-format dengan benar
+- ✅ No React errors, GET / return 200, semua API lain tetap sehat
+
+Files changed:
+- NEW: /src/lib/share-social.ts (130 lines)
+- NEW: /src/app/api/essay-polls/ai-suggestions/route.ts (75 lines)
+- MODIFIED: /src/lib/ai-engine.ts (tambah 170 lines untuk multiple suggestions)
+- MODIFIED: /src/app/api/essay-polls/route.ts (support selectedSuggestion)
+- MODIFIED: /src/components/menus/communication-menu.tsx (rewrite EssayPollsTab + tambah ShareToSocialMediaDialog, ~600 lines berubah)
+
+Stage Summary:
+- User sekarang bisa pilih dari 5 varian pertanyaan AI dengan pendekatan berbeda
+- Mode manual punya tombol "Dapatkan Saran AI" untuk generate 5 varian sebagai starting point
+- Setiap poll bisa di-share ke 11 platform medsos + 15 grup populer (WA/FB/TG)
+- Teks share otomatis dengan emoji, lokasi, occupation
+- URL share ter-encode dengan benar untuk WhatsApp/Facebook/X/Telegram/Email
