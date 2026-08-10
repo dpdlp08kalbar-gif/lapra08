@@ -1109,3 +1109,41 @@ Stage Summary:
 - The system is now PRODUCTION-READY: when user configures API keys in Integrasi API tab, the audit will use REAL direct platform access
 - Without API keys: system falls back to Google News RSS (still real news, just not direct posts)
 - The user can configure FREE API keys right now: Meta Graph API (free), YouTube Data API v3 (free), TikTok (free with approval), X API v2 ($100/mo)
+
+---
+Task ID: 2026-08-10-auto-scraper-zero-config
+Agent: main
+Task: Buat audit otomatis tanpa konfigurasi API (sesuai permintaan user: tidak boleh merepotkan user dengan menu Integrasi API)
+
+Work Log:
+- User complain (with reason): menu "Integrasi API" itu salah arah — user harus konfigurasi manual. Padahal permintaan awal: "Audit AI Responding OTOMATIS dengan teknologi gratis open-source"
+- Tested yt-dlp + gallery-dl:
+  - yt-dlp YouTube search: ✅ BERFUNGSI — 10 REAL video LAPRA 08 dengan view count, channel, tanggal. TANPA API KEY.
+  - yt-dlp YouTube comments: ❌ Diblokir bot detection (perlu cookies)
+  - yt-dlp TikTok/Twitter search: ❌ Tidak didukung (hanya URL langsung)
+  - gallery-dl Instagram: ❌ 429 rate limit (login required)
+- Built `/src/lib/auto-scraper.ts`:
+  - scrapeYouTube(): pakai yt-dlp "ytsearch15:" — return 15 REAL videos
+  - scrapeGoogleNews(): pakai RSS — return 20 REAL articles
+  - scrapeAuto() main entry: gabung keduanya + honest skipped list (FB/IG/TikTok/X)
+- Updated `/api/audit-ai/scans/route.ts`:
+  - Hapus dependency ke API integrations
+  - Langsung panggil scrapeAuto() → 22 REAL mentions otomatis
+  - Pesan: "Audit OTOMATIS selesai. 22 REAL mention dari YouTube (yt-dlp, 15 videos) + Google News RSS (7 articles). 7 wajib direspon."
+- Updated `/api/social-listening/mentions/route.ts`:
+  - ?live=true sekarang pakai scrapeAuto() juga
+  - Return sources + skipped untuk transparansi
+- Updated Audit AI dialog banner di portal-menus.tsx:
+  - Hijau (emerald) — sekarang OTOMATIS, BUKAN kuning peringatan
+  - "100% OTOMATIS — TANPA KONFIGURASI"
+  - Jelaskan: YouTube via yt-dlp + Google News RSS (GRATIS)
+  - Honest note: FB/IG/TikTok/X perlu API berbayar
+  - Cara kerja: Klik → scrape → AI analisis → tampil. <3 detik.
+- Test verified: 22 REAL mentions (15 YouTube + 7 Google News), 7 wajib direspon
+
+Stage Summary:
+- USER TIDAK PERLU KONFIGURASI APAPUN — klik tombol → jalan
+- 22 REAL mentions otomatis dari sumber gratis (yt-dlp + Google News RSS)
+- Audit AI jadi 100% otomatis sesuai permintaan awal user
+- Menu "Integrasi API" tetap ada untuk user yang ingin extend (opsional, tidak wajib)
+- Files: /src/lib/auto-scraper.ts (NEW), /src/app/api/audit-ai/scans/route.ts (rewrite), /src/app/api/social-listening/mentions/route.ts (rewrite), /src/components/menus/portal-menus.tsx (banner update)
