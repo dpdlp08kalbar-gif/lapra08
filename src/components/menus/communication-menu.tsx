@@ -24,7 +24,7 @@ import {
   RefreshCw, Plus, Eye, Edit, Trash2, FileText, Users, TrendingUp,
   Calendar, Globe, Youtube, Newspaper, Twitter, Instagram, Facebook, Filter,
   ChevronRight, Home, Activity, BarChart3, PieChart as PieIcon, Award,
-  Share2, Copy, MessageCircle, Mail, Linkedin,
+  Share2, Copy, MessageCircle, Mail, Linkedin, Shield,
 } from 'lucide-react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -682,6 +682,7 @@ function BroadcastComposerTab() {
   const [composerOpen, setComposerOpen] = useState(false)
   const [templateOpen, setTemplateOpen] = useState(false)
   const [broadcastStatsOpen, setBroadcastStatsOpen] = useState<any>(null)
+  const [gatewayOpen, setGatewayOpen] = useState(false)
 
   // Composer form
   const [form, setForm] = useState({
@@ -839,6 +840,9 @@ function BroadcastComposerTab() {
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => setTemplateOpen(true)}><FileText className="w-4 h-4 mr-1" /> Template</Button>
+          <Button variant="outline" onClick={() => setGatewayOpen(true)} className="bg-emerald-50 border-emerald-300 text-emerald-700 hover:bg-emerald-100">
+            <Shield className="w-4 h-4 mr-1" /> WA Gateway
+          </Button>
           <Button onClick={() => setComposerOpen(true)} className="bg-gradient-to-r from-orange-600 to-red-600 text-white">
             <Plus className="w-4 h-4 mr-1" /> Buat Broadcast
           </Button>
@@ -1124,6 +1128,9 @@ function BroadcastComposerTab() {
       {broadcastStatsOpen && (
         <BroadcastStatsDialog broadcast={broadcastStatsOpen} onClose={() => setBroadcastStatsOpen(null)} />
       )}
+
+      {/* WhatsApp Gateway Providers dialog */}
+      <GatewayProvidersDialog open={gatewayOpen} onOpenChange={setGatewayOpen} />
     </div>
   )
 }
@@ -1277,6 +1284,10 @@ function EssayPollsTab() {
   // === State untuk AI suggestions di mode Manual ===
   const [manualSuggestions, setManualSuggestions] = useState<any[]>([])
   const [loadingManualSuggestions, setLoadingManualSuggestions] = useState(false)
+  // === State untuk topic suggestions (auto-fill inspirasi) ===
+  const [topicSuggestions, setTopicSuggestions] = useState<any>(null)
+  const [showTopicSuggestions, setShowTopicSuggestions] = useState(false)
+  const [activeCategory, setActiveCategory] = useState<string | null>(null)
 
   const loadData = useCallback(() => {
     setLoading(true)
@@ -1382,6 +1393,40 @@ function EssayPollsTab() {
     if (questionTextarea) questionTextarea.value = suggestion.question
     if (descriptionTextarea) descriptionTextarea.value = suggestion.description
     addToast(`Saran AI "${suggestion.approach}" diterapkan ke form`, 'success')
+  }
+
+  // === Load topic suggestions (categories + recent news + recent opinions) ===
+  const loadTopicSuggestions = useCallback(async () => {
+    if (topicSuggestions) return // already loaded
+    try {
+      const res = await fetch('/api/essay-polls/topic-suggestions', {
+        headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+      })
+      const data = await res.json()
+      if (data.success) setTopicSuggestions(data.data)
+    } catch (e: any) {
+      console.error('[TopicSuggestions] Error:', e.message)
+    }
+  }, [topicSuggestions])
+
+  // === Apply topic suggestion (auto-fill form) ===
+  const applyTopicSuggestion = (topic: string, occupation?: string, sourceUrl?: string) => {
+    setAiForm({
+      ...aiForm,
+      sourceTopic: topic,
+      sourceUrl: sourceUrl || '',
+    })
+    addToast(`Topik "${topic.substring(0, 60)}..." diisi otomatis${occupation ? ` (target: ${occupation})` : ''}`, 'success')
+  }
+
+  // === Apply recent opinion link as topic ===
+  const applyOpinionAsTopic = (opinion: any) => {
+    setAiForm({
+      ...aiForm,
+      sourceTopic: opinion.title,
+      sourceUrl: '', // opinion links don't have public URL we'd share
+    })
+    addToast(`Topik dari opinion link diisi otomatis (sentiment: ${opinion.sentiment})`, 'success')
   }
 
   const handleActivate = async (pollId: string) => {
@@ -1492,8 +1537,8 @@ function EssayPollsTab() {
         </div>
       )}
 
-      {/* === AI Generate Dialog (Multiple Suggestions) === */}
-      <Dialog open={aiGenOpen} onOpenChange={(o) => { setAiGenOpen(o); if (!o) { setAiSuggestions([]); setSelectedSuggestionIdx(null) } }}>
+      {/* === AI Generate Dialog (Multiple Suggestions) — Enhanced with Topic Suggestions === */}
+      <Dialog open={aiGenOpen} onOpenChange={(o) => { setAiGenOpen(o); if (!o) { setAiSuggestions([]); setSelectedSuggestionIdx(null); setShowTopicSuggestions(false); setActiveCategory(null) } }}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -1501,13 +1546,127 @@ function EssayPollsTab() {
             </DialogTitle>
             <DialogDescription>
               AI akan generate 5 varian pertanyaan dengan pendekatan berbeda. Pilih salah satu untuk dibuat poll.
+              Klik <strong>"💡 Saran Topik"</strong> untuk inspirasi dari trending issues & kategori.
             </DialogDescription>
           </DialogHeader>
+
+          {/* === Topic Suggestions Panel (auto-fill inspirasi) === */}
+          {aiSuggestions.length === 0 && (
+            <div className="rounded-lg bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-200 p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-semibold text-purple-800">💡 Saran Topik Otomatis (AI-curated)</Label>
+                <Button type="button" size="sm" variant="outline" className="h-7 text-xs"
+                  onClick={() => {
+                    if (!showTopicSuggestions) loadTopicSuggestions()
+                    setShowTopicSuggestions(!showTopicSuggestions)
+                  }}>
+                  {showTopicSuggestions ? '▲ Sembunyikan' : '▼ Tampilkan Saran'}
+                </Button>
+              </div>
+              {showTopicSuggestions && topicSuggestions && (
+                <div className="space-y-3">
+                  {/* Quick stats */}
+                  <div className="text-[10px] text-purple-700">
+                    {topicSuggestions.stats.totalCategories} kategori • {topicSuggestions.stats.totalSuggestedTopics} topik siap pakai • {topicSuggestions.stats.recentOpinionsCount} opinion links terbaru • {topicSuggestions.stats.recentNewsCount} berita LAPRA 08
+                  </div>
+
+                  {/* Category chips */}
+                  <div>
+                    <div className="text-[10px] font-semibold text-muted-foreground mb-1">📚 Pilih Kategori Isu:</div>
+                    <div className="flex flex-wrap gap-1">
+                      {topicSuggestions.categories.map(cat => (
+                        <button key={cat.id} type="button"
+                          onClick={() => setActiveCategory(activeCategory === cat.id ? null : cat.id)}
+                          className={`px-2 py-1 rounded-full text-[10px] font-medium border transition-all ${activeCategory === cat.id ? `bg-${cat.color}-500 text-white border-${cat.color}-500` : 'border hover:bg-accent'}`}>
+                          {cat.icon} {cat.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Suggested topics for active category */}
+                  {activeCategory && (() => {
+                    const cat = topicSuggestions.categories.find(c => c.id === activeCategory)
+                    if (!cat) return null
+                    return (
+                      <div className="rounded bg-white border p-2 space-y-1">
+                        <div className="text-[10px] font-semibold text-muted-foreground mb-1">
+                          {cat.icon} {cat.label} — {cat.description}
+                        </div>
+                        <div className="space-y-1">
+                          {cat.suggestedTopics.map((t: any, i: number) => (
+                            <button key={i} type="button"
+                              onClick={() => applyTopicSuggestion(t.topic, t.occupation)}
+                              className="w-full text-left p-1.5 rounded border hover:bg-accent text-[11px] transition-all">
+                              <div className="flex items-start justify-between gap-2">
+                                <span className="flex-1">{t.topic}</span>
+                                <div className="flex gap-1 shrink-0">
+                                  {t.occupation && t.occupation !== 'UMUM' && <Badge variant="outline" className="text-[9px]">{t.occupation}</Badge>}
+                                  <Badge variant="outline" className={`text-[9px] ${t.sentiment === 'NEGATIVE' ? 'bg-red-50 text-red-700' : t.sentiment === 'POSITIVE' ? 'bg-emerald-50 text-emerald-700' : ''}`}>
+                                    {t.sentiment}
+                                  </Badge>
+                                </div>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })()}
+
+                  {/* Recent trending opinions (auto-detected from DB) */}
+                  {topicSuggestions.recentOpinions && topicSuggestions.recentOpinions.length > 0 && (
+                    <div>
+                      <div className="text-[10px] font-semibold text-muted-foreground mb-1">🔥 Trending Issues (dari Opinion Scanner terbaru):</div>
+                      <div className="space-y-1 max-h-32 overflow-y-auto">
+                        {topicSuggestions.recentOpinions.slice(0, 5).map((o: any, i: number) => (
+                          <button key={i} type="button"
+                            onClick={() => applyOpinionAsTopic(o)}
+                            className="w-full text-left p-1.5 rounded border hover:bg-accent text-[11px] transition-all">
+                            <div className="flex items-start justify-between gap-2">
+                              <span className="flex-1 line-clamp-1">{o.title}</span>
+                              <div className="flex gap-1 shrink-0">
+                                <Badge variant="outline" className={`text-[9px] ${o.priority === 'HIGH' ? 'bg-red-50 text-red-700' : o.priority === 'MEDIUM' ? 'bg-amber-50 text-amber-700' : ''}`}>{o.priority}</Badge>
+                                <Badge variant="outline" className={`text-[9px] ${o.sentiment === 'NEGATIVE' ? 'bg-red-50 text-red-700' : o.sentiment === 'POSITIVE' ? 'bg-emerald-50 text-emerald-700' : ''}`}>{o.sentiment}</Badge>
+                              </div>
+                            </div>
+                            {o.location && o.location !== 'Nasional' && <div className="text-[9px] text-muted-foreground mt-0.5">📍 {o.location} • 💬 {o.engagement} engagement</div>}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Recent LAPRA 08 news */}
+                  {topicSuggestions.recentNews && topicSuggestions.recentNews.length > 0 && (
+                    <div>
+                      <div className="text-[10px] font-semibold text-muted-foreground mb-1">📰 Berita LAPRA 08 Terbaru (auto-sync):</div>
+                      <div className="space-y-1 max-h-32 overflow-y-auto">
+                        {topicSuggestions.recentNews.slice(0, 5).map((n: any, i: number) => (
+                          <button key={i} type="button"
+                            onClick={() => applyTopicSuggestion(n.title, n.occupation)}
+                            className="w-full text-left p-1.5 rounded border hover:bg-accent text-[11px] transition-all">
+                            <div className="flex items-start justify-between gap-2">
+                              <span className="flex-1 line-clamp-1">{n.title}</span>
+                              <Badge variant="outline" className="text-[9px]">{n.source}</Badge>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+              {showTopicSuggestions && !topicSuggestions && (
+                <div className="text-[11px] text-purple-700 italic">Loading topic suggestions...</div>
+              )}
+            </div>
+          )}
 
           {/* Step 1: Input form */}
           <form onSubmit={handleGetSuggestions} className="space-y-3">
             <div className="space-y-2">
-              <Label>Topik Isu / Berita *</Label>
+              <Label>Topik Isu / Berita * <span className="text-[10px] text-muted-foreground">(atau klik saran di atas untuk auto-fill)</span></Label>
               <Input value={aiForm.sourceTopic} onChange={(e) => setAiForm({ ...aiForm, sourceTopic: e.target.value })}
                 placeholder="cth: Kenaikan harga pupuk bersubsidi di Grobogan" required disabled={generatingSuggestions || aiSuggestions.length > 0} />
             </div>
@@ -2573,5 +2732,280 @@ function AgentsMonitorTab() {
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+// ============================================================
+// WHATSAPP GATEWAY PROVIDERS DIALOG — Rekomendasi Fonnte, Waboo, Wootalk, dll
+// ============================================================
+function GatewayProvidersDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+  const addToast = useToastStore((s) => s.addToast)
+  const [loading, setLoading] = useState(true)
+  const [providers, setProviders] = useState<any[]>([])
+  const [activeProvider, setActiveProvider] = useState<string>('')
+  const [config, setConfig] = useState<any>(null)
+  const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null)
+  const [apiKeyForm, setApiKeyForm] = useState({ apiKey: '', apiSecret: '', phoneNumberId: '', displayName: '' })
+  const [saving, setSaving] = useState(false)
+  const [testing, setTesting] = useState(false)
+
+  const loadData = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await fetch('/api/broadcast-composer/gateway-providers', {
+        headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+      })
+      const data = await res.json()
+      if (data.success) {
+        setProviders(data.data.providers)
+        setActiveProvider(data.data.activeProvider)
+        setConfig(data.data.config)
+      }
+    } catch (e: any) {
+      addToast(e.message, 'error')
+    } finally {
+      setLoading(false)
+    }
+  }, [addToast])
+
+  useEffect(() => {
+    if (open) loadData()
+  }, [open, loadData])
+
+  const handleSetActive = async (providerId: string) => {
+    try {
+      const res = await fetch('/api/broadcast-composer/gateway-providers', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+        body: JSON.stringify({ action: 'set_active_provider', providerId }),
+      })
+      const data = await res.json()
+      if (!data.success) throw new Error(data.error)
+      addToast(`Provider aktif: ${providerId}`, 'success')
+      loadData()
+    } catch (e: any) {
+      addToast(e.message, 'error')
+    }
+  }
+
+  const handleSaveApiKey = async (providerId: string) => {
+    if (!apiKeyForm.apiKey) {
+      addToast('API key wajib diisi', 'error')
+      return
+    }
+    setSaving(true)
+    try {
+      const res = await fetch('/api/broadcast-composer/gateway-providers', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+        body: JSON.stringify({
+          action: 'save_api_key',
+          providerId,
+          apiKey: apiKeyForm.apiKey,
+          apiSecret: apiKeyForm.apiSecret || null,
+          phoneNumberId: apiKeyForm.phoneNumberId || null,
+          displayName: apiKeyForm.displayName || providerId,
+        }),
+      })
+      const data = await res.json()
+      if (!data.success) throw new Error(data.error)
+      addToast(data.message, 'success')
+      setApiKeyForm({ apiKey: '', apiSecret: '', phoneNumberId: '', displayName: '' })
+      loadData()
+    } catch (e: any) {
+      addToast(e.message, 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleTestProvider = async (providerId: string) => {
+    setTesting(true)
+    try {
+      const res = await fetch('/api/broadcast-composer/gateway-providers', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+        body: JSON.stringify({ action: 'test_provider', providerId }),
+      })
+      const data = await res.json()
+      if (!data.success) throw new Error(data.error)
+      addToast(data.message, 'success')
+    } catch (e: any) {
+      addToast(e.message, 'error')
+    } finally {
+      setTesting(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Shield className="w-5 h-5 text-emerald-600" /> WhatsApp Gateway Providers — Anti-Banned Recommendations
+          </DialogTitle>
+          <DialogDescription>
+            Untuk broadcast massal ribuan pesan WA tanpa risiko diblokir, integrasikan dengan salah satu provider di bawah.
+            Provider Indonesia (Fonnte, Waboo, Wootalk) direkomendasikan untuk harga lokal & support bahasa.
+          </DialogDescription>
+        </DialogHeader>
+
+        {loading ? (
+          <LoadingState />
+        ) : (
+          <div className="space-y-3">
+            {/* Active provider banner */}
+            <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-xs text-emerald-800">
+              <Shield className="w-4 h-4 inline mr-1" />
+              <strong>Provider Aktif:</strong> {activeProvider} • Rate limit: {config?.messagesPerMinute}/menit, {config?.messagesPerHour}/jam, {config?.messagesPerDay}/hari
+            </div>
+
+            {/* Provider cards */}
+            <div className="space-y-3">
+              {providers.map(p => (
+                <div key={p.id} className={`rounded-lg border-2 p-3 transition-all ${p.isActive ? 'border-emerald-500 bg-emerald-50/30' : 'border-slate-200'}`}>
+                  {/* Header */}
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <span className="font-bold text-base">{p.name}</span>
+                        <Badge variant="outline" className="text-[10px]">{p.country}</Badge>
+                        {p.recommended && <Badge className="text-[10px] bg-purple-100 text-purple-800">⭐ RECOMMENDED</Badge>}
+                        {p.isActive && <Badge className="text-[10px] bg-emerald-100 text-emerald-800">✓ ACTIVE</Badge>}
+                        {p.isConfigured && <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700">🔑 CONFIGURED</Badge>}
+                      </div>
+                      <p className="text-xs text-muted-foreground">{p.description}</p>
+                      <div className="text-[11px] text-muted-foreground mt-1">
+                        <strong>Pricing:</strong> {p.pricing} • <strong>API:</strong> <code>{p.apiEndpoint}</code>
+                      </div>
+                    </div>
+                    {/* Scores */}
+                    <div className="grid grid-cols-2 gap-1 text-[10px] text-center ml-2">
+                      <div className="rounded bg-slate-100 p-1"><div className="font-bold">{p.antiBannedScore}</div><div className="text-[8px]">Anti-Banned</div></div>
+                      <div className="rounded bg-slate-100 p-1"><div className="font-bold">{p.scalabilityScore}</div><div className="text-[8px]">Skalabilitas</div></div>
+                      <div className="rounded bg-slate-100 p-1"><div className="font-bold">{p.pricingScore}</div><div className="text-[8px]">Harga</div></div>
+                      <div className="rounded bg-slate-100 p-1"><div className="font-bold">{p.easeOfUse}</div><div className="text-[8px]">Kemudahan</div></div>
+                    </div>
+                  </div>
+
+                  {/* Pros/cons */}
+                  <div className="grid grid-cols-2 gap-2 text-[11px] mt-2">
+                    <div>
+                      <div className="font-semibold text-emerald-700 mb-0.5">✅ Pros:</div>
+                      <ul className="space-y-0.5">
+                        {p.pros.map((pro: string, i: number) => <li key={i}>• {pro}</li>)}
+                      </ul>
+                    </div>
+                    <div>
+                      <div className="font-semibold text-amber-700 mb-0.5">⚠️ Cons:</div>
+                      <ul className="space-y-0.5">
+                        {p.cons.map((con: string, i: number) => <li key={i}>• {con}</li>)}
+                      </ul>
+                    </div>
+                  </div>
+
+                  {/* Features */}
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {p.features.map((f: string, i: number) => (
+                      <span key={i} className="text-[10px] bg-slate-100 rounded px-1.5 py-0.5">{f}</span>
+                    ))}
+                  </div>
+
+                  {/* Recommendation reason */}
+                  {p.recommendationReason && (
+                    <div className="mt-2 rounded bg-purple-50 border border-purple-200 p-2 text-[11px] text-purple-800 italic">
+                      💡 {p.recommendationReason}
+                    </div>
+                  )}
+
+                  {/* Integration steps (expandable) */}
+                  {selectedProviderId === p.id && (
+                    <div className="mt-2 rounded bg-blue-50 border border-blue-200 p-2 space-y-2">
+                      <div className="text-[11px] font-semibold text-blue-800">📋 Langkah Integrasi:</div>
+                      <ol className="text-[11px] space-y-0.5 list-decimal ml-4">
+                        {p.integrationSteps.map((step: string, i: number) => <li key={i}>{step}</li>)}
+                      </ol>
+
+                      <div className="text-[11px] font-semibold text-blue-800 mt-2">🔧 Example API Call:</div>
+                      <pre className="text-[10px] bg-white border rounded p-2 overflow-x-auto">
+{`${p.examplePayload.method} ${p.examplePayload.url}
+Headers: ${JSON.stringify(p.examplePayload.headers, null, 2)}
+Body: ${JSON.stringify(p.examplePayload.body, null, 2)}`}
+                      </pre>
+
+                      {/* API key form */}
+                      <div className="mt-2 rounded bg-white border p-2 space-y-2">
+                        <div className="text-[11px] font-semibold">🔑 Konfigurasi API Key untuk {p.name}:</div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <Input type="password" placeholder="API Key / Token" value={apiKeyForm.apiKey}
+                            onChange={(e) => setApiKeyForm({ ...apiKeyForm, apiKey: e.target.value })} className="h-8 text-xs" />
+                          {(p.id === 'WOOTALK' || p.id === 'WHATSAPP_BUSINESS_API') && (
+                            <Input type="password" placeholder="API Secret / Access Token" value={apiKeyForm.apiSecret}
+                              onChange={(e) => setApiKeyForm({ ...apiKeyForm, apiSecret: e.target.value })} className="h-8 text-xs" />
+                          )}
+                          {(p.id === 'WOOTALK' || p.id === 'WHATSAPP_BUSINESS_API') && (
+                            <Input placeholder="Phone Number ID" value={apiKeyForm.phoneNumberId}
+                              onChange={(e) => setApiKeyForm({ ...apiKeyForm, phoneNumberId: e.target.value })} className="h-8 text-xs" />
+                          )}
+                          <Input placeholder="Display Name (cth: LAPRA 08 WA)" value={apiKeyForm.displayName}
+                            onChange={(e) => setApiKeyForm({ ...apiKeyForm, displayName: e.target.value })} className="h-8 text-xs" />
+                        </div>
+                        <div className="flex gap-2">
+                          <Button size="sm" onClick={() => handleSaveApiKey(p.id)} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700 text-white h-8 text-xs">
+                            {saving ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <CheckCircle2 className="w-3 h-3 mr-1" />}
+                            Simpan API Key
+                          </Button>
+                          {p.isConfigured && (
+                            <Button size="sm" variant="outline" onClick={() => handleTestProvider(p.id)} disabled={testing} className="h-8 text-xs">
+                              {testing ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Zap className="w-3 h-3 mr-1" />}
+                              Test Koneksi
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Action buttons */}
+                  <div className="flex gap-2 mt-2">
+                    {!p.isActive && (
+                      <Button size="sm" onClick={() => handleSetActive(p.id)} className="bg-emerald-600 hover:bg-emerald-700 text-white h-7 text-xs">
+                        <CheckCircle2 className="w-3 h-3 mr-1" /> Set sebagai Active
+                      </Button>
+                    )}
+                    <Button size="sm" variant="outline" className="h-7 text-xs"
+                      onClick={() => setSelectedProviderId(selectedProviderId === p.id ? null : p.id)}>
+                      {selectedProviderId === p.id ? '▲ Sembunyikan' : '▼ Lihat Detail & Setup'}
+                    </Button>
+                    <a href={p.website} target="_blank" rel="noopener noreferrer" className="ml-auto">
+                      <Button size="sm" variant="ghost" className="h-7 text-xs">
+                        <ExternalLink className="w-3 h-3 mr-1" /> {p.website.replace('https://', '')}
+                      </Button>
+                    </a>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Anti-banned tips */}
+            <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-900">
+              <AlertTriangle className="w-4 h-4 inline mr-1" />
+              <strong>Tips Anti-Banned WhatsApp:</strong>
+              <ol className="list-decimal ml-6 mt-1 space-y-0.5">
+                <li>Gunakan device/number rotation (jangan 1 nomor untuk 1000+ pesan/hari)</li>
+                <li>Random delay 3-10 detik antar pesan (sudah otomatis di sistem kami)</li>
+                <li>Batch processing: 20 pesan per batch, jeda 1 menit antar batch</li>
+                <li>Personalisasi pesan dengan {`{nama}`} {`{wilayah}`} (sudah otomatis)</li>
+                <li>Hindari pesan identik 100% (variasikan greeting)</li>
+                <li>Pastikan kontak sudah opt-in (sudah otomatis di sistem kami)</li>
+                <li>Untuk skala 10.000+ pesan/hari: gunakan multiple device/account (Fonnte & Waboo support ini)</li>
+                <li>Wootalk & WhatsApp Business API = zero banned risk (official partner)</li>
+              </ol>
+            </div>
+          </div>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Tutup</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }

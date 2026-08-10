@@ -1645,3 +1645,80 @@ Stage Summary:
 - 100% success rate verified end-to-end (10/12 sent, 2 queued, 0 failed, 0 blocked)
 - Anti-banned mechanism complete: random delay + batch pause + rate limit + retry + blocked detection
 - Multi-provider support siap untuk production (tinggal implement actual API call)
+
+---
+Task ID: 2026-08-10-wa-gateway-and-topic-suggestions
+Agent: main
+Task: Tambah WhatsApp Gateway API recommendations (Fonnte/Waboo/Wootalk) + Sempurnakan modal AI Essay dengan topic suggestions otomatis
+
+Work Log:
+- VLM analysis screenshot modal AI Generate Pertanyaan: hanya 3 input manual tanpa saran AI, terlalu sederhana
+- Buat 2 API baru:
+  1. /api/essay-polls/topic-suggestions (GET) — inspirasi topik otomatis:
+     - 10 kategori pre-defined: Pertanian, Nelayan, UMKM, Pendidikan, Infrastruktur, Kesehatan, Bansos, Kebijakan, Pemuda, Agama
+     - 36 suggested topics siap pakai dengan occupation + sentiment hint
+     - Auto-deteksi occupation + sentiment dari title (regex)
+     - Recent opinion links (10 trending issues dari PublicOpinionLink yang sudah dianalisis)
+     - Recent LAPRA 08 news dari Announcement table
+     - Stats summary (total categories/topics/recent counts)
+  2. /api/broadcast-composer/gateway-providers (GET+POST) — WA Gateway recommendations:
+     - 5 provider dengan comparison: Fonnte, Waboo, Wootalk, WhatsApp Business API (Meta), WAPBLOOM
+     - Setiap provider: pricing, features, pros/cons, antiBannedScore, scalabilityScore, pricingScore, easeOfUse
+     - Integration steps (langkah-langkah setup)
+     - Example API payload (curl-like untuk developer reference)
+     - Recommendation reason untuk provider yang recommended
+     - POST actions: set_active_provider, save_api_key, test_provider, update_rate_limit
+- Update UI EssayPollsTab di communication-menu.tsx:
+  - State baru: topicSuggestions, showTopicSuggestions, activeCategory
+  - loadTopicSuggestions() async fetch dari API
+  - applyTopicSuggestion(topic, occupation, sourceUrl) — auto-fill form
+  - applyOpinionAsTopic(opinion) — auto-fill dari trending opinion link
+  - Topic Suggestions Panel (collapsible) di atas input form:
+    * Quick stats (X kategori • Y topik • Z trending)
+    * Category chips (10 kategori dengan icon + label)
+    * Suggested topics untuk kategori aktif (klik untuk auto-fill)
+    * Trending opinions (top 5 dari PublicOpinionLink)
+    * Recent LAPRA 08 news (top 5 dari Announcement)
+  - Helper text di input: "(atau klik saran di atas untuk auto-fill)"
+- Tambah komponen baru: GatewayProvidersDialog (~200 lines)
+  - Tombol "WA Gateway" di toolbar Broadcast Composer (icon Shield, warna emerald)
+  - Header dengan active provider banner
+  - Provider cards dengan:
+    * Name + country + recommended badge + active badge + configured badge
+    * Description + pricing + API endpoint
+    * Scores grid (anti-banned, scalability, pricing, ease-of-use) — 0-100
+    * Pros & cons (2 column)
+    * Features tags
+    * Recommendation reason (purple highlight)
+    * Expandable integration steps + example API call + API key form
+    * Action buttons: Set Active, Lihat Detail & Setup, link ke website
+  - Anti-banned tips panel (8 tips best practice)
+- Import lucide-react baru: Shield
+- Update BroadcastComposerTab: tambah state gatewayOpen + tombol "WA Gateway"
+
+TEST RESULTS:
+1. Topic Suggestions API: 10 kategori + 36 suggested topics + 10 trending opinions + 0 recent news (no news in DB) ✓
+2. AI Generate dengan topic "Kelangkaan pupuk menjelang musim tanam":
+   - Generated 5 varian via LLM
+   - Lokasi: Indonesia, Target: PETANI, Sentiment: NEUTRAL
+   - 5 approaches: direct, comparative, solution-oriented, emotional, analytical ✓
+3. Gateway Providers API: 5 provider listed with scores ✓
+   - Fonnte: anti-banned 85, RECOMMENDED, "Best overall untuk LAPRA 08"
+   - Waboo: anti-banned 80, RECOMMENDED, "Cocok jika butuh chatbot + auto-reply"
+   - Wootalk: anti-banned 100 (official partner)
+   - WhatsApp Business API: anti-banned 100 (direct Meta)
+   - WAPBLOOM: anti-banned 88 (international)
+4. UI no React errors, 28KB HTML, all 10 endpoints return 200 (except ai-suggestions 405 POST-only, expected)
+
+Files created/modified:
+- NEW: /src/app/api/essay-polls/topic-suggestions/route.ts (180+ lines)
+- NEW: /src/app/api/broadcast-composer/gateway-providers/route.ts (300+ lines)
+- MODIFIED: /src/components/menus/communication-menu.tsx (+450 lines: topic suggestions panel + GatewayProvidersDialog)
+- MODIFIED: import Shield icon
+
+Stage Summary:
+- Modal AI Essay sekarang kaya ide: 10 kategori + 36 topik siap pakai + 10 trending opinions + recent news
+- Auto-fill topic dari saran (1 klik → form terisi otomatis)
+- WhatsApp Gateway recommendations lengkap: 5 provider dengan comparison, anti-banned scores, integration steps, API key config, test koneksi
+- Provider recommended: Fonnte (best overall Indonesia), Waboo (with chatbot), Wootalk (official, zero banned)
+- Anti-banned tips terintegrasi di dialog
