@@ -311,21 +311,21 @@ function EditButton({ onClick, label = 'Edit Konten' }: { onClick: () => void; l
 // --- Default content untuk Tentang LAPRA 08 (15 fields) ---
 const DEFAULT_TENTANG_CONTENT = {
   heroTitle: 'Laskar Prabowo 08 (LAPRA 08)',
-  heroSubtitle: 'Komunitas Relawan Resmi Prabowo Subianto',
+  heroSubtitle: 'Organisasi Kemasyarakatan & Wadah Relawan Resmi Prabowo Subianto',
   heroDescription:
-    'Laskar Prabowo 08 (LAPRA 08) adalah komunitas relawan resmi Prabowo Subianto yang bergerak dalam pengawasan program, kaderisasi, dan aksi sosial nasional.',
-  misiStrategis1: 'Mengawal program-program pemerintah Prabowo-Gibran',
-  misiStrategis2: 'Kaderisasi dan pembinaan relawan di seluruh Indonesia',
+    'Laskar Prabowo 08—yang secara resmi disingkat sebagai LAPRA 08—adalah organisasi kemasyarakatan sekaligus wadah relawan resmi Prabowo Subianto yang bergerak aktif di tingkat nasional.',
+  misiStrategis1: 'Organisasi ini mengemban misi strategis dalam mengawal serta mengawasi implementasi program-program nasional, baik di tingkat pusat maupun daerah. Hal ini dilakukan guna memastikan keberhasilan pembangunan menuju Indonesia Emas yang merupakan cita-cita mulia Presiden Prabowo Subianto.',
+  misiStrategis2: 'Dalam pergerakannya, LAPRA 08 bertumpu pada fokus utama yang meliputi pengawasan program pemerintah, pelaksanaan kaderisasi yang terstruktur, serta penyelenggaraan aksi sosial kemanusiaan yang berdampak nyata bagi masyarakat dan negara.',
   pelantikanDate: '21 Maret 2025',
   pelantikanTempat: 'Auditorium RRI Jakarta',
   pelantik: 'Dr. (HC) Hashim S. Djojohadikusumo (Ketua Dewan Pembina)',
-  ketuaUmum: 'Periode Bakti 2024-2029',
-  pilar1Title: 'Kaderisasi',
-  pilar1Desc: 'Pembinaan dan penguatan SDM relawan lintas generasi.',
-  pilar2Title: 'Aksi Sosial',
-  pilar2Desc: 'Pengabdian dan pemberdayaan masyarakat di seluruh Indonesia.',
-  pilar3Title: 'Advokasi',
-  pilar3Desc: 'Pengawalan kebijakan dan program pemerintah secara berkelanjutan.',
+  ketuaUmum: 'Devi Taurisa, SH, MH, CLD',
+  pilar1Title: 'Pengawasan Kebijakan',
+  pilar1Desc: 'Mengawal, memantau, dan memastikan seluruh program strategis pemerintah berjalan tepat sasaran demi kesejahteraan rakyat.',
+  pilar2Title: 'Kaderisasi Nasionalis',
+  pilar2Desc: 'Membentuk, membina, dan melahirkan kader-kader berkualitas yang memiliki integritas tinggi dan berjiwa kepemimpinan nasional.',
+  pilar3Title: 'Aksi Sosial Nyata',
+  pilar3Desc: 'Menginisiasi pengabdian masyarakat dan aksi kemanusiaan secara aktif di seluruh penjuru wilayah.',
 }
 
 // --- Default content untuk Visi & Misi ---
