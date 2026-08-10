@@ -1878,3 +1878,51 @@ Stage Summary:
 - Filter ketat LAPRA 08 aktif di API (manual add + auto-sync)
 - Tombol "Sync YouTube" tersedia di UI untuk admin re-sync kapan saja
 - Tidak ada lagi video asing/tidak relevan yang bisa masuk ke Galeri Video
+
+---
+Task ID: 2026-08-10-gallery-video-thumbnails
+Agent: main
+Task: Tambahkan kemampuan menampilkan gambar/thumbnail video di Galeri Video
+
+Work Log:
+- Audit struktur data video di DB: 27 video tidak punya field videoType, thumbnail, embedUrl
+  - videoType: UNDEFINED → UI check `item.videoType === 'YOUTUBE'` gagal → thumbnail tidak muncul
+  - thumbnail: UNDEFINED → tidak ada gambar yang ditampilkan
+  - embedUrl: UNDEFINED → video player tidak bisa play
+- Update 27 video existing di DB: tambah videoType='YOUTUBE', thumbnail (dari youtubeId), embedUrl
+- Update UI GaleriVideoManager di portal-menus.tsx:
+  - Fallback thumbnail: jika thumbnail missing, generate dari youtubeId: `https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg`
+  - Fallback videoType: deteksi YouTube via `item.videoType === 'YOUTUBE' || item.youtubeId || item.youtubeUrl || item.embedUrl`
+  - onError handler: jika gambar gagal load, sembunyikan (tidak broken image)
+  - Badge view count: 👁 X views di pojok kanan atas thumbnail
+  - Badge YouTube/MP4 di pojok kiri atas
+  - Channel name dengan icon YouTube merah di bawah judul
+  - Title font text-sm (readable) dengan line-clamp-2
+  - Category badge + delete button
+- Update Video Player Dialog:
+  - Fallback embedUrl: jika missing, generate dari youtubeId
+  - Channel info + view count di dialog header
+  - Description di bawah video player
+  - Link "Buka di YouTube" dengan icon ExternalLink
+  - Error state: jika video tidak bisa diputar, tampilkan placeholder
+- Import Youtube icon dari lucide-react
+
+VLM VERIFICATION:
+- Skor: 9/10 (naik dari 2/10 sebelumnya)
+- ✅ Thumbnail video tampil di setiap card
+- ✅ Judul video: "Live Stream DPN Laskar Prabowo 08", "Kegiatan DPP Laskar Prabowo 08"
+- ✅ Channel: "DPN Laskar Prabowo 08", "Laskar Prabowo 08", "Batam TV Official"
+- ✅ View count: 311, 100, 1.335, 40, 502 (dengan icon 👁)
+- ✅ Play button overlay (lingkaran merah + segitiga)
+- ✅ Badge YouTube di pojok kiri atas
+- ✅ Category badge + tombol hapus
+
+Files modified:
+- src/components/menus/portal-menus.tsx (update GaleriVideoManager: thumbnail fallback + view count + channel display + Video Player Dialog enhancement)
+- DB: 27 videos updated with videoType, thumbnail, embedUrl fields
+
+Stage Summary:
+- 27 video LAPRA 08 sekarang menampilkan thumbnail/gambar di galeri
+- View count, channel name, dan kategori juga ditampilkan
+- Video player dialog diperbaiki dengan embedUrl fallback + link ke YouTube
+- Tidak ada lagi video dengan thumbnail kosong/broken

@@ -37,6 +37,7 @@ import {
   RefreshCw,
   Crown, Award, CheckCircle2, Clock, AlertTriangle, Globe, ExternalLink, Lock,
   Video, PlayCircle, BookMarked, FileCheck, UserCheck, XCircle, Camera, IdCard, Zap, Lightbulb,
+  Youtube,
 } from 'lucide-react'
 
 // Reuse existing functional components
@@ -1302,38 +1303,63 @@ function GaleriVideoManager() {
       </CardHeader>
       <CardContent>
         {items.length === 0 ? (
-          <EmptyState icon={Video} title="Galeri video masih kosong" description="Tambahkan video kegiatan dari YouTube atau upload file MP4." />
+          <EmptyState icon={Video} title="Galeri video masih kosong" description="Klik 'Sync YouTube' untuk auto-cari video LAPRA 08, atau tambah manual." />
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {items.map((item) => (
-              <div key={item.id} className="group relative rounded-xl overflow-hidden border shadow-sm hover:shadow-lg transition-all">
-                <div className="aspect-video bg-slate-900 relative cursor-pointer" onClick={() => setPlayingVideo(item)}>
-                  {item.videoType === 'YOUTUBE' && item.thumbnail ? (
-                    <img src={item.thumbnail} alt={item.title} className="w-full h-full object-cover" />
-                  ) : item.videoType === 'UPLOAD' ? (
-                    <video src={item.videoUrl} className="w-full h-full object-cover" muted preload="metadata" />
-                  ) : null}
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-black/40 transition-colors">
-                    <div className="w-14 h-14 rounded-full bg-white/90 flex items-center justify-center shadow-lg">
-                      <PlayCircle className="w-10 h-10 text-red-600" />
+            {items.map((item) => {
+              // Fallback: generate thumbnail from youtubeId if missing
+              const thumb = item.thumbnail || (item.youtubeId ? `https://img.youtube.com/vi/${item.youtubeId}/hqdefault.jpg` : null)
+              const isYouTube = item.videoType === 'YOUTUBE' || item.youtubeId || item.youtubeUrl || item.embedUrl
+              return (
+                <div key={item.id} className="group relative rounded-xl overflow-hidden border shadow-sm hover:shadow-lg transition-all">
+                  <div className="aspect-video bg-slate-900 relative cursor-pointer" onClick={() => setPlayingVideo(item)}>
+                    {isYouTube && thumb ? (
+                      <img src={thumb} alt={item.title} className="w-full h-full object-cover"
+                        onError={(e) => {
+                          // Fallback: if thumbnail fails to load, show a placeholder
+                          (e.target as HTMLImageElement).style.display = 'none'
+                        }} />
+                    ) : item.videoType === 'UPLOAD' && item.videoUrl ? (
+                      <video src={item.videoUrl} className="w-full h-full object-cover" muted preload="metadata" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-slate-800">
+                        <Video className="w-12 h-12 text-slate-500" />
+                      </div>
+                    )}
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-black/40 transition-colors">
+                      <div className="w-14 h-14 rounded-full bg-white/90 flex items-center justify-center shadow-lg">
+                        <PlayCircle className="w-10 h-10 text-red-600" />
+                      </div>
+                    </div>
+                    {/* Badge: YouTube or Upload */}
+                    <Badge variant="outline" className="absolute top-2 left-2 text-[13px] bg-black/70 text-white border-white/20">
+                      {isYouTube ? '📺 YouTube' : '🎬 MP4'}
+                    </Badge>
+                    {/* View count badge */}
+                    {item.viewCount > 0 && (
+                      <Badge variant="outline" className="absolute top-2 right-2 text-[13px] bg-black/70 text-white border-white/20">
+                        👁 {item.viewCount.toLocaleString('id-ID')}
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="p-3 space-y-1">
+                    <div className="font-medium text-sm line-clamp-2 leading-snug">{item.title}</div>
+                    {item.channel && (
+                      <div className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Youtube className="w-3 h-3 text-red-600" /> {item.channel}
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between">
+                      <Badge variant="outline" className="text-[13px]">{categories[item.category] || item.category}</Badge>
+                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-red-600 hover:bg-red-50"
+                        onClick={(e) => { e.stopPropagation(); setDeleteItem(item) }}>
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
                     </div>
                   </div>
-                  <Badge variant="outline" className="absolute top-2 left-2 text-[13px] bg-black/70 text-white border-white/20">
-                    {item.videoType === 'YOUTUBE' ? 'YouTube' : 'MP4 Upload'}
-                  </Badge>
                 </div>
-                <div className="p-2">
-                  <div className="font-medium text-xs truncate">{item.title}</div>
-                  <div className="flex items-center justify-between mt-1">
-                    <Badge variant="outline" className="text-[13px]">{categories[item.category] || item.category}</Badge>
-                    <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-red-600 hover:bg-red-50"
-                      onClick={(e) => { e.stopPropagation(); setDeleteItem(item) }}>
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </CardContent>
@@ -1401,19 +1427,42 @@ function GaleriVideoManager() {
       </Dialog>
 
       {/* Dialog Play Video */}
+      {/* Video Player Dialog */}
       <Dialog open={!!playingVideo} onOpenChange={(o) => !o && setPlayingVideo(null)}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-3xl" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle className="text-base">{playingVideo?.title}</DialogTitle>
-            <DialogDescription>{playingVideo?.description}</DialogDescription>
+            <DialogDescription>
+              {playingVideo?.channel && <span className="flex items-center gap-1"><Youtube className="w-3 h-3 text-red-600" /> {playingVideo.channel}</span>}
+              {playingVideo?.viewCount > 0 && <span className="ml-2">👁 {playingVideo.viewCount.toLocaleString('id-ID')} views</span>}
+            </DialogDescription>
           </DialogHeader>
           <div className="aspect-video rounded-lg overflow-hidden bg-black">
-            {playingVideo?.videoType === 'YOUTUBE' ? (
-              <iframe src={playingVideo.embedUrl} className="w-full h-full" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen frameBorder="0" />
-            ) : playingVideo?.videoType === 'UPLOAD' ? (
+            {(playingVideo?.videoType === 'YOUTUBE' || playingVideo?.youtubeId) ? (
+              <iframe
+                src={playingVideo?.embedUrl || (playingVideo?.youtubeId ? `https://www.youtube.com/embed/${playingVideo.youtubeId}` : '')}
+                className="w-full h-full"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen frameBorder="0" />
+            ) : playingVideo?.videoType === 'UPLOAD' && playingVideo?.videoUrl ? (
               <video src={playingVideo.videoUrl} className="w-full h-full" controls autoPlay />
-            ) : null}
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-white">
+                <div className="text-center">
+                  <Video className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm opacity-70">Video tidak dapat diputar</p>
+                </div>
+              </div>
+            )}
           </div>
+          {playingVideo?.description && (
+            <p className="text-sm text-muted-foreground mt-2">{playingVideo.description}</p>
+          )}
+          {(playingVideo?.youtubeUrl || playingVideo?.url) && (
+            <a href={playingVideo?.youtubeUrl || playingVideo?.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline">
+              <ExternalLink className="w-3.5 h-3.5" /> Buka di YouTube
+            </a>
+          )}
         </DialogContent>
       </Dialog>
 
