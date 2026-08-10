@@ -34,6 +34,7 @@ import {
   Building2, BookOpen, Scale, Briefcase, HandHeart, CalendarClock,
   PhoneCall, MessageSquare, HelpCircle, Map as MapIcon, Mail, Plus,
   Edit, Trash2, MoreVertical, Pin, Send, Eye, Upload, Loader2, Search,
+  RefreshCw,
   Crown, Award, CheckCircle2, Clock, AlertTriangle, Globe, ExternalLink, Lock,
   Video, PlayCircle, BookMarked, FileCheck, UserCheck, XCircle, Camera, IdCard, Zap, Lightbulb,
 } from 'lucide-react'
@@ -1268,9 +1269,35 @@ function GaleriVideoManager() {
           <CardTitle className="flex items-center gap-2 text-base">
             <Video className="w-4 h-4 text-emerald-600" /> Galeri Video ({items.length})
           </CardTitle>
-          <Button onClick={() => setAddOpen(true)} size="sm" className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white">
-            <Plus className="w-4 h-4 mr-1" /> Tambah Video
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={async () => {
+              setUploading(true)
+              try {
+                const res = await fetch('/api/gallery/videos', {
+                  method: 'POST', headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+                  body: JSON.stringify({ action: 'sync_youtube' }),
+                })
+                const data = await res.json()
+                if (data.success) {
+                  addToast(data.message, 'success')
+                  loadData()
+                } else {
+                  addToast(data.error, 'error')
+                }
+              } catch (e: any) { addToast(e.message, 'error') }
+              finally { setUploading(false) }
+            }} size="sm" variant="outline" disabled={uploading}>
+              {uploading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-1" />}
+              {uploading ? 'Syncing...' : 'Sync YouTube'}
+            </Button>
+            <Button onClick={() => setAddOpen(true)} size="sm" className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white">
+              <Plus className="w-4 h-4 mr-1" /> Tambah Video
+            </Button>
+          </div>
+        </div>
+        <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-2 text-xs text-emerald-800 mt-2">
+          <strong>📋 Filter LAPRA 08 Aktif:</strong> Hanya video yang mengandung keyword "Laskar Prabowo 08" / "LAPRA 08" / varian yang diperbolehkan.
+          Klik <strong>"Sync YouTube"</strong> untuk auto-cari video LAPRA 08 terbaru dari YouTube.
         </div>
       </CardHeader>
       <CardContent>

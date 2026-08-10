@@ -1816,3 +1816,65 @@ Stage Summary:
 - Badge, button, table, label, input, dialog semua dapat minimum readable size
 - Bug runtime error SelectItem value='' di modal Broadcast sudah di-fix
 - VLM verification: skor readability 8-8.5/10 (dari sebelumnya sangat kecil)
+
+---
+Task ID: 2026-08-10-gallery-video-filter
+Agent: main
+Task: Audit & perbaiki Galeri Video di Pusat Media — filter video asing, sync LAPRA 08 only
+
+Work Log:
+- Audit isi Galeri Video: hanya 2 video dummy tersimpan:
+  1. "Aksi Sosial DPD Bangka Belitung" — YouTube ID: dQw4w9WgXcQ (Rick Astley prank video!)
+  2. "Pelantikan DPN LAPRA 08 Periode 2024-2029" — YouTube ID: YxMxSl1N2mw (random video)
+  Kedua video ini TIDAK benar-benar tentang LAPRA 08 — hanya dummy data.
+
+- Hapus 2 video dummy: deleteMany GALLERY_VIDEO → 2 deleted
+
+- Buat script sync-gallery-videos.ts:
+  - Search YouTube via yt-dlp dengan 3 queries: "Laskar Prabowo 08", "LAPRA 08", "Laskar Prabowo 08 Prabowo"
+  - STRICT FILTER: hanya video yang title mengandung keyword LAPRA 08:
+    * "laskar prabowo 08", "laskar prabowo delapan", "lapra 08", "lapra08",
+    * "laskarprabowo08", "laskar prabowo 8", "lapra 8", "hashim laskar prabowo"
+  - Detect kategori otomatis: PELANTIKAN, RAPAT, SOSIAL, DOKUMENTER, KEGIATAN
+  - Deduplicate by YouTube ID
+  - Insert ke SystemSetting dengan value JSON (title, youtubeId, channel, viewCount, publishedAt, dll)
+
+- Hasil sync pertama: 18 video LAPRA 08 asli tersimpan:
+  - "Deklarasi Dan Pelantikan DPD Laskar Prabowo 08 Bali" (Prabunews channel, 599 views)
+  - "Hasim Djojohadikusumo Lantik Pengurus Laskar Prabowo 08 Se Indonesia" (Suarafaktual News TV, 149 views)
+  - "Deklarasi Laskar Prabowo 08 Jawa Timur" (Laskar Prabowo 08 channel, 81 views)
+  - "Menyambut kedatangan Bpk Hashim Djojohadikusumo #LaskarPrabowo08" (1456 views)
+  - ... dan 14 video lainnya
+
+- Update API /api/gallery/videos POST:
+  - Tambah action 'sync_youtube' untuk auto-sync dari YouTube
+  - STRICT FILTER validation: cek title + description mengandung keyword LAPRA 08
+  - Jika tidak relevan → reject dengan pesan: "Video ditolak: judul/deskripsi tidak mengandung keyword LAPRA 08"
+  - Auto-detect category dari title (PELANTIKAN, RAPAT, SOSIAL, dll)
+  - Extract YouTube ID dari berbagai format URL (watch, youtu.be, embed, shorts)
+  - Source tracking: 'MANUAL' atau 'YOUTUBE_AUTO_SYNC'
+
+- Update UI GaleriVideoManager di portal-menus.tsx:
+  - Tombol baru "Sync YouTube" (icon RefreshCw) — trigger auto-sync LAPRA 08 videos
+  - Info banner: "Filter LAPRA 08 Aktif: Hanya video yang mengandung keyword 'Laskar Prabowo 08' / 'LAPRA 08' yang diperbolehkan"
+  - Loading state saat sync berjalan
+  - Toast message dengan hasil sync (X found, Y LAPRA-related, Z inserted, W duplicates)
+
+TEST RESULTS:
+1. ✅ GET gallery/videos: 18 LAPRA 08 videos (dari 0 dummy sebelumnya)
+2. ✅ POST add video tidak relevan ("Video Lucu Kucing Tertawa") → DITOLAK dengan pesan jelas
+3. ✅ POST add video LAPRA 08 ("Laskar Prabowo 08 Kegiatan Bakti Sosial") → DITERIMA
+4. ✅ POST sync_youtube: 35 video ditemukan di YouTube, 19 LAPRA 08 related, 5 baru disimpan, 14 duplikat
+5. ✅ Filter ketat: hanya 19 dari 35 video YouTube yang lolos (54% pass rate — ketat)
+
+FILES MODIFIED:
+- NEW: /scripts/sync-gallery-videos.ts (130 lines)
+- MODIFIED: /src/app/api/gallery/videos/route.ts (+150 lines: filter + sync_youtube action + isLapraRelated + detectCategory + extractYouTubeId)
+- MODIFIED: /src/components/menus/portal-menus.tsx (+30 lines: tombol Sync YouTube + filter info banner + import RefreshCw)
+
+Stage Summary:
+- 2 video dummy tidak relevan (termasuk Rick Astley prank) dihapus
+- 23 video LAPRA 08 asli tersimpan (18 dari sync pertama + 5 dari sync kedua)
+- Filter ketat LAPRA 08 aktif di API (manual add + auto-sync)
+- Tombol "Sync YouTube" tersedia di UI untuk admin re-sync kapan saja
+- Tidak ada lagi video asing/tidak relevan yang bisa masuk ke Galeri Video
