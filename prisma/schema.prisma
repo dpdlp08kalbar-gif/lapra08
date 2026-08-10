@@ -42,6 +42,9 @@ model Territory {
   orgPositions OrgPosition[]
   skDocuments SKDocument[]
   ktaApplications KtaApplication[]
+  polls         Poll[]
+  crisisZones   CrisisZone[]
+  voterContacts VoterContact[]
 }
 
 // ============================================================
@@ -73,6 +76,9 @@ model User {
   ticketReplies SupportTicketReply[]
   attendance    EventAttendance[]
   distributions Distribution[] @relation("DistReceiver")
+  pollsCreated  Poll[]
+  crisisZonesResolved CrisisZone[] @relation("CrisisResolver")
+  aspirationsReviewed Aspiration[] @relation("AspirationReviewer")
 }
 
 // ============================================================
@@ -308,16 +314,26 @@ model Broadcast {
   id            String   @id @default(cuid())
   title         String
   message       String
-  channel       String   @default("WHATSAPP") // WHATSAPP | SMS | EMAIL
-  status        String   @default("DRAFT") // DRAFT | QUEUED | SENT | FAILED
+  channels      String   @default("[\"WHATSAPP\"]")
+  channel       String   @default("WHATSAPP") // WHATSAPP | FACEBOOK | INSTAGRAM | SMS | EMAIL
+  status        String   @default("DRAFT") // DRAFT | QUEUED | SENT | FAILED | PARTIAL
   targetScope   String   // JSON: {territoryId, level, filter}
   recipientCount Int     @default(0)
+  imageUrl      String?
+  videoUrl      String?
+  linkUrl       String?
+  channelStats  String?
+  channelPostIds String?
+  crisisZoneId  String?
+  pollId        String?
   sentById      String
   sentBy        User     @relation(fields: [sentById], references: [id])
   scheduledAt   DateTime?
   sentAt        DateTime?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+
+  @@index([channel, status])
 }
 
 model Announcement {
@@ -463,4 +479,151 @@ model KtaApplication {
   submittedById   String?  // null = pemohon publik (no login)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+}
+
+// ============================================================
+// COMMAND CENTER - SENTIMEN PRESIDEN & PEMENANGAN PILPRES
+// ============================================================
+
+// 1. PRESIDENTIAL SENTIMENT DASHBOARD - Polling kepuasan publik
+model Poll {
+  id              String   @id @default(cuid())
+  title           String
+  question        String
+  description     String?
+  triggerEvent    String?
+  triggerUrl      String?
+  options         String   // JSON array of {id, label, sentiment}
+  targetDemographics String?
+  status          String   @default("DRAFT") // DRAFT | ACTIVE | CLOSED | ARCHIVED
+  territoryId     String
+  territory       Territory @relation(fields: [territoryId], references: [id])
+  scheduledAt     DateTime?
+  broadcastSentAt DateTime?
+  broadcastRecipientCount Int @default(0)
+  closesAt        DateTime?
+  createdById     String
+  createdBy       User     @relation(fields: [createdById], references: [id])
+  aspirations     Aspiration[]
+  responses       PollResponse[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model PollResponse {
+  id              String   @id @default(cuid())
+  pollId          String
+  poll            Poll     @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  respondentPhone String?
+  respondentName  String?
+  ageGroup        String?
+  gender          String?
+  occupation      String?
+  provinceCode    String?
+  regencyCode     String?
+  districtCode    String?
+  optionId        String
+  sentiment       String
+  feedback        String?
+  ipAddress       String?
+  userAgent       String?
+  submittedAt     DateTime @default(now())
+
+  @@index([pollId, sentiment])
+  @@index([pollId, ageGroup])
+  @@index([pollId, occupation])
+  @@index([pollId, provinceCode])
+}
+
+// 2. CRISIS ZONE - Geo-Fencing klarifikasi isu negatif
+model CrisisZone {
+  id              String   @id @default(cuid())
+  title           String
+  description     String
+  issueCategory   String
+  issueSource     String?
+  sentimentScore  Float    @default(0)
+  territoryId     String
+  territory       Territory @relation(fields: [territoryId], references: [id])
+  isLocked        Boolean  @default(true)
+  status          String   @default("ACTIVE")
+  severity        String   @default("MEDIUM")
+  clarificationMessage String?
+  clarificationVideoUrl String?
+  clarificationQuote String?
+  broadcastSentAt DateTime?
+  broadcastRecipientCount Int @default(0)
+  resolvedAt      DateTime?
+  resolvedById    String?
+  resolvedBy      User?    @relation("CrisisResolver", fields: [resolvedById], references: [id])
+  resolutionNotes String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// 3. ASPIRASI RAKYAT - Microsite Solusi
+model Aspiration {
+  id              String   @id @default(cuid())
+  pollId          String?
+  poll            Poll?    @relation(fields: [pollId], references: [id])
+  senderName      String?
+  senderPhone     String?
+  senderEmail     String?
+  category        String   @default("LAINNYA")
+  subCategory     String?
+  provinceCode    String?
+  regencyCode     String?
+  districtCode    String?
+  ageGroup        String?
+  gender          String?
+  occupation      String?
+  title           String
+  message         String
+  sourceUrl       String?
+  sentiment       String   @default("NEUTRAL")
+  priority        String   @default("NORMAL")
+  status          String   @default("NEW")
+  reviewedById   String?
+  reviewedBy      User?    @relation("AspirationReviewer", fields: [reviewedById], references: [id])
+  reviewedAt      DateTime?
+  reviewNotes     String?
+  aiCluster       String?
+  submittedAt     DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// 4. VOTER CONTACT DATABASE
+model VoterContact {
+  id              String   @id @default(cuid())
+  name            String
+  phone           String   @unique
+  whatsappOptIn   Boolean  @default(true)
+  email           String?
+  ageGroup        String?
+  gender          String?
+  occupation      String?
+  religion        String?
+  path            String
+  countryCode     String   @default("ID")
+  provinceCode    String?
+  regencyCode     String?
+  districtCode    String?
+  villageCode     String?
+  rtCode          String?
+  rwCode          String?
+  territoryId     String
+  territory       Territory @relation(fields: [territoryId], references: [id])
+  isActive        Boolean  @default(true)
+  isVerified      Boolean  @default(false)
+  lastContactedAt DateTime?
+  contactCount    Int      @default(0)
+  responseCount   Int      @default(0)
+  registeredAt    DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([path])
+  @@index([territoryId])
+  @@index([provinceCode])
+  @@index([occupation, provinceCode])
+  @@index([whatsappOptIn, isActive])
 }
