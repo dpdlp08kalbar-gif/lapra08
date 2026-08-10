@@ -1196,3 +1196,34 @@ Stage Summary:
 - Essay polling: AI generate pertanyaan + AI analisis jawaban → dua arah
 - Decision dashboard: sintesis otomatis dari semua data sources untuk pengambil keputusan politik
 - Files: communication-menu.tsx (rewrite 1500+ lines), 5 API endpoints baru, 3 schema models baru
+
+---
+Task ID: 2026-08-10-finalize-closed-loop
+Agent: main
+Task: Lanjutkan penyelesaian — closed-loop test + sinkronisasi Audit AI Responding dengan PublicOpinionLink
+
+Work Log:
+- Audit: 17 API endpoints (6 baru + 11 lama) semua return 200 OK, no React errors, no compile errors
+- Closed-loop test BERHASIL end-to-end:
+  1. Scan otomatis (Opini Publik Auto-Scanner): 23 REAL mention tersimpan (15 YouTube + 8 Google News)
+  2. AI generate essay poll dari link opini: input artikel Metro24Jam → AI deteksi NEUTRAL, NATIONAL scope, umum → generate pertanyaan essay
+  3. Aktivasi poll (DRAFT → ACTIVE)
+  4. Public submit jawaban essay 35 kata: AI analisis → NEUTRAL, urgency 31/100, keywords: kasus/harus/prihatin/korban/keadilan/polda/sumut
+  5. Decision Dashboard auto-update: 2 active polls, executive summary menggabungkan 33 mention + 2 essay polls + 7 audit scans
+- Sinkronisasi Audit AI Responding (Beranda) ↔ PublicOpinionLink (Komunikasi):
+  - Update /api/audit-ai/scans/route.ts: setiap mention yang di-scan juga di-upsert ke PublicOpinionLink table
+  - Manfaat: Audit AI Responding dialog di Beranda dan Decision Dashboard di Komunikasi & Command Center sekarang pakai sumber data yang sama
+  - Single source of truth: PublicOpinionLink jadi tabel master untuk semua opini publik
+- Test sinkronisasi BERHASIL:
+  - Audit AI scan terbaru: 23 mentions, 7 needs response
+  - PublicOpinionLink total: 33 (bertambah otomatis dari audit scan)
+  - Audit history: 7 scan tersimpan
+  - Decision Dashboard menggabungkan semua sumber
+
+Stage Summary:
+- Workflow lengkap berjalan end-to-end tanpa intervensi manual
+- Audit AI Responding (Beranda) + 6 sub-menu Komunikasi & Command Center sekarang terintegrasi via PublicOpinionLink table
+- 33 REAL mention tersimpan dengan lokasi, sentimen, prioritas, kategori, AI summary
+- 2 essay polls aktif dengan jawaban + AI analisis otomatis
+- Decision Dashboard memberikan executive summary + action items untuk pengambil keputusan politik
+- Semua RBAC 3-tier (DPN/DPD/DPC) berfungsi di setiap endpoint

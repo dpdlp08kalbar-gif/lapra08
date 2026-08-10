@@ -132,6 +132,42 @@ export async function POST(request: NextRequest) {
           engagementCount: post.engagementCount,
         },
       })
+
+      // === ALSO sync to PublicOpinionLink table (single source of truth for Decision Dashboard) ===
+      // Upsert: if URL exists, skip; if not, create new entry
+      try {
+        const existingLink = await db.publicOpinionLink.findUnique({ where: { url: post.url } })
+        if (!existingLink) {
+          await db.publicOpinionLink.create({
+            data: {
+              url: post.url,
+              platform: post.platform,
+              title: (post.title || post.content || '').substring(0, 500),
+              content: post.content.substring(0, 1000),
+              author: post.author,
+              authorHandle: post.authorHandle,
+              publishedAt: post.publishedAt,
+              engagementCount: post.engagementCount,
+              provinceCode: loc.provinceCode,
+              provinceName: loc.provinceName,
+              regencyCode: loc.regencyCode,
+              regencyName: loc.regencyName,
+              sentiment: sentiment.sentiment,
+              priority: priority.priority,
+              urgencyScore: priority.urgencyScore,
+              category: priority.category,
+              keywords: JSON.stringify({ source: post.source, scanId: scan.id }),
+              aiSummary: `Via Audit AI: ${sentiment.sentiment}. ${priority.category}. Urgency ${priority.urgencyScore}/100. ${loc.regencyName || loc.provinceName || 'Nasional'}.`,
+              status: 'NEW',
+              sourceMethod: 'AUTO',
+              scanId: scan.id,
+            },
+          })
+        }
+      } catch (e: any) {
+        // Don't fail the whole scan if a single upsert fails
+        console.error('[Audit AI] Sync to PublicOpinionLink failed:', e.message)
+      }
     }
 
     // Update scan stats (mark COMPLETED)
