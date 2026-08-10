@@ -61,8 +61,8 @@ export function LoginPage() {
         {/* Left side - Branding */}
         <div className="hidden lg:flex flex-col gap-6 p-8">
           <div className="flex items-center gap-3">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center shadow-lg">
-              <Shield className="w-9 h-9 text-white" />
+            <div className="w-16 h-16 rounded-2xl bg-white shadow-lg flex items-center justify-center overflow-hidden border border-slate-200">
+              <img src="/logo-lapra08.png" alt="LAPRA 08" className="w-full h-full object-contain p-1" />
             </div>
             <div>
               <h1 className="text-3xl font-black tracking-tight bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">

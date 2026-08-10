@@ -706,3 +706,47 @@ Stage Summary:
 - ✅ Profile menu: 5 tabs fully functional with CRUD for SUPERADMIN
 - ✅ Command Center: 6 tabs fully functional with real data
 - ✅ All VLM checks pass
+
+---
+Task ID: LAPRA08-LOGO-REPLACE-V20
+Agent: Main Agent (Super Z)
+Task: Replace placeholder shield icon with real LAPRA 08 logo
+
+Work Log:
+- User upload: "Logo Laskar Prabowo 08 transparan.png" (198KB, PNG with transparency)
+- Copy logo to /public/logo-lapra08.png
+- Replace logo in 3 locations:
+
+1. Login Page (src/components/login-page.tsx):
+  - Left branding area: Shield icon → real LAPRA 08 logo
+  - Logo in white rounded container with border for visibility on light background
+
+2. Sidebar Header (src/components/main-shell.tsx):
+  - Top-left of dark sidebar: Shield icon → real LAPRA 08 logo
+  - Logo in subtle white/5 background container with border for visibility on dark sidebar
+
+3. Profil - Tentang LAPRA 08 Hero Banner (src/components/menus/portal-menus.tsx):
+  - Hero card: Added logo image on left side next to title
+  - Logo in white/10 backdrop-blur container with white/20 border
+  - Layout: flex with logo (20x20/24x24) + text content
+
+4. Browser Tab Favicon & Metadata (src/app/layout.tsx):
+  - icon: Z.ai CDN SVG → /logo-lapra08.png
+  - apple: /logo-lapra08.png (for iOS)
+  - Title: "Z.ai Code Scaffold" → "LAPRA 08 - Sistem Informasi Internal Global"
+  - Description: Updated to LAPRA 08 description
+  - Keywords: Updated to LAPRA 08 keywords
+  - Authors: "Z.ai Team" → "DPN LAPRA 08"
+  - OpenGraph: Updated to LAPRA 08
+  - Removed Twitter card metadata (not needed)
+
+- Verifikasi via VLM:
+  * Login page: ✅ Real LAPRA 08 logo visible (red shield with "Laskar Prabowo" text)
+  * Sidebar: ✅ Real logo at top of dark sidebar
+  * Profil hero: ✅ Logo visible on left side of hero banner
+
+Stage Summary:
+- ✅ Logo LAPRA 08 dipasang di 3 lokasi UI (login, sidebar, profil hero)
+- ✅ Favicon & metadata diupdate ke LAPRA 08
+- ✅ Browser tab title: "LAPRA 08 - Sistem Informasi Internal Global"
+- ✅ VLM verified: real logo terlihat di semua lokasi

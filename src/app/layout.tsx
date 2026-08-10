@@ -14,24 +14,19 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Z.ai Code Scaffold - AI-Powered Development",
-  description: "Modern Next.js scaffold optimized for AI-powered development with Z.ai. Built with TypeScript, Tailwind CSS, and shadcn/ui.",
-  keywords: ["Z.ai", "Next.js", "TypeScript", "Tailwind CSS", "shadcn/ui", "AI development", "React"],
-  authors: [{ name: "Z.ai Team" }],
+  title: "LAPRA 08 - Sistem Informasi Internal Global",
+  description: "Sistem informasi internal Laskar Prabowo 08 (LAPRA 08) - Portal resmi DPN, DPD, dan DPC se-Indonesia.",
+  keywords: ["LAPRA 08", "Laskar Prabowo 08", "Sistem Informasi", "Portal Organisasi", "Indonesia"],
+  authors: [{ name: "DPN LAPRA 08" }],
   icons: {
-    icon: "https://z-cdn.chatglm.cn/z-ai/static/logo.svg",
+    icon: "/logo-lapra08.png",
+    apple: "/logo-lapra08.png",
   },
   openGraph: {
-    title: "Z.ai Code Scaffold",
-    description: "AI-powered development with modern React stack",
-    url: "https://chat.z.ai",
-    siteName: "Z.ai",
+    title: "LAPRA 08 - Sistem Informasi Internal",
+    description: "Portal resmi Laskar Prabowo 08",
+    siteName: "LAPRA 08",
     type: "website",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Z.ai Code Scaffold",
-    description: "AI-powered development with modern React stack",
   },
 };
 

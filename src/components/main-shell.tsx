@@ -64,8 +64,8 @@ export function MainShell({ children }: { children: React.ReactNode }) {
       {/* Logo Header */}
       <div className="p-4 border-b border-slate-800">
         <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-orange-500 via-red-500 to-red-600 flex items-center justify-center shrink-0 shadow-lg shadow-orange-500/20">
-            <Shield className="w-6 h-6 text-white" />
+          <div className="w-11 h-11 rounded-xl bg-white/5 flex items-center justify-center shrink-0 overflow-hidden border border-slate-700">
+            <img src="/logo-lapra08.png" alt="LAPRA 08" className="w-full h-full object-contain p-1" />
           </div>
           {!sidebarCollapsed && (
             <div className="min-w-0">

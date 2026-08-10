@@ -383,13 +383,19 @@ function TentangLAPRASection() {
         <div className="absolute top-0 right-0 opacity-5">
           <Crown className="w-56 h-56 -mr-8 -mt-8" />
         </div>
-        <div className="relative z-10 p-6 lg:p-8">
-          <Badge className="bg-orange-500/20 text-orange-200 border border-orange-400/30 mb-3">
-            <ShieldCheck className="w-3 h-3 mr-1" /> Periode 2024-2029
-          </Badge>
-          <h2 className="text-3xl lg:text-4xl font-black text-white mb-2">{content.heroTitle}</h2>
-          <p className="text-orange-200 font-medium mb-3">{content.heroSubtitle}</p>
-          <p className="text-white/70 max-w-3xl leading-relaxed">{content.heroDescription}</p>
+        <div className="relative z-10 p-6 lg:p-8 flex items-start gap-6">
+          {/* Logo LAPRA 08 */}
+          <div className="w-20 h-20 lg:w-24 lg:h-24 rounded-2xl bg-white/10 backdrop-blur-sm flex items-center justify-center shrink-0 overflow-hidden border border-white/20">
+            <img src="/logo-lapra08.png" alt="Logo LAPRA 08" className="w-full h-full object-contain p-2" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <Badge className="bg-orange-500/20 text-orange-200 border border-orange-400/30 mb-3">
+              <ShieldCheck className="w-3 h-3 mr-1" /> Periode 2024-2029
+            </Badge>
+            <h2 className="text-3xl lg:text-4xl font-black text-white mb-2">{content.heroTitle}</h2>
+            <p className="text-orange-200 font-medium mb-3">{content.heroSubtitle}</p>
+            <p className="text-white/70 max-w-3xl leading-relaxed">{content.heroDescription}</p>
+          </div>
         </div>
       </div>
 
