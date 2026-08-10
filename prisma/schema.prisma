@@ -1133,8 +1133,125 @@ model PublicOpinionLink {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
+  // Relasi ke OpinionDemographic (untuk filter demografi & drill-down)
+  demographics    OpinionDemographic[]
+
   @@index([platform, status])
   @@index([provinceCode, regencyCode, status])
   @@index([priority, status])
 }
+
+// ============================================================
+// GEOSPATIAL VOICE MAPPING & DEMOGRAPHICS ANALYTICS
+// Sistem intelijen opini publik — 7 level hierarki + 3 dimensi
+// ============================================================
+
+// 1. POPULATION_DATA - data populasi per wilayah (untuk density & demografi base)
+// Mendukung 7 level: NATIONAL | PROVINCE | REGENCY | DISTRICT | VILLAGE | RW | RT
+model PopulationData {
+  id              String   @id @default(cuid())
+  territoryCode   String   @unique // kode wilayah: ID, 61, 6171, dst
+  level           String   // NATIONAL | PROVINCE | REGENCY | DISTRICT | VILLAGE | RW | RT
+  // Total populasi
+  totalPopulation Int      @default(0)
+  totalVoters     Int      @default(0) // DPT (Daftar Pemilih Tetap) est
+  // Demografi usia pemilih (5 segmen Pemilu)
+  voters17to21    Int      @default(0) // Pemilih Pemula
+  voters22to30    Int      @default(0) // Pemilih Muda
+  voters31to40    Int      @default(0) // Pemilih Matang/Dewasa
+  voters41to60    Int      @default(0) // Pemilih Paruh Baya
+  voters61plus   Int      @default(0) // Pemilih Lansia/Senior
+  // Community segments (4 cluster)
+  populationIndigenous Int @default(0) // Suku Adat & Budaya
+  populationReligious  Int @default(0) // Komunitas Agama & Kepercayaan
+  populationProfession Int @default(0) // Kelompok Profesi (Petani, Nelayan, Buruh, Guru, UMKM, Mahasiswa)
+  populationYouth      Int @default(0) // Aliansi Ormas & Komunitas Pemuda
+  // Metadata
+  geoCenter       String?  // JSON { lat, lng } - pusat wilayah untuk peta
+  boundingBox     String?  // JSON untuk polygon/heatmap
+  lastUpdated     DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([level])
+  @@index([territoryCode])
+}
+
+// 2. TRUST_INDEX - indeks kepercayaan publik terhadap pemerintahan Presiden Prabowo
+// Di-hitung per wilayah × segmen demografi (multi-dimensional)
+model TrustIndex {
+  id              String   @id @default(cuid())
+  territoryCode   String   // kode wilayah
+  level           String   // NATIONAL | PROVINCE | REGENCY | DISTRICT | VILLAGE | RW | RT
+  // Dimensi demografi yang diukur (nullable = agregat semua)
+  ageGroup        String?  // 17-21 | 22-30 | 31-40 | 41-60 | 61+ | null(ALL)
+  communitySegment String? // INDIGENOUS | RELIGIOUS | PROFESSION | YOUTH | null(ALL)
+  // Skor indeks (0-100)
+  trustScore      Float    @default(50) // 0=sangat tidak percaya, 100=sangat percaya
+  sentimentPositive Float  @default(0) // jumlah mention positif
+  sentimentNegative Float @default(0) // jumlah mention negatif
+  sentimentNeutral  Float  @default(0) // jumlah mention netral
+  // Kalkulasi
+  totalMentions   Int      @default(0)
+  totalEngagement Int      @default(0)
+  sampleSize      Int      @default(0) // jumlah data yang dipakai untuk hitung
+  confidence      Float    @default(0) // confidence level 0-100 (semakin banyak sample, semakin tinggi)
+  // Trend
+  trendDirection  String   @default("STABLE") // UP | DOWN | STABLE
+  trendChange      Float   @default(0) // perubahan skor dari periode sebelumnya
+  // Metadata
+  calculatedAt    DateTime @default(now())
+  periodStart     DateTime
+  periodEnd       DateTime
+
+  @@unique([territoryCode, ageGroup, communitySegment])
+  @@index([territoryCode, level])
+  @@index([ageGroup, communitySegment])
+  @@index([trustScore])
+}
+
+// 3. OPINION_DEMOGRAPHIC - relasi opinion link dengan demografi (untuk filter & drill-down)
+// Setiap mention opini bisa dikaitkan dengan kelompok demografi tertentu
+model OpinionDemographic {
+  id              String   @id @default(cuid())
+  opinionLinkId   String
+  opinionLink     PublicOpinionLink @relation(fields: [opinionLinkId], references: [id], onDelete: Cascade)
+  // Demografi yang diidentifikasi dari konten
+  ageGroup        String?  // 17-21 | 22-30 | 31-40 | 41-60 | 61+
+  communitySegment String? // INDIGENOUS | RELIGIOUS | PROFESSION | YOUTH
+  profession      String? // PETANI | NELAYAN | BURUH | GURU | UMKM | MAHASISWA (jika segment=PROFESSION)
+  // Lokasi granular (jika terdeteksi dari konten)
+  districtCode    String?  // kode kecamatan
+  villageCode     String?  // kode kelurahan/desa
+  rwCode          String?  // kode RW
+  rtCode          String?  // kode RT
+  // Sumber identifikasi demografi
+  detectionMethod String   @default("AI") // AI | MANUAL | INFERRED
+  confidence      Float    @default(0)
+  createdAt       DateTime @default(now())
+
+  @@index([opinionLinkId])
+  @@index([ageGroup, communitySegment])
+  @@index([districtCode, villageCode])
+}
+
+// 4. TERRITORY_HIERARCHY_CACHE - cache hierarki 7-level untuk drill-down cepat
+// Hindari query rekursif Parent.children berlapis
+model TerritoryHierarchyCache {
+  id              String   @id @default(cuid())
+  territoryCode   String   @unique
+  level           String   // NATIONAL | PROVINCE | REGENCY | DISTRICT | VILLAGE | RW | RT
+  name            String
+  parentId        String?
+  // Path lengkap dari root ke node ini (JSON array of {code, name, level})
+  fullPath        String   // JSON
+  // Children direct (untuk drill-down)
+  childrenCount   Int      @default(0)
+  // Update tracking
+  lastSync        DateTime @default(now())
+
+  @@index([level])
+  @@index([parentId])
+}
+
 

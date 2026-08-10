@@ -23,7 +23,12 @@ import {
   CheckCircle2, AlertTriangle, Sparkles, Zap, Brain, Target,
   RefreshCw, Plus, Eye, Edit, Trash2, FileText, Users, TrendingUp,
   Calendar, Globe, Youtube, Newspaper, Twitter, Instagram, Facebook, Filter,
+  ChevronRight, Home, Activity, BarChart3, PieChart as PieIcon, Award,
 } from 'lucide-react'
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  RadialBarChart, RadialBar, Cell, PieChart, Pie, Legend, PolarAngleAxis,
+} from 'recharts'
 
 // ============================================================
 // MAIN: Komunikasi & Command Center — 6 Sub-menu Baru
@@ -33,7 +38,7 @@ export function CommunicationMenu() {
 
   const tabs = [
     { key: 'opinion-scanner', label: 'Opini Publik Auto-Scanner', icon: Sparkles, desc: 'Scan otomatis YouTube + Google News, AI analisis sentimen + lokasi + kategori' },
-    { key: 'opinion-map', label: 'Peta Lokasi Suara', icon: MapPin, desc: 'Heatmap geografis opini publik per provinsi & kab/kota' },
+    { key: 'opinion-map', label: 'Geospatial Voice Mapping', icon: MapPin, desc: 'Heatmap + drill-down 7 level + trust index per demografi' },
     { key: 'broadcast', label: 'Broadcast Composer', icon: Send, desc: 'Multi-channel: WA, FB, IG, Email + attach essay poll' },
     { key: 'essay-polls', label: 'Essay Polling & AI Auto-Pertanyaan', icon: Brain, desc: 'AI generate pertanyaan essay otomatis + analisis jawaban' },
     { key: 'opinion-links', label: 'Link Analisis Publik', icon: ExternalLink, desc: 'Dashboard semua link medsos yang sudah dianalisis' },
@@ -60,7 +65,7 @@ export function CommunicationMenu() {
       </div>
 
       {tab === 'opinion-scanner' && <OpinionScannerTab />}
-      {tab === 'opinion-map' && <OpinionMapTab />}
+      {tab === 'opinion-map' && <GeospatialVoiceTab />}
       {tab === 'broadcast' && <BroadcastComposerTab />}
       {tab === 'essay-polls' && <EssayPollsTab />}
       {tab === 'opinion-links' && <OpinionLinksTab />}
@@ -235,123 +240,424 @@ function OpinionScannerTab() {
 }
 
 // ============================================================
-// TAB 2: PETA LOKASI SUARA
+// TAB 2: GEOSPATIAL VOICE MAPPING & DEMOGRAPHICS ANALYTICS
+// 7-level drill-down: Nasional → Provinsi → DPC → Kec → Desa → RW → RT
+// 3 dimensi: Geografis, Demografi Usia Pemilih, Stratifikasi Sosial
 // ============================================================
-function OpinionMapTab() {
+function GeospatialVoiceTab() {
   const [loading, setLoading] = useState(true)
   const [data, setData] = useState<any>(null)
-  const [level, setLevel] = useState('PROVINCE')
-  const [selectedLoc, setSelectedLoc] = useState<any>(null)
+  const [currentCode, setCurrentCode] = useState('ID') // default: Nasional
+  const [ageFilter, setAgeFilter] = useState('')
+  const [segmentFilter, setSegmentFilter] = useState('')
+  const [demographics, setDemographics] = useState<any>(null)
+  const [showRecompute, setShowRecompute] = useState(false)
 
   const loadData = useCallback(() => {
     setLoading(true)
-    api(`/api/opinion-map?level=${level}`).then(res => {
-      const d = Array.isArray(res) ? res : (res?.data || res)
-      setData(d)
-    }).catch(() => setData(null)).finally(() => setLoading(false))
-  }, [level])
+    const params = new URLSearchParams()
+    if (ageFilter) params.set('ageGroup', ageFilter)
+    if (segmentFilter) params.set('segment', segmentFilter)
+    
+    Promise.all([
+      api(`/api/geospatial-voice?code=${currentCode}${params.toString() ? '&' + params.toString() : ''}`),
+      api(`/api/demographics-analytics?code=${currentCode}`),
+    ]).then(([geoRes, demRes]) => {
+      const geoData = geoRes?.data || geoRes
+      const demData = demRes?.data || demRes
+      setData(geoData)
+      setDemographics(demData)
+    }).catch(() => { setData(null); setDemographics(null) })
+      .finally(() => setLoading(false))
+  }, [currentCode, ageFilter, segmentFilter])
 
   useEffect(() => { loadData() }, [loadData])
 
-  if (loading) return <LoadingState />
-  if (!data || !data.locations) return <EmptyState icon={MapPin} title="Tidak ada data" description="Jalankan Opinion Scanner terlebih dahulu." />
+  const handleDrillDown = (code: string) => {
+    setCurrentCode(code)
+  }
 
-  const { locations, summary } = data
+  const handleBreadcrumbClick = (code: string) => {
+    setCurrentCode(code)
+  }
+
+  const handleRecompute = async () => {
+    setShowRecompute(true)
+    try {
+      const res = await fetch('/api/trust-index', {
+        method: 'POST',
+        headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+      })
+      const result = await res.json()
+      if (result.success) {
+        useToastStore.getState().addToast(result.message, 'success')
+        loadData()
+      }
+    } catch (e: any) {
+      useToastStore.getState().addToast(e.message, 'error')
+    } finally { setShowRecompute(false) }
+  }
+
+  if (loading) return <LoadingState />
+  if (!data) return <EmptyState icon={MapPin} title="Tidak ada data" description="Error memuat data geospasial." />
+
+  const { current, nextLevel, stats, heatmap, trustIndex, opinionLinks, allTrustIndices } = data
+
+  const levelLabels: Record<string, string> = {
+    NATIONAL: 'Nasional', PROVINCE: 'Provinsi (DPD)', REGENCY: 'Kabupaten/Kota (DPC)',
+    DISTRICT: 'Kecamatan', VILLAGE: 'Kelurahan/Desa', RW: 'Rukun Warga (RW)', RT: 'Rukun Tetangga (RT)',
+  }
+
+  // Heat color logic
+  const getTrustColor = (score: number) => {
+    if (score >= 70) return { bg: 'bg-emerald-500', text: 'text-emerald-700', light: 'bg-emerald-50' }
+    if (score >= 55) return { bg: 'bg-lime-500', text: 'text-lime-700', light: 'bg-lime-50' }
+    if (score >= 45) return { bg: 'bg-amber-500', text: 'text-amber-700', light: 'bg-amber-50' }
+    if (score >= 30) return { bg: 'bg-orange-500', text: 'text-orange-700', light: 'bg-orange-50' }
+    return { bg: 'bg-red-500', text: 'text-red-700', light: 'bg-red-50' }
+  }
+
+  // Chart data
+  const ageGroupChartData = demographics?.ageGroups?.map((ag: any) => ({
+    name: ag.key,
+    label: ag.label.split('(')[0].trim(),
+    voters: ag.voters,
+    trust: ag.trustScore,
+    mentions: ag.totalMentions,
+  })) || []
+
+  const segmentChartData = demographics?.communitySegments?.map((seg: any) => ({
+    name: seg.key,
+    label: seg.label,
+    population: seg.population,
+    trust: seg.trustScore,
+    mentions: seg.totalMentions,
+  })) || []
+
+  const currentTrust = trustIndex?.trustScore || demographics?.overall?.trustScore || 0
+  const trustColor = getTrustColor(currentTrust)
 
   return (
     <div className="space-y-4">
-      {/* Summary */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard label="Total Wilayah" value={summary.totalLocations} icon={MapPin} color="blue" />
-        <StatCard label="Total Mention" value={summary.totalLinks} icon={Sparkles} color="orange" />
-        <StatCard label="Negatif" value={summary.totalNegative} icon={AlertTriangle} color="red" />
-        <StatCard label="Total Engagement" value={summary.totalEngagement} icon={TrendingUp} color="emerald" />
-      </div>
-
-      {/* Level switcher */}
-      <div className="flex items-center gap-2">
-        <Label className="text-xs font-semibold">Level:</Label>
-        <Select value={level} onValueChange={setLevel}>
-          <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="PROVINCE">Per Provinsi (38 DPD)</SelectItem>
-            <SelectItem value="REGENCY">Per Kab/Kota (514 DPC)</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Heat list (provincial ranking) */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <MapPin className="w-5 h-5 text-orange-600" />
-            Heatmap Opini Publik per Wilayah
-          </CardTitle>
-          <CardDescription>Diurutkan berdasarkan heat score (urgensi). Klik untuk detail.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {locations.length === 0 ? (
-            <EmptyState icon={MapPin} title="Belum ada data lokasi"
-              description="Jalankan Opinion Scanner terlebih dahulu untuk mengumpulkan mention dengan lokasi terdeteksi." />
-          ) : (
-            <div className="space-y-2">
-              {locations.slice(0, 20).map((loc: any) => {
-                const heatColor = loc.heatScore >= 70 ? 'bg-red-500' :
-                  loc.heatScore >= 40 ? 'bg-amber-500' : 'bg-emerald-500'
-                return (
-                  <div key={loc.code} className="flex items-center gap-3 p-2 rounded border hover:bg-accent cursor-pointer"
-                    onClick={() => setSelectedLoc(loc)}>
-                    <div className={`w-2 h-12 rounded-full ${heatColor}`} />
-                    <div className="flex-1 min-w-0">
-                      <div className="font-semibold text-sm">{loc.name}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {loc.total} mention • {loc.NEGATIVE} negatif • {loc.HIGH} HIGH • {loc.totalEngagement} engagement
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-lg font-bold">{loc.heatScore}</div>
-                      <div className="text-[10px] text-muted-foreground">heat</div>
-                    </div>
-                  </div>
-                )
-              })}
+      {/* Header dengan judul baru + Recompute button */}
+      <Card className="border-purple-200 bg-gradient-to-br from-purple-50 via-blue-50 to-orange-50">
+        <CardContent className="p-5">
+          <div className="flex items-start gap-4">
+            <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-purple-600 via-blue-600 to-orange-600 flex items-center justify-center shadow-lg shrink-0">
+              <MapPin className="w-7 h-7 text-white" />
             </div>
-          )}
+            <div className="flex-1">
+              <h3 className="font-bold text-lg mb-1">Geospatial Voice Mapping &amp; Demographics Analytics</h3>
+              <p className="text-sm text-muted-foreground mb-3">
+                Sistem intelijen opini publik dengan 7-level hierarki drill-down (Nasional → RT) + 
+                3 dimensi analisis (Geografis, Demografi Usia Pemilih, Stratifikasi Sosial).
+                Memetakan indeks kepercayaan publik terhadap pemerintahan Presiden Prabowo.
+              </p>
+              <Button onClick={handleRecompute} disabled={showRecompute} variant="outline" size="sm">
+                {showRecompute ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <RefreshCw className="w-3 h-3 mr-1" />}
+                {showRecompute ? 'Recomputing...' : 'Recompute Trust Index'}
+              </Button>
+            </div>
+            {/* Trust Index gauge */}
+            <div className="text-center">
+              <div className={`text-4xl font-bold ${trustColor.text}`}>{currentTrust.toFixed(1)}</div>
+              <div className="text-[10px] text-muted-foreground">Trust Index</div>
+              <div className={`text-[10px] ${trustColor.text} font-semibold`}>
+                {currentTrust >= 70 ? 'TINGGI' : currentTrust >= 55 ? 'CENDERUNG POSITIF' : currentTrust >= 45 ? 'NETRAL' : currentTrust >= 30 ? 'CENDERUNG NEGATIF' : 'RENDAH'}
+              </div>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
-      {/* Detail dialog */}
-      {selectedLoc && (
-        <Dialog open={true} onOpenChange={() => setSelectedLoc(null)}>
-          <DialogContent className="max-w-2xl" aria-describedby={undefined}>
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <MapPin className="w-5 h-5 text-orange-600" />
-                Detail Opini Publik: {selectedLoc.name}
-              </DialogTitle>
-              <DialogDescription>Sample mention dari wilayah ini</DialogDescription>
-            </DialogHeader>
-            <div className="space-y-2 max-h-[60vh] overflow-y-auto">
-              {selectedLoc.sampleLinks.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">Tidak ada sample link.</p>
-              ) : selectedLoc.sampleLinks.map((link: any, i: number) => (
-                <div key={i} className="rounded border p-2">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Badge variant="outline" className="text-[10px]">{link.platform}</Badge>
-                    <Badge variant="outline" className={`text-[10px] ${link.sentiment === 'NEGATIVE' ? 'bg-red-50 text-red-700' : link.sentiment === 'POSITIVE' ? 'bg-emerald-50 text-emerald-700' : ''}`}>{link.sentiment}</Badge>
-                    <Badge variant="outline" className={`text-[10px] ${link.priority === 'HIGH' ? 'bg-red-100 text-red-800' : link.priority === 'MEDIUM' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>{link.priority}</Badge>
+      {/* Breadcrumb (drill-down path) */}
+      <Card>
+        <CardContent className="p-3">
+          <div className="flex items-center gap-1 flex-wrap text-sm">
+            <Home className="w-3.5 h-3.5 text-muted-foreground" />
+            <button onClick={() => handleBreadcrumbClick('ID')} className="text-blue-600 hover:underline text-xs font-semibold">
+              Indonesia
+            </button>
+            {current.breadcrumb.map((b: any, i: number) => (
+              <span key={i} className="flex items-center gap-1">
+                <ChevronRight className="w-3 h-3 text-muted-foreground" />
+                <button
+                  onClick={() => handleBreadcrumbClick(b.code)}
+                  className={`hover:underline text-xs ${b.code === currentCode ? 'font-bold text-orange-600' : 'text-blue-600'}`}
+                >
+                  {b.name}
+                </button>
+                <span className="text-[10px] text-muted-foreground">({levelLabels[b.level] || b.level})</span>
+              </span>
+            ))}
+            <ChevronRight className="w-3 h-3 text-muted-foreground" />
+            <span className="text-xs font-bold text-orange-600">{current.name}</span>
+            <span className="text-[10px] text-muted-foreground">({levelLabels[current.level] || current.level})</span>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Stats utama */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <StatCard label="Total Populasi" value={stats.totalPopulation.toLocaleString('id-ID')} icon={Users} color="blue" />
+        <StatCard label="Total Pemilih (DPT)" value={stats.totalVoters.toLocaleString('id-ID')} icon={Award} color="purple" />
+        <StatCard label="Total Mention Opini" value={trustIndex?.totalMentions || 0} icon={Sparkles} color="orange" />
+        <StatCard label="Confidence Level" value={`${trustIndex?.confidence || 0}%`} icon={Activity} color="emerald" />
+      </div>
+
+      {/* Demographic filter */}
+      <Card>
+        <CardContent className="p-3">
+          <div className="flex items-center gap-3 flex-wrap">
+            <Filter className="w-4 h-4 text-muted-foreground" />
+            <Label className="text-xs font-semibold">Filter Demografi:</Label>
+            <Select value={ageFilter || 'ALL'} onValueChange={(v) => setAgeFilter(v === 'ALL' ? '' : v)}>
+              <SelectTrigger className="w-[200px] h-8 text-xs"><SelectValue placeholder="Semua Usia" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">Semua Kelompok Usia</SelectItem>
+                <SelectItem value="17-21">Pemilih Pemula (17-21)</SelectItem>
+                <SelectItem value="22-30">Pemilih Muda (22-30)</SelectItem>
+                <SelectItem value="31-40">Pemilih Matang (31-40)</SelectItem>
+                <SelectItem value="41-60">Pemilih Paruh Baya (41-60)</SelectItem>
+                <SelectItem value="61+">Pemilih Lansia (61+)</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={segmentFilter || 'ALL'} onValueChange={(v) => setSegmentFilter(v === 'ALL' ? '' : v)}>
+              <SelectTrigger className="w-[220px] h-8 text-xs"><SelectValue placeholder="Semua Segmen" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">Semua Community Segment</SelectItem>
+                <SelectItem value="INDIGENOUS">Suku Adat & Budaya</SelectItem>
+                <SelectItem value="RELIGIOUS">Komunitas Agama & Kepercayaan</SelectItem>
+                <SelectItem value="PROFESSION">Kelompok Profesi & Sektoral</SelectItem>
+                <SelectItem value="YOUTH">Aliansi Ormas & Pemuda</SelectItem>
+              </SelectContent>
+            </Select>
+            {(ageFilter || segmentFilter) && (
+              <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => { setAgeFilter(''); setSegmentFilter('') }}>
+                Reset Filter
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Two-column: Heatmap list + Trust gauge */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Heatmap list (left, 2 cols) */}
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <MapPin className="w-5 h-5 text-orange-600" />
+              Heatmap Trust Index per {nextLevel ? levelLabels[nextLevel] : 'Wilayah'}
+              {nextLevel && <span className="text-xs text-muted-foreground ml-2">({heatmap.length} wilayah — klik untuk drill-down)</span>}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {heatmap.length === 0 ? (
+              <EmptyState icon={MapPin} title={`Belum ada ${nextLevel || 'wilayah'}`} description="Tidak ada data populasi untuk level ini." />
+            ) : (
+              <div className="space-y-1.5 max-h-[500px] overflow-y-auto">
+                {heatmap.slice(0, 50).map((loc: any) => {
+                  const color = getTrustColor(loc.trustScore)
+                  return (
+                    <button key={loc.code} onClick={() => loc.canDrillDown && handleDrillDown(loc.code)}
+                      disabled={!loc.canDrillDown}
+                      className={`w-full flex items-center gap-3 p-2.5 rounded border text-left transition-all ${loc.canDrillDown ? 'hover:bg-accent hover:border-orange-300 cursor-pointer' : 'cursor-default opacity-80'}`}>
+                      <div className={`w-2 h-12 rounded-full ${color.bg}`} />
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold text-sm truncate">{loc.name}</div>
+                        <div className="text-[11px] text-muted-foreground">
+                          {loc.totalPopulation.toLocaleString('id-ID')} pop • {loc.totalVoters.toLocaleString('id-ID')} voters • {loc.totalMentions} mentions
+                        </div>
+                        {loc.totalMentions > 0 && (
+                          <div className="text-[10px] text-muted-foreground mt-0.5">
+                            <span className="text-emerald-600">+{loc.sentimentPositive}</span> {' '}
+                            <span className="text-red-600">-{loc.sentimentNegative}</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        <div className={`text-xl font-bold ${color.text}`}>{loc.trustScore.toFixed(1)}</div>
+                        <div className="text-[9px] text-muted-foreground">trust</div>
+                      </div>
+                      {loc.canDrillDown && <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Trust Index gauge (right, 1 col) */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2"><Activity className="w-5 h-5 text-purple-600" />Trust Index Gauge</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-64 flex items-center justify-center">
+              <ResponsiveContainer width="100%" height="100%">
+                <RadialBarChart innerRadius="40%" outerRadius="100%" data={[{ name: 'Trust', value: currentTrust, fill: currentTrust >= 70 ? '#10b981' : currentTrust >= 55 ? '#84cc16' : currentTrust >= 45 ? '#f59e0b' : currentTrust >= 30 ? '#f97316' : '#ef4444' }]} startAngle={180} endAngle={0}>
+                  <PolarAngleAxis type="number" domain={[0, 100]} angleAxisId={0} tick={false} />
+                  <RadialBar background dataKey="value" cornerRadius={10} />
+                </RadialBarChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="text-center -mt-12">
+              <div className={`text-4xl font-bold ${trustColor.text}`}>{currentTrust.toFixed(1)}</div>
+              <div className="text-xs text-muted-foreground mt-1">dari 100 (skala kepercayaan)</div>
+            </div>
+            <div className="mt-4 space-y-1.5 text-xs">
+              <div className="flex items-center justify-between"><span className="text-emerald-600">✓ Positif</span><span className="font-semibold">{trustIndex?.sentimentPositive || demographics?.overall?.sentimentPositive || 0}</span></div>
+              <div className="flex items-center justify-between"><span className="text-slate-600">• Netral</span><span className="font-semibold">{trustIndex?.sentimentNeutral || demographics?.overall?.sentimentNeutral || 0}</span></div>
+              <div className="flex items-center justify-between"><span className="text-red-600">✗ Negatif</span><span className="font-semibold">{trustIndex?.sentimentNegative || demographics?.overall?.sentimentNegative || 0}</span></div>
+              <div className="flex items-center justify-between border-t pt-1.5 mt-1.5"><span className="text-muted-foreground">Trend</span><span className="font-semibold">{trustIndex?.trendDirection || demographics?.overall?.trendDirection || 'STABLE'}</span></div>
+              <div className="flex items-center justify-between"><span className="text-muted-foreground">Sample</span><span className="font-semibold">{trustIndex?.sampleSize || demographics?.overall?.totalMentions || 0}</span></div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Demographics: Age Groups Chart */}
+      {demographics && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <BarChart3 className="w-5 h-5 text-blue-600" /> 
+                Dimensi B: Demografi Kelompok Usia Pemilih
+              </CardTitle>
+              <CardDescription>Trust index per kelompok usia pemilih Pemilu (5 segmen)</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="h-72">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={ageGroupChartData} margin={{ top: 10, right: 10, bottom: 30, left: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                    <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                    <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} />
+                    <Tooltip
+                      content={({ active, payload }) => {
+                        if (!active || !payload?.length) return null
+                        const d = payload[0].payload
+                        return (
+                          <div className="bg-white border rounded p-2 shadow-lg text-xs">
+                            <div className="font-semibold mb-1">{d.label}</div>
+                            <div>Trust Score: <strong>{d.trust}</strong>/100</div>
+                            <div>Voters: {d.voters.toLocaleString('id-ID')}</div>
+                            <div>Mentions: {d.mentions}</div>
+                          </div>
+                        )
+                      }}
+                    />
+                    <Bar dataKey="trust" radius={[8, 8, 0, 0]}>
+                      {ageGroupChartData.map((entry: any, index: number) => {
+                        const c = getTrustColor(entry.trust)
+                        return <Cell key={index} fill={c.bg.replace('bg-', '').replace('-500', '') === 'emerald' ? '#10b981' : c.bg.includes('lime') ? '#84cc16' : c.bg.includes('amber') ? '#f59e0b' : c.bg.includes('orange') ? '#f97316' : '#ef4444'} />
+                      })}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              {/* Detailed age group breakdown */}
+              <div className="mt-3 space-y-2">
+                {demographics.ageGroups.map((ag: any, i: number) => (
+                  <div key={i} className="rounded border p-2">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-semibold">{ag.label}</span>
+                      <span className={`text-sm font-bold ${getTrustColor(ag.trustScore).text}`}>{ag.trustScore}</span>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground italic mb-1">{ag.desc}</p>
+                    <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                      <span>{ag.voters.toLocaleString('id-ID')} voters ({ag.percentage}%)</span>
+                      <span className="text-emerald-600">+{ag.sentimentPositive}</span>
+                      <span className="text-red-600">-{ag.sentimentNegative}</span>
+                      <span className="text-slate-500">•{ag.sentimentNeutral}</span>
+                      <span>mentions: {ag.totalMentions}</span>
+                    </div>
                   </div>
-                  <a href={link.url} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-blue-600 hover:underline line-clamp-2">
-                    {link.title}
-                  </a>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Community Segments Chart */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <PieIcon className="w-5 h-5 text-purple-600" />
+                Dimensi C: Stratifikasi Sosial & Golongan
+              </CardTitle>
+              <CardDescription>Trust index per community segment (4 cluster)</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="h-44">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={segmentChartData.map((s: any) => ({ name: s.label, value: s.population, trust: s.trust }))} dataKey="value" cx="50%" cy="50%" outerRadius={70} label={(e: any) => `${e.trust}`}>
+                      {segmentChartData.map((entry: any, index: number) => {
+                        const c = getTrustColor(entry.trust)
+                        return <Cell key={index} fill={c.bg.includes('emerald') ? '#10b981' : c.bg.includes('lime') ? '#84cc16' : c.bg.includes('amber') ? '#f59e0b' : c.bg.includes('orange') ? '#f97316' : '#ef4444'} />
+                      })}
+                    </Pie>
+                    <Tooltip formatter={(v: any) => v.toLocaleString('id-ID')} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              {/* Detailed segment breakdown */}
+              <div className="mt-3 space-y-2">
+                {demographics.communitySegments.map((seg: any, i: number) => (
+                  <div key={i} className="rounded border p-2">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-semibold">{seg.label}</span>
+                      <span className={`text-sm font-bold ${getTrustColor(seg.trustScore).text}`}>{seg.trustScore}</span>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground italic mb-1">{seg.desc}</p>
+                    <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                      <span>{seg.population.toLocaleString('id-ID')} ({seg.percentage}%)</span>
+                      <span className="text-emerald-600">+{seg.sentimentPositive}</span>
+                      <span className="text-red-600">-{seg.sentimentNegative}</span>
+                      <span>mentions: {seg.totalMentions}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Opinion Links untuk wilayah ini */}
+      {opinionLinks && opinionLinks.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2"><Sparkles className="w-5 h-5 text-orange-600" />Mention Opini Publik di {current.name}</CardTitle>
+            <CardDescription>{opinionLinks.length} mention terbaru dari wilayah ini</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2 max-h-[400px] overflow-y-auto">
+              {opinionLinks.map((link: any) => (
+                <div key={link.id} className="rounded border p-2 hover:bg-accent/30">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <Badge variant="outline" className="text-[9px]">{link.platform}</Badge>
+                        <Badge variant="outline" className={`text-[9px] ${link.sentiment === 'NEGATIVE' ? 'bg-red-50 text-red-700' : link.sentiment === 'POSITIVE' ? 'bg-emerald-50 text-emerald-700' : ''}`}>{link.sentiment}</Badge>
+                        <Badge variant="outline" className={`text-[9px] ${link.priority === 'HIGH' ? 'bg-red-100 text-red-800' : link.priority === 'MEDIUM' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>{link.priority}</Badge>
+                        {link.regencyName && <Badge variant="outline" className="text-[9px] bg-blue-50 text-blue-700"><MapPin className="w-2.5 h-2.5 mr-0.5" />{link.regencyName}</Badge>}
+                      </div>
+                      <a href={link.url} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-blue-600 hover:underline line-clamp-1">{link.title}</a>
+                      {link.aiSummary && <p className="text-xs text-muted-foreground mt-1 line-clamp-2 italic">{link.aiSummary}</p>}
+                    </div>
+                    <a href={link.url} target="_blank" rel="noopener noreferrer">
+                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0"><ExternalLink className="w-3.5 h-3.5" /></Button>
+                    </a>
+                  </div>
                 </div>
               ))}
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setSelectedLoc(null)}>Tutup</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+          </CardContent>
+        </Card>
       )}
     </div>
   )
