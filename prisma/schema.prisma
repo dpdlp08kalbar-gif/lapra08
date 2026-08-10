@@ -45,6 +45,7 @@ model Territory {
   polls         Poll[]
   crisisZones   CrisisZone[]
   voterContacts VoterContact[]
+  contacts      Contact[]
 }
 
 // ============================================================
@@ -70,6 +71,8 @@ model User {
   verifiedMembers Member[] @relation("MemberVerifier")
   events        Event[]    @relation("EventCreator")
   broadcasts    Broadcast[]
+  audienceSegments AudienceSegment[]
+  messageTemplates MessageTemplate[]
   announcements Announcement[]
   financeTxns   FinanceTransaction[]
   tickets       SupportTicket[] @relation("TicketReporter")
@@ -333,8 +336,142 @@ model Broadcast {
   sentAt        DateTime?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+  deliveryLogs  BroadcastDeliveryLog[]
 
   @@index([channel, status])
+}
+
+// ============================================================
+// BROADCAST INFRASTRUCTURE - Real System
+// ============================================================
+
+// Contact Database - daftar nomor WA/FB/IG yang real
+model Contact {
+  id              String   @id @default(cuid())
+  name            String
+  phone           String?  @unique
+  email           String?
+  facebookId      String?
+  instagramId     String?
+  whatsappOptIn   Boolean  @default(false)
+  facebookOptIn   Boolean  @default(false)
+  instagramOptIn  Boolean  @default(false)
+  optInDate       DateTime?
+  optInSource     String?
+  ageGroup        String?
+  gender          String?
+  occupation      String?
+  religion        String?
+  path            String
+  countryCode     String   @default("ID")
+  provinceCode    String?
+  regencyCode     String?
+  districtCode    String?
+  villageCode     String?
+  territoryId     String
+  territory       Territory @relation(fields: [territoryId], references: [id])
+  tags            String   @default("[]")
+  isActive        Boolean  @default(true)
+  isVerified      Boolean  @default(false)
+  verifiedAt      DateTime?
+  lastContactedAt DateTime?
+  contactCount    Int      @default(0)
+  responseCount   Int      @default(0)
+  source          String   @default("MANUAL")
+  registeredAt    DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([path])
+  @@index([territoryId])
+  @@index([provinceCode])
+  @@index([whatsappOptIn, isActive])
+  @@index([occupation, provinceCode])
+}
+
+// Audience Segment
+model AudienceSegment {
+  id              String   @id @default(cuid())
+  name            String
+  description     String?
+  filterCriteria  String
+  contactCount    Int      @default(0)
+  createdById     String
+  createdBy       User     @relation(fields: [createdById], references: [id])
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([createdById])
+}
+
+// Message Template
+model MessageTemplate {
+  id              String   @id @default(cuid())
+  name            String
+  category        String   @default("UMUM")
+  subject         String?
+  content         String
+  variables        String   @default("[]")
+  whatsappContent String?
+  facebookContent String?
+  instagramContent String?
+  defaultImageUrl String?
+  defaultVideoUrl String?
+  createdById     String
+  createdBy       User     @relation(fields: [createdById], references: [id])
+  useCount        Int      @default(0)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([category])
+  @@index([createdById])
+}
+
+// API Integration
+model ApiIntegration {
+  id              String   @id @default(cuid())
+  platform        String   @unique
+  status          String   @default("DISCONNECTED")
+  apiKey          String?
+  apiSecret       String?
+  phoneNumberId   String?
+  businessAccountId String?
+  pageId          String?
+  pageAccessToken String?
+  igBusinessAccountId String?
+  igAccessToken   String?
+  webhookUrl      String?
+  webhookVerified Boolean  @default(false)
+  displayName     String?
+  phoneNumber     String?
+  lastConnectedAt DateTime?
+  lastError       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// Broadcast Delivery Log
+model BroadcastDeliveryLog {
+  id              String   @id @default(cuid())
+  broadcastId     String
+  broadcast       Broadcast @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
+  contactId       String?
+  recipientName   String?
+  recipientPhone  String?
+  channel         String
+  status          String   @default("PENDING")
+  platformMessageId String?
+  sentAt          DateTime?
+  deliveredAt     DateTime?
+  readAt          DateTime?
+  errorCode       String?
+  errorMessage    String?
+  retryCount      Int      @default(0)
+  createdAt       DateTime @default(now())
+
+  @@index([broadcastId, status])
+  @@index([contactId])
 }
 
 model Announcement {

@@ -811,3 +811,66 @@ Stage Summary:
 - ✅ Broadcast stats: empty→populated
 - ✅ AI Clustering: 12/12 correct
 - ✅ VLM verified: semua angka di UI matches DB
+
+---
+Task ID: LAPRA08-BROADCAST-REAL-STRUCTURE-V22
+Agent: Main Agent (Super Z)
+Task: Audit & rebuild Komunikasi & Command Center - buang semua data palsu, bangun struktur real
+
+Work Log:
+- User identified fundamental problem: "data broadcast diambil dari mana? belum punya database WA, belum survey, belum broadcast di medsos"
+- HONEST ADMISSION: All broadcast data was fake/simulated seed data created by scripts/seed_broadcasts.js
+- No real contact database, no real API integration, no real audience segmentation
+
+- PURGE: Deleted ALL fake data:
+  * 8 fake broadcasts → 0
+  * 3691 fake poll responses → 0
+  * 5 fake polls → 0
+  * 3 fake crisis zones → 0
+  * 12 fake aspirations → 0
+  * 50 fake voter contacts → 0
+  * 3 fake pengumuman → 0
+  * 6 fake MANUAL announcements → 0
+
+- NEW Prisma Schema (5 new models):
+  1. Contact: name, phone (unique), email, WA/FB/IG opt-in, optInDate, optInSource, ageGroup, gender, occupation, path, territoryId, tags, isActive, isVerified, source
+  2. AudienceSegment: name, description, filterCriteria (JSON), contactCount, createdById
+  3. MessageTemplate: name, category, subject, content, whatsappContent, facebookContent, instagramContent, defaultImageUrl, variables, useCount
+  4. ApiIntegration: platform (unique), status, apiKey, apiSecret, phoneNumberId, businessAccountId, pageId, pageAccessToken, igBusinessAccountId, igAccessToken, webhookUrl, displayName, phoneNumber
+  5. BroadcastDeliveryLog: broadcastId, contactId, recipientName, recipientPhone, channel, status (PENDING/SENT/DELIVERED/READ/FAILED), platformMessageId, errorCode, errorMessage, retryCount
+
+- NEW API Endpoints (9 endpoints):
+  * /api/contacts (GET list + POST add + PUT import CSV) + [id] (PUT update + DELETE)
+  * /api/audience-segments (GET list + POST create) + [id]/count (GET count contacts matching filter)
+  * /api/message-templates (GET list + POST create) + [id] (PUT update + DELETE)
+  * /api/api-integrations (GET list + POST configure + DELETE disconnect)
+
+- NEW CommunicationMenu structure (10 tabs):
+  1. Command Center - overview dashboard (empty state, 0 alerts, 0 data)
+  2. Database Kontak - contact management (import CSV, add manual, search, opt-in filter)
+  3. Segment Audiens - create audience segments with filters
+  4. Template Pesan - message templates with WA/FB/IG variants
+  5. Integrasi API - WA Business / FB Page / IG Business connection status
+  6. Multi-Channel Broadcast - composer (uses real contacts)
+  7. Pengumuman Internal - announcements CRUD
+  8. Sentimen Presiden - polling (empty, no fake data)
+  9. Crisis Center - crisis zones (empty, no fake data)
+  10. Aspirasi Rakyat - aspirations (empty, no fake data)
+
+- VLM Verification:
+  * 10 tabs visible: Command Center, Database Kontak, Segment Audiens, Template Pesan, Integrasi API, Multi-Channel Broadcast, Pengumuman Internal, Sentimen Presiden, Crisis Center, Aspirasi Rakyat
+  * Database Kontak: 4 stats cards (all 0), info banner "Sistem Mulai dari 0", Import CSV + Tambah Kontak buttons, empty state
+  * Integrasi API: 3 platform cards (WA/FB/IG), all "Belum Terhubung", Konfigurasi button, demo mode banner
+  * All other tabs: proper empty states (no fake data)
+
+Stage Summary:
+- ✅ All fake/dummy data PURGED (broadcasts, polls, responses, crisis zones, aspirations, voter contacts)
+- ✅ 5 new DB models: Contact, AudienceSegment, MessageTemplate, ApiIntegration, BroadcastDeliveryLog
+- ✅ 9 new API endpoints for real contact/segment/template/integration management
+- ✅ 4 new UI tabs: Database Kontak, Segment Audiens, Template Pesan, Integrasi API
+- ✅ Contact import via CSV (paste format: name,phone,email,occupation,ageGroup,gender,whatsappOptIn)
+- ✅ Audience segment builder with filters (province, regency, age, gender, occupation, opt-in)
+- ✅ Message template manager with WA/FB/IG content variants
+- ✅ API integration config (WA Business, FB Page, IG Business) with credentials
+- ✅ System honestly starts from 0 - no fake data anywhere
+- ✅ Info banners explain what's needed to start real broadcasting

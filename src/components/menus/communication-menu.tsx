@@ -26,7 +26,7 @@ import { formatDateTimeID } from '@/lib/format'
 import {
   Megaphone, Plus, MessageSquare, Bell, Pin, Send, Users, Globe,
   BarChart3, AlertTriangle, Heart, TrendingUp, TrendingDown, Activity,
-  MapPin, Shield, Lightbulb, Loader2, Search, Edit, Trash2, Eye,
+  MapPin, Shield, ShieldCheck, Lightbulb, Loader2, Search, Edit, Trash2, Eye,
   CheckCircle2, XCircle, Clock, Target, Zap, FileText, Video,
   ExternalLink, Upload,
 } from 'lucide-react'
@@ -246,47 +246,6 @@ interface AspirationCluster {
 // ============================================================
 // MAIN COMPONENT
 // ============================================================
-export function CommunicationMenu() {
-  const [tab, setTab] = useState('command-center')
-
-  return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Komunikasi & Command Center"
-        description="Command Center presidensial: Sentimen, Crisis, Aspirasi, Broadcast & Pengumuman"
-        icon={Megaphone}
-      />
-      <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="flex flex-wrap h-auto gap-1">
-          <TabsTrigger value="command-center">
-            <Activity className="w-4 h-4 mr-2" /> Command Center
-          </TabsTrigger>
-          <TabsTrigger value="broadcast">
-            <Send className="w-4 h-4 mr-2" /> Multi-Channel Broadcast
-          </TabsTrigger>
-          <TabsTrigger value="announcement">
-            <Bell className="w-4 h-4 mr-2" /> Pengumuman Internal
-          </TabsTrigger>
-          <TabsTrigger value="polls">
-            <BarChart3 className="w-4 h-4 mr-2" /> Sentimen Presiden
-          </TabsTrigger>
-          <TabsTrigger value="crisis">
-            <AlertTriangle className="w-4 h-4 mr-2" /> Crisis Center
-          </TabsTrigger>
-          <TabsTrigger value="aspirations">
-            <Lightbulb className="w-4 h-4 mr-2" /> Aspirasi Rakyat
-          </TabsTrigger>
-        </TabsList>
-        <TabsContent value="command-center" className="mt-4"><CommandCenterTab /></TabsContent>
-        <TabsContent value="broadcast" className="mt-4"><BroadcastTab /></TabsContent>
-        <TabsContent value="announcement" className="mt-4"><AnnouncementTab /></TabsContent>
-        <TabsContent value="polls" className="mt-4"><PollsTab /></TabsContent>
-        <TabsContent value="crisis" className="mt-4"><CrisisTab /></TabsContent>
-        <TabsContent value="aspirations" className="mt-4"><AspirationsTab /></TabsContent>
-      </Tabs>
-    </div>
-  )
-}
 
 // ============================================================
 // SHARED HELPERS
@@ -2953,4 +2912,639 @@ function AspirationAnalyticsDialog({
 // Local Filter icon to avoid extra imports (uses Search as fallback)
 function Filter({ className }: { className?: string }) {
   return <Search className={className} />
+}
+
+export function CommunicationMenu() {
+  const [tab, setTab] = useState('overview')
+
+  const tabs = [
+    { key: 'overview', label: 'Command Center', icon: Activity },
+    { key: 'contacts', label: 'Database Kontak', icon: Users },
+    { key: 'segments', label: 'Segment Audiens', icon: Target },
+    { key: 'templates', label: 'Template Pesan', icon: FileText },
+    { key: 'integrations', label: 'Integrasi API', icon: Globe },
+    { key: 'broadcast', label: 'Multi-Channel Broadcast', icon: Send },
+    { key: 'announcement', label: 'Pengumuman Internal', icon: Bell },
+    { key: 'sentiment', label: 'Sentimen Presiden', icon: BarChart3 },
+    { key: 'crisis', label: 'Crisis Center', icon: Shield },
+    { key: 'aspirasi', label: 'Aspirasi Rakyat', icon: Heart },
+  ]
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title="Komunikasi & Command Center"
+        description="Database kontak, segment audiens, template pesan, integrasi API, multi-channel broadcast, sentimen publik, crisis management, dan aspirasi rakyat"
+        icon={Megaphone}
+      />
+      <div className="flex flex-wrap gap-2">
+        {tabs.map((t) => (
+          <button key={t.key} onClick={() => setTab(t.key)}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${tab === t.key ? 'bg-gradient-to-r from-orange-600 to-red-600 text-white shadow-sm' : 'border hover:bg-accent'}`}>
+            <t.icon className="w-3.5 h-3.5" /> {t.label}
+          </button>
+        ))}
+      </div>
+      {tab === 'overview' && <CommandCenterTab />}
+      {tab === 'contacts' && <ContactDatabaseTab />}
+      {tab === 'segments' && <AudienceSegmentTab />}
+      {tab === 'templates' && <TemplateManagerTab />}
+      {tab === 'integrations' && <ApiIntegrationTab />}
+      {tab === 'broadcast' && <BroadcastTab />}
+      {tab === 'announcement' && <AnnouncementTab />}
+      {tab === 'sentiment' && <PollsTab />}
+      {tab === 'crisis' && <CrisisTab />}
+      {tab === 'aspirasi' && <AspirationsTab />}
+    </div>
+  )
+}
+
+// ============================================================
+// CONTACT DATABASE TAB - Real contact management
+// ============================================================
+function ContactDatabaseTab() {
+  const addToast = useToastStore((s) => s.addToast)
+  const [contacts, setContacts] = useState<any[]>([])
+  const [territories, setTerritories] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+  const [optInOnly, setOptInOnly] = useState(false)
+  const [addOpen, setAddOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
+  const [deleteItem, setDeleteItem] = useState<any>(null)
+  const [stats, setStats] = useState({ totalContacts: 0, optInCount: 0, verifiedCount: 0 })
+
+  const loadData = () => {
+    setLoading(true)
+    const params = new URLSearchParams()
+    if (search) params.set('search', search)
+    if (optInOnly) params.set('optInOnly', 'true')
+    Promise.all([
+      api(`/api/contacts?${params.toString()}`),
+      api('/api/territory'),
+    ]).then(([c, t]) => {
+      setContacts(c || [])
+      setTerritories(t || [])
+      if (c?.length > 0 || c?.stats) setStats(c.stats || stats)
+      setLoading(false)
+    }).catch(() => setLoading(false))
+  }
+  useEffect(() => { loadData() }, [search, optInOnly])
+
+  if (loading) return <LoadingState />
+
+  return (
+    <div className="space-y-4">
+      {/* Stats */}
+      <div className="grid gap-4 md:grid-cols-4">
+        <StatCard label="Total Kontak" value={stats.totalContacts} icon={Users} color="blue" />
+        <StatCard label="WA Opt-in" value={stats.optInCount} icon={CheckCircle2} color="emerald" />
+        <StatCard label="Terverifikasi" value={stats.verifiedCount} icon={ShieldCheck} color="purple" />
+        <StatCard label="Belum Opt-in" value={stats.totalContacts - stats.optInCount} icon={Clock} color="amber" />
+      </div>
+
+      {/* Info banner */}
+      <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800 flex items-start gap-2">
+        <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+        <div>
+          <strong>Sistem Mulai dari 0:</strong> Database kontak masih kosong. Untuk mengirim broadcast WhatsApp/Facebook/Instagram, Anda perlu:
+          <ol className="list-decimal ml-4 mt-1 space-y-0.5">
+            <li>Import kontak dari CSV/Excel (nomor WA yang sudah opt-in)</li>
+            <li>Konfigurasi integrasi API di tab "Integrasi API"</li>
+            <li>Buat segment audiens untuk targeting</li>
+            <li>Buat template pesan untuk reuse</li>
+            <li>Kirim broadcast dari tab "Multi-Channel Broadcast"</li>
+          </ol>
+        </div>
+      </div>
+
+      {/* Header */}
+      <div className="flex justify-between items-center flex-wrap gap-2">
+        <div>
+          <h3 className="font-semibold text-base flex items-center gap-2"><Users className="w-5 h-5 text-blue-600" /> Database Kontak</h3>
+          <p className="text-sm text-muted-foreground">Kelola daftar kontak WhatsApp, Facebook, Instagram untuk broadcast</p>
+        </div>
+        <div className="flex gap-2">
+          <Button onClick={() => setImportOpen(true)} variant="outline" size="sm"><Upload className="w-4 h-4 mr-1" /> Import CSV</Button>
+          <Button onClick={() => setAddOpen(true)} size="sm" className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white"><Plus className="w-4 h-4 mr-1" /> Tambah Kontak</Button>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="flex gap-2 items-center">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input placeholder="Cari nama, nomor WA, email..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />
+        </div>
+        <Button variant={optInOnly ? 'default' : 'outline'} size="sm" onClick={() => setOptInOnly(!optInOnly)}>
+          {optInOnly ? <CheckCircle2 className="w-4 h-4 mr-1" /> : null} WA Opt-in Only
+        </Button>
+      </div>
+
+      {/* Table */}
+      {contacts.length === 0 ? (
+        <EmptyState icon={Users} title="Database kontak masih kosong" description="Import kontak dari CSV atau tambah manual untuk mulai broadcast." />
+      ) : (
+        <Card>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Nama</TableHead>
+                  <TableHead>WhatsApp</TableHead>
+                  <TableHead>Opt-in</TableHead>
+                  <TableHead>Wilayah</TableHead>
+                  <TableHead>Pekerjaan</TableHead>
+                  <TableHead>Tags</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-center">Aksi</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {contacts.map((c) => (
+                  <TableRow key={c.id}>
+                    <TableCell className="font-medium text-sm">{c.name}</TableCell>
+                    <TableCell className="text-xs font-mono">{c.phone || '-'}</TableCell>
+                    <TableCell>
+                      {c.whatsappOptIn ? <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px]">✓ Opt-in</Badge> : <Badge variant="outline" className="text-[10px] text-slate-500">Belum</Badge>}
+                    </TableCell>
+                    <TableCell className="text-xs">{c.territory?.name || '-'}</TableCell>
+                    <TableCell className="text-xs">{c.occupation || '-'}</TableCell>
+                    <TableCell className="text-xs">{(() => { try { return JSON.parse(c.tags || '[]').join(', ') || '-' } catch { return '-' } })()}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className={`text-[10px] ${c.isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-50 text-slate-500'}`}>
+                        {c.isActive ? 'Aktif' : 'Nonaktif'}
+                      </Badge>
+                      {c.isVerified && <Badge variant="outline" className="text-[10px] ml-1 bg-blue-50 text-blue-700"><ShieldCheck className="w-2.5 h-2.5 mr-0.5" />Verified</Badge>}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-600" onClick={() => setDeleteItem(c)}>
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+
+      <AddContactDialog open={addOpen} onOpenChange={setAddOpen} territories={territories} onSuccess={() => { loadData(); setAddOpen(false) }} />
+      <ImportContactDialog open={importOpen} onOpenChange={setImportOpen} territories={territories} onSuccess={() => { loadData(); setImportOpen(false) }} />
+
+      <AlertDialog open={!!deleteItem} onOpenChange={(o) => !o && setDeleteItem(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus Kontak?</AlertDialogTitle>
+            <AlertDialogDescription>Yakin hapus <strong>{deleteItem?.name}</strong> ({deleteItem?.phone})?</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={async () => {
+              try { await fetch(`/api/contacts/${deleteItem.id}`, { method: 'DELETE', headers: { 'x-user-id': useAuthStore.getState().user?.id || '' } }); addToast('Kontak dihapus', 'success'); setDeleteItem(null); loadData() } catch (e: any) { addToast(e.message, 'error') }
+            }} className="bg-red-600 hover:bg-red-700">Hapus</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  )
+}
+
+function AddContactDialog({ open, onOpenChange, territories, onSuccess }: any) {
+  const addToast = useToastStore((s) => s.addToast)
+  const [form, setForm] = useState({ name: '', phone: '', email: '', ageGroup: '', gender: '', occupation: '', territoryId: '', whatsappOptIn: false })
+  const [loading, setLoading] = useState(false)
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!form.name || !form.territoryId) { addToast('Nama dan wilayah wajib', 'error'); return }
+    setLoading(true)
+    try {
+      const res = await fetch('/api/contacts', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' }, body: JSON.stringify(form) })
+      const data = await res.json()
+      if (!res.ok || !data.success) throw new Error(data.error)
+      addToast('Kontak berhasil ditambahkan', 'success')
+      setForm({ name: '', phone: '', email: '', ageGroup: '', gender: '', occupation: '', territoryId: '', whatsappOptIn: false })
+      onSuccess()
+    } catch (e: any) { addToast(e.message, 'error') }
+    finally { setLoading(false) }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg" aria-describedby={undefined}>
+        <DialogHeader><DialogTitle className="flex items-center gap-2"><Plus className="w-5 h-5 text-blue-600" /> Tambah Kontak</DialogTitle></DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div className="space-y-2"><Label>Nama *</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2"><Label>Nomor WhatsApp</Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="628xxx" /></div>
+            <div className="space-y-2"><Label>Email</Label><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2"><Label>Wilayah *</Label><Select value={form.territoryId} onValueChange={(v) => setForm({ ...form, territoryId: v })}><SelectTrigger><SelectValue placeholder="Pilih wilayah" /></SelectTrigger><SelectContent className="max-h-60">{territories.map((t: any) => <SelectItem key={t.id} value={t.id}>{t.name} ({t.code})</SelectItem>)}</SelectContent></Select></div>
+            <div className="space-y-2"><Label>Pekerjaan</Label><Input value={form.occupation} onChange={(e) => setForm({ ...form, occupation: e.target.value })} placeholder="cth: Petani, PNS, dll" /></div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2"><Label>Kelompok Usia</Label><Select value={form.ageGroup} onValueChange={(v) => setForm({ ...form, ageGroup: v })}><SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger><SelectContent>{['17-25','26-35','36-45','46-55','56-65','65+'].map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}</SelectContent></Select></div>
+            <div className="space-y-2"><Label>Jenis Kelamin</Label><Select value={form.gender} onValueChange={(v) => setForm({ ...form, gender: v })}><SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger><SelectContent><SelectItem value="L">Laki-laki</SelectItem><SelectItem value="P">Perempuan</SelectItem></SelectContent></Select></div>
+          </div>
+          <div className="flex items-center gap-2 pt-2 border-t">
+            <input type="checkbox" id="optin" checked={form.whatsappOptIn} onChange={(e) => setForm({ ...form, whatsappOptIn: e.target.checked })} />
+            <Label htmlFor="optin" className="text-sm">Kontak sudah opt-in (persetujuan menerima WhatsApp broadcast)</Label>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Batal</Button>
+            <Button type="submit" disabled={loading}>{loading ? 'Menyimpan...' : 'Simpan'}</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function ImportContactDialog({ open, onOpenChange, territories, onSuccess }: any) {
+  const addToast = useToastStore((s) => s.addToast)
+  const [csvText, setCsvText] = useState('')
+  const [territoryId, setTerritoryId] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  const handleImport = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!csvText || !territoryId) { addToast('CSV dan wilayah wajib', 'error'); return }
+    setLoading(true)
+    try {
+      // Parse CSV: name,phone,email,occupation,ageGroup,gender,whatsappOptIn
+      const lines = csvText.trim().split('\n')
+      const contacts = lines.slice(1).map(line => { // Skip header
+        const [name, phone, email, occupation, ageGroup, gender, optIn] = line.split(',').map(s => s?.trim() || '')
+        return { name, phone, email, occupation, ageGroup, gender, whatsappOptIn: optIn === 'true' || optIn === '1' }
+      }).filter(c => c.name && c.phone)
+
+      const res = await fetch('/api/contacts', { method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' }, body: JSON.stringify({ contacts, territoryId }) })
+      const data = await res.json()
+      if (!res.ok || !data.success) throw new Error(data.error)
+      addToast(data.message, 'success')
+      setCsvText(''); onSuccess()
+    } catch (e: any) { addToast(e.message, 'error') }
+    finally { setLoading(false) }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg" aria-describedby={undefined}>
+        <DialogHeader><DialogTitle className="flex items-center gap-2"><Upload className="w-5 h-5 text-blue-600" /> Import Kontak dari CSV</DialogTitle></DialogHeader>
+        <form onSubmit={handleImport} className="space-y-3">
+          <div className="space-y-2">
+            <Label>Wilayah Target *</Label>
+            <Select value={territoryId} onValueChange={setTerritoryId}><SelectTrigger><SelectValue placeholder="Pilih wilayah" /></SelectTrigger><SelectContent className="max-h-60">{territories.map((t: any) => <SelectItem key={t.id} value={t.id}>{t.name} ({t.code})</SelectItem>)}</SelectContent></Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Data CSV (paste di sini) *</Label>
+            <Textarea value={csvText} onChange={(e) => setCsvText(e.target.value)} rows={8} placeholder={`name,phone,email,occupation,ageGroup,gender,whatsappOptIn\nBudi Santoso,6281234567890,budi@email.com,Petani,46-55,L,true\nSiti Aminah,6289876543210,siti@email.com,Guru,36-45,P,true`} />
+            <p className="text-[10px] text-muted-foreground">Format: name,phone,email,occupation,ageGroup,gender,whatsappOptIn (true/false)</p>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Batal</Button>
+            <Button type="submit" disabled={loading}>{loading ? 'Mengimport...' : 'Import'}</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ============================================================
+// AUDIENCE SEGMENT TAB
+// ============================================================
+function AudienceSegmentTab() {
+  const [segments, setSegments] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [addOpen, setAddOpen] = useState(false)
+
+  const loadData = () => { setLoading(true); api('/api/audience-segments').then(setSegments).catch(() => {}).finally(() => setLoading(false)) }
+  useEffect(() => { loadData() }, [])
+
+  if (loading) return <LoadingState />
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <div>
+          <h3 className="font-semibold text-base flex items-center gap-2"><Target className="w-5 h-5 text-purple-600" /> Segment Audiens</h3>
+          <p className="text-sm text-muted-foreground">Kelompok kontak untuk targeted broadcast (cth: "Petani Jawa Tengah")</p>
+        </div>
+        <Button onClick={() => setAddOpen(true)} size="sm" className="bg-gradient-to-r from-purple-600 to-pink-600 text-white"><Plus className="w-4 h-4 mr-1" /> Buat Segment</Button>
+      </div>
+      {segments.length === 0 ? (
+        <EmptyState icon={Target} title="Belum ada segment audiens" description="Buat segment untuk menargetkan broadcast ke kelompok kontak tertentu (cth: Petani Jateng, Milenial Jabar)." />
+      ) : (
+        <div className="grid gap-3 md:grid-cols-2">
+          {segments.map(s => (
+            <Card key={s.id}><CardContent className="p-4">
+              <div className="font-bold text-sm">{s.name}</div>
+              {s.description && <p className="text-xs text-muted-foreground mt-1">{s.description}</p>}
+              <div className="flex items-center gap-2 mt-2">
+                <Badge variant="outline" className="text-[10px]">{s.contactCount} kontak</Badge>
+                <Badge variant="outline" className="text-[10px] bg-purple-50 text-purple-700">{(() => { try { const f = JSON.parse(s.filterCriteria); return Object.entries(f).map(([k,v]) => `${k}=${v}`).join(', ') } catch { return 'filter' } })()}</Badge>
+              </div>
+            </CardContent></Card>
+          ))}
+        </div>
+      )}
+      {addOpen && <CreateSegmentDialog open={addOpen} onOpenChange={setAddOpen} onSuccess={() => { loadData(); setAddOpen(false) }} />}
+    </div>
+  )
+}
+
+function CreateSegmentDialog({ open, onOpenChange, onSuccess }: any) {
+  const addToast = useToastStore((s) => s.addToast)
+  const [form, setForm] = useState({ name: '', description: '', whatsappOptIn: true, provinceCode: '', regencyCode: '', ageGroup: '', gender: '', occupation: '' })
+  const [loading, setLoading] = useState(false)
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!form.name) { addToast('Nama segment wajib', 'error'); return }
+    setLoading(true)
+    try {
+      const filterCriteria = { whatsappOptIn: form.whatsappOptIn, provinceCode: form.provinceCode || undefined, regencyCode: form.regencyCode || undefined, ageGroup: form.ageGroup || undefined, gender: form.gender || undefined, occupation: form.occupation || undefined }
+      const res = await fetch('/api/audience-segments', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' }, body: JSON.stringify({ name: form.name, description: form.description, filterCriteria }) })
+      const data = await res.json()
+      if (!res.ok || !data.success) throw new Error(data.error)
+      addToast('Segment audiens dibuat', 'success')
+      onSuccess()
+    } catch (e: any) { addToast(e.message, 'error') }
+    finally { setLoading(false) }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg" aria-describedby={undefined}>
+        <DialogHeader><DialogTitle className="flex items-center gap-2"><Target className="w-5 h-5 text-purple-600" /> Buat Segment Audiens</DialogTitle></DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div className="space-y-2"><Label>Nama Segment *</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="cth: Petani Jawa Tengah" required /></div>
+          <div className="space-y-2"><Label>Deskripsi</Label><Input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2"><Label>Provinsi</Label><Input value={form.provinceCode} onChange={(e) => setForm({ ...form, provinceCode: e.target.value })} placeholder="cth: 33" /></div>
+            <div className="space-y-2"><Label>Kab/Kota</Label><Input value={form.regencyCode} onChange={(e) => setForm({ ...form, regencyCode: e.target.value })} placeholder="cth: 3301" /></div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2"><Label>Kelompok Usia</Label><Select value={form.ageGroup} onValueChange={(v) => setForm({ ...form, ageGroup: v })}><SelectTrigger><SelectValue placeholder="Semua" /></SelectTrigger><SelectContent>{['17-25','26-35','36-45','46-55','56-65','65+'].map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}</SelectContent></Select></div>
+            <div className="space-y-2"><Label>Jenis Kelamin</Label><Select value={form.gender} onValueChange={(v) => setForm({ ...form, gender: v })}><SelectTrigger><SelectValue placeholder="Semua" /></SelectTrigger><SelectContent><SelectItem value="L">Laki-laki</SelectItem><SelectItem value="P">Perempuan</SelectItem></SelectContent></Select></div>
+          </div>
+          <div className="space-y-2"><Label>Pekerjaan</Label><Input value={form.occupation} onChange={(e) => setForm({ ...form, occupation: e.target.value })} placeholder="cth: PETANI" /></div>
+          <div className="flex items-center gap-2">
+            <input type="checkbox" id="segoptin" checked={form.whatsappOptIn} onChange={(e) => setForm({ ...form, whatsappOptIn: e.target.checked })} />
+            <Label htmlFor="segoptin" className="text-sm">Hanya kontak yang sudah WA opt-in</Label>
+          </div>
+          <DialogFooter><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Batal</Button><Button type="submit" disabled={loading}>{loading ? 'Membuat...' : 'Buat Segment'}</Button></DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ============================================================
+// TEMPLATE MANAGER TAB
+// ============================================================
+function TemplateManagerTab() {
+  const [templates, setTemplates] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [addOpen, setAddOpen] = useState(false)
+
+  const loadData = () => { setLoading(true); api('/api/message-templates').then(setTemplates).catch(() => {}).finally(() => setLoading(false)) }
+  useEffect(() => { loadData() }, [])
+
+  if (loading) return <LoadingState />
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <div>
+          <h3 className="font-semibold text-base flex items-center gap-2"><FileText className="w-5 h-5 text-emerald-600" /> Template Pesan</h3>
+          <p className="text-sm text-muted-foreground">Simpan dan reuse template pesan untuk broadcast</p>
+        </div>
+        <Button onClick={() => setAddOpen(true)} size="sm" className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white"><Plus className="w-4 h-4 mr-1" /> Buat Template</Button>
+      </div>
+      {templates.length === 0 ? (
+        <EmptyState icon={FileText} title="Belum ada template pesan" description="Buat template untuk mempercepat pembuatan broadcast (cth: template klarifikasi hoaks, template pengumuman rapat)." />
+      ) : (
+        <div className="grid gap-3 md:grid-cols-2">
+          {templates.map(t => (
+            <Card key={t.id}><CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Badge variant="outline" className="text-[10px]">{t.category}</Badge>
+                <Badge variant="outline" className="text-[10px] bg-slate-50 text-slate-600">{t.useCount}x digunakan</Badge>
+              </div>
+              <div className="font-bold text-sm">{t.name}</div>
+              {t.subject && <div className="text-xs text-muted-foreground mt-1">{t.subject}</div>}
+              <p className="text-xs text-muted-foreground mt-1 line-clamp-3">{t.content}</p>
+            </CardContent></Card>
+          ))}
+        </div>
+      )}
+      {addOpen && <CreateTemplateDialog open={addOpen} onOpenChange={setAddOpen} onSuccess={() => { loadData(); setAddOpen(false) }} />}
+    </div>
+  )
+}
+
+function CreateTemplateDialog({ open, onOpenChange, onSuccess }: any) {
+  const addToast = useToastStore((s) => s.addToast)
+  const [form, setForm] = useState({ name: '', category: 'UMUM', subject: '', content: '', whatsappContent: '', facebookContent: '', instagramContent: '' })
+  const [loading, setLoading] = useState(false)
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!form.name || !form.content) { addToast('Nama dan konten wajib', 'error'); return }
+    setLoading(true)
+    try {
+      const res = await fetch('/api/message-templates', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' }, body: JSON.stringify(form) })
+      const data = await res.json()
+      if (!res.ok || !data.success) throw new Error(data.error)
+      addToast('Template pesan dibuat', 'success')
+      onSuccess()
+    } catch (e: any) { addToast(e.message, 'error') }
+    finally { setLoading(false) }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+        <DialogHeader><DialogTitle className="flex items-center gap-2"><FileText className="w-5 h-5 text-emerald-600" /> Buat Template Pesan</DialogTitle></DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2"><Label>Nama Template *</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></div>
+            <div className="space-y-2"><Label>Kategori</Label><Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{['UMUM','PENGUMUMAN','KRISIS','POLLING','SOSIAL','KEMITRAAN'].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select></div>
+          </div>
+          <div className="space-y-2"><Label>Subject/Judul</Label><Input value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} /></div>
+          <div className="space-y-2"><Label>Konten Utama *</Label><Textarea value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} rows={4} placeholder="Gunakan {name} untuk nama penerima, {territory} untuk wilayah" required /></div>
+          <div className="space-y-2"><Label>Konten WhatsApp (opsional, maks 4096 char)</Label><Textarea value={form.whatsappContent} onChange={(e) => setForm({ ...form, whatsappContent: e.target.value })} rows={3} /></div>
+          <div className="space-y-2"><Label>Konten Facebook (opsional)</Label><Textarea value={form.facebookContent} onChange={(e) => setForm({ ...form, facebookContent: e.target.value })} rows={3} /></div>
+          <div className="space-y-2"><Label>Konten Instagram (opsional, maks 2200 char)</Label><Textarea value={form.instagramContent} onChange={(e) => setForm({ ...form, instagramContent: e.target.value })} rows={3} /></div>
+          <DialogFooter><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Batal</Button><Button type="submit" disabled={loading}>{loading ? 'Menyimpan...' : 'Simpan Template'}</Button></DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ============================================================
+// API INTEGRATION TAB - Connection status
+// ============================================================
+function ApiIntegrationTab() {
+  const [integrations, setIntegrations] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [configOpen, setConfigOpen] = useState<string | null>(null)
+
+  const loadData = () => { setLoading(true); api('/api/api-integrations').then(setIntegrations).catch(() => {}).finally(() => setLoading(false)) }
+  useEffect(() => { loadData() }, [])
+
+  if (loading) return <LoadingState />
+
+  const platforms = [
+    { id: 'WHATSAPP_BUSINESS', label: 'WhatsApp Business API', icon: MessageSquare, color: 'emerald', desc: 'Kirim pesan WhatsApp ke kontak yang opt-in via Meta Cloud API' },
+    { id: 'FACEBOOK_PAGE', label: 'Facebook Page', icon: Globe, color: 'blue', desc: 'Posting ke Facebook Page LAPRA 08 via Graph API' },
+    { id: 'INSTAGRAM_BUSINESS', label: 'Instagram Business', icon: Heart, color: 'purple', desc: 'Posting ke Instagram Business via Graph API' },
+  ]
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h3 className="font-semibold text-base flex items-center gap-2"><Globe className="w-5 h-5 text-orange-600" /> Integrasi API Platform</h3>
+        <p className="text-sm text-muted-foreground">Konfigurasi koneksi ke WhatsApp Business API, Facebook Page, dan Instagram Business</p>
+      </div>
+
+      <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs text-blue-800">
+        <Globe className="w-4 h-4 inline mr-1" />
+        <strong>Mode Demo:</strong> Saat ini sistem berjalan dalam mode simulasi. Untuk mengirim broadcast real:
+        <ol className="list-decimal ml-4 mt-1">
+          <li>Daftar WhatsApp Business API di <a href="https://business.whatsapp.com" target="_blank" className="text-blue-600 underline">business.whatsapp.com</a></li>
+          <li>Daftar Facebook Developer di <a href="https://developers.facebook.com" target="_blank" className="text-blue-600 underline">developers.facebook.com</a></li>
+          <li>Dapatkan API key & access token</li>
+          <li>Konfigurasi di bawah ini</li>
+        </ol>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        {platforms.map(p => {
+          const integration = integrations.find(i => i.platform === p.id)
+          const isConnected = integration?.status === 'CONNECTED'
+          const Icon = p.icon
+          return (
+            <Card key={p.id} className={isConnected ? 'border-l-4 border-l-emerald-500' : 'border-l-4 border-l-slate-300'}>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className={`w-10 h-10 rounded-lg ${isConnected ? 'bg-emerald-100' : 'bg-slate-100'} flex items-center justify-center`}>
+                    <Icon className={`w-5 h-5 ${isConnected ? 'text-emerald-600' : 'text-slate-400'}`} />
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-bold text-sm">{p.label}</div>
+                    <Badge variant="outline" className={`text-[10px] mt-1 ${isConnected ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
+                      {isConnected ? '✓ Terhubung' : '✗ Belum Terhubung'}
+                    </Badge>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground mb-3">{p.desc}</p>
+                {integration?.displayName && <div className="text-xs font-medium mb-2">{integration.displayName}</div>}
+                {integration?.phoneNumber && <div className="text-xs text-muted-foreground font-mono mb-2">{integration.phoneNumber}</div>}
+                <Button variant="outline" size="sm" className="w-full" onClick={() => setConfigOpen(p.id)}>
+                  {isConnected ? 'Konfigurasi Ulang' : 'Konfigurasi'}
+                </Button>
+              </CardContent>
+            </Card>
+          )
+        })}
+      </div>
+
+      {configOpen && <ApiConfigDialog platform={configOpen} integration={integrations.find(i => i.platform === configOpen)} onOpenChange={(o: boolean) => !o && setConfigOpen(null)} onSuccess={loadData} />}
+    </div>
+  )
+}
+
+function ApiConfigDialog({ platform, integration, onOpenChange, onSuccess }: any) {
+  const addToast = useToastStore((s) => s.addToast)
+  const [form, setForm] = useState({
+    apiKey: '', apiSecret: '', phoneNumberId: '', businessAccountId: '',
+    pageId: '', pageAccessToken: '', igBusinessAccountId: '', igAccessToken: '',
+    displayName: '', phoneNumber: '', webhookUrl: '',
+  })
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (integration) {
+      setForm({
+        apiKey: integration.apiKey || '', apiSecret: integration.apiSecret || '',
+        phoneNumberId: integration.phoneNumberId || '', businessAccountId: integration.businessAccountId || '',
+        pageId: integration.pageId || '', pageAccessToken: integration.pageAccessToken || '',
+        igBusinessAccountId: integration.igBusinessAccountId || '', igAccessToken: integration.igAccessToken || '',
+        displayName: integration.displayName || '', phoneNumber: integration.phoneNumber || '',
+        webhookUrl: integration.webhookUrl || '',
+      })
+    }
+  }, [integration])
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    try {
+      const res = await fetch('/api/api-integrations', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+        body: JSON.stringify({ platform, ...form }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) throw new Error(data.error)
+      addToast(`Integrasi ${platform} berhasil dikonfigurasi`, 'success')
+      onSuccess(); onOpenChange(false)
+    } catch (e: any) { addToast(e.message, 'error') }
+    finally { setLoading(false) }
+  }
+
+  const platformLabel = platform === 'WHATSAPP_BUSINESS' ? 'WhatsApp Business API' : platform === 'FACEBOOK_PAGE' ? 'Facebook Page' : 'Instagram Business'
+
+  return (
+    <Dialog open={true} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+        <DialogHeader><DialogTitle className="flex items-center gap-2"><Globe className="w-5 h-5 text-orange-600" /> Konfigurasi {platformLabel}</DialogTitle></DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2"><Label>Display Name</Label><Input value={form.displayName} onChange={(e) => setForm({ ...form, displayName: e.target.value })} placeholder="cth: LAPRA 08 Official WA" /></div>
+            <div className="space-y-2"><Label>Phone Number</Label><Input value={form.phoneNumber} onChange={(e) => setForm({ ...form, phoneNumber: e.target.value })} placeholder="+62 811-9090-08" /></div>
+          </div>
+          {platform === 'WHATSAPP_BUSINESS' && (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2"><Label>Phone Number ID</Label><Input value={form.phoneNumberId} onChange={(e) => setForm({ ...form, phoneNumberId: e.target.value })} /></div>
+                <div className="space-y-2"><Label>Business Account ID</Label><Input value={form.businessAccountId} onChange={(e) => setForm({ ...form, businessAccountId: e.target.value })} /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2"><Label>API Key (Access Token)</Label><Input value={form.apiKey} onChange={(e) => setForm({ ...form, apiKey: e.target.value })} type="password" /></div>
+                <div className="space-y-2"><Label>API Secret</Label><Input value={form.apiSecret} onChange={(e) => setForm({ ...form, apiSecret: e.target.value })} type="password" /></div>
+              </div>
+            </>
+          )}
+          {platform === 'FACEBOOK_PAGE' && (
+            <>
+              <div className="space-y-2"><Label>Page ID</Label><Input value={form.pageId} onChange={(e) => setForm({ ...form, pageId: e.target.value })} /></div>
+              <div className="space-y-2"><Label>Page Access Token</Label><Input value={form.pageAccessToken} onChange={(e) => setForm({ ...form, pageAccessToken: e.target.value })} type="password" /></div>
+            </>
+          )}
+          {platform === 'INSTAGRAM_BUSINESS' && (
+            <>
+              <div className="space-y-2"><Label>IG Business Account ID</Label><Input value={form.igBusinessAccountId} onChange={(e) => setForm({ ...form, igBusinessAccountId: e.target.value })} /></div>
+              <div className="space-y-2"><Label>IG Access Token</Label><Input value={form.igAccessToken} onChange={(e) => setForm({ ...form, igAccessToken: e.target.value })} type="password" /></div>
+            </>
+          )}
+          <div className="space-y-2"><Label>Webhook URL (opsional)</Label><Input value={form.webhookUrl} onChange={(e) => setForm({ ...form, webhookUrl: e.target.value })} placeholder="https://app.lapra08.id/api/webhook/wa" /></div>
+          <div className="rounded-lg bg-amber-50 border border-amber-200 p-2 text-xs text-amber-800">
+            <AlertTriangle className="w-3.5 h-3.5 inline mr-1" />
+            Credentials disimpan di database. Pastikan menggunakan HTTPS di produksi.
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Batal</Button>
+            <Button type="submit" disabled={loading}>{loading ? 'Menyimpan...' : 'Simpan Konfigurasi'}</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
 }
