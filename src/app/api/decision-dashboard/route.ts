@@ -4,11 +4,21 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getUserFromRequest } from '@/lib/server-helpers'
 
+// 60-second in-memory cache — dashboard data rarely changes within a minute
+let _cache: { ts: number; data: any; territoryCode: string | null } | null = null
+const CACHE_TTL_MS = 60 * 1000
+
 export async function GET(request: NextRequest) {
   const user = await getUserFromRequest(request)
   if (!user) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
 
   const territory = await db.territory.findUnique({ where: { id: user.territoryId } })
+  const territoryCode = territory?.code ?? null
+
+  // Use cache if (a) fresh and (b) same territory scope
+  if (_cache && Date.now() - _cache.ts < CACHE_TTL_MS && _cache.territoryCode === territoryCode) {
+    return NextResponse.json({ success: true, data: _cache.data, cached: true })
+  }
 
   // RBAC filter for opinion links
   const linkWhere: any = {}
@@ -149,26 +159,27 @@ export async function GET(request: NextRequest) {
     sentimentTrend, topWilayahUrgent, topKategori, topPlatform, actionItems, activePolls, auditScans
   })
 
-  return NextResponse.json({
-    success: true,
-    data: {
-      executiveSummary,
-      sentimentTrend,
-      sentimentIndex,
-      topWilayahUrgent,
-      topKategori,
-      topPlatform,
-      actionItems,
-      activePolls,
-      auditHistory: auditScans,
-      stats: {
-        totalOpinionLinks: opinionLinks.length,
-        totalEssayPolls: essayPolls.length,
-        totalAuditScans: auditScans.length,
-        needsAction: opinionLinks.filter(l => l.status === 'NEW' && (l.priority === 'HIGH' || l.priority === 'MEDIUM')).length,
-      },
+  const data = {
+    executiveSummary,
+    sentimentTrend,
+    sentimentIndex,
+    topWilayahUrgent,
+    topKategori,
+    topPlatform,
+    actionItems,
+    activePolls,
+    auditHistory: auditScans,
+    stats: {
+      totalOpinionLinks: opinionLinks.length,
+      totalEssayPolls: essayPolls.length,
+      totalAuditScans: auditScans.length,
+      needsAction: opinionLinks.filter(l => l.status === 'NEW' && (l.priority === 'HIGH' || l.priority === 'MEDIUM')).length,
     },
-  })
+  }
+
+  _cache = { ts: Date.now(), data, territoryCode }
+
+  return NextResponse.json({ success: true, data, cached: false })
 }
 
 function generateExecutiveSummary(data: any) {

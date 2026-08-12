@@ -1154,7 +1154,7 @@ function BroadcastStatsDialog({ broadcast, onClose }: { broadcast: any; onClose:
 
   useEffect(() => {
     loadData()
-    const interval = setInterval(loadData, 5000) // auto-refresh every 5s
+    const interval = setInterval(loadData, 15000) // 15s (was 5s — too aggressive for Vercel serverless)
     return () => clearInterval(interval)
   }, [loadData])
 
@@ -2501,7 +2501,7 @@ function AgentsMonitorTab() {
 
   useEffect(() => {
     loadData()
-    const interval = setInterval(loadData, 10000)
+    const interval = setInterval(loadData, 30000) // 30s (was 10s — too aggressive)
     return () => clearInterval(interval)
   }, [loadData])
 

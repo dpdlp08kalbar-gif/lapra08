@@ -6,23 +6,35 @@ import { db } from '@/lib/db'
 import { getUserFromRequest } from '@/lib/server-helpers'
 import { getAllAgentsStatus, agents, initializeDefaultJobs } from '@/lib/agent-orchestrator'
 
+// 30-second in-memory cache to avoid hammering the DB on every render
+let _cache: { ts: number; data: any } | null = null
+const CACHE_TTL_MS = 30 * 1000
+
 export async function GET(request: NextRequest) {
   const user = await getUserFromRequest(request)
   if (!user) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
 
-  try {
-    await initializeDefaultJobs()
-    const status = await getAllAgentsStatus()
-    const jobs = await db.backgroundJob.findMany({ orderBy: { nextRunAt: 'asc' } })
+  // Return cached data if fresh (subsequent tab clicks within 30s)
+  if (_cache && Date.now() - _cache.ts < CACHE_TTL_MS) {
+    return NextResponse.json({ success: true, data: _cache.data, cached: true })
+  }
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        ...status,
-        jobs,
-        timestamp: new Date().toISOString(),
-      },
-    })
+  try {
+    // Run init in background — don't block the response
+    initializeDefaultJobs().catch(() => {})
+
+    const [status, jobs] = await Promise.all([
+      getAllAgentsStatus(),
+      db.backgroundJob.findMany({
+        orderBy: { nextRunAt: 'asc' },
+        select: { id: true, jobType: true, jobName: true, intervalMinutes: true, isActive: true, lastRunAt: true, lastStatus: true, lastError: true, nextRunAt: true },
+      }),
+    ])
+
+    const data = { ...status, jobs, timestamp: new Date().toISOString() }
+    _cache = { ts: Date.now(), data }
+
+    return NextResponse.json({ success: true, data, cached: false })
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 })
   }

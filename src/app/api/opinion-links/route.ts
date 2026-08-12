@@ -13,6 +13,10 @@ import {
 } from '@/lib/ai-engine'
 import { OrchestratorAgent } from '@/lib/agent-orchestrator'
 
+// 30-second cache (key: userId+query) — OpinionScannerTab & OpinionLinksTab both call this
+const _cache = new Map<string, { ts: number; data: any }>()
+const CACHE_TTL_MS = 30 * 1000
+
 // GET - List opinion links
 export async function GET(request: NextRequest) {
   const user = await getUserFromRequest(request)
@@ -25,6 +29,12 @@ export async function GET(request: NextRequest) {
   const status = searchParams.get('status')
   const provinceCode = searchParams.get('provinceCode')
   const limit = parseInt(searchParams.get('limit') || '50')
+
+  const cacheKey = `${user.id}|${user.territoryId}|${platform || ''}|${sentiment || ''}|${priority || ''}|${status || ''}|${provinceCode || ''}|${limit}`
+  const cached = _cache.get(cacheKey)
+  if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
+    return NextResponse.json({ success: true, data: cached.data, cached: true })
+  }
 
   const territory = await db.territory.findUnique({ where: { id: user.territoryId } })
   const where: any = {}
@@ -51,7 +61,8 @@ export async function GET(request: NextRequest) {
     take: limit,
   })
 
-  return NextResponse.json({ success: true, data: links })
+  _cache.set(cacheKey, { ts: Date.now(), data: links })
+  return NextResponse.json({ success: true, data: links, cached: false })
 }
 
 // POST - Auto-scrape & AI-analyze links
@@ -61,6 +72,9 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
+
+    // Invalidate cache on any mutation
+    _cache.clear()
 
     // === Auto-scrape mode ===
     if (body.action === 'scrape') {

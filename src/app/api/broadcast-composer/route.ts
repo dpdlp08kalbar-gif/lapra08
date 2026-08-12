@@ -14,6 +14,11 @@ import {
   type BroadcastTarget,
 } from '@/lib/broadcast-engine'
 
+// 30-second cache per user for templates / broadcasts / contacts_count
+// BroadcastComposerTab fires 3 parallel GETs when mounting — cache absorbs 2 of 3
+const _cache = new Map<string, { ts: number; data: any }>()
+const CACHE_TTL_MS = 30 * 1000
+
 // GET - List templates or recent broadcasts
 export async function GET(request: NextRequest) {
   const user = await getUserFromRequest(request)
@@ -22,34 +27,38 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const type = searchParams.get('type') || 'templates'
 
+  // Cache lookup (skip for 'targets' which has its own route)
+  const cacheKey = `${user.id}:${type}`
+  const cached = _cache.get(cacheKey)
+  if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
+    return NextResponse.json({ success: true, data: cached.data, cached: true })
+  }
+
+  let data: any
   if (type === 'templates') {
-    const templates = await db.messageTemplate.findMany({
+    data = await db.messageTemplate.findMany({
       where: { createdById: user.id },
       orderBy: { updatedAt: 'desc' },
       take: 30,
     })
-    return NextResponse.json({ success: true, data: templates })
-  }
-
-  if (type === 'broadcasts') {
-    const broadcasts = await db.broadcast.findMany({
+  } else if (type === 'broadcasts') {
+    data = await db.broadcast.findMany({
       where: { sentById: user.id },
       orderBy: { createdAt: 'desc' },
       take: 20,
     })
-    return NextResponse.json({ success: true, data: broadcasts })
+  } else if (type === 'contacts_count') {
+    const [totalContacts, optInContacts] = await Promise.all([
+      db.contact.count(),
+      db.contact.count({ where: { whatsappOptIn: true } }),
+    ])
+    data = { total: totalContacts, optIn: optInContacts }
+  } else {
+    return NextResponse.json({ success: false, error: 'Invalid type' }, { status: 400 })
   }
 
-  if (type === 'contacts_count') {
-    const totalContacts = await db.contact.count()
-    const optInContacts = await db.contact.count({ where: { whatsappOptIn: true } })
-    return NextResponse.json({
-      success: true,
-      data: { total: totalContacts, optIn: optInContacts },
-    })
-  }
-
-  return NextResponse.json({ success: false, error: 'Invalid type' }, { status: 400 })
+  _cache.set(cacheKey, { ts: Date.now(), data })
+  return NextResponse.json({ success: true, data, cached: false })
 }
 
 // POST - Save template or send broadcast
