@@ -4413,119 +4413,274 @@ export function KontakSekretariatMenu() {
   )
 }
 
-// ----- Lokasi Sekretariat -----
+// ----- Lokasi Sekretariat — Struktur Hierarki DPN/DPD/DPC (seperti Pusat Data Organisasi) -----
 function LokasiSekretariatManager() {
   const isSuperAdmin = useIsSuperAdmin()
-  const addToast = useToastStore((s) => s.addToast)
+  const [view, setView] = useState<'home' | 'dpn' | 'dpd-list' | 'dpd-detail' | 'dpc-list' | 'dpc-detail'>('home')
+  const [territories, setTerritories] = useState<any[]>([])
+  const [regencies, setRegencies] = useState<any[]>([])
+  const [selectedProv, setSelectedProv] = useState<any>(null)
+  const [selectedRegency, setSelectedRegency] = useState<any>(null)
   const [locations, setLocations] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
   const [addOpen, setAddOpen] = useState(false)
   const [editItem, setEditItem] = useState<any>(null)
   const [deleteItem, setDeleteItem] = useState<any>(null)
-  const [form, setForm] = useState({ name: '', level: 'DPC', address: '', city: '', province: '', postalCode: '', phone: '', email: '', hours: '', lat: 0, lng: 0, mapUrl: '' })
-  const [saving, setSaving] = useState(false)
+  const [form, setForm] = useState<any>({ name: '', level: 'DPC', address: '', city: '', province: '', postalCode: '', phone: '', email: '', hours: '', lat: 0, lng: 0, mapUrl: '' })
 
   useEffect(() => {
-    // Seed default locations once
-    const defaults = [
-      { id: 'loc_dpn', name: 'Sekretariat DPN LAPRA 08', level: 'DPN', address: 'Jl. Medan Merdeka Barat No. 12, Gambir, Jakarta Pusat', city: 'Jakarta Pusat', province: 'DKI Jakarta', postalCode: '10110', phone: '+62 21 3456 7890', email: 'sekretariat@lapra08.id', lat: -6.1754, lng: 106.8272, hours: 'Senin-Jumat 08:00-17:00 WIB', mapUrl: 'https://www.google.com/maps?q=Medan+Merdeka+Barat+Jakarta' },
-      { id: 'loc_kw3', name: 'Sekretariat Koorwil III Kalimantan', level: 'KOORWIL', address: 'Jl. Ahmad Yani No. 1, Banjarmasin', city: 'Banjarmasin', province: 'Kalimantan Selatan', postalCode: '70111', phone: '+62 511 234 5678', email: 'koorwil3@lapra08.id', lat: -3.3194, lng: 114.5908, hours: 'Senin-Jumat 08:00-16:00 WIB', mapUrl: 'https://www.google.com/maps?q=Banjarmasin' },
-      { id: 'loc_dpd_kalbar', name: 'Sekretariat DPD Kalimantan Barat', level: 'DPD', address: 'Jl. Sisingamangaraja No. 5, Pontianak Kota', city: 'Pontianak', province: 'Kalimantan Barat', postalCode: '78111', phone: '+62 561 732 456', email: 'dpd.kalbar@lapra08.id', lat: -0.0263, lng: 109.3425, hours: 'Senin-Jumat 08:00-16:00 WIB', mapUrl: 'https://www.google.com/maps?q=Pontianak' },
-      { id: 'loc_dpc_6171', name: 'Sekretariat DPC Pontianak Kota', level: 'DPC', address: 'Jl. Tanjungpura No. 22, Pontianak Kota', city: 'Pontianak', province: 'Kalimantan Barat', postalCode: '78112', phone: '+62 561 745 111', email: 'dpc.6171@lapra08.id', lat: -0.0193, lng: 109.3218, hours: 'Senin-Sabtu 08:00-16:00 WIB', mapUrl: 'https://www.google.com/maps?q=Jl+Tanjungpura+Pontianak' },
-      { id: 'loc_dpc_6175', name: 'Sekretariat DPC Sambas', level: 'DPC', address: 'Jl. Sebatang No. 14, Sambas', city: 'Sambas', province: 'Kalimantan Barat', postalCode: '79453', phone: '+62 561 888 999', email: 'dpc.6175@lapra08.id', lat: 1.2867, lng: 109.3425, hours: 'Senin-Sabtu 08:00-16:00 WIB', mapUrl: 'https://www.google.com/maps?q=Sambas+Kalbar' },
-      { id: 'loc_dpdbabel', name: 'Sekretariat DPD Bangka Belitung', level: 'DPD', address: 'Jl. Mayor Syafrie Rizal No. 7, Pangkalpinang', city: 'Pangkalpinang', province: 'Bangka Belitung', postalCode: '33121', phone: '+62 717 432 100', email: 'dpd.babel@lapra08.id', lat: -2.1290, lng: 106.1143, hours: 'Senin-Jumat 08:00-16:00 WIB', mapUrl: 'https://www.google.com/maps?q=Pangkalpinang' },
-    ]
-    // Persist defaults to SystemSetting (once), then load
-    api('/api/sekretariat').then((data: any[]) => {
-      if (data && data.length > 0) {
-        setLocations(data)
-      } else {
-        // Save defaults
-        Promise.all(defaults.map(d => fetch('/api/sekretariat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
-          body: JSON.stringify(d),
-        }).catch(() => {}))).then(() => api('/api/sekretariat').then(setLocations))
-      }
-      setLoading(false)
-    }).catch(() => setLoading(false))
+    Promise.all([
+      api('/api/territory').then((all: any[]) => {
+        setTerritories(all.filter(t => t.level === 'PROVINCE'))
+        setRegencies(all.filter(t => t.level === 'REGENCY'))
+      }).catch(() => {}),
+      api('/api/sekretariat').then((data: any[]) => setLocations(data || [])).catch(() => {}),
+    ]).finally(() => setLoading(false))
   }, [])
+
+  const reloadLocations = () => {
+    api('/api/sekretariat').then((data: any[]) => setLocations(data || [])).catch(() => {})
+  }
+
+  // Filter locations by level
+  const dpnLocations = locations.filter(l => l.level === 'DPN')
+  const dpdLocations = locations.filter(l => l.level === 'DPD')
+  const dpcLocations = locations.filter(l => l.level === 'DPC')
+
+  // Filter DPD locations by selected province
+  const dpdFiltered = selectedProv ? dpdLocations.filter(l => l.province === selectedProv.name || l.territoryCode === selectedProv.code) : []
+
+  // Filter DPC locations by selected regency
+  const dpcFiltered = selectedRegency ? dpcLocations.filter(l => l.city === selectedRegency.name || l.territoryCode === selectedRegency.code) : []
+
+  // Filter regencies by selected province
+  const filteredRegencies = selectedProv
+    ? regencies.filter(r => { const prov = territories.find(p => p.code === selectedProv.code); return prov && r.parentId === prov.id })
+    : []
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const userId = useAuthStore.getState().user?.id || ''
+    const method = editItem ? 'PUT' : 'POST'
+    const url = editItem ? `/api/sekretariat/${editItem.id}` : '/api/sekretariat'
+    try {
+      const res = await fetch(url, {
+        method, headers: { 'Content-Type': 'application/json', 'x-user-id': userId },
+        body: JSON.stringify(form),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) throw new Error(data.error)
+      useToastStore.getState().addToast(editItem ? 'Sekretariat diperbarui' : 'Sekretariat ditambahkan', 'success')
+      setAddOpen(false); setEditItem(null); reloadLocations()
+    } catch (e: any) { useToastStore.getState().addToast(e.message, 'error') }
+  }
+
+  const handleDelete = async () => {
+    if (!deleteItem) return
+    try {
+      await fetch(`/api/sekretariat/${deleteItem.id}`, { method: 'DELETE', headers: { 'x-user-id': useAuthStore.getState().user?.id || '' } })
+      useToastStore.getState().addToast('Sekretariat dihapus', 'success')
+      setDeleteItem(null); reloadLocations()
+    } catch (e: any) { useToastStore.getState().addToast(e.message, 'error') }
+  }
+
+  const openEditor = (item?: any) => {
+    if (item) { setEditItem(item); setForm({ ...item }) }
+    else { setEditItem(null); setForm({ name: '', level: view === 'dpn' ? 'DPN' : view === 'dpd-detail' ? 'DPD' : 'DPC', address: '', city: '', province: selectedProv?.name || '', postalCode: '', phone: '', email: '', hours: '', lat: 0, lng: 0, mapUrl: '' }) }
+    setAddOpen(true)
+  }
 
   if (loading) return <LoadingState />
 
-  const filtered = locations.filter(l => !search || l.name.toLowerCase().includes(search.toLowerCase()) || l.city.toLowerCase().includes(search.toLowerCase()) || l.province.toLowerCase().includes(search.toLowerCase()))
-
-  const levelConfig: Record<string, { label: string; color: string; icon: any }> = {
-    DPN: { label: 'DPN Pusat', color: 'bg-red-50 text-red-700 border-red-200', icon: Building2 },
-    KOORWIL: { label: 'Koorwil', color: 'bg-purple-50 text-purple-700 border-purple-200', icon: Globe },
-    DPD: { label: 'DPD Provinsi', color: 'bg-blue-50 text-blue-700 border-blue-200', icon: Building2 },
-    DPC: { label: 'DPC Kab/Kota', color: 'bg-emerald-50 text-emerald-700 border-emerald-200', icon: Building2 },
+  const levelConfig: Record<string, { label: string; color: string }> = {
+    DPN: { label: 'DPN Pusat', color: 'bg-purple-100 text-purple-700 border-purple-200' },
+    KOORWIL: { label: 'Koorwil', color: 'bg-purple-100 text-purple-700 border-purple-200' },
+    DPD: { label: 'DPD Provinsi', color: 'bg-blue-100 text-blue-700 border-blue-200' },
+    DPC: { label: 'DPC Kab/Kota', color: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
   }
 
-  return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <MapIcon className="w-4 h-4 text-emerald-600" /> Lokasi Sekretariat ({filtered.length})
-            </CardTitle>
-            <CardDescription>Pusat informasi alamat sekretariat DPN, Koorwil, DPD, dan DPC se-Indonesia</CardDescription>
+  const SekretariatCard = ({ loc }: { loc: any }) => {
+    const lc = levelConfig[loc.level] || levelConfig.DPC
+    return (
+      <div className="rounded-xl border p-4 hover:shadow-md transition-all bg-white">
+        <div className="flex items-start gap-3 mb-3">
+          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center shrink-0">
+            <MapIcon className="w-5 h-5 text-white" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="font-bold text-sm leading-tight">{loc.name}</div>
+            <Badge variant="outline" className={`text-[13px] mt-1 ${lc.color}`}>{lc.label}</Badge>
           </div>
           {isSuperAdmin && (
-            <Button size="sm" onClick={() => { setEditItem(null); setForm({ name: '', level: 'DPC', address: '', city: '', province: '', postalCode: '', phone: '', email: '', hours: '', lat: 0, lng: 0, mapUrl: '' }); setAddOpen(true) }} className="bg-gradient-to-r from-orange-600 to-red-600 text-white">
-              <Plus className="w-4 h-4 mr-1" /> Tambah
-            </Button>
+            <div className="flex gap-1">
+              <Button size="icon" variant="ghost" className="h-7 w-7 text-blue-600 hover:bg-blue-50" onClick={() => openEditor(loc)}>
+                <Edit className="w-3.5 h-3.5" />
+              </Button>
+              <Button size="icon" variant="ghost" className="h-7 w-7 text-red-600 hover:bg-red-50" onClick={() => setDeleteItem(loc)}>
+                <Trash2 className="w-3.5 h-3.5" />
+              </Button>
+            </div>
           )}
         </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="relative max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input placeholder="Cari sekretariat berdasarkan nama/kota/provinsi..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />
+        <div className="space-y-2 text-xs text-muted-foreground">
+          {loc.address && <div className="flex items-start gap-2"><MapPin className="w-3.5 h-3.5 text-red-500 mt-0.5 shrink-0" /><span>{loc.address}, {loc.city}, {loc.province} {loc.postalCode}</span></div>}
+          {loc.phone && <div className="flex items-center gap-2"><PhoneCall className="w-3.5 h-3.5 text-blue-500 shrink-0" /><span>{loc.phone}</span></div>}
+          {loc.email && <div className="flex items-center gap-2"><Mail className="w-3.5 h-3.5 text-emerald-500 shrink-0" /><span className="truncate">{loc.email}</span></div>}
+          {loc.hours && <div className="flex items-center gap-2"><Clock className="w-3.5 h-3.5 text-amber-500 shrink-0" /><span>{loc.hours}</span></div>}
         </div>
-        <div className="grid gap-4 md:grid-cols-2">
-          {filtered.map((loc) => {
-            const lc = levelConfig[loc.level] || levelConfig.DPC
-            const LcIcon = lc.icon
-            return (
-              <div key={loc.id} className="rounded-xl border p-4 hover:shadow-md transition-all bg-white">
-                <div className="flex items-start gap-3 mb-3">
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center shrink-0">
-                    <LcIcon className="w-5 h-5 text-white" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-bold text-sm leading-tight">{loc.name}</div>
-                    <Badge variant="outline" className={`text-[13px] mt-1 ${lc.color}`}>{lc.label}</Badge>
-                  </div>
-                  {isSuperAdmin && (
-                    <div className="flex gap-1">
-                      <Button size="icon" variant="ghost" className="h-7 w-7 text-blue-600 hover:bg-blue-50" onClick={() => { setEditItem(loc); setForm({ ...loc }); setAddOpen(true) }}>
-                        <Edit className="w-3.5 h-3.5" />
-                      </Button>
-                      <Button size="icon" variant="ghost" className="h-7 w-7 text-red-600 hover:bg-red-50" onClick={() => setDeleteItem(loc)}>
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
-                    </div>
-                  )}
-                </div>
-                <div className="space-y-2 text-xs text-muted-foreground">
-                  <div className="flex items-start gap-2"><MapPin className="w-3.5 h-3.5 text-red-500 mt-0.5 shrink-0" /><span>{loc.address}, {loc.city}, {loc.province} {loc.postalCode}</span></div>
-                  <div className="flex items-center gap-2"><PhoneCall className="w-3.5 h-3.5 text-blue-500 shrink-0" /><span>{loc.phone}</span></div>
-                  <div className="flex items-center gap-2"><Mail className="w-3.5 h-3.5 text-emerald-500 shrink-0" /><span className="truncate">{loc.email}</span></div>
-                  <div className="flex items-center gap-2"><Clock className="w-3.5 h-3.5 text-amber-500 shrink-0" /><span>{loc.hours}</span></div>
-                </div>
-                <a href={loc.mapUrl} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-800">
-                  <ExternalLink className="w-3 h-3" /> Lihat di Google Maps
-                </a>
+        {loc.mapUrl && <a href={loc.mapUrl} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-800">
+          <ExternalLink className="w-3 h-3" /> Lihat di Google Maps
+        </a>}
+      </div>
+    )
+  }
+
+  // === HOME VIEW: 3 Kartu DPN/DPD/DPC ===
+  if (view === 'home') {
+    const cards = [
+      { key: 'dpn', title: 'DPN', subtitle: 'Pusat Nasional', desc: 'Sekretariat DPN LAPRA 08', count: dpnLocations.length, icon: Building2, grad: 'from-red-500 to-orange-600' },
+      { key: 'dpd', title: 'DPD', subtitle: 'Provinsi', desc: 'Daftar sekretariat DPD se-Indonesia + LN', count: dpdLocations.length, icon: Globe, grad: 'from-blue-500 to-cyan-600' },
+      { key: 'dpc', title: 'DPC', subtitle: 'Kabupaten/Kota', desc: 'Daftar sekretariat DPC per DPD', count: dpcLocations.length, icon: MapPin, grad: 'from-emerald-500 to-teal-600' },
+    ]
+    return (
+      <div className="space-y-4">
+        <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-2 text-xs text-emerald-800">
+          <strong>Hierarki:</strong> DPN (Pusat Nasional) → DPD (Provinsi) → DPC (Kabupaten/Kota).
+          Pilih tingkat untuk melihat sekretariat masing-masing wilayah.
+        </div>
+        <div className="grid gap-4 md:grid-cols-3">
+          {cards.map(c => (
+            <div key={c.key} className="rounded-2xl border-2 hover:shadow-lg transition-all cursor-pointer overflow-hidden"
+              onClick={() => { setView(c.key === 'dpn' ? 'dpn' : c.key === 'dpd' ? 'dpd-list' : 'dpc-list'); setSelectedProv(null); setSelectedRegency(null) }}>
+              <div className={`bg-gradient-to-br ${c.grad} p-5 text-white`}>
+                <c.icon className="w-8 h-8 mb-2" />
+                <div className="text-xl font-bold">{c.title}</div>
+                <div className="text-sm opacity-90">{c.subtitle}</div>
               </div>
+              <div className="p-4 bg-white">
+                <div className="text-sm text-muted-foreground mb-2">{c.desc}</div>
+                <div className="flex items-center justify-between">
+                  <Badge variant="outline" className="text-[13px]">{c.count} sekretariat</Badge>
+                  <span className="text-xs font-medium text-blue-600">Buka <ChevronRight className="w-4 h-4 inline" /></span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  // === DPN VIEW ===
+  if (view === 'dpn') {
+    return (
+      <div className="space-y-4">
+        <Button variant="ghost" size="sm" onClick={() => setView('home')}><ChevronRight className="w-4 h-4 rotate-180" /> Kembali</Button>
+        <div className="flex items-center justify-between">
+          <h3 className="text-base font-bold flex items-center gap-2"><Building2 className="w-5 h-5 text-red-600" /> Sekretariat DPN (Pusat Nasional)</h3>
+          {isSuperAdmin && <Button size="sm" onClick={() => openEditor()} className="bg-gradient-to-r from-orange-600 to-red-600 text-white"><Plus className="w-4 h-4 mr-1" /> Tambah</Button>}
+        </div>
+        {dpnLocations.length === 0 ? <EmptyState icon={MapIcon} title="Belum ada sekretariat DPN" /> : (
+          <div className="grid gap-4 md:grid-cols-2">{dpnLocations.map(loc => <SekretariatCard key={loc.id} loc={loc} />)}</div>
+        )}
+      </div>
+    )
+  }
+
+  // === DPD LIST VIEW ===
+  if (view === 'dpd-list') {
+    return (
+      <div className="space-y-4">
+        <Button variant="ghost" size="sm" onClick={() => setView('home')}><ChevronRight className="w-4 h-4 rotate-180" /> Kembali</Button>
+        <h3 className="text-base font-bold flex items-center gap-2"><Globe className="w-5 h-5 text-blue-600" /> Pilih DPD (Provinsi)</h3>
+        <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+          {territories.map(prov => {
+            const count = dpdLocations.filter(l => l.province === prov.name || l.territoryCode === prov.code).length
+            return (
+              <button key={prov.code} onClick={() => { setSelectedProv(prov); setView('dpd-detail') }}
+                className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent transition-all text-left">
+                <span className="text-sm font-medium">{prov.name}</span>
+                <Badge variant="outline" className="text-[13px]">{count > 0 ? `${count} lokasi` : 'Kosong'}</Badge>
+              </button>
             )
           })}
         </div>
-      </CardContent>
-    </Card>
-  )
+      </div>
+    )
+  }
+
+  // === DPD DETAIL VIEW ===
+  if (view === 'dpd-detail' && selectedProv) {
+    return (
+      <div className="space-y-4">
+        <Button variant="ghost" size="sm" onClick={() => setView('dpd-list')}><ChevronRight className="w-4 h-4 rotate-180" /> Kembali ke daftar DPD</Button>
+        <div className="flex items-center justify-between">
+          <h3 className="text-base font-bold flex items-center gap-2"><Globe className="w-5 h-5 text-blue-600" /> Sekretariat DPD {selectedProv.name}</h3>
+          {isSuperAdmin && <Button size="sm" onClick={() => openEditor()} className="bg-gradient-to-r from-orange-600 to-red-600 text-white"><Plus className="w-4 h-4 mr-1" /> Tambah</Button>}
+        </div>
+        {dpdFiltered.length === 0 ? <EmptyState icon={MapIcon} title={`Belum ada sekretariat DPD ${selectedProv.name}`} description="Klik 'Tambah' untuk menambah sekretariat DPD." /> : (
+          <div className="grid gap-4 md:grid-cols-2">{dpdFiltered.map(loc => <SekretariatCard key={loc.id} loc={loc} />)}</div>
+        )}
+      </div>
+    )
+  }
+
+  // === DPC LIST VIEW (pilih provinsi dulu) ===
+  if (view === 'dpc-list') {
+    return (
+      <div className="space-y-4">
+        <Button variant="ghost" size="sm" onClick={() => setView('home')}><ChevronRight className="w-4 h-4 rotate-180" /> Kembali</Button>
+        <h3 className="text-base font-bold flex items-center gap-2"><MapPin className="w-5 h-5 text-emerald-600" /> Pilih DPD (Provinsi) untuk lihat DPC</h3>
+        <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+          {territories.map(prov => {
+            const count = dpcLocations.filter(l => l.province === prov.name || l.territoryCode === prov.code).length
+            return (
+              <button key={prov.code} onClick={() => { setSelectedProv(prov); setView('dpc-detail'); setSelectedRegency(null) }}
+                className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent transition-all text-left">
+                <span className="text-sm font-medium">{prov.name}</span>
+                <Badge variant="outline" className="text-[13px]">{count > 0 ? `${count} DPC` : 'Kosong'}</Badge>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+
+  // === DPC DETAIL VIEW (list kab/kota di provinsi terpilih) ===
+  if (view === 'dpc-detail' && selectedProv) {
+    return (
+      <div className="space-y-4">
+        <Button variant="ghost" size="sm" onClick={() => setView('dpc-list')}><ChevronRight className="w-4 h-4 rotate-180" /> Kembali ke daftar provinsi</Button>
+        <h3 className="text-base font-bold flex items-center gap-2"><MapPin className="w-5 h-5 text-emerald-600" /> DPC di {selectedProv.name}</h3>
+        <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+          {filteredRegencies.map(reg => {
+            const count = dpcLocations.filter(l => l.city === reg.name || l.territoryCode === reg.code).length
+            return (
+              <button key={reg.code} onClick={() => setSelectedRegency(reg)}
+                className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent transition-all text-left">
+                <span className="text-sm font-medium">{reg.name}</span>
+                <Badge variant="outline" className="text-[13px]">{count > 0 ? `${count} lokasi` : 'Kosong'}</Badge>
+              </button>
+            )
+          })}
+        </div>
+        {selectedRegency && (
+          <div className="space-y-2 mt-4">
+            <div className="flex items-center justify-between">
+              <h4 className="font-semibold text-sm">Sekretariat DPC {selectedRegency.name}</h4>
+              {isSuperAdmin && <Button size="sm" onClick={() => openEditor()} className="bg-gradient-to-r from-orange-600 to-red-600 text-white"><Plus className="w-4 h-4 mr-1" /> Tambah</Button>}
+            </div>
+            {dpcFiltered.length === 0 ? <EmptyState icon={MapIcon} title={`Belum ada sekretariat DPC ${selectedRegency.name}`} /> : (
+              <div className="grid gap-4 md:grid-cols-2">{dpcFiltered.map(loc => <SekretariatCard key={loc.id} loc={loc} />)}</div>
+            )}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  return null
 }
 
 // ----- Hubungi Kami -----
