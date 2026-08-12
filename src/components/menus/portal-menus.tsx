@@ -4535,14 +4535,17 @@ function LokasiSekretariatManager() {
     )
   }
 
-  // === HOME VIEW: 3 Kartu DPN/DPD/DPC ===
+  // === Render view content based on view state ===
+  let viewContent: React.ReactNode = null
+
+  // HOME VIEW: 3 Kartu DPN/DPD/DPC
   if (view === 'home') {
     const cards = [
       { key: 'dpn', title: 'DPN', subtitle: 'Pusat Nasional', desc: 'Sekretariat DPN LAPRA 08', count: dpnLocations.length, icon: Building2, grad: 'from-red-500 to-orange-600' },
       { key: 'dpd', title: 'DPD', subtitle: 'Provinsi', desc: 'Daftar sekretariat DPD se-Indonesia + LN', count: dpdLocations.length, icon: Globe, grad: 'from-blue-500 to-cyan-600' },
       { key: 'dpc', title: 'DPC', subtitle: 'Kabupaten/Kota', desc: 'Daftar sekretariat DPC per DPD', count: dpcLocations.length, icon: MapPin, grad: 'from-emerald-500 to-teal-600' },
     ]
-    return (
+    viewContent = (
       <div className="space-y-4">
         <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-2 text-xs text-emerald-800">
           <strong>Hierarki:</strong> DPN (Pusat Nasional) → DPD (Provinsi) → DPC (Kabupaten/Kota).
@@ -4571,9 +4574,9 @@ function LokasiSekretariatManager() {
     )
   }
 
-  // === DPN VIEW ===
-  if (view === 'dpn') {
-    return (
+  // DPN VIEW
+  else if (view === 'dpn') {
+    viewContent = (
       <div className="space-y-4">
         <Button variant="ghost" size="sm" onClick={() => setView('home')}><ChevronRight className="w-4 h-4 rotate-180" /> Kembali</Button>
         <div className="flex items-center justify-between">
@@ -4587,9 +4590,9 @@ function LokasiSekretariatManager() {
     )
   }
 
-  // === DPD LIST VIEW ===
-  if (view === 'dpd-list') {
-    return (
+  // DPD LIST VIEW
+  else if (view === 'dpd-list') {
+    viewContent = (
       <div className="space-y-4">
         <Button variant="ghost" size="sm" onClick={() => setView('home')}><ChevronRight className="w-4 h-4 rotate-180" /> Kembali</Button>
         <h3 className="text-base font-bold flex items-center gap-2"><Globe className="w-5 h-5 text-blue-600" /> Pilih DPD (Provinsi)</h3>
@@ -4609,9 +4612,9 @@ function LokasiSekretariatManager() {
     )
   }
 
-  // === DPD DETAIL VIEW ===
-  if (view === 'dpd-detail' && selectedProv) {
-    return (
+  // DPD DETAIL VIEW
+  else if (view === 'dpd-detail' && selectedProv) {
+    viewContent = (
       <div className="space-y-4">
         <Button variant="ghost" size="sm" onClick={() => setView('dpd-list')}><ChevronRight className="w-4 h-4 rotate-180" /> Kembali ke daftar DPD</Button>
         <div className="flex items-center justify-between">
@@ -4625,9 +4628,9 @@ function LokasiSekretariatManager() {
     )
   }
 
-  // === DPC LIST VIEW (pilih provinsi dulu) ===
-  if (view === 'dpc-list') {
-    return (
+  // DPC LIST VIEW (pilih provinsi dulu)
+  else if (view === 'dpc-list') {
+    viewContent = (
       <div className="space-y-4">
         <Button variant="ghost" size="sm" onClick={() => setView('home')}><ChevronRight className="w-4 h-4 rotate-180" /> Kembali</Button>
         <h3 className="text-base font-bold flex items-center gap-2"><MapPin className="w-5 h-5 text-emerald-600" /> Pilih DPD (Provinsi) untuk lihat DPC</h3>
@@ -4647,9 +4650,9 @@ function LokasiSekretariatManager() {
     )
   }
 
-  // === DPC DETAIL VIEW (list kab/kota di provinsi terpilih) ===
-  if (view === 'dpc-detail' && selectedProv) {
-    return (
+  // DPC DETAIL VIEW (list kab/kota di provinsi terpilih)
+  else if (view === 'dpc-detail' && selectedProv) {
+    viewContent = (
       <div className="space-y-4">
         <Button variant="ghost" size="sm" onClick={() => setView('dpc-list')}><ChevronRight className="w-4 h-4 rotate-180" /> Kembali ke daftar provinsi</Button>
         <h3 className="text-base font-bold flex items-center gap-2"><MapPin className="w-5 h-5 text-emerald-600" /> DPC di {selectedProv.name}</h3>
@@ -4680,7 +4683,118 @@ function LokasiSekretariatManager() {
     )
   }
 
-  return null
+  // === Final return: view content + always-rendered dialogs ===
+  return (
+    <>
+      {viewContent}
+
+      {/* Dialog: Tambah / Edit Sekretariat */}
+      <Dialog open={addOpen} onOpenChange={(o) => { setAddOpen(o); if (!o) setEditItem(null) }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <MapIcon className="w-4 h-4 text-orange-600" />
+              {editItem ? 'Edit Sekretariat' : 'Tambah Sekretariat'}
+            </DialogTitle>
+            <DialogDescription>
+              {editItem ? `Perbarui informasi lokasi: ${editItem.name}` : 'Lengkapi informasi lokasi sekretariat.'}
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSave} className="space-y-3 py-2">
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="space-y-1 md:col-span-2">
+                <Label className="text-[13px]">Nama Sekretariat <span className="text-red-500">*</span></Label>
+                <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Mis. Sekretariat DPN LAPRA 08" required className="text-[14px]" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[13px]">Tingkat</Label>
+                <Select value={form.level} onValueChange={(v) => setForm({ ...form, level: v })}>
+                  <SelectTrigger className="text-[14px]"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="DPN">DPN — Pusat Nasional</SelectItem>
+                    <SelectItem value="KOORWIL">Koorwil</SelectItem>
+                    <SelectItem value="DPD">DPD — Provinsi</SelectItem>
+                    <SelectItem value="DPC">DPC — Kabupaten/Kota</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[13px]">Kode Wilayah</Label>
+                <Input value={form.territoryCode || ''} onChange={(e) => setForm({ ...form, territoryCode: e.target.value })} placeholder="Mis. 6171" className="text-[14px]" />
+              </div>
+              <div className="space-y-1 md:col-span-2">
+                <Label className="text-[13px]">Alamat Lengkap</Label>
+                <Textarea value={form.address || ''} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="Jalan, nomor, RT/RW, kelurahan" rows={2} className="text-[14px]" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[13px]">Kabupaten/Kota</Label>
+                <Input value={form.city || ''} onChange={(e) => setForm({ ...form, city: e.target.value })} placeholder="Mis. Pontianak" className="text-[14px]" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[13px]">Provinsi</Label>
+                <Input value={form.province || ''} onChange={(e) => setForm({ ...form, province: e.target.value })} placeholder="Mis. Kalimantan Barat" className="text-[14px]" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[13px]">Kode Pos</Label>
+                <Input value={form.postalCode || ''} onChange={(e) => setForm({ ...form, postalCode: e.target.value })} placeholder="Mis. 78112" className="text-[14px]" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[13px]">Telepon</Label>
+                <Input value={form.phone || ''} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="Mis. 0812-xxxx-xxxx" className="text-[14px]" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[13px]">Email</Label>
+                <Input type="email" value={form.email || ''} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="Mis. sekretariat@lapra08.id" className="text-[14px]" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[13px]">Jam Operasional</Label>
+                <Input value={form.hours || ''} onChange={(e) => setForm({ ...form, hours: e.target.value })} placeholder="Mis. Senin–Jumat 08.00–17.00 WIB" className="text-[14px]" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[13px]">Latitude</Label>
+                <Input type="number" step="any" value={form.lat || 0} onChange={(e) => setForm({ ...form, lat: parseFloat(e.target.value) || 0 })} className="text-[14px]" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[13px]">Longitude</Label>
+                <Input type="number" step="any" value={form.lng || 0} onChange={(e) => setForm({ ...form, lng: parseFloat(e.target.value) || 0 })} className="text-[14px]" />
+              </div>
+              <div className="space-y-1 md:col-span-2">
+                <Label className="text-[13px]">Google Maps URL</Label>
+                <Input value={form.mapUrl || ''} onChange={(e) => setForm({ ...form, mapUrl: e.target.value })} placeholder="https://maps.google.com/..." className="text-[14px]" />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => { setAddOpen(false); setEditItem(null) }}>Batal</Button>
+              <Button type="submit" className="bg-gradient-to-r from-orange-600 to-red-600 text-white">
+                {editItem ? 'Simpan Perubahan' : 'Tambah Sekretariat'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* AlertDialog: Konfirmasi Hapus */}
+      <AlertDialog open={!!deleteItem} onOpenChange={(o) => !o && setDeleteItem(null)}>
+        <AlertDialogContent aria-describedby={undefined}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus Sekretariat?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Apakah Anda yakin ingin menghapus <strong>&quot;{deleteItem?.name}&quot;</strong>? Tindakan ini tidak dapat dibatalkan.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              <Trash2 className="w-4 h-4 mr-2" /> Hapus
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  )
 }
 
 // ----- Hubungi Kami -----
