@@ -4,7 +4,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getUserFromRequest } from '@/lib/server-helpers'
-import ZAI from 'z-ai-web-dev-sdk'
+import { requireZaiConfig } from '@/lib/zai-init'
 
 // STRICT keywords - berita harus mengandung salah satu untuk dianggap relevan
 const LAPRA_KEYWORDS = [
@@ -85,6 +85,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // === Init ZAI config dari env vars (untuk Vercel serverless) ===
+    if (!requireZaiConfig()) {
+      return NextResponse.json({
+        success: false,
+        error: 'Konfigurasi ZAI SDK belum lengkap. Set env vars: ZAI_BASE_URL, ZAI_API_KEY, ZAI_CHAT_ID, ZAI_TOKEN, ZAI_USER_ID di Vercel Project Settings.',
+      }, { status: 500 })
+    }
+
+    const ZAI = (await import('z-ai-web-dev-sdk')).default
     const zai = await ZAI.create()
     const rawResults = await zai.functions.invoke('web_search', { query, num })
 

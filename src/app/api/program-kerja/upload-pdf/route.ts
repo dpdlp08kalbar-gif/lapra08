@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getUserFromRequest } from '@/lib/server-helpers'
 import ZAI from 'z-ai-web-dev-sdk'
+import { requireZaiConfig } from '@/lib/zai-init'
 import * as fs from 'fs'
 import * as path from 'path'
 
@@ -44,6 +45,14 @@ export async function POST(request: NextRequest) {
     // Untuk PDF, kita kirim sebagai file_url ke VLM
     const base64Pdf = fileBuffer.toString('base64')
     const dataUrl = `data:application/pdf;base64,${base64Pdf}`
+
+    // === Init ZAI config dari env vars (untuk Vercel serverless) ===
+    if (!requireZaiConfig()) {
+      return NextResponse.json({
+        success: false,
+        error: 'Konfigurasi ZAI SDK belum lengkap. Set env vars: ZAI_BASE_URL, ZAI_API_KEY, ZAI_CHAT_ID, ZAI_TOKEN, ZAI_USER_ID di Vercel Project Settings.',
+      }, { status: 500 })
+    }
 
     const zai = await ZAI.create()
 

@@ -7,7 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getUserFromRequest } from '@/lib/server-helpers'
-import ZAI from 'z-ai-web-dev-sdk'
+import { requireZaiConfig } from '@/lib/zai-init'
 
 // STRICT keywords - berita harus mengandung salah satu untuk disinkron
 const LAPRA_KEYWORDS = [
@@ -49,6 +49,18 @@ export async function POST(request: NextRequest) {
     )
   }
 
+  // === Init ZAI config dari env vars (untuk Vercel serverless) ===
+  const configReady = requireZaiConfig()
+  if (!configReady) {
+    return NextResponse.json({
+      success: false,
+      error: 'Konfigurasi ZAI SDK belum lengkap. Set env vars: ZAI_BASE_URL, ZAI_API_KEY, ZAI_CHAT_ID, ZAI_TOKEN, ZAI_USER_ID di Vercel Project Settings.',
+    }, { status: 500 })
+  }
+
+  // Lazy import setelah config siap
+  const ZAI = (await import('z-ai-web-dev-sdk')).default
+
   try {
     const zai = await ZAI.create()
 
@@ -67,9 +79,18 @@ export async function POST(request: NextRequest) {
       try {
         const results = await zai.functions.invoke('web_search', { query, num: 10 })
         if (Array.isArray(results)) allResults.push(...results)
-      } catch (e) {
-        console.error('[News Sync] Search failed for query:', query, e)
+      } catch (e: any) {
+        // Graceful: log per-query error but continue to next query
+        console.error('[News Sync] Search failed for query:', query, e?.message || e)
       }
+    }
+
+    // If all searches failed (e.g. web_search function unavailable), return helpful message
+    if (allResults.length === 0) {
+      return NextResponse.json({
+        success: false,
+        error: 'Tidak ada hasil pencarian. Kemungkinan ZAI web_search function sedang tidak tersedia atau token expired. Coba lagi nanti.',
+      }, { status: 502 })
     }
 
     // Deduplicate by URL
@@ -95,9 +116,7 @@ export async function POST(request: NextRequest) {
     // STRICT FILTER: berita harus mengandung keyword LAPRA 08 ATAU agenda positif Prabowo
     const isRelevant = (r: any): boolean => {
       const text = ((r.name || '') + ' ' + (r.snippet || '')).toLowerCase()
-      // Harus ada salah satu keyword LAPRA
       const hasLapra = LAPRA_KEYWORDS.some((kw) => text.includes(kw))
-      // Atau salah satu keyword agenda positif Prabowo
       const hasPositivePrabowo = POSITIVE_PRABOWO_KEYWORDS.some((kw) => text.includes(kw))
       return hasLapra || hasPositivePrabowo
     }
@@ -130,12 +149,9 @@ export async function POST(request: NextRequest) {
         continue
       }
 
-      // Build content from snippet
       const content = `${result.snippet || ''}\n\nSumber: ${result.host_name || ''}\nURL: ${result.url || ''}`
 
-      // Determine sourceName
       let sourceName = result.host_name || 'Web'
-      // Clean common patterns
       sourceName = sourceName.replace(/^www\./, '').replace(/\/$/, '')
 
       try {
@@ -169,11 +185,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const summary = `Sync berita selesai:
-      ✅ ${newCount} berita baru ditambahkan
-      ↻ ${skippedDuplicate} duplikat di-skip
-      ✋ ${skippedIrrelevant} berita tidak relevan di-filter (bukan terkait LAPRA 08 / agenda positif Presiden Prabowo)
-      🚫 ${skippedNegative} berita negatif/sensitif di-block`
+    const summary = `Sync berita selesai: ${newCount} berita baru, ${skippedDuplicate} duplikat, ${skippedIrrelevant} tidak relevan, ${skippedNegative} negatif di-block`
 
     return NextResponse.json({
       success: true,
@@ -190,7 +202,10 @@ export async function POST(request: NextRequest) {
     })
   } catch (e: any) {
     console.error('[News Sync Error]', e)
-    return NextResponse.json({ success: false, error: e.message }, { status: 500 })
+    return NextResponse.json({
+      success: false,
+      error: `Sync gagal: ${e.message}. Pastikan env vars ZAI_* sudah dikonfigurasi di Vercel.`,
+    }, { status: 500 })
   }
 }
 

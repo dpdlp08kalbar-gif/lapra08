@@ -447,6 +447,8 @@ export async function aiGenerateMultipleEssayQuestionsLLM(params: {
   
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
+      if (!requireZaiConfig()) throw new Error('ZAI config not initialized')
+      const ZAI = (await import('z-ai-web-dev-sdk')).default
       const zai = await ZAI.create()
       const prompt = `Anda adalah ahli politik Indonesia yang merancang survei opini publik untuk Laskar Prabowo 08 (LAPRA 08).
 
@@ -586,7 +588,8 @@ export function generateMultipleEssayQuestionsTemplate(params: {
 
 // === LLM-BASED AI: ESSAY QUESTION GENERATOR (single, for backward compat) ===
 // Pakai z-ai-web-dev-sdk untuk generate pertanyaan essay yang adaptif & berkualitas
-import ZAI from 'z-ai-web-dev-sdk'
+import { requireZaiConfig } from './zai-init'
+// ZAI is lazy-imported inside functions after config is verified (Vercel serverless compat)
 
 export async function aiGenerateEssayQuestionLLM(params: {
   sourceTopic: string
@@ -607,6 +610,8 @@ export async function aiGenerateEssayQuestionLLM(params: {
   const { sourceTopic, sourceContent, sourceUrl, detectedLocation, detectedOccupation, detectedSentiment } = params
   
   try {
+    if (!requireZaiConfig()) throw new Error('ZAI config not initialized')
+    const ZAI = (await import('z-ai-web-dev-sdk')).default
     const zai = await ZAI.create()
     const prompt = `Anda adalah ahli politik Indonesia yang merancang survei opini publik untuk Laskar Prabowo 08 (LAPRA 08).
 
@@ -676,6 +681,8 @@ export async function aiAnalyzeEssayResponseLLM(answer: string, question: string
   keywords: string[]
 }> {
   try {
+    if (!requireZaiConfig()) throw new Error('ZAI config not initialized')
+    const ZAI = (await import('z-ai-web-dev-sdk')).default
     const zai = await ZAI.create()
     const prompt = `Anda adalah ahli analisis opini publik untuk LAPRA 08. Analisis jawaban essay berikut:
 
@@ -741,6 +748,8 @@ export async function aiGenerateOpinionSummaryLLM(title: string, content: string
   
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
+      if (!requireZaiConfig()) throw new Error('ZAI config not initialized')
+      const ZAI = (await import('z-ai-web-dev-sdk')).default
       const zai = await ZAI.create()
       const prompt = `Anda adalah ahli analisis opini publik untuk LAPRA 08 (Laskar Prabowo 08). Analisis konten berikut:
 
