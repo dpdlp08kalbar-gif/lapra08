@@ -1,13 +1,16 @@
-// LAPRA 08 - API: Auto-Sync Berita dari Web (STRICT FILTER)
-// POST /api/news/sync — Search web for latest LAPRA 08 news, inject if not exists
-// HANYA sinkron berita terkait:
-//   1. Laskar Prabowo 08 / LAPRA 08
-//   2. Agenda kegiatan positif Presiden Prabowo
-// Berita lain DILARANG disinkron kecuali atas izin admin (manual entry)
+// LAPRA 08 - API: Auto-Sync Berita dari Web (100% FREE, no API keys)
+// POST /api/news/sync — scrape YouTube + Google News via scrapeAuto(), inject if not exists
+//
+// KOMPATIBILITAS Vercel: Menggunakan scrapeAuto() yang pakai yt-dlp + Google News RSS.
+// Tidak butuh ZAI SDK, tidak butuh API key berbayar.
+//
+// CATATAN: yt-dlp biner hanya tersedia di dev environment. Di Vercel production,
+// hanya Google News RSS yang berfungsi (yt-dlp tidak bisa diinstall di serverless).
+// Tapi itu sudah cukup — RSS Google News mengembalikan berita real LAPRA 08.
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getUserFromRequest } from '@/lib/server-helpers'
-import { requireZaiConfig } from '@/lib/zai-init'
+import { scrapeAuto } from '@/lib/auto-scraper'
 
 // STRICT keywords - berita harus mengandung salah satu untuk disinkron
 const LAPRA_KEYWORDS = [
@@ -27,7 +30,7 @@ const LAPRA_KEYWORDS = [
 const POSITIVE_PRABOWO_KEYWORDS = [
   'prabowo astacita',
   'prabowo sejahtera',
-  'prabowo mbg', // makan bergizi gratis
+  'prabowo mbg',
   'prabowo program sosial',
   'presiden prabowo positif',
   'pemerintahan prabowo gibran',
@@ -35,75 +38,67 @@ const POSITIVE_PRABOWO_KEYWORDS = [
   'prabowo kerja rakyat',
 ]
 
+// Anti-filter: exclude berita negatif / konflik / sensitif
+const NEGATIVE_KEYWORDS = [
+  'korupsi', 'tersangka', 'kasus pidana', 'skandal', 'dugaan',
+  'demonstrasi tolak', 'protes', 'mogok', 'konflik', 'bentrok',
+  'kriminal', 'pelanggaran hukum',
+]
+
+function isRelevant(title: string, snippet: string): boolean {
+  const text = (title + ' ' + snippet).toLowerCase()
+  const hasLapra = LAPRA_KEYWORDS.some((kw) => text.includes(kw))
+  const hasPositivePrabowo = POSITIVE_PRABOWO_KEYWORDS.some((kw) => text.includes(kw))
+  return hasLapra || hasPositivePrabowo
+}
+
+function isNegative(title: string, snippet: string): boolean {
+  const text = (title + ' ' + snippet).toLowerCase()
+  return NEGATIVE_KEYWORDS.some((kw) => text.includes(kw))
+}
+
 export async function POST(request: NextRequest) {
   const user = await getUserFromRequest(request)
   if (!user) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
   }
 
-  // Hanya SUPERADMIN & ADMIN_DPN yang bisa sync berita dari medsos
   if (user.role !== 'SUPERADMIN' && user.role !== 'ADMIN_DPN') {
     return NextResponse.json(
-      { success: false, error: 'Hanya Super Admin / Admin DPN yang dapat sync berita dari medsos' },
+      { success: false, error: 'Hanya Super Admin / Admin DPN yang dapat sync berita' },
       { status: 403 }
     )
   }
 
-  // === Init ZAI config dari env vars (untuk Vercel serverless) ===
-  const configReady = requireZaiConfig()
-  if (!configReady) {
-    return NextResponse.json({
-      success: false,
-      error: 'Konfigurasi ZAI SDK belum lengkap. Set env vars: ZAI_BASE_URL, ZAI_API_KEY, ZAI_CHAT_ID, ZAI_TOKEN, ZAI_USER_ID di Vercel Project Settings.',
-    }, { status: 500 })
-  }
-
-  // Lazy import setelah config siap
-  const ZAI = (await import('z-ai-web-dev-sdk')).default
-
   try {
-    const zai = await ZAI.create()
+    // === SCRAPE via yt-dlp + Google News RSS (100% free, no API key) ===
+    const { posts, sources, skipped } = await scrapeAuto()
 
-    // Search queries untuk berita terbaru - HANYA terkait LAPRA 08 & agenda positif Presiden Prabowo
-    const queries = [
-      'Laskar Prabowo 08 LAPRA 08 berita kegiatan terbaru 2026',
-      'LAPRA 08 Devi Taurisa Hashim pengurus berita',
-      'Laskar Prabowo 08 aksi sosial DPD DPC kegiatan',
-      'Presiden Prabowo astacita program positif 2026',
-      'Laskar Prabowo 08 peace walk peace forum',
-      'LAPRA 08 deklarasi dukung pemerintahan Prabowo',
-    ]
-
-    const allResults: any[] = []
-    for (const query of queries) {
-      try {
-        const results = await zai.functions.invoke('web_search', { query, num: 10 })
-        if (Array.isArray(results)) allResults.push(...results)
-      } catch (e: any) {
-        // Graceful: log per-query error but continue to next query
-        console.error('[News Sync] Search failed for query:', query, e?.message || e)
-      }
-    }
-
-    // If all searches failed (e.g. web_search function unavailable), return helpful message
-    if (allResults.length === 0) {
+    if (posts.length === 0) {
       return NextResponse.json({
-        success: false,
-        error: 'Tidak ada hasil pencarian. Kemungkinan ZAI web_search function sedang tidak tersedia atau token expired. Coba lagi nanti.',
-      }, { status: 502 })
+        success: true,
+        data: {
+          totalFound: 0,
+          totalRelevant: 0,
+          newCreated: 0,
+          skippedDuplicate: 0,
+          skippedIrrelevant: 0,
+          skippedNegative: 0,
+          sources,
+          skipped,
+          newBerita: [],
+        },
+        message: 'Tidak ada berita baru ditemukan. Sumber: ' + sources.join(', ') + '. Skipped: ' + skipped.join(', '),
+      })
     }
 
-    // Deduplicate by URL
-    const seenUrls = new Set<string>()
-    const uniqueResults = allResults.filter((r) => {
-      if (!r.url || seenUrls.has(r.url)) return false
-      seenUrls.add(r.url)
-      return true
+    // Get existing announcement titles & URLs for dedup
+    const existing = await db.announcement.findMany({
+      where: { source: 'WEB_SYNC' },
+      select: { title: true, sourceUrl: true },
     })
-
-    // Get existing announcement titles for dedup
-    const existing = await db.announcement.findMany({ select: { title: true } })
     const existingTitles = new Set(existing.map((e) => e.title.toLowerCase().substring(0, 80)))
+    const existingUrls = new Set(existing.map((e) => e.sourceUrl).filter(Boolean))
 
     // Get Indonesia territory
     const indonesia = await db.territory.findFirst({
@@ -113,61 +108,57 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Territory Indonesia not found' }, { status: 500 })
     }
 
-    // STRICT FILTER: berita harus mengandung keyword LAPRA 08 ATAU agenda positif Prabowo
-    const isRelevant = (r: any): boolean => {
-      const text = ((r.name || '') + ' ' + (r.snippet || '')).toLowerCase()
-      const hasLapra = LAPRA_KEYWORDS.some((kw) => text.includes(kw))
-      const hasPositivePrabowo = POSITIVE_PRABOWO_KEYWORDS.some((kw) => text.includes(kw))
-      return hasLapra || hasPositivePrabowo
-    }
-
-    const relevantResults = uniqueResults.filter(isRelevant)
-
-    // Anti-filter: exclude berita negatif / konflik / sensitif
-    const NEGATIVE_KEYWORDS = [
-      'korupsi', 'tersangka', 'kasus pidana', 'skandal', 'dugaan',
-      'demonstrasi tolak', 'protes', 'mogok', 'konflik', 'bentrok',
-      'kriminal', 'pelanggaran hukum',
-    ]
-    const isNegative = (r: any): boolean => {
-      const text = ((r.name || '') + ' ' + (r.snippet || '')).toLowerCase()
-      return NEGATIVE_KEYWORDS.some((kw) => text.includes(kw))
-    }
-
-    const filteredResults = relevantResults.filter(r => !isNegative(r))
-
     let newCount = 0
     let skippedDuplicate = 0
-    let skippedIrrelevant = uniqueResults.length - relevantResults.length
-    let skippedNegative = relevantResults.length - filteredResults.length
+    let skippedIrrelevant = 0
+    let skippedNegative = 0
     const newBerita: any[] = []
 
-    for (const result of filteredResults) {
-      const titleKey = (result.name || '').toLowerCase().substring(0, 80)
-      if (existingTitles.has(titleKey)) {
+    for (const post of posts) {
+      const title = post.title || 'Berita LAPRA 08'
+      const snippet = post.content || ''
+      const url = post.url || ''
+
+      // Strict filter: harus relevan dengan LAPRA 08 atau agenda positif Prabowo
+      if (!isRelevant(title, snippet)) {
+        skippedIrrelevant++
+        continue
+      }
+
+      // Anti-filter: skip berita negatif
+      if (isNegative(title, snippet)) {
+        skippedNegative++
+        continue
+      }
+
+      // Dedup by title or URL
+      const titleKey = title.toLowerCase().substring(0, 80)
+      if (existingTitles.has(titleKey) || (url && existingUrls.has(url))) {
         skippedDuplicate++
         continue
       }
 
-      const content = `${result.snippet || ''}\n\nSumber: ${result.host_name || ''}\nURL: ${result.url || ''}`
-
-      let sourceName = result.host_name || 'Web'
-      sourceName = sourceName.replace(/^www\./, '').replace(/\/$/, '')
+      // Determine source name from platform
+      const sourceName = post.platform === 'YOUTUBE'
+        ? (post.authorHandle || post.author || 'YouTube').toString()
+        : post.platform === 'GOOGLE'
+        ? 'Google News'
+        : post.platform
 
       try {
         const created = await db.announcement.create({
           data: {
-            title: result.name || 'Berita LAPRA 08',
-            content,
+            title,
+            content: `${snippet}\n\nSumber: ${sourceName}\nURL: ${url}`,
             type: 'INFO',
             category: 'BERITA',
             isPinned: false,
             isActive: true,
             photoUrl: null,
-            publishDate: result.date ? new Date(result.date) : new Date(),
+            publishDate: post.publishedAt || new Date(),
             source: 'WEB_SYNC',
-            sourceUrl: result.url,
-            sourceName,
+            sourceUrl: url,
+            sourceName: sourceName.substring(0, 200),
             territoryId: indonesia.id,
             createdById: user.id,
           },
@@ -175,27 +166,30 @@ export async function POST(request: NextRequest) {
         newBerita.push({
           id: created.id,
           title: created.title,
-          url: result.url,
+          url,
           sourceName,
         })
         newCount++
         existingTitles.add(titleKey)
+        if (url) existingUrls.add(url)
       } catch (e) {
         skippedDuplicate++
       }
     }
 
-    const summary = `Sync berita selesai: ${newCount} berita baru, ${skippedDuplicate} duplikat, ${skippedIrrelevant} tidak relevan, ${skippedNegative} negatif di-block`
+    const summary = `Sync berita selesai: ${newCount} baru, ${skippedDuplicate} duplikat, ${skippedIrrelevant} tidak relevan, ${skippedNegative} negatif di-block. Sumber: ${sources.join(', ')}.`
 
     return NextResponse.json({
       success: true,
       data: {
-        totalFound: uniqueResults.length,
-        totalRelevant: filteredResults.length,
+        totalFound: posts.length,
+        totalRelevant: newCount + skippedDuplicate,
         newCreated: newCount,
         skippedDuplicate,
         skippedIrrelevant,
         skippedNegative,
+        sources,
+        skipped,
         newBerita,
       },
       message: summary,
@@ -204,7 +198,7 @@ export async function POST(request: NextRequest) {
     console.error('[News Sync Error]', e)
     return NextResponse.json({
       success: false,
-      error: `Sync gagal: ${e.message}. Pastikan env vars ZAI_* sudah dikonfigurasi di Vercel.`,
+      error: `Sync gagal: ${e.message}`,
     }, { status: 500 })
   }
 }
