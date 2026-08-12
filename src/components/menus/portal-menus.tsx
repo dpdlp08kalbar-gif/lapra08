@@ -4415,9 +4415,16 @@ export function KontakSekretariatMenu() {
 
 // ----- Lokasi Sekretariat -----
 function LokasiSekretariatManager() {
+  const isSuperAdmin = useIsSuperAdmin()
+  const addToast = useToastStore((s) => s.addToast)
   const [locations, setLocations] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [addOpen, setAddOpen] = useState(false)
+  const [editItem, setEditItem] = useState<any>(null)
+  const [deleteItem, setDeleteItem] = useState<any>(null)
+  const [form, setForm] = useState({ name: '', level: 'DPC', address: '', city: '', province: '', postalCode: '', phone: '', email: '', hours: '', lat: 0, lng: 0, mapUrl: '' })
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     // Seed default locations once
@@ -4459,10 +4466,19 @@ function LokasiSekretariatManager() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
-          <MapIcon className="w-4 h-4 text-emerald-600" /> Lokasi Sekretariat ({filtered.length})
-        </CardTitle>
-        <CardDescription>Pusat informasi alamat sekretariat DPN, Koorwil, DPD, dan DPC se-Indonesia</CardDescription>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <MapIcon className="w-4 h-4 text-emerald-600" /> Lokasi Sekretariat ({filtered.length})
+            </CardTitle>
+            <CardDescription>Pusat informasi alamat sekretariat DPN, Koorwil, DPD, dan DPC se-Indonesia</CardDescription>
+          </div>
+          {isSuperAdmin && (
+            <Button size="sm" onClick={() => { setEditItem(null); setForm({ name: '', level: 'DPC', address: '', city: '', province: '', postalCode: '', phone: '', email: '', hours: '', lat: 0, lng: 0, mapUrl: '' }); setAddOpen(true) }} className="bg-gradient-to-r from-orange-600 to-red-600 text-white">
+              <Plus className="w-4 h-4 mr-1" /> Tambah
+            </Button>
+          )}
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="relative max-w-md">
@@ -4483,6 +4499,16 @@ function LokasiSekretariatManager() {
                     <div className="font-bold text-sm leading-tight">{loc.name}</div>
                     <Badge variant="outline" className={`text-[13px] mt-1 ${lc.color}`}>{lc.label}</Badge>
                   </div>
+                  {isSuperAdmin && (
+                    <div className="flex gap-1">
+                      <Button size="icon" variant="ghost" className="h-7 w-7 text-blue-600 hover:bg-blue-50" onClick={() => { setEditItem(loc); setForm({ ...loc }); setAddOpen(true) }}>
+                        <Edit className="w-3.5 h-3.5" />
+                      </Button>
+                      <Button size="icon" variant="ghost" className="h-7 w-7 text-red-600 hover:bg-red-50" onClick={() => setDeleteItem(loc)}>
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
                 <div className="space-y-2 text-xs text-muted-foreground">
                   <div className="flex items-start gap-2"><MapPin className="w-3.5 h-3.5 text-red-500 mt-0.5 shrink-0" /><span>{loc.address}, {loc.city}, {loc.province} {loc.postalCode}</span></div>
