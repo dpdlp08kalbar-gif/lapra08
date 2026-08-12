@@ -1125,12 +1125,22 @@ export function ProfilMenu() {
 // ============================================================
 export function PusatMediaMenu() {
   const [tab, setTab] = useState('berita')
+  // Lifted state: lets MediaSiaranManager trigger AnnouncementManager's new-berita dialog
+  // with category pre-set to SIRANAN_PERS (auto consumed once opened)
+  const [pendingNewBerita, setPendingNewBerita] = useState<string | null>(null)
   const tabs = [
     { key: 'berita', label: 'Kabar Utama & Pengumuman', icon: Newspaper },
     { key: 'galeri', label: 'Galeri Media', icon: ImageIcon },
     { key: 'rilis-pers', label: 'Media Siaran LAPRA 08', icon: Megaphone },
     { key: 'majalah', label: 'Majalah / Buletin Digital', icon: BookOpen },
   ]
+
+  // Helper: switch to berita tab + auto-open new-berita dialog with optional category preset
+  const openNewBerita = (category: string = 'BERITA') => {
+    setTab('berita')
+    setPendingNewBerita(category)
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader title="Pusat Media" description="Kabar, berita, galeri, dan publikasi LAPRA 08" icon={Newspaper} />
@@ -1143,11 +1153,14 @@ export function PusatMediaMenu() {
         ))}
       </div>
       {tab === 'berita' ? (
-        <AnnouncementManager />
+        <AnnouncementManager
+          pendingNewBerita={pendingNewBerita}
+          onConsumePendingNewBerita={() => setPendingNewBerita(null)}
+        />
       ) : tab === 'galeri' ? (
         <GaleriMediaManager />
       ) : tab === 'rilis-pers' ? (
-        <MediaSiaranManager />
+        <MediaSiaranManager onCreateNew={() => openNewBerita('SIRANAN_PERS')} />
       ) : (
         <MajalahManager />
       )}
@@ -1673,7 +1686,7 @@ function ArsipBeritaPentingManager() {
 // ============================================================
 // MEDIA SIARAN — Auto-sync dari berita kategori SIRANAN_PERS
 // ============================================================
-function MediaSiaranManager() {
+function MediaSiaranManager({ onCreateNew }: { onCreateNew?: () => void }) {
   const addToast = useToastStore((s) => s.addToast)
   const [items, setItems] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -1698,11 +1711,20 @@ function MediaSiaranManager() {
             <Megaphone className="w-4 h-4 text-indigo-600" />
             Media Siaran LAPRA 08 ({items.length} rilis pers)
           </CardTitle>
-          <Button size="sm" variant="outline" onClick={() => {
-            useNavStore.getState().setActiveMenu('pusat-media')
-            // Switch to berita tab via event
-            window.dispatchEvent(new CustomEvent('switch-tab', { detail: 'berita' }))
-          }}>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              // Switch to Kabar Utama tab + auto-open new berita dialog
+              // with category pre-set to SIRANAN_PERS via callback from parent PusatMediaMenu
+              if (onCreateNew) {
+                onCreateNew()
+              } else {
+                // Fallback: just notify user (shouldn't happen in normal flow)
+                addToast('Silakan buka tab "Kabar Utama" lalu klik "Tambah Berita" dengan kategori "Siaran Pers"', 'info')
+              }
+            }}
+          >
             <Plus className="w-4 h-4 mr-1" /> Buat Siaran Pers Baru
           </Button>
         </div>
@@ -2169,7 +2191,13 @@ function GalleryManager() {
 // ============================================================
 // ANNOUNCEMENT MANAGER — CRUD lengkap untuk berita & pengumuman
 // ============================================================
-function AnnouncementManager() {
+function AnnouncementManager({
+  pendingNewBerita,
+  onConsumePendingNewBerita,
+}: {
+  pendingNewBerita?: string | null
+  onConsumePendingNewBerita?: () => void
+}) {
   const addToast = useToastStore((s) => s.addToast)
   const [items, setItems] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -2196,6 +2224,22 @@ function AnnouncementManager() {
       .finally(() => setLoading(false))
   }
   useEffect(() => { loadData() }, [])
+
+  // === Auto-open new-berita dialog when triggered from sibling (e.g. Media Siaran) ===
+  // Trigger fires when `pendingNewBerita` becomes a non-null category string.
+  useEffect(() => {
+    if (!pendingNewBerita) return
+    setEditItem(null)
+    setPreviewMode(false)
+    setForm({
+      title: '', content: '', type: 'INFO',
+      category: pendingNewBerita, // preset (e.g. SIRANAN_PERS from Media Siaran tab)
+      isPinned: false,
+      territoryId: '', imageUrl: '', publishDate: '',
+    })
+    setAddOpen(true)
+    onConsumePendingNewBerita?.() // reset parent state so it can fire again later
+  }, [pendingNewBerita, onConsumePendingNewBerita])
 
   const handleFileUpload = (file: File) => {
     if (!file.type.startsWith('image/')) {
