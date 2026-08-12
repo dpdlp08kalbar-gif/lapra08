@@ -8,6 +8,10 @@ import {
   analyzeSentiment, detectLocationFromDB, aiGenerateEssayQuestionLLM
 } from '@/lib/ai-engine'
 
+// 30-second cache per user (essay polls list rarely changes within 30s)
+const _cache = new Map<string, { ts: number; data: any }>()
+const CACHE_TTL_MS = 30 * 1000
+
 // GET - List essay polls
 export async function GET(request: NextRequest) {
   const user = await getUserFromRequest(request)
@@ -16,6 +20,12 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const status = searchParams.get('status')
   const territoryId = searchParams.get('territoryId')
+
+  const cacheKey = `${user.id}|${user.territoryId}|${status || ''}|${territoryId || ''}`
+  const cached = _cache.get(cacheKey)
+  if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
+    return NextResponse.json({ success: true, data: cached.data, cached: true })
+  }
 
   const territory = await db.territory.findUnique({ where: { id: user.territoryId } })
   const where: any = {}
@@ -45,7 +55,8 @@ export async function GET(request: NextRequest) {
     take: 30,
   })
 
-  return NextResponse.json({ success: true, data: polls })
+  _cache.set(cacheKey, { ts: Date.now(), data: polls })
+  return NextResponse.json({ success: true, data: polls, cached: false })
 }
 
 // POST - Create essay poll (manual or AI-generate via LLM)
@@ -55,6 +66,9 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
+
+    // Invalidate cache on creation
+    _cache.clear()
 
     // === AI Generate mode (LLM-powered) ===
     if (body.action === 'ai_generate') {

@@ -41,6 +41,33 @@ import {
 export function CommunicationMenu() {
   const [tab, setTab] = useState('opinion-scanner')
 
+  // === PRE-WARM: Fire all 7 tab APIs in background when menu mounts ===
+  // Results cached server-side (30-60s) so subsequent tab clicks are instant.
+  // We don't await — just trigger requests, results populate server cache.
+  useEffect(() => {
+    const userId = useAuthStore.getState().user?.id || ''
+    if (!userId) return
+
+    const headers = { 'x-user-id': userId }
+    const endpoints = [
+      '/api/opinion-links?limit=15',
+      '/api/geospatial-voice?code=ID',
+      '/api/demographics-analytics?code=ID',
+      '/api/broadcast-composer?type=templates',
+      '/api/broadcast-composer?type=broadcasts',
+      '/api/broadcast-composer?type=contacts_count',
+      '/api/essay-polls',
+      '/api/opinion-links?limit=50',
+      '/api/decision-dashboard',
+      '/api/agents/status',
+    ]
+
+    // Fire all requests in parallel — results go to server cache, not UI state
+    endpoints.forEach(url => {
+      fetch(url, { headers }).catch(() => {})
+    })
+  }, [])
+
   const tabs = [
     { key: 'opinion-scanner', label: 'Opini Publik Auto-Scanner', icon: Sparkles, desc: 'Scan otomatis YouTube + Google News, AI analisis sentimen + lokasi + kategori' },
     { key: 'opinion-map', label: 'Geospatial Voice Mapping', icon: MapPin, desc: 'Heatmap + drill-down 7 level + trust index per demografi' },

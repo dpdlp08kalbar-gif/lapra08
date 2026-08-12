@@ -5,6 +5,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getUserFromRequest } from '@/lib/server-helpers'
 
+// 60-second cache (per territory code)
+const _cache = new Map<string, { ts: number; data: any }>()
+const CACHE_TTL_MS = 60 * 1000
+
 const AGE_GROUPS = [
   { key: '17-21', label: 'Pemilih Pemula (17-21)', desc: 'Segmen pemilih baru, didominasi pelajar/mahasiswa yang sangat aktif di media sosial dan menjadi motor utama viralitas isu.' },
   { key: '22-30', label: 'Pemilih Muda (22-30)', desc: 'Segmen produktif awal/lulusan baru, sangat kritis terhadap isu lapangan kerja, digitalisasi, dan kebijakan ekonomi kreatif.' },
@@ -27,23 +31,35 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const code = searchParams.get('code') || 'ID'
 
+  // Cache hit
+  const cached = _cache.get(code)
+  if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
+    return NextResponse.json({ success: true, data: cached.data, cached: true })
+  }
+
   const popData = await db.populationData.findUnique({ where: { territoryCode: code } })
   if (!popData) {
     return NextResponse.json({ success: false, error: `Data populasi untuk ${code} tidak ditemukan` }, { status: 404 })
   }
 
-  // Age groups breakdown with trust index
-  const ageGroupsBreakdown = await Promise.all(AGE_GROUPS.map(async (ag) => {
-    const trust = await db.trustIndex.findUnique({
-      where: { territoryCode_ageGroup_communitySegment: { territoryCode: code, ageGroup: ag.key, communitySegment: '' } },
-    }).catch(() => null)
-    
+  // === BATCHED: 1 query gets all 10 trust indices for this territory (was 11 sequential) ===
+  const allTrusts = await db.trustIndex.findMany({ where: { territoryCode: code } })
+  const trustByKey = new Map<string, any>()
+  for (const t of allTrusts) {
+    const k = `${t.ageGroup}|${t.communitySegment}`
+    trustByKey.set(k, t)
+  }
+
+  const getTrust = (ageGroup: string, segment: string) => trustByKey.get(`${ageGroup}|${segment}`) || null
+
+  const ageGroupsBreakdown = AGE_GROUPS.map((ag) => {
+    const trust = getTrust(ag.key, '')
     const voters = ag.key === '17-21' ? popData.voters17to21 :
                    ag.key === '22-30' ? popData.voters22to30 :
                    ag.key === '31-40' ? popData.voters31to40 :
                    ag.key === '41-60' ? popData.voters41to60 :
                    popData.voters61plus
-    
+
     return {
       key: ag.key,
       label: ag.label,
@@ -58,19 +74,15 @@ export async function GET(request: NextRequest) {
       confidence: trust?.confidence || 0,
       trendDirection: trust?.trendDirection || 'STABLE',
     }
-  }))
+  })
 
-  // Community segments breakdown with trust index
-  const segmentsBreakdown = await Promise.all(COMMUNITY_SEGMENTS.map(async (seg) => {
-    const trust = await db.trustIndex.findUnique({
-      where: { territoryCode_ageGroup_communitySegment: { territoryCode: code, ageGroup: '', communitySegment: seg.key } },
-    }).catch(() => null)
-    
+  const segmentsBreakdown = COMMUNITY_SEGMENTS.map((seg) => {
+    const trust = getTrust('', seg.key)
     const population = seg.key === 'INDIGENOUS' ? popData.populationIndigenous :
                        seg.key === 'RELIGIOUS' ? popData.populationReligious :
                        seg.key === 'PROFESSION' ? popData.populationProfession :
                        popData.populationYouth
-    
+
     return {
       key: seg.key,
       label: seg.label,
@@ -85,32 +97,29 @@ export async function GET(request: NextRequest) {
       confidence: trust?.confidence || 0,
       trendDirection: trust?.trendDirection || 'STABLE',
     }
-  }))
-
-  // Overall trust index untuk territory ini
-  const overallTrust = await db.trustIndex.findUnique({
-    where: { territoryCode_ageGroup_communitySegment: { territoryCode: code, ageGroup: '', communitySegment: '' } },
-  }).catch(() => null)
-
-  return NextResponse.json({
-    success: true,
-    data: {
-      territory: { code, name: code === 'ID' ? 'Indonesia' : code, level: popData.level },
-      overall: {
-        trustScore: overallTrust?.trustScore || 0,
-        totalMentions: overallTrust?.totalMentions || 0,
-        sentimentPositive: overallTrust?.sentimentPositive || 0,
-        sentimentNegative: overallTrust?.sentimentNegative || 0,
-        sentimentNeutral: overallTrust?.sentimentNeutral || 0,
-        confidence: overallTrust?.confidence || 0,
-        trendDirection: overallTrust?.trendDirection || 'STABLE',
-      },
-      ageGroups: ageGroupsBreakdown,
-      communitySegments: segmentsBreakdown,
-      totals: {
-        population: popData.totalPopulation,
-        voters: popData.totalVoters,
-      },
-    },
   })
+
+  const overallTrust = getTrust('', '')
+
+  const data = {
+    territory: { code, name: code === 'ID' ? 'Indonesia' : code, level: popData.level },
+    overall: {
+      trustScore: overallTrust?.trustScore || 0,
+      totalMentions: overallTrust?.totalMentions || 0,
+      sentimentPositive: overallTrust?.sentimentPositive || 0,
+      sentimentNegative: overallTrust?.sentimentNegative || 0,
+      sentimentNeutral: overallTrust?.sentimentNeutral || 0,
+      confidence: overallTrust?.confidence || 0,
+      trendDirection: overallTrust?.trendDirection || 'STABLE',
+    },
+    ageGroups: ageGroupsBreakdown,
+    communitySegments: segmentsBreakdown,
+    totals: {
+      population: popData.totalPopulation,
+      voters: popData.totalVoters,
+    },
+  }
+
+  _cache.set(code, { ts: Date.now(), data })
+  return NextResponse.json({ success: true, data, cached: false })
 }
