@@ -638,13 +638,13 @@ function PengurusSection({ level, territoryId, territoryFilter }: {
         )}
       </div>
       {canManage && (
-        <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="flex gap-1 shrink-0">
           <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-blue-600 hover:bg-blue-50"
-            onClick={() => setEditPos(p)} title="Edit">
+            onClick={() => setEditPos(p)} title="Edit Jabatan & Data">
             <Edit className="w-3.5 h-3.5" />
           </Button>
           <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-600 hover:bg-red-50"
-            onClick={() => setDeletePos(p)} title="Hapus">
+            onClick={() => setDeletePos(p)} title="Hapus Pengurus">
             <Trash2 className="w-3.5 h-3.5" />
           </Button>
         </div>
@@ -707,7 +707,7 @@ function PengurusSection({ level, territoryId, territoryFilter }: {
                             </div>
                           </div>
                           {canManage && (
-                            <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div className="absolute top-2 right-2 flex gap-1">
                               <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-blue-600 hover:bg-blue-50" onClick={() => setEditPos(p)} title="Edit">
                                 <Edit className="w-3.5 h-3.5" />
                               </Button>
@@ -757,14 +757,19 @@ function PengurusSection({ level, territoryId, territoryFilter }: {
       <AlertDialog open={!!deletePos} onOpenChange={(o) => !o && setDeletePos(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Hapus Pengurus?</AlertDialogTitle>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Trash2 className="w-5 h-5 text-red-600" /> Hapus Pengurus?
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              Yakin hapus <strong>{deletePos?.fullName}</strong> ({deletePos?.positionName})?
+              Yakin hapus <strong>{deletePos?.fullName}</strong> dari jabatan <strong>{deletePos?.positionName}</strong>?
+              <br />Tindakan ini tidak dapat dibatalkan.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Batal</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">Hapus</AlertDialogAction>
+            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">
+              <Trash2 className="w-4 h-4 mr-1" /> Ya, Hapus
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -1387,13 +1392,55 @@ function AddPositionDialog({ open, onOpenChange, defaultLevel, territoryId, terr
     finally { setLoading(false) }
   }
 
+  // Daftar jabatan standar LAPRA 08
+  const COMMON_POSITIONS = [
+    'Ketua', 'Ketua Harian', 'Wakil Ketua I', 'Wakil Ketua II', 'Wakil Ketua III', 'Wakil Ketua IV',
+    'Sekretaris', 'Wakil Sekretaris I', 'Wakil Sekretaris II',
+    'Bendahara', 'Wakil Bendahara I', 'Wakil Bendahara II',
+    'Bidang Sekretariat', 'Wakil Bidang Sekretariat',
+    'Bidang Humas', 'Wakil Bidang Humas',
+    'Bidang Antar Lembaga', 'Wakil Bidang Antar Lembaga',
+    'Bidang Lembaga Pemerintahan', 'Bidang Non Pemerintah/Swasta',
+    'Bidang Lembaga Luar Negeri',
+    'Bidang Program Internal', 'Bidang Program Eksternal',
+    'Bidang Pemberdayaan Perempuan',
+    'Bidang Kerukunan Antar Agama',
+    'Bidang Kaderisasi & Organisasi',
+    'Bidang Etik', 'Bidang Advokasi & Hukum', 'Bidang Litigasi', 'Bidang Non Litigasi',
+    'Bidang Ketenagakerjaan', 'Bidang Kepemudaan', 'Bidang Ekonomi Kreatif',
+    'Penasihat', 'Pembina', 'Dewan Penasihat',
+    'Staf', 'Anggota',
+  ]
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader><DialogTitle>Tambah Pengurus {defaultLevel}</DialogTitle></DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-3">
-          <div className="space-y-2"><Label>Nama Lengkap *</Label><Input value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} required /></div>
-          <div className="space-y-2"><Label>Jabatan *</Label><Input value={form.positionName} onChange={(e) => setForm({ ...form, positionName: e.target.value })} placeholder="cth: Ketua, Sekretaris, Bendahara" required /></div>
+          <div className="space-y-2">
+            <Label>Nama Lengkap *</Label>
+            <Input value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} placeholder="Nama lengkap pengurus" required />
+          </div>
+          <div className="space-y-2">
+            <Label>Jabatan *</Label>
+            <Select value={form.positionName} onValueChange={(v) => setForm({ ...form, positionName: v === '__custom' ? '' : v })}>
+              <SelectTrigger><SelectValue placeholder="Pilih atau ketik jabatan..." /></SelectTrigger>
+              <SelectContent>
+                {COMMON_POSITIONS.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                <SelectItem value="__custom">+ Ketik Jabatan Lain...</SelectItem>
+              </SelectContent>
+            </Select>
+            {/* Input manual muncul jika pilih "Ketik Jabatan Lain" atau jika positionName kosong */}
+            {(form.positionName === '' || form.positionName === '__custom') && (
+              <Input
+                value={form.positionName === '__custom' ? '' : form.positionName}
+                onChange={(e) => setForm({ ...form, positionName: e.target.value })}
+                placeholder="Ketik jabatan custom..."
+                className="mt-1"
+                required
+              />
+            )}
+          </div>
           {!territoryId && (
             <div className="space-y-2">
               <Label>Wilayah *</Label>
@@ -1404,10 +1451,13 @@ function AddPositionDialog({ open, onOpenChange, defaultLevel, territoryId, terr
             </div>
           )}
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2"><Label>WhatsApp</Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="628xxx" /></div>
+            <div className="space-y-2"><Label>WhatsApp</Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="08xxx" /></div>
             <div className="space-y-2"><Label>Email</Label><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
           </div>
-          <DialogFooter><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Batal</Button><Button type="submit" disabled={loading}>{loading ? 'Menyimpan...' : 'Simpan'}</Button></DialogFooter>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Batal</Button>
+            <Button type="submit" disabled={loading} className="bg-gradient-to-r from-orange-600 to-red-600 text-white">{loading ? 'Menyimpan...' : 'Simpan'}</Button>
+          </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
@@ -1418,9 +1468,13 @@ function EditPositionDialog({ position, onOpenChange, onSuccess }: any) {
   const addToast = useToastStore((s) => s.addToast)
   const [form, setForm] = useState<any>({})
   const [loading, setLoading] = useState(false)
+  const [useCustomPosition, setUseCustomPosition] = useState(false)
 
   useEffect(() => {
-    if (position) setForm({ fullName: position.fullName, positionName: position.positionName, phone: position.phone || '', email: position.email || '', isActive: position.isActive })
+    if (position) {
+      setForm({ fullName: position.fullName, positionName: position.positionName, phone: position.phone || '', email: position.email || '', isActive: position.isActive })
+      setUseCustomPosition(false)
+    }
   }, [position])
 
   if (!position) return null
@@ -1431,19 +1485,91 @@ function EditPositionDialog({ position, onOpenChange, onSuccess }: any) {
     catch (e: any) { addToast(e.message, 'error') } finally { setLoading(false) }
   }
 
+  const COMMON_POSITIONS = [
+    'Ketua', 'Ketua Harian', 'Wakil Ketua I', 'Wakil Ketua II', 'Wakil Ketua III', 'Wakil Ketua IV',
+    'Sekretaris', 'Wakil Sekretaris I', 'Wakil Sekretaris II',
+    'Bendahara', 'Wakil Bendahara I', 'Wakil Bendahara II',
+    'Bidang Sekretariat', 'Wakil Bidang Sekretariat',
+    'Bidang Humas', 'Wakil Bidang Humas',
+    'Bidang Antar Lembaga', 'Wakil Bidang Antar Lembaga',
+    'Bidang Lembaga Pemerintahan', 'Bidang Non Pemerintah/Swasta',
+    'Bidang Lembaga Luar Negeri',
+    'Bidang Program Internal', 'Bidang Program Eksternal',
+    'Bidang Pemberdayaan Perempuan',
+    'Bidang Kerukunan Antar Agama',
+    'Bidang Kaderisasi & Organisasi',
+    'Bidang Etik', 'Bidang Advokasi & Hukum', 'Bidang Litigasi', 'Bidang Non Litigasi',
+    'Bidang Ketenagakerjaan', 'Bidang Kepemudaan', 'Bidang Ekonomi Kreatif',
+    'Penasihat', 'Pembina', 'Dewan Penasihat',
+    'Staf', 'Anggota',
+  ]
+
+  // Check if current positionName is in common list
+  const isCustomPosition = !COMMON_POSITIONS.includes(form.positionName) && !useCustomPosition
+
   return (
     <Dialog open={!!position} onOpenChange={(o) => !o && onOpenChange(false)}>
       <DialogContent className="max-w-md">
-        <DialogHeader><DialogTitle>Edit Pengurus</DialogTitle></DialogHeader>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Edit className="w-4 h-4 text-blue-600" /> Edit Pengurus
+          </DialogTitle>
+        </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-3">
-          <div className="space-y-2"><Label>Nama Lengkap *</Label><Input value={form.fullName || ''} onChange={(e) => setForm({ ...form, fullName: e.target.value })} required /></div>
-          <div className="space-y-2"><Label>Jabatan *</Label><Input value={form.positionName || ''} onChange={(e) => setForm({ ...form, positionName: e.target.value })} required /></div>
+          <div className="space-y-2">
+            <Label>Nama Lengkap *</Label>
+            <Input value={form.fullName || ''} onChange={(e) => setForm({ ...form, fullName: e.target.value })} required />
+          </div>
+          <div className="space-y-2">
+            <Label>Jabatan *</Label>
+            <Select
+              value={useCustomPosition || isCustomPosition ? '__custom' : form.positionName}
+              onValueChange={(v) => {
+                if (v === '__custom') {
+                  setUseCustomPosition(true)
+                  setForm({ ...form, positionName: '' })
+                } else {
+                  setUseCustomPosition(false)
+                  setForm({ ...form, positionName: v })
+                }
+              }}
+            >
+              <SelectTrigger><SelectValue placeholder="Pilih jabatan..." /></SelectTrigger>
+              <SelectContent>
+                {COMMON_POSITIONS.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                <SelectItem value="__custom">+ Ketik Jabatan Lain...</SelectItem>
+              </SelectContent>
+            </Select>
+            {(useCustomPosition || isCustomPosition) && (
+              <Input
+                value={form.positionName || ''}
+                onChange={(e) => setForm({ ...form, positionName: e.target.value })}
+                placeholder="Ketik jabatan custom..."
+                className="mt-1"
+                required
+              />
+            )}
+          </div>
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2"><Label>WhatsApp</Label><Input value={form.phone || ''} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
+            <div className="space-y-2"><Label>WhatsApp</Label><Input value={form.phone || ''} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="08xxx" /></div>
             <div className="space-y-2"><Label>Email</Label><Input type="email" value={form.email || ''} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
           </div>
-          <div className="space-y-2"><Label>Status</Label><Select value={form.isActive ? 'true' : 'false'} onValueChange={(v) => setForm({ ...form, isActive: v === 'true' })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="true">Aktif</SelectItem><SelectItem value="false">Nonaktif</SelectItem></SelectContent></Select></div>
-          <DialogFooter><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Batal</Button><Button type="submit" disabled={loading}>{loading ? 'Menyimpan...' : 'Simpan'}</Button></DialogFooter>
+          <div className="space-y-2">
+            <Label>Status</Label>
+            <Select value={form.isActive ? 'true' : 'false'} onValueChange={(v) => setForm({ ...form, isActive: v === 'true' })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="true">Aktif</SelectItem>
+                <SelectItem value="false">Nonaktif</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Batal</Button>
+            <Button type="submit" disabled={loading} className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
+              {loading ? 'Menyimpan...' : 'Simpan Perubahan'}
+            </Button>
+          </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
