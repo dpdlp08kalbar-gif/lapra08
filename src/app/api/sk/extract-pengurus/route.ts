@@ -1,12 +1,11 @@
 // LAPRA 08 - API: Extract Pengurus from SK via OCR
 // Upload SK → OCR via VLM → Parse pengurus data → Return for preview
+// File content stored as base64 in DB (Vercel-compatible — no filesystem)
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getUserFromRequest, getEditableTerritoryIds } from '@/lib/server-helpers'
 import ZAI from 'z-ai-web-dev-sdk'
 import { requireZaiConfig } from '@/lib/zai-init'
-import * as fs from 'fs'
-import * as path from 'path'
 
 // POST /api/sk/extract-pengurus - Upload SK, OCR, return extracted pengurus for preview
 export async function POST(request: NextRequest) {
@@ -37,14 +36,20 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Simpan file
-    const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'sk')
-    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true })
-    const fileName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`
-    const filePath = path.join(uploadDir, fileName)
+    // === Vercel-compatible: store file as base64 in DB (no filesystem) ===
+    // OLD CODE (broken on Vercel):
+    //   const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'sk')
+    //   fs.writeFileSync(filePath, fileBuffer)
+    // NEW: file content stored in DB column fileData (base64 data URL)
     const fileBuffer = Buffer.from(await file.arrayBuffer())
-    fs.writeFileSync(filePath, fileBuffer)
-    const fileUrl = `/uploads/sk/${fileName}`
+    const ext = file.name.toLowerCase().endsWith('.pdf') ? 'pdf'
+              : file.name.toLowerCase().match(/\.(jpg|jpeg|png)$/) ? 'image'
+              : 'unknown'
+    const mimeType = file.name.toLowerCase().endsWith('.pdf') ? 'application/pdf'
+                   : file.name.toLowerCase().endsWith('.png') ? 'image/png'
+                   : 'image/jpeg'
+    const base64DataUrl = `data:${mimeType};base64,${fileBuffer.toString('base64')}`
+    const fileUrl = `/api/sk/PLACEHOLDER_ID/download` // updated below after SK record created
 
     // Tentukan level territory
     const territory = await db.territory.findUnique({ where: { id: territoryId } })
@@ -57,20 +62,27 @@ export async function POST(request: NextRequest) {
       territory.level === 'PROVINCE' ? 'DPD' : 'DPC'
     )
 
-    // Simpan SK record dengan OCR PROCESSING
+    // Simpan SK record dengan OCR PROCESSING + file data
     const skDoc = await db.sKDocument.create({
       data: {
         skNumber: `SK-OCR-${Date.now()}`,
         title: file.name,
         fileUrl,
         fileName: file.name,
-        fileType: file.name.endsWith('.pdf') ? 'pdf' : 'image',
+        fileType: ext,
         fileSize: fileBuffer.length,
+        fileData: base64DataUrl, // PHASE 1: store file content in DB
         ocrStatus: 'PROCESSING',
         issuedAt: new Date(),
         issuedBy: 'Upload via OCR Extract',
         territoryId,
       },
+    })
+
+    // Update fileUrl with real SK id (so download endpoint works)
+    await db.sKDocument.update({
+      where: { id: skDoc.id },
+      data: { fileUrl: `/api/sk/${skDoc.id}/download` },
     })
 
     // Proses OCR via VLM
@@ -173,7 +185,7 @@ Jika tidak ada pengurus yang terdeteksi, kembalikan array "pengurus" kosong. Han
       data: {
         skId: skDoc.id,
         skNumber: skDoc.skNumber,
-        fileUrl,
+        fileUrl: `/api/sk/${skDoc.id}/download`,
         fileName: file.name,
         pengurus: extractedPengurus,
         orgLevel,
