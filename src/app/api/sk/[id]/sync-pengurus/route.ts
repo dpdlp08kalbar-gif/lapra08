@@ -2,19 +2,16 @@
 // =====================================================
 // POST /api/sk/[id]/sync-pengurus
 //
-// Ambil SK yang sudah ada (dari DB), jalankan OCR ulang (kalau ZAI aktif)
-// atau pakai hasil OCR yang sudah ada, lalu return daftar pengurus.
+// 100% FOSS: pakai pdf-parse untuk extract text dari PDF
+// + pattern matching Indonesia untuk deteksi pengurus.
+// TIDAK BUTUH ZAI SDK / API key apapun.
 //
 // Frontend akan terima daftar pengurus → tampilkan preview dialog →
 // user klik "Sinkronkan ke Struktur Pengurus" → bulk create ke OrgPosition.
-//
-// Response:
-//   { success, data: { skId, fileName, pengurus: [...], orgLevel, territoryId, territoryName } }
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getUserFromRequest, getEditableTerritoryIds } from '@/lib/server-helpers'
-import { requireZaiConfig } from '@/lib/zai-init'
-import ZAI from 'z-ai-web-dev-sdk'
+import { extractPengurusFromDataUrl } from '@/lib/sk-extractor'
 
 export async function POST(
   request: NextRequest,
@@ -48,110 +45,50 @@ export async function POST(
     const orgLevel = sk.territory.level === 'COUNTRY' ? 'DPN' :
                     sk.territory.level === 'PROVINCE' ? 'DPD' : 'DPC'
 
+    if (!sk.fileData) {
+      return NextResponse.json({
+        success: false,
+        error: 'File SK tidak tersedia di database. Upload ulang SK.',
+      }, { status: 400 })
+    }
+
+    // === EXTRACTION: 100% FOSS (pdf-parse + pattern matching) ===
     let pengurus: any[] = []
     let extractedText = ''
-    let ocrStatus = sk.ocrStatus || 'PENDING'
+    let skInfo: any = {}
 
-    // === STRATEGI 1: Pakai hasil OCR yang sudah ada (kalau ada pengurus tersimpan) ===
-    if (sk.ocrMetadata) {
-      try {
-        const meta = JSON.parse(sk.ocrMetadata)
-        if (meta.pengurusCount > 0 || Array.isArray(meta.pengurus)) {
-          // Hmm, kita tidak simpan pengurus di metadata — hanya count
-          // Jadi kita perlu re-OCR kalau mau dapat pengurus
-        }
-      } catch {}
-    }
-
-    // === STRATEGI 2: Re-OCR pakai ZAI (kalau fileData ada & ZAI aktif) ===
-    if (sk.fileData && requireZaiConfig()) {
-      try {
-        const zai = await ZAI.create()
-
-        const completion = await zai.chat.completions.create({
-          messages: [
-            {
-              role: 'user',
-              content: [
-                {
-                  type: 'text',
-                  text: `Anda adalah asisten ahli untuk ekstraksi data pengurus organisasi Laskar Prabowo 08 dari dokumen Surat Keputusan (SK). Analisis dokumen SK ini dan ekstrak DAFTAR PENGURUS yang dilantik.
-
-Kembalikan HANYA JSON dengan format:
-{
-  "skInfo": {
-    "nomorSK": "nomor SK jika tertera",
-    "tanggalTerbit": "YYYY-MM-DD jika ada",
-    "penerbit": "nama penerbit",
-    "tentang": "subjek SK"
-  },
-  "pengurus": [
-    {
-      "fullName": "nama lengkap pengurus",
-      "positionName": "jabatan (cth: Ketua, Sekretaris, Bendahara)",
-      "phone": "nomor telepon jika ada, atau null",
-      "email": "email jika ada, atau null"
-    }
-  ]
-}
-
-Jika tidak ada pengurus yang terdeteksi, kembalikan array "pengurus" kosong. Hanya kembalikan JSON, tanpa teks tambahan.`,
-                },
-                {
-                  type: 'image_url',
-                  image_url: { url: sk.fileData },
-                },
-              ],
-            },
-          ],
-        } as any)
-
-        const responseText = completion.choices[0]?.message?.content || ''
-        extractedText = responseText
-        ocrStatus = 'COMPLETED'
-
-        const jsonMatch = responseText.match(/\{[\s\S]*\}/)
-        if (jsonMatch) {
-          const parsed = JSON.parse(jsonMatch[0])
-          pengurus = parsed.pengurus || []
-
-          // Update SK dengan info yang diekstrak
-          await db.sKDocument.update({
-            where: { id: sk.id },
-            data: {
-              ocrStatus: 'COMPLETED',
-              extractedText: responseText,
-              ocrMetadata: JSON.stringify({
-                ...parsed.skInfo,
-                pengurusCount: pengurus.length,
-                autoDetected: true,
-                processedAt: new Date().toISOString(),
-              }),
-            },
-          })
-        }
-      } catch (ocrError: any) {
-        console.error('[Sync Pengurus OCR Error]', ocrError)
-        ocrStatus = 'FAILED'
-        extractedText = `OCR gagal: ${ocrError.message}`
-      }
-    } else if (!sk.fileData) {
+    try {
+      const result = await extractPengurusFromDataUrl(sk.fileData)
+      pengurus = result.pengurus
+      extractedText = result.rawText
+      skInfo = result.skInfo
+    } catch (extractErr: any) {
+      console.error('[Sync Pengurus Extract Error]', extractErr)
       return NextResponse.json({
         success: false,
-        error: 'File SK tidak tersedia di database. Upload ulang SK dengan tombol "Upload SK + Extract".',
-      }, { status: 400 })
-    } else if (!requireZaiConfig()) {
-      // fileData ada tapi ZAI tidak dikonfigurasi
-      return NextResponse.json({
-        success: false,
-        error: 'ZAI SDK tidak dikonfigurasi di server. Tidak bisa OCR otomatis. Set env vars ZAI_BASE_URL, ZAI_API_KEY, ZAI_CHAT_ID, ZAI_TOKEN, ZAI_USER_ID di Vercel Project Settings untuk aktifkan OCR.',
+        error: `Gagal extract pengurus: ${extractErr.message}`,
+      }, { status: 500 })
+    }
+
+    // Update SK dengan info yang diekstrak (kalau ada skInfo baru)
+    if (Object.keys(skInfo).length > 0 || pengurus.length > 0) {
+      await db.sKDocument.update({
+        where: { id: sk.id },
         data: {
-          skId: sk.id,
-          fileName: sk.fileName,
-          ocrStatus: 'PENDING',
-          needsZaiConfig: true,
+          ocrStatus: 'COMPLETED',
+          extractedText: extractedText.substring(0, 5000), // cap to 5KB
+          ocrMetadata: JSON.stringify({
+            ...skInfo,
+            pengurusCount: pengurus.length,
+            extractor: 'pdf-parse + pattern-matching (FOSS)',
+            processedAt: new Date().toISOString(),
+          }),
+          ...(skInfo.nomorSK ? { skNumber: skInfo.nomorSK } : {}),
+          ...(skInfo.tentang ? { title: skInfo.tentang.substring(0, 500) } : {}),
+          ...(skInfo.penerbit ? { issuedBy: skInfo.penerbit } : {}),
+          ...(skInfo.tanggalTerbit ? { issuedAt: new Date(skInfo.tanggalTerbit) } : {}),
         },
-      }, { status: 503 })
+      })
     }
 
     return NextResponse.json({
@@ -164,12 +101,13 @@ Jika tidak ada pengurus yang terdeteksi, kembalikan array "pengurus" kosong. Han
         orgLevel,
         territoryId: sk.territoryId,
         territoryName: sk.territory.name,
-        extractedText,
-        ocrStatus,
+        extractedText: extractedText.substring(0, 2000), // for preview
+        skInfo,
+        extractor: 'FOSS (pdf-parse + pattern matching)',
       },
       message: pengurus.length > 0
-        ? `Berhasil ekstrak ${pengurus.length} pengurus dari SK "${sk.fileName}".`
-        : 'OCR selesai namun tidak ada pengurus terdeteksi. Anda bisa input manual via menu Tambah Pengurus.',
+        ? `Berhasil ekstrak ${pengurus.length} pengurus dari SK "${sk.fileName}" (via FOSS pdf-parse).`
+        : `Tidak ada pengurus terdeteksi dari SK ini. Kemungkinan format SK tidak cocok dengan pattern matching. Anda bisa input manual via menu Tambah Pengurus.`,
     })
   } catch (e: any) {
     console.error('[Sync Pengurus Error]', e)
