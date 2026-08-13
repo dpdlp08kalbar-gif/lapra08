@@ -1,4 +1,4 @@
-// Test FOSS SK extractor with real PDF
+// Test FOSS SK extractor with real PDF (uses pdfjs-dist legacy build)
 import { extractPengurusFromPdfBuffer } from '../src/lib/sk-extractor'
 import * as fs from 'fs'
 
@@ -18,9 +18,8 @@ async function test() {
     result.pengurus.forEach((p, i) => {
       console.log(`  ${i + 1}. ${p.fullName} — ${p.positionName}${p.phone ? ` (${p.phone})` : ''}${p.email ? ` <${p.email}>` : ''}`)
     })
-    console.log('\n=== Raw Text (first 1500 chars) ===')
-    console.log(result.rawText.substring(0, 1500))
-    console.log('\n... (truncated)')
+    console.log('\n=== Raw Text (first 500 chars) ===')
+    console.log(result.rawText.substring(0, 500))
   } catch (e: any) {
     console.error('Test failed:', e.message)
     console.error(e.stack)

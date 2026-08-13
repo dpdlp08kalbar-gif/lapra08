@@ -1,22 +1,17 @@
 // LAPRA 08 - FOSS SK Pengurus Extractor (NO ZAI, NO external API)
 // =====================================================
 // Extract daftar pengurus dari SK PDF menggunakan:
-//   1. pdf-parse → extract plain text dari PDF (100% FOSS, no API key)
+//   1. pdfjs-dist (legacy build, works in Node.js serverless — no DOMMatrix)
 //   2. Pattern matching Indonesia → deteksi nama + jabatan
 //
-// Strategi pattern matching:
-//   - Cari baris yang mengandung kata kunci jabatan (Ketua, Sekretaris, dll)
-//   - Ekstrak nama di sebelah jabatan tsb (kanan/kiri)
-//   - Format yang dideteksi:
-//     * "Ketua: Budi Santoso"
-//     * "Ketua Umum: Drs. Budi Santoso, M.Si"
-//     * "Budi Santoso sebagai Ketua"
-//     * "1. Budi Santoso - Ketua"
-//     * "Menetapkan Budi Santoso sebagai Ketua DPD"
+// Pattern matching handles 7 format:
+//   - "Ketua: Budi Santoso"
+//   - "1. Budi Santoso - Ketua"
+//   - LAPRA format: "1 Bun Hon Khiong 081234567890 Ketua"
+//   - dll
 //
-// Akurasi: ~70-80% (cukup untuk draft awal, user bisa edit di preview)
+// Akurasi: ~70-80% (user bisa edit di preview dialog)
 // =====================================================
-import { PDFParse } from 'pdf-parse'
 
 // === Known LAPRA 08 positions (untuk matching) ===
 const KNOWN_POSITIONS = [
@@ -58,15 +53,16 @@ const POSITION_NAME_PATTERNS = [
   // "Budi Santoso sebagai Ketua"
   /([A-Z][A-Za-z.\s,']+?)\s+(?:sebagai|menjadi|sebagai\s+\w+)\s+((?:Ketua|Sekretaris|Bendahara|Koordinator|Humas|Kaderisasi|Pemuda|Anggota|Penasihat|Pembina|Bidang|Wakil)(?:\s+\w+)?)/g,
   // "1. Budi Santoso - Ketua" (numbered list)
-  /^\s*\d+\.\s+([A-Z][A-Za-z.\s,']+?)\s*[-–]\s*((?:Ketua|Sekretaris|Bendahara|Koordinator|Humas|Kaderisasi|Pemuda|Anggota|Penasihat|Pembina|Bidang|Wakil)(?:\s+\w+)?)/gm,
+  /\b\d+\.\s+([A-Z][A-Za-z.\s,']+?)\s*[-–]\s*((?:Ketua|Sekretaris|Bendahara|Koordinator|Humas|Kaderisasi|Pemuda|Anggota|Penasihat|Pembina|Bidang|Wakil)(?:\s+\w+)?)/g,
   // "Budi Santoso - Ketua" (no number)
-  /^([A-Z][A-Za-z.\s,']+?)\s*[-–]\s*((?:Ketua|Sekretaris|Bendahara|Koordinator|Humas|Kaderisasi|Pemuda|Anggota|Penasihat|Pembina|Bidang|Wakil)(?:\s+\w+)?)/gm,
+  /\b([A-Z][A-Za-z.\s,']+?)\s*[-–]\s*((?:Ketua|Sekretaris|Bendahara|Koordinator|Humas|Kaderisasi|Pemuda|Anggota|Penasihat|Pembina|Bidang|Wakil)(?:\s+\w+)?)/g,
   // "Menetapkan Budi Santoso sebagai Ketua DPD"
   /(?:Menetapkan|mengangkat)\s+([A-Z][A-Za-z.\s,']+?)\s+(?:sebagai|menjadi|pada)\s+((?:Ketua|Sekretaris|Bendahara|Koordinator|Humas|Kaderisasi|Pemuda|Anggota|Penasihat|Pembina|Bidang|Wakil)(?:\s+\w+)?)/g,
   // LAPRA SK format: "1 Bun Hon Khiong 081234567890 Ketua" (nomor + nama + phone + jabatan)
-  /^\s*\d+\s+([A-Z][A-Za-z.\s,.'+]+?)\s+(\+?\d{8,15})\s+((?:Ketua|Sekretaris|Bendahara|Koordinator|Humas|Kaderisasi|Pemuda|Anggota|Penasihat|Pembina|Bidang|Wakil)(?:\s+\w+)?)/gm,
+  // Use \b instead of ^ because pdfjs-dist returns flat text (no newlines per row)
+  /\b(\d+)\s+([A-Z][A-Za-z.\s,.'+]+?)\s+(\+?\d{8,15})\s+((?:Ketua|Sekretaris|Bendahara|Koordinator|Humas|Kaderisasi|Pemuda|Anggota|Penasihat|Pembina|Bidang|Wakil)(?:\s+\w+)?)/g,
   // LAPRA SK format: "1 Bun Hon Khiong Ketua" (nomor + nama + jabatan, no phone)
-  /^\s*\d+\s+([A-Z][A-Za-z.\s,.'+]+?)\s+((?:Ketua|Sekretaris|Bendahara|Koordinator|Humas|Kaderisasi|Pemuda|Anggota|Penasihat|Pembina|Bidang|Wakil)(?:\s+\w+)?)/gm,
+  /\b(\d+)\s+([A-Z][A-Za-z.\s,.'+]+?)\s+((?:Ketua|Sekretaris|Bendahara|Koordinator|Humas|Kaderisasi|Pemuda|Anggota|Penasihat|Pembina|Bidang|Wakil)(?:\s+\w+)?)/g,
 ]
 
 // === Helper: capitalize first letter ===
@@ -108,13 +104,21 @@ export async function extractPengurusFromPdfBuffer(
   rawText: string
   skInfo: { nomorSK?: string; tanggalTerbit?: string; penerbit?: string; tentang?: string }
 }> {
-  // Step 1: Extract text from PDF using pdf-parse (PDFParse class API v2+)
+  // Step 1: Extract text from PDF using pdfjs-dist (legacy build — works in Node.js serverless)
+  // The legacy build doesn't require DOMMatrix (browser API), so it works on Vercel.
   let rawText = ''
   try {
-    const parser = new PDFParse({ data: new Uint8Array(pdfBuffer) })
-    const result = await parser.getText()
-    rawText = result.text || ''
-    await parser.destroy()
+    const pdfjs = await import('pdfjs-dist/legacy/build/pdf.js')
+    const data = new Uint8Array(pdfBuffer)
+    const doc = await pdfjs.getDocument({ data, useSystemFonts: true }).promise
+
+    for (let i = 1; i <= doc.numPages; i++) {
+      const page = await doc.getPage(i)
+      const content = await page.getTextContent()
+      // Join items with space (items are text fragments from PDF)
+      const pageText = content.items.map((item: any) => item.str).join(' ')
+      rawText += pageText + '\n'
+    }
   } catch (e: any) {
     throw new Error(`PDF parse gagal: ${e.message}`)
   }
@@ -123,15 +127,19 @@ export async function extractPengurusFromPdfBuffer(
     return { pengurus: [], rawText, skInfo: {} }
   }
 
+  // Normalize whitespace: collapse multiple spaces into single space
+  // pdfjs-dist returns text fragments joined with multiple spaces
+  const normalizedText = rawText.replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n')
+
   // Step 2: Extract SK info (nomor SK, tanggal, penerbit)
   const skInfo: any = {}
 
   // Pattern: "Nomor SK: 01/SK/LAPRA-08/2026" atau "SK No. 01/..."
-  const nomorMatch = rawText.match(/(?:Nomor|No\.?|Nomor SK)\s*[:\-]?\s*([0-9]+\/[A-Z0-9\-\/]+\/\d{4})/i)
+  const nomorMatch = normalizedText.match(/(?:Nomor|No\.?|Nomor SK)\s*[:\-]?\s*([0-9]+\/[A-Z0-9\-\/]+\/\d{4})/i)
   if (nomorMatch) skInfo.nomorSK = nomorMatch[1]
 
   // Pattern: tanggal dalam format DD MMMMMMMM YYYY atau DD-MM-YYYY
-  const tanggalMatch = rawText.match(/(\d{1,2}\s+(?:Januari|Februari|Maret|April|Mei|Juni|Juli|Agustus|September|Oktober|November|Desember)\s+\d{4})/i)
+  const tanggalMatch = normalizedText.match(/(\d{1,2}\s+(?:Januari|Februari|Maret|April|Mei|Juni|Juli|Agustus|September|Oktober|November|Desember)\s+\d{4})/i)
   if (tanggalMatch) {
     const months: Record<string, string> = {
       'januari': '01', 'februari': '02', 'maret': '03', 'april': '04',
@@ -145,46 +153,40 @@ export async function extractPengurusFromPdfBuffer(
   }
 
   // Pattern: "Tentang: ..." atau "PERIHAL: ..."
-  const tentangMatch = rawText.match(/(?:Tentang|Perihal|PERIHAL)\s*[:\-]?\s*([^\n]{5,100})/i)
+  const tentangMatch = normalizedText.match(/(?:Tentang|Perihal|PERIHAL)\s*[:\-]?\s*([^\n]{5,100})/i)
   if (tentangMatch) skInfo.tentang = tentangMatch[1].trim()
 
   // Pattern: "Ditetapkan di: Jakarta" atau "Ditetapkan oleh: ..."
-  const penerbitMatch = rawText.match(/(?:Ditetapkan|Di sahkan|Disahkan)\s*(?:di|di\s+|oleh)?\s*[:\-]?\s*([A-Z][a-zA-Z\s,]+?)(?:\n|,|$)/i)
+  const penerbitMatch = normalizedText.match(/(?:Ditetapkan|Di sahkan|Disahkan)\s*(?:di|di\s+|oleh)?\s*[:\-]?\s*([A-Z][a-zA-Z\s,]+?)(?:\n|,|$)/i)
   if (penerbitMatch) skInfo.penerbit = penerbitMatch[1].trim()
 
   // Step 3: Extract pengurus using pattern matching
   const pengurusMap = new Map<string, { fullName: string; positionName: string; phone: string | null }>()
 
-  for (const pattern of POSITION_NAME_PATTERNS) {
+  for (let pi = 0; pi < POSITION_NAME_PATTERNS.length; pi++) {
+    const pattern = POSITION_NAME_PATTERNS[pi]
     // Reset regex lastIndex (because of /g flag)
     pattern.lastIndex = 0
     let match
-    while ((match = pattern.exec(rawText)) !== null) {
+    while ((match = pattern.exec(normalizedText)) !== null) {
       let name = ''
       let position = ''
       let phone: string | null = null
 
-      // Pattern 1: "Ketua: Budi Santoso" → match[1] = name
-      if (pattern.source.startsWith('(?:(?:Ketua')) {
+      if (pi === 0) {
+        // Pattern 1: "Ketua: Budi Santoso"
         name = match[1]
         position = match[0].split(/[:\-–]/)[0].trim()
-      } else if (pattern.source.startsWith('(?:(?:Ketua|Sekretaris|Bendahara|Koordinator|Humas|Kaderisasi|Pemuda|Anggota|Penasihat|Pembina|Bidang|Wakil)')) {
-        // Pattern 1 (extended): "Ketua Umum: Budi Santoso"
-        name = match[1]
-        position = match[0].split(/[:\-–]/)[0].trim()
-      } else if (pattern.source.startsWith('^\\s*\\d+\\s+([A-Z]')) {
-        // Pattern 6 or 7: LAPRA format "1 Nama Phone Jabatan" or "1 Nama Jabatan"
-        if (match.length === 4) {
-          // Pattern 6: "1 Name 0812345 Ketua" — match[1]=name, match[2]=phone, match[3]=position
-          name = match[1]
-          phone = match[2]
-          position = match[3]
-        } else {
-          // Pattern 7: "1 Name Ketua" — match[1]=name, match[2]=position
-          name = match[1]
-          position = match[2]
-        }
-      } else if (match.length >= 3) {
+      } else if (pi === 5) {
+        // Pattern 6: "1 Name 0812345 Ketua" — match[1]=number, match[2]=name, match[3]=phone, match[4]=position
+        name = match[2]
+        phone = match[3]
+        position = match[4]
+      } else if (pi === 6) {
+        // Pattern 7: "1 Name Ketua" — match[1]=number, match[2]=name, match[3]=position
+        name = match[2]
+        position = match[3]
+      } else {
         // Pattern 2, 3, 4, 5: name + position in groups
         name = match[1]
         position = match[2] || ''
@@ -212,10 +214,10 @@ export async function extractPengurusFromPdfBuffer(
     // If phone was already extracted from pattern matching, use it
     if (p.phone) {
       // Still try to find email
-      const nameIdx = rawText.indexOf(p.fullName)
+      const nameIdx = normalizedText.indexOf(p.fullName)
       let email: string | null = null
       if (nameIdx >= 0) {
-        const context = rawText.substring(nameIdx, nameIdx + 200)
+        const context = normalizedText.substring(nameIdx, nameIdx + 200)
         const emailMatch = context.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/)
         if (emailMatch) email = emailMatch[0]
       }
@@ -228,12 +230,12 @@ export async function extractPengurusFromPdfBuffer(
     }
 
     // Otherwise look for phone number within 200 chars after the name
-    const nameIdx = rawText.indexOf(p.fullName)
+    const nameIdx = normalizedText.indexOf(p.fullName)
     let phone: string | null = null
     let email: string | null = null
 
     if (nameIdx >= 0) {
-      const context = rawText.substring(nameIdx, nameIdx + 200)
+      const context = normalizedText.substring(nameIdx, nameIdx + 200)
       const phoneMatch = context.match(/(?:08|\+62)[\d\s\-]{8,15}/)
       if (phoneMatch) phone = phoneMatch[0].replace(/[\s\-]/g, '')
 

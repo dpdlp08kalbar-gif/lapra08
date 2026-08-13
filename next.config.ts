@@ -17,6 +17,9 @@ const nextConfig: NextConfig = {
     'onnxruntime-node',
     'sharp',
     'jimp',
+    'pdfjs-dist',
+    'pdf-parse',
+    'canvas',
   ],
 };
 
