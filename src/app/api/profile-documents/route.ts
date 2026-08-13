@@ -123,30 +123,22 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Save file
-    const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'profile-docs')
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true })
-    }
-
-    const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_')
-    const fileName = `${Date.now()}-${docType.toLowerCase()}-${safeName}`
-    const filePath = path.join(uploadDir, fileName)
+    // === Vercel-compatible: convert file to base64 data URL (no filesystem) ===
     const fileBuffer = Buffer.from(await file.arrayBuffer())
-    fs.writeFileSync(filePath, fileBuffer)
+    const extClean = ext.replace(/^\./, '')
+    const mimeType = file.type || (extClean === 'pdf' ? 'application/pdf' : extClean === 'png' ? 'image/png' : 'image/jpeg')
+    const base64DataUrl = `data:${mimeType};base64,${fileBuffer.toString('base64')}`
 
-    const fileUrl = `/uploads/profile-docs/${fileName}`
-
-    // Build doc metadata
+    // Build doc metadata — fileUrl is the data URL itself (works in <a href> + <img src>)
     const docId = `doc_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`
     const docData = {
       id: docId,
       docType,
       title: title || file.name,
       description,
-      fileUrl,
+      fileUrl: base64DataUrl, // direct data URL
       fileName: file.name,
-      fileType: ext.replace(/^\./, '') || file.type.split('/')[1] || 'unknown',
+      fileType: extClean || 'unknown',
       fileSize: fileBuffer.length,
       uploadedBy: user.fullName,
       uploadedById: user.id,
@@ -162,9 +154,10 @@ export async function POST(request: NextRequest) {
       },
     })
 
+    // Return without huge base64 payload in response
     return NextResponse.json({
       success: true,
-      data: docData,
+      data: { ...docData, fileUrl: `[base64 data, ${fileBuffer.length} bytes]` },
       message: `Dokumen ${docType} berhasil diupload`,
     })
   } catch (e: any) {

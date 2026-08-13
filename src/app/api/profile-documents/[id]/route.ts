@@ -39,22 +39,8 @@ export async function DELETE(
       )
     }
 
-    // Parse data & delete the physical file
-    try {
-      const data = JSON.parse(item.value)
-      if (data && data.fileUrl) {
-        const filePath = path.join(
-          process.cwd(),
-          'public',
-          data.fileUrl.replace(/^\//, '')
-        )
-        if (fs.existsSync(filePath)) {
-          fs.unlinkSync(filePath)
-        }
-      }
-    } catch {
-      // ignore parse errors - still delete DB record
-    }
+    // File is stored as base64 in DB value — no disk file to delete
+    // Just delete the DB record
 
     await db.systemSetting.delete({ where: { id: item.id } })
 

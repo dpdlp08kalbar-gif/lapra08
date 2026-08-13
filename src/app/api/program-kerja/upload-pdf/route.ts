@@ -30,21 +30,13 @@ export async function POST(request: NextRequest) {
     if (!file.type.includes('pdf')) return NextResponse.json({ success: false, error: 'File harus PDF' }, { status: 400 })
     if (file.size > 20 * 1024 * 1024) return NextResponse.json({ success: false, error: 'Ukuran PDF maksimal 20MB' }, { status: 400 })
 
-    // Save PDF to temp
-    const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'program-kerja')
-    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true })
-    const fileName = `prog-kerja-${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`
-    const filePath = path.join(uploadDir, fileName)
+    // === Vercel-compatible: convert file to base64 in memory (no filesystem) ===
     const fileBuffer = Buffer.from(await file.arrayBuffer())
-    fs.writeFileSync(filePath, fileBuffer)
-
-    const fileUrl = `/uploads/program-kerja/${fileName}`
-
-    // === OCR + AI ANALISIS via VLM ===
-    // Convert PDF pages ke base64 images untuk VLM
-    // Untuk PDF, kita kirim sebagai file_url ke VLM
     const base64Pdf = fileBuffer.toString('base64')
     const dataUrl = `data:application/pdf;base64,${base64Pdf}`
+    const fileUrl = dataUrl // store data URL directly (or could use separate /api/download endpoint)
+
+    // === OCR + AI ANALISIS via VLM ===
 
     // === Init ZAI config dari env vars (untuk Vercel serverless) ===
     if (!requireZaiConfig()) {

@@ -114,12 +114,9 @@ export async function POST(request: NextRequest) {
         applicantNotes: form.get('applicantNotes') as string || null,
         isInternational: form.get('isInternational') === 'true',
       }
-      // Upload files
+      // Upload files (Vercel-compatible: store as base64 in DB, no filesystem)
       const photoFile = form.get('photo') as File | null
       const idCardFile = form.get('idCard') as File | null
-
-      const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'kta-applications')
-      if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true })
 
       if (photoFile && photoFile.size > 0) {
         if (!photoFile.type.startsWith('image/')) {
@@ -128,9 +125,10 @@ export async function POST(request: NextRequest) {
         if (photoFile.size > 5 * 1024 * 1024) {
           return NextResponse.json({ success: false, error: 'Ukuran foto maksimal 5MB' }, { status: 400 })
         }
-        const fileName = `${Date.now()}-photo-${photoFile.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`
-        fs.writeFileSync(path.join(uploadDir, fileName), Buffer.from(await photoFile.arrayBuffer()))
-        photoUrl = `/uploads/kta-applications/${fileName}`
+        // Convert to base64 data URL — stored directly in photoUrl column
+        const buf = Buffer.from(await photoFile.arrayBuffer())
+        const mime = photoFile.type || 'image/jpeg'
+        photoUrl = `data:${mime};base64,${buf.toString('base64')}`
       }
 
       if (idCardFile && idCardFile.size > 0) {
@@ -141,9 +139,10 @@ export async function POST(request: NextRequest) {
         if (idCardFile.size > 10 * 1024 * 1024) {
           return NextResponse.json({ success: false, error: 'Ukuran KTP/Paspor maksimal 10MB' }, { status: 400 })
         }
-        const fileName = `${Date.now()}-idcard-${idCardFile.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`
-        fs.writeFileSync(path.join(uploadDir, fileName), Buffer.from(await idCardFile.arrayBuffer()))
-        idCardUrl = `/uploads/kta-applications/${fileName}`
+        // Convert to base64 data URL
+        const buf = Buffer.from(await idCardFile.arrayBuffer())
+        const mime = idCardFile.type || 'application/pdf'
+        idCardUrl = `data:${mime};base64,${buf.toString('base64')}`
       }
     } else {
       // JSON mode (no files)

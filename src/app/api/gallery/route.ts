@@ -98,28 +98,25 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Save file
-    const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'gallery')
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true })
-    }
-
-    const fileName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`
-    const filePath = path.join(uploadDir, fileName)
+    // === Vercel-compatible: convert file to base64 data URL (no filesystem) ===
     const fileBuffer = Buffer.from(await file.arrayBuffer())
-    fs.writeFileSync(filePath, fileBuffer)
+    const ext = file.name.toLowerCase().match(/\.([^.]+)$/)?.[1] || 'jpg'
+    const mimeType = ext === 'png' ? 'image/png'
+                   : ext === 'webp' ? 'image/webp'
+                   : ext === 'gif' ? 'image/gif'
+                   : 'image/jpeg'
+    const base64DataUrl = `data:${mimeType};base64,${fileBuffer.toString('base64')}`
 
-    const fileUrl = `/uploads/gallery/${fileName}`
-
-    // Store gallery item in SystemSetting
+    // Store gallery item in SystemSetting (with embedded base64 fileData)
     const galleryItem = {
       id: `gallery_${Date.now()}`,
       title: title || file.name,
       description: description || '',
       category,
-      fileUrl,
+      fileUrl: base64DataUrl, // direct data URL — works in <img src>
       fileName: file.name,
       fileSize: fileBuffer.length,
+      fileType: ext,
       uploadedBy: user.fullName,
       uploadedAt: new Date().toISOString(),
       linkedAnnouncementId,
@@ -134,9 +131,10 @@ export async function POST(request: NextRequest) {
       },
     })
 
+    // Return without fileData (avoid huge response) — UI uses fileUrl directly
     return NextResponse.json({
       success: true,
-      data: galleryItem,
+      data: { ...galleryItem, fileUrl: base64DataUrl.substring(0, 50) + '...[base64]' },
       message: 'Foto berhasil diupload ke galeri',
     })
   } catch (e: any) {
@@ -159,22 +157,14 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'ID item wajib diisi' }, { status: 400 })
   }
 
-  // Get item to find file URL
+  // Get item to find file URL (just for logging now — no disk file to delete)
   const item = await db.systemSetting.findUnique({ where: { key: itemId } })
   if (!item) {
     return NextResponse.json({ success: false, error: 'Item tidak ditemukan' }, { status: 404 })
   }
 
-  // Delete file from disk
-  try {
-    const galleryData = JSON.parse(item.value)
-    if (galleryData.fileUrl) {
-      const filePath = path.join(process.cwd(), 'public', galleryData.fileUrl.replace(/^\//, ''))
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath)
-      }
-    }
-  } catch {}
+  // File is stored as base64 in DB value — no disk file to delete
+  // Just delete the DB record
 
   // Delete from DB
   await db.systemSetting.delete({ where: { key: itemId } })

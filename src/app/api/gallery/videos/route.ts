@@ -94,13 +94,13 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: false, error: 'Ukuran video maksimal 100MB' }, { status: 400 })
       }
 
-      const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'videos')
-      if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true })
-
-      const fileName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`
-      const filePath = path.join(uploadDir, fileName)
+      // === Vercel-compatible: store video as base64 in DB (no filesystem) ===
+      // Note: 100MB video as base64 is ~133MB — Neon TEXT column can hold up to 1GB
+      // For very large videos, recommend using YouTube embed instead (videoType=YOUTUBE)
       const fileBuffer = Buffer.from(await file.arrayBuffer())
-      fs.writeFileSync(filePath, fileBuffer)
+      const ext = file.name.toLowerCase().match(/\.([^.]+)$/)?.[1] || 'mp4'
+      const mimeType = ext === 'webm' ? 'video/webm' : 'video/mp4'
+      const base64DataUrl = `data:${mimeType};base64,${fileBuffer.toString('base64')}`
 
       videoData = {
         id: `vid_${Date.now()}`,
@@ -108,9 +108,10 @@ export async function POST(request: NextRequest) {
         description: description || '',
         category,
         videoType: 'UPLOAD',
-        videoUrl: `/uploads/videos/${fileName}`,
+        videoUrl: base64DataUrl, // direct data URL — works in <video src>
         thumbnail: null,
         duration: null,
+        fileSize: fileBuffer.length,
         uploadedBy: user.fullName,
         uploadedAt: new Date().toISOString(),
       }
