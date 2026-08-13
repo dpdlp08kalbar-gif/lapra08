@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
     const scan = await db.auditScan.create({
       data: {
         triggeredById: user.id,
-        platforms: 'AUTO (yt-dlp + Google News RSS + LLM AI)',
+        platforms: 'AUTO (Invidious + Google News RSS + Xenova AI)',
         scope, provinceCode, regencyCode,
         status: 'RUNNING',
       },
@@ -69,7 +69,40 @@ export async function POST(request: NextRequest) {
 
     console.log(`[Audit AI] Scan ${scan.id} started by ${user.fullName} | Scope: ${scope}`)
 
-    // === AUTO SCRAPE — zero config, no API keys ===
+    // === PATH A: ASYNC via BullMQ (recommended) ===
+    try {
+      const { enqueueOpinionScrape, isQueueEnabled } = await import('@/lib/queue')
+      if (isQueueEnabled()) {
+        const jobId = await enqueueOpinionScrape({
+          trigger: 'audit-ai',
+          userId: user.id,
+          scope: scope as 'NATIONAL' | 'PROVINCE' | 'REGENCY',
+          provinceCode,
+          regencyCode,
+          scanId: scan.id,
+        })
+
+        if (jobId) {
+          // Update scan with job ID for tracking
+          await db.auditScan.update({
+            where: { id: scan.id },
+            data: {
+              platforms: `AUTO async job ${jobId} (Invidious + Google News RSS + Xenova AI)`,
+            },
+          })
+          return NextResponse.json({
+            success: true,
+            data: { id: scan.id, async: true, jobId, status: 'QUEUED' },
+            message: 'Scan dijadwalkan. Worker akan memproses dalam beberapa detik.',
+          }, { status: 202 })
+        }
+      }
+    } catch (e: any) {
+      console.error('[Audit AI] Queue enqueue failed, falling back to sync:', e.message)
+    }
+
+    // === PATH B: SYNC fallback (worker not deployed) ===
+    console.warn('[Audit AI] Running scan SYNCHRONOUSLY (worker not deployed). May timeout on Vercel.')
     const { posts, sources, skipped } = await scrapeAuto()
     console.log(`[Audit AI] Scan ${scan.id}: ${posts.length} REAL posts from ${sources.length} sources`)
 

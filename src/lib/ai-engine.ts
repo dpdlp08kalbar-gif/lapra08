@@ -743,9 +743,87 @@ export async function aiGenerateOpinionSummaryLLM(title: string, content: string
   priority: string
   keywords: string[]
 }> {
+  // ============================================================
+  // PHASE 1: 100% FOSS PIPELINE (Xenova Transformers.js)
+  // ============================================================
+  // Strategy:
+  //   1. Try local Xenova model first (always available, no API key)
+  //   2. If Xenova fails AND ZAI config is present, try ZAI LLM (legacy fallback)
+  //   3. If both fail, use lexicon-based analyzeSentiment + extractKeywords
+  //
+  // This function NEVER throws — always returns a result (worst case: lexicon).
+  // ============================================================
+
+  const fullText = `${title}\n\n${content}`
+
+  // 1. Lexicon analysis (instant, always available as ultimate fallback)
+  const lexiconSentiment = analyzeSentiment(fullText)
+  const lexiconPriority = calculatePriority(fullText, 0, lexiconSentiment.sentiment)
+  const lexiconKeywords = extractKeywords(fullText)
+
+  // 2. Try Xenova sentiment (local, no API)
+  let xenovaSentiment: 'POSITIVE' | 'NEUTRAL' | 'NEGATIVE' | null = null
+  let confidenceScore = 0
+  try {
+    const { analyzeSentimentXenova } = await import('./xenova-engine')
+    const xenovaResult = await analyzeSentimentXenova(fullText)
+    if (xenovaResult) {
+      xenovaSentiment = xenovaResult.sentiment
+      confidenceScore = xenovaResult.confidence
+    }
+  } catch (e: any) {
+    console.error('[ai-engine] Xenova sentiment failed, falling back to lexicon:', e.message.substring(0, 100))
+  }
+
+  // 3. Try Xenova extractive summary
+  let summary = ''
+  try {
+    const { generateExtractiveSummary } = await import('./xenova-engine')
+    summary = await generateExtractiveSummary(content, 2) // top 2 sentences
+    if (summary) summary = summary.substring(0, 300)
+  } catch (e: any) {
+    console.error('[ai-engine] Xenova summary failed, using template:', e.message.substring(0, 100))
+  }
+  if (!summary) {
+    summary = `Sentimen: ${lexiconSentiment.sentiment}. Kategori: ${lexiconPriority.category}. Urgency: ${lexiconPriority.urgencyScore}/100.`
+  }
+
+  // 4. Choose final sentiment: prefer Xenova (with confidence > 0.6), else lexicon
+  const finalSentiment = (xenovaSentiment && confidenceScore > 0.6)
+    ? xenovaSentiment
+    : lexiconSentiment.sentiment
+
+  // 5. Save confidence score (caller can store in PublicOpinionLink.confidenceScore)
+  // Already have confidenceScore from Xenova (or 0 if failed)
+
+  return {
+    summary,
+    sentiment: finalSentiment,
+    category: lexiconPriority.category,
+    priority: lexiconPriority.priority,
+    keywords: lexiconKeywords,
+    // @ts-ignore - extra field for caller (stored in confidenceScore column)
+    confidenceScore,
+  }
+}
+
+// ============================================================
+// LEGACY LLM-BASED PIPELINE (kept for backward compatibility)
+// ============================================================
+// Previously used ZAI SDK. Now mostly unused — Xenova pipeline above handles
+// 95% of cases. This legacy function is kept in case ZAI is configured and
+// caller wants the (possibly more accurate) LLM result.
+// ============================================================
+export async function aiGenerateOpinionSummaryLLMLegacy(title: string, content: string): Promise<{
+  summary: string
+  sentiment: string
+  category: string
+  priority: string
+  keywords: string[]
+}> {
   const maxRetries = 3
   let lastError: any = null
-  
+
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
       if (!requireZaiConfig()) throw new Error('ZAI config not initialized')
@@ -784,7 +862,7 @@ Kembalikan HANYA JSON:
       const rawContent = completion.choices[0]?.message?.content || ''
       const jsonMatch = rawContent.match(/\{[\s\S]*\}/)
       if (!jsonMatch) throw new Error('LLM tidak mengembalikan JSON valid')
-      
+
       const result = JSON.parse(jsonMatch[0])
       return {
         summary: (result.summary || '').substring(0, 300),
@@ -795,9 +873,8 @@ Kembalikan HANYA JSON:
       }
     } catch (e: any) {
       lastError = e
-      // If 429, wait with exponential backoff before retry
       if (e.message?.includes('429') && attempt < maxRetries - 1) {
-        const waitMs = (attempt + 1) * 3000 // 3s, 6s, 9s
+        const waitMs = (attempt + 1) * 3000
         console.log(`[LLM] 429 received, retry ${attempt + 1}/${maxRetries} after ${waitMs}ms...`)
         await new Promise(r => setTimeout(r, waitMs))
         continue

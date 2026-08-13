@@ -267,28 +267,32 @@ export async function processBroadcastQueue(broadcastId: string): Promise<{
     processed++
 
     try {
-      // === WHATSAPP BUSINESS API CALL ===
-      // In production, this would call actual WhatsApp Business API or WA Gateway
-      // For now, we simulate the API call (production: implement actual provider integration)
+      // === PHASE 1: REAL WHATSAPP SEND (via queue or direct Baileys) ===
       const sendResult = await sendWhatsAppMessage({
         to: msg.recipientPhone,
         message: msg.personalizedContent,
         provider: config.provider,
+        broadcastId: broadcastId,   // enables BullMQ enqueue on Vercel
+        messageId: msg.id,         // BroadcastMessage.id for DB update in worker
       })
 
       if (sendResult.success) {
+        // If queued (Vercel side), mark as QUEUED — worker will update to SENT later
+        // If direct send (worker side), mark as SENT immediately
+        const newStatus = (sendResult as any).queued ? 'QUEUED' : 'SENT'
         await db.broadcastMessage.update({
           where: { id: msg.id },
           data: {
-            status: 'SENT',
-            sentAt: new Date(),
+            status: newStatus,
+            sentAt: newStatus === 'SENT' ? new Date() : undefined,
             platformMessageId: sendResult.messageId,
+            jid: msg.recipientPhone.replace(/\D/g, '').replace(/^0/, '62') + '@s.whatsapp.net',
           },
         })
         sent++
 
-        // Update contact lastContactedAt
-        if (msg.contactId) {
+        // Update contact lastContactedAt (only for direct send, not queued)
+        if (newStatus === 'SENT' && msg.contactId) {
           await db.contact.update({
             where: { id: msg.contactId },
             data: { lastContactedAt: new Date(), contactCount: { increment: 1 } },
@@ -362,14 +366,23 @@ export async function processBroadcastQueue(broadcastId: string): Promise<{
 }
 
 // === WHATSAPP MESSAGE SENDER (Multi-Provider Support) ===
-// Production: implement actual API call untuk provider yang dipilih
-// Untuk sekarang, simulate (return success untuk demo)
+// === PHASE 1: REAL WHATSAPP GATEWAY (Baileys via BullMQ queue) ===
+// Replaces the Math.random() simulation. Now actually sends messages.
+//
+// ARCHITECTURE:
+//   Vercel function (here) → enqueue BullMQ job → worker (Railway/Fly.io) → Baileys send → update DB
+//
+// FALLBACK MODE:
+//   If UPSTASH_REDIS_URL not set (e.g., local dev), tries direct Baileys send.
+//   If Baileys also not available, returns error (no more simulation).
 async function sendWhatsAppMessage(params: {
   to: string
   message: string
   provider: string
-}): Promise<{ success: boolean; messageId?: string; errorCode?: string; errorMessage?: string }> {
-  const { to, message, provider } = params
+  broadcastId?: string  // if provided, enqueue as job (worker sends async)
+  messageId?: string    // BroadcastMessage.id (for tracking)
+}): Promise<{ success: boolean; messageId?: string; errorCode?: string; errorMessage?: string; queued?: boolean }> {
+  const { to, message, provider, broadcastId, messageId } = params
 
   // Validate phone number format (Indonesian: 08xxx or 628xxx)
   const cleanPhone = to.replace(/\D/g, '')
@@ -381,35 +394,55 @@ async function sendWhatsAppMessage(params: {
     }
   }
 
-  // === PRODUCTION IMPLEMENTATION ===
-  // Pilih provider berdasarkan config:
-  // - WHATSAPP_BUSINESS_API: Meta Cloud API (official, paling aman anti-banned)
-  //   POST https://graph.facebook.com/v18.0/{phone_number_id}/messages
-  //   Headers: Authorization: Bearer {access_token}
-  //   Body: { messaging_product: "whatsapp", to: phone, type: "text", text: { body: message } }
-  //
-  // - WAPBLOOM / WAAMI / FOSSWARES: WA Gateway alternatives (lebih murah, risiko banned lebih tinggi)
-  //   POST https://api.provider.com/send-message
-  //   Headers: api-key
-  //   Body: { phone, message, device: "default" }
-  //
-  // - GATEWAY_API: Self-hosted (paling murah, kontrol penuh, perlu setup sendiri)
-  //
-  // Untuk sekarang: simulate success 95% (5% gagal untuk demo retry mechanism)
-  await new Promise(r => setTimeout(r, 500 + Math.random() * 1000)) // simulate network latency
+  // Convert phone to JID: 081234567890 → 6281234567890@s.whatsapp.net
+  let normalizedPhone = cleanPhone
+  if (normalizedPhone.startsWith('0')) normalizedPhone = '62' + normalizedPhone.substring(1)
+  else if (normalizedPhone.startsWith('8')) normalizedPhone = '62' + normalizedPhone
+  const jid = `${normalizedPhone}@s.whatsapp.net`
 
-  // Simulate 5% failure rate for demo
-  if (Math.random() < 0.05) {
-    return {
-      success: false,
-      errorCode: 'NETWORK_TIMEOUT',
-      errorMessage: 'Koneksi timeout, akan retry',
+  // === PATH A: Vercel function — enqueue to BullMQ (worker sends async) ===
+  if (broadcastId && messageId) {
+    try {
+      const { enqueueBroadcastSend, isQueueEnabled } = await import('./queue')
+      if (isQueueEnabled()) {
+        const jobId = await enqueueBroadcastSend({
+          broadcastId,
+          messageId,
+          jid,
+          message,
+        })
+        if (jobId) {
+          return {
+            success: true,
+            messageId: jobId,
+            queued: true, // signal to caller: status should be QUEUED, not SENT
+          }
+        }
+      }
+    } catch (e: any) {
+      console.error('[Broadcast] Queue enqueue failed, falling back to direct send:', e.message)
     }
   }
 
-  return {
-    success: true,
-    messageId: `wamid.${Date.now()}.${Math.random().toString(36).substring(2, 10)}`,
+  // === PATH B: Direct Baileys send (worker process OR dev without Redis) ===
+  try {
+    const { sendWhatsAppMessage: baileysSend } = await import('./baileys-client')
+    const result = await baileysSend(jid, message)
+    if (result.success) {
+      return { success: true, messageId: result.messageId }
+    }
+    return {
+      success: false,
+      errorCode: 'BAILEYS_ERROR',
+      errorMessage: result.error || 'Baileys send failed',
+    }
+  } catch (e: any) {
+    // Baileys not initialized (e.g., on Vercel without worker) — return clear error
+    return {
+      success: false,
+      errorCode: 'NO_GATEWAY',
+      errorMessage: `Tidak ada WhatsApp gateway tersedia. Set UPSTASH_REDIS_URL untuk pakai queue, atau jalankan worker dengan Baileys. Detail: ${e.message}`,
+    }
   }
 }
 

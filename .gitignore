@@ -49,7 +49,11 @@ dev.log
 dev.out.log
 test
 prompt
+dist/
+baileys-auth/
+models/
 
 server.log
 # Skills directory
-/skills/
+/skills/dist/
+prisma/migrations/dev.db

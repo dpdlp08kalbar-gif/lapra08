@@ -1,31 +1,19 @@
-// LAPRA 08 - AUTO SCRAPER (zero config, 100% FREE, no API keys)
+// LAPRA 08 - AUTO SCRAPER (100% FOSS, no API keys, Vercel-compatible)
 // =====================================================
-// Uses yt-dlp + Google News RSS — both work WITHOUT any API key or auth.
-// This module is called automatically when "Audit AI" button is pressed.
-// User does NOT need to configure anything.
+// PHASE 1 REFACTOR:
+//   ❌ REMOVED: yt-dlp child process (hardcoded to /home/z/.venv/bin/yt-dlp)
+//   ✅ ADDED:   Invidious API (FOSS YouTube frontend, JSON API, no key)
+//   ✅ KEPT:    Google News RSS via rss-parser (FOSS, no key)
 //
-// What works automatically:
-//   ✅ YouTube: yt-dlp searches REAL videos mentioning LAPRA 08 (returns title, channel, views, date)
-//   ✅ Google News: RSS returns REAL news articles mentioning LAPRA 08
+// Vercel serverless compatible — pure fetch + RSS, no child_process spawn.
+// Invidious instances are tried in order with health-check fallback.
 //
-// What does NOT work without API key (HONEST):
-//   ❌ Facebook posts/comments: requires Meta Graph API token
-//   ❌ Instagram posts/comments: requires Meta Graph API token
-//   ❌ TikTok videos: requires Research API approval
-//   ❌ X/Twitter tweets: requires X API v2 Bearer token
-//
-// For the audit, we get REAL YouTube data + REAL news data automatically.
-// This is FAR better than nothing, and it's 100% free with zero setup.
+// SELF-HOST OPTION (recommended for production):
+//   Deploy your own Invidious instance on Railway/Fly.io for reliable
+//   YouTube access. Set INVIDIOUS_HOST env var to override the fallback list.
+// =====================================================
 
-import { exec } from 'child_process'
-import { promisify } from 'util'
-import path from 'path'
-import fs from 'fs/promises'
-
-const execAsync = promisify(exec)
-
-const DENO_PATH = '/home/z/.deno/bin'
-const YTDLP_BIN = '/home/z/.venv/bin/yt-dlp'
+import Parser from 'rss-parser'
 
 export type ScrapedPost = {
   platform: 'YOUTUBE' | 'GOOGLE' | 'FACEBOOK' | 'INSTAGRAM' | 'TIKTOK' | 'TWITTER_X'
@@ -37,150 +25,177 @@ export type ScrapedPost = {
   url: string
   publishedAt: Date
   engagementCount: number
-  source: 'yt-dlp' | 'google-news-rss'
+  source: 'invidious' | 'google-news-rss'
+  rawPayload?: any // full JSON response from source (saved to PublicOpinionLink.rawPayload)
 }
 
-const BASE_QUERY = '"LAPRA 08" OR "Laskar Prabowo 08" OR "Laskar Prabowo"'
+const rssParser = new Parser({
+  timeout: 8000,
+  headers: {
+    'User-Agent': 'LAPRA08-Bot/1.0 (+https://lapra08.vercel.app)',
+    'Accept': 'application/rss+xml, application/xml, text/xml',
+  },
+})
 
-// === YouTube search via yt-dlp (NO API KEY needed) ===
-// yt-dlp's "ytsearchN:query" returns REAL YouTube videos with title, channel, view count.
-async function scrapeYouTube(maxResults = 15): Promise<ScrapedPost[]> {
-  const posts: ScrapedPost[] = []
+// === SEARCH QUERIES (strict LAPRA 08 + positive Prabowo agenda) ===
+const LAPRA_QUERIES = [
+  '"LAPRA 08" OR "Laskar Prabowo 08"',
+  'LAPRA 08 Devi Taurisa Hashim pengurus',
+  'Laskar Prabowo 08 aksi sosial kegiatan',
+  'Presiden Prabowo astacita program positif',
+]
+
+// === INVIDIOUS INSTANCE FALLBACK LIST ===
+// Public Invidious instances — often rate-limited or down.
+// For production, self-host: https://docs.invidious.io/installation/
+const INVIDIOUS_INSTANCES = [
+  process.env.INVIDIOUS_HOST, // self-hosted takes priority
+  'https://invidious.private.coffee',
+  'https://yewtu.be',
+  'https://invidious.kavin.rocks',
+  'https://inv.tux.pizza',
+  'https://invidious.einfachzocken.eu',
+].filter(Boolean) as string[]
+
+const REQUEST_TIMEOUT = 8000
+
+async function fetchWithTimeout(url: string, opts: RequestInit = {}): Promise<Response> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT)
   try {
-    const query = `ytsearch${maxResults}:${BASE_QUERY}`
-    // Use --flat-playlist to skip video download, just metadata
-    // Use --print to output specific fields as TSV
-    const cmd = `"${YTDLP_BIN}" --flat-playlist --print "%(id)s|%(title)s|%(channel)s|%(uploader_id)s|%(upload_date)s|%(view_count)s|%(duration)s" "${query.replace(/"/g, '\\"')}"`
-    const { stdout, stderr } = await execAsync(cmd, {
-      env: { ...process.env, PATH: `${DENO_PATH}:${process.env.PATH}` },
-      timeout: 30000,
-      maxBuffer: 5 * 1024 * 1024,
-    })
+    return await fetch(url, { ...opts, signal: controller.signal })
+  } finally {
+    clearTimeout(timeout)
+  }
+}
 
-    if (stderr && !stderr.includes('WARNING')) {
-      console.error('[yt-dlp] stderr:', stderr.substring(0, 500))
-    }
+// === YOUTUBE SCRAPER (via Invidious API) ===
+// Invidious API docs: https://docs.invidious.io/api/
+// GET /api/v1/search?q=...&type=video&sort_by=relevance
+// Returns: [{ videoId, title, author, authorUrl, description, published, viewCount, likeCount }]
+async function scrapeYouTube(maxResults = 5): Promise<{ posts: ScrapedPost[]; instance: string | null }> {
+  const query = LAPRA_QUERIES[0] // primary LAPRA query
 
-    const lines = stdout.split('\n').filter(l => l.trim())
-    for (const line of lines) {
-      const [id, title, channel, uploaderId, uploadDate, viewCount, duration] = line.split('|')
-      if (!id || !title) continue
-
-      // Parse upload date (YYYYMMDD format from yt-dlp)
-      let publishedAt = new Date()
-      if (uploadDate && uploadDate.length === 8) {
-        const y = uploadDate.substring(0, 4)
-        const m = uploadDate.substring(4, 6)
-        const d = uploadDate.substring(6, 8)
-        publishedAt = new Date(`${y}-${m}-${d}`)
+  for (const instance of INVIDIOUS_INSTANCES) {
+    try {
+      const url = `${instance}/api/v1/search?q=${encodeURIComponent(query)}&type=video&sort_by=relevance&hl=id`
+      const res = await fetchWithTimeout(url, {
+        headers: { 'User-Agent': 'LAPRA08-Bot/1.0' },
+      })
+      if (!res.ok) {
+        console.warn(`[Invidious] ${instance} returned ${res.status}`)
+        continue
+      }
+      const data = await res.json()
+      if (!Array.isArray(data) || data.length === 0) {
+        console.warn(`[Invidious] ${instance} returned empty array`)
+        continue
       }
 
-      posts.push({
-        platform: 'YOUTUBE',
-        postId: id,
-        author: channel || uploaderId || 'YouTube Channel',
-        authorHandle: uploaderId ? `@${uploaderId}` : null,
-        title,
-        content: title, // Title is the main content for video
-        url: `https://www.youtube.com/watch?v=${id}`,
-        publishedAt,
-        engagementCount: parseInt(viewCount) || 0,
-        source: 'yt-dlp',
-      })
+      const posts: ScrapedPost[] = data.slice(0, maxResults).map((v: any) => ({
+        platform: 'YOUTUBE' as const,
+        postId: v.videoId,
+        author: v.author || 'Unknown',
+        authorHandle: v.authorUrl ? v.authorUrl.replace('/channel/', '@') : null,
+        title: v.title || '',
+        content: (v.description || '').substring(0, 1000),
+        url: `https://www.youtube.com/watch?v=${v.videoId}`,
+        publishedAt: v.published ? new Date(v.published * 1000) : new Date(),
+        engagementCount: (v.viewCount || 0) + (v.likeCount || 0),
+        source: 'invidious' as const,
+        rawPayload: v, // save full response for re-analysis later
+      }))
+
+      console.log(`[Invidious] ✅ ${posts.length} videos from ${instance}`)
+      return { posts, instance }
+    } catch (e: any) {
+      console.warn(`[Invidious] ${instance} failed:`, e.message?.substring(0, 80))
+      continue
     }
-  } catch (e: any) {
-    console.error('[yt-dlp] YouTube search failed:', e.message)
   }
-  return posts
+
+  console.warn('[Invidious] All instances failed. Self-host Invidious on Railway/Fly.io for reliable access.')
+  return { posts: [], instance: null }
 }
 
-// === Google News RSS (NO API KEY) ===
-async function scrapeGoogleNews(maxItems = 20): Promise<ScrapedPost[]> {
-  const posts: ScrapedPost[] = []
-  const url = `https://news.google.com/rss/search?q=${encodeURIComponent(BASE_QUERY + ' when:30d')}&hl=id&gl=ID&ceid=ID:id`
-  try {
-    const res = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36', Accept: 'application/rss+xml' },
-      signal: AbortSignal.timeout(15000),
-      cache: 'no-store',
-    })
-    if (!res.ok) return []
-    const xml = await res.text()
+// === GOOGLE NEWS SCRAPER (via RSS) ===
+// Google News RSS endpoint (free, no API key, no auth required)
+// GET https://news.google.com/rss/search?q=...&hl=id&gl=ID&ceid=ID:id
+async function scrapeGoogleNews(maxResults = 5): Promise<ScrapedPost[]> {
+  const allPosts: ScrapedPost[] = []
 
-    const itemRegex = /<item>([\s\S]*?)<\/item>/g
-    let m: RegExpExecArray | null
-    let count = 0
-    while ((m = itemRegex.exec(xml)) !== null && count < maxItems) {
-      const block = m[1]
-      const title = stripHtml(extractTag(block, 'title'))
-      const link = extractTag(block, 'link')
-      const pubDate = extractTag(block, 'pubDate')
-      const source = extractTag(block, 'source')
-      const descRaw = extractTag(block, 'description')
-      const descText = stripHtml(descRaw)
-      if (!title || !link) continue
+  for (const query of LAPRA_QUERIES.slice(0, 2)) { // use 2 main queries for news
+    try {
+      const url = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=id&gl=ID&ceid=ID:id`
+      const feed = await rssParser.parseURL(url)
+      const items = feed.items?.slice(0, maxResults) || []
 
-      posts.push({
-        platform: 'GOOGLE',
-        postId: link,
-        author: source?.trim() || 'News Source',
-        authorHandle: null,
-        title,
-        content: descText || title,
-        url: link,
-        publishedAt: pubDate ? new Date(pubDate) : new Date(),
-        engagementCount: 0,
-        source: 'google-news-rss',
-      })
-      count++
+      for (const item of items) {
+        allPosts.push({
+          platform: 'GOOGLE',
+          postId: item.guid || item.link || `${Date.now()}-${Math.random()}`,
+          author: item.creator || item.author || feed.title || 'Google News',
+          authorHandle: null,
+          title: item.title || '',
+          content: (item.contentSnippet || item.content || '').substring(0, 1000),
+          url: item.link || '',
+          publishedAt: item.isoDate ? new Date(item.isoDate) : new Date(),
+          engagementCount: 0,
+          source: 'google-news-rss',
+          rawPayload: {
+            title: item.title,
+            link: item.link,
+            pubDate: item.pubDate,
+            content: item.content,
+            categories: item.categories,
+            creator: item.creator,
+          },
+        })
+      }
+    } catch (e: any) {
+      console.warn('[Google News RSS] Query failed:', query, e.message?.substring(0, 80))
     }
-  } catch (e: any) {
-    console.error('[Google News] RSS fetch failed:', e.message)
   }
-  return posts
+
+  // Dedupe by URL
+  const seen = new Set<string>()
+  const unique = allPosts.filter(p => {
+    if (!p.url || seen.has(p.url)) return false
+    seen.add(p.url)
+    return true
+  })
+
+  console.log(`[Google News RSS] ✅ ${unique.length} articles`)
+  return unique.slice(0, maxResults)
 }
 
-function extractTag(block: string, tag: string): string {
-  const m = block.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'i'))
-  return m ? m[1].trim() : ''
-}
-
-function stripHtml(html: string): string {
-  return html
-    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
-    .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-    .replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-    .replace(/\s+/g, ' ').trim()
-}
-
-// === MAIN AUTO SCRAPER ===
-// Called automatically — zero configuration required.
-// Returns REAL data from YouTube (via yt-dlp) + Google News RSS.
+// === MAIN AUTO SCRAPER (called by worker) ===
 export async function scrapeAuto(): Promise<{
   posts: ScrapedPost[]
   sources: string[]
-  skipped: string[] // platforms we couldn't access (honest reporting)
+  skipped: string[]
 }> {
   const sources: string[] = []
   const skipped: string[] = []
-  const allPosts: ScrapedPost[] = []
 
-  // YouTube via yt-dlp (free, no API key) — REDUCED to 5 untuk avoid LLM rate limit
-  const yt = await scrapeYouTube(5)
+  // Parallel scrape (YouTube + Google News in parallel for speed)
+  const [ytResult, newsResult] = await Promise.allSettled([
+    scrapeYouTube(5),
+    scrapeGoogleNews(5),
+  ])
+
+  const yt = ytResult.status === 'fulfilled' ? ytResult.value.posts : []
+  const ytInstance = ytResult.status === 'fulfilled' ? ytResult.value.instance : null
+  const nw = newsResult.status === 'fulfilled' ? newsResult.value : []
+
   if (yt.length > 0) {
-    sources.push(`YouTube (yt-dlp, ${yt.length} videos)`)
-    allPosts.push(...yt)
+    sources.push(`YouTube (Invidious${ytInstance ? ': ' + ytInstance.replace('https://', '') : ''}, ${yt.length} videos)`)
   } else {
-    skipped.push('YouTube (yt-dlp blocked or no results)')
+    skipped.push('YouTube (all Invidious instances failed — self-host Invidious for reliable access)')
   }
 
-  // Google News RSS (free, no API key) — REDUCED to 5
-  const news = await scrapeGoogleNews(5)
-  if (news.length > 0) {
-    sources.push(`Google News RSS (${news.length} articles)`)
-    allPosts.push(...news)
+  if (nw.length > 0) {
+    sources.push(`Google News RSS (${nw.length} articles)`)
   } else {
     skipped.push('Google News RSS (no results)')
   }
@@ -191,5 +206,9 @@ export async function scrapeAuto(): Promise<{
   skipped.push('TikTok (requires Research API approval)')
   skipped.push('X/Twitter (requires X API v2 Bearer token — $100/month)')
 
-  return { posts: allPosts, sources, skipped }
+  return {
+    posts: [...yt, ...nw],
+    sources,
+    skipped,
+  }
 }

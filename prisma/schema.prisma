@@ -340,6 +340,9 @@ model Broadcast {
   sentBy        User     @relation(fields: [sentById], references: [id])
   scheduledAt   DateTime?
   sentAt        DateTime?
+  // PHASE 1: Queue tracking
+  queueJobId    String?  // BullMQ job ID for the bulk send task
+  queueStatus   String?  @default("PENDING") // PENDING | QUEUED | PROCESSING | COMPLETED | FAILED
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   deliveryLogs  BroadcastDeliveryLog[]
@@ -1128,6 +1131,18 @@ model PublicOpinionLink {
   reviewedBy      User?    @relation("OpinionReviewer", fields: [reviewedById], references: [id])
   reviewedAt      DateTime?
   reviewNotes     String?
+
+  // === PHASE 1: SPATIAL + VECTOR + FTS COLUMNS ===
+  // Managed via raw SQL (phase1_extensions.sql) because Prisma doesn't natively
+  // support geography, vector, or tsvector types.
+  // Use Prisma.$queryRaw for read/write of these fields.
+  geoPoint         Unsupported("geography(Point, 4326)")?
+  embedding        Unsupported("vector(384)")?
+  tsv              Unsupported("tsvector")?
+  language         String?  @default("id")
+  rawPayload       Json?
+  confidenceScore  Float    @default(0)
+  topicCluster     String?
   // Sumber
   scanId          String?  // ID scan yang menemukan link ini
   sourceMethod    String   @default("AUTO") // AUTO | MANUAL
@@ -1395,6 +1410,9 @@ model BroadcastMessage {
   platformMessageId String?
   // Anti-banned: random delay untuk setiap message
   scheduledSendAt DateTime? // waktu kirim yang dijadwalkan (dengan delay random)
+  // PHASE 1: Baileys tracking
+  baileysMessageId String?
+  jid              String?
   // Metadata
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt

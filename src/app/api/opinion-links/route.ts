@@ -76,8 +76,51 @@ export async function POST(request: NextRequest) {
     // Invalidate cache on any mutation
     _cache.clear()
 
-    // === Auto-scrape mode ===
+    // === Auto-scrape mode (PHASE 1: async via BullMQ queue) ===
     if (body.action === 'scrape') {
+      // Determine RBAC scope
+      const territory = await db.territory.findUnique({ where: { id: user.territoryId } })
+      let scope: 'NATIONAL' | 'PROVINCE' | 'REGENCY' = 'NATIONAL'
+      let provinceCode: string | null = null
+      let regencyCode: string | null = null
+
+      if (user.role !== 'SUPERADMIN' && user.role !== 'ADMIN_DPN') {
+        if (territory?.level === 'PROVINCE') {
+          scope = 'PROVINCE'; provinceCode = territory.code
+        } else if (territory?.level === 'REGENCY') {
+          scope = 'REGENCY'; regencyCode = territory.code
+        }
+      }
+
+      // === PATH A: ASYNC via BullMQ (recommended for production) ===
+      try {
+        const { enqueueOpinionScrape, isQueueEnabled } = await import('@/lib/queue')
+        if (isQueueEnabled()) {
+          const jobId = await enqueueOpinionScrape({
+            trigger: 'manual',
+            userId: user.id,
+            scope,
+            provinceCode,
+            regencyCode,
+          })
+
+          if (jobId) {
+            return NextResponse.json({
+              success: true,
+              message: 'Scan dijadwalkan. Worker akan memproses dalam beberapa detik. Refresh halaman untuk melihat hasil.',
+              data: { jobId, async: true, status: 'QUEUED' },
+              status: 202,
+            }, { status: 202 })
+          }
+        }
+      } catch (e: any) {
+        console.error('[opinion-links] Queue enqueue failed, falling back to sync:', e.message)
+      }
+
+      // === PATH B: SYNC fallback (worker not deployed OR Redis not configured) ===
+      // WARNING: This may timeout on Vercel serverless (10s hobby, 60s pro).
+      // Recommended to deploy worker for production.
+      console.warn('[opinion-links] Running scrape SYNCHRONOUSLY (worker not deployed). May timeout on Vercel.')
       const { posts, sources } = await scrapeAuto()
       let savedCount = 0
       let duplicateCount = 0
@@ -95,26 +138,24 @@ export async function POST(request: NextRequest) {
         }
 
         const text = `${post.title} ${post.content}`
-        
+
         // Step 1: Lexicon-based sentiment + priority (instant)
         const sentimentResult = analyzeSentiment(text)
         const priorityResult = calculatePriority(text, post.engagementCount, sentimentResult.sentiment)
-        
+
         // Step 2: Location detection from DB (comprehensive 515 DPC)
         const loc = await detectLocationFromDB(text)
-        
+
         // Step 3: Try LLM for AI summary (more contextual, may fail gracefully)
-        // Sequential to avoid 429 rate limit. Wait 1s between calls.
         let aiSummary = `Sentimen: ${sentimentResult.sentiment}. Kategori: ${priorityResult.category}. Urgency: ${priorityResult.urgencyScore}/100. Lokasi: ${loc.regencyName || loc.provinceName || 'Nasional'}.`
         let finalSentiment = sentimentResult.sentiment
         let finalPriority = priorityResult.priority
         let finalCategory = priorityResult.category
         let finalKeywords: string[] = []
-        
+
         try {
           const llmResult = await aiGenerateOpinionSummaryLLM(post.title, post.content || '')
           aiSummary = llmResult.summary
-          // LLM result overrides lexicon if LLM is confident
           if (llmResult.sentiment && llmResult.sentiment !== 'NEUTRAL') {
             finalSentiment = llmResult.sentiment
           }
@@ -133,8 +174,6 @@ export async function POST(request: NextRequest) {
           console.error('[LLM] Opinion summary failed, using lexicon:', e.message)
           aiFailed++
         }
-        // Wait 1s before next LLM call to avoid rate limit
-        await new Promise(r => setTimeout(r, 1000))
 
         await db.publicOpinionLink.create({
           data: {
@@ -166,7 +205,6 @@ export async function POST(request: NextRequest) {
       }
 
       // === AUTO-TRIGGER TrustIndexAgent (background, non-blocking) ===
-      // Sinkronisasi real-time: data baru di opinion-links langsung update ke geospatial voice & decision dashboard
       if (savedCount > 0) {
         OrchestratorAgent.emitEvent({
           eventType: 'OPINION_LINKS_BATCH_CREATED',
@@ -176,7 +214,6 @@ export async function POST(request: NextRequest) {
           payload: { savedCount, newHigh, newMedium },
           territoryCode: null,
         }).catch(e => console.error('[OpinionLinks] Sync event emit failed:', e.message))
-        // Fire-and-forget: trigger trust index recompute in background
         import('@/lib/agent-orchestrator').then(async ({ agents }) => {
           try {
             await agents.trustIndex.execute({ triggerSource: 'opinion-links-auto' })
