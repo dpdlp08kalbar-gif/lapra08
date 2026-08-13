@@ -559,6 +559,13 @@ function PengurusSection({ level, territoryId, territoryFilter }: {
   }
   useEffect(() => { loadData() }, [])
 
+  // Listen for pengurus-updated event (from sync/bulk operations)
+  useEffect(() => {
+    const handler = () => loadData()
+    window.addEventListener('pengurus-updated', handler)
+    return () => window.removeEventListener('pengurus-updated', handler)
+  }, [])
+
   const handleDelete = async () => {
     if (!deletePos) return
     try {
@@ -575,10 +582,80 @@ function PengurusSection({ level, territoryId, territoryFilter }: {
     (user.role === 'ADMIN_DPD' && (level === 'DPD' || level === 'DPC')) ||
     (user.role === 'ADMIN_DPC' && level === 'DPC')
 
+  // === Group pengurus by category ===
+  const sorted = [...positions].sort((a, b) => (a.order || 0) - (b.order || 0))
+
+  const getCategory = (pos: string): string => {
+    const p = pos.toLowerCase()
+    if (p.includes('ketua') && !p.includes('wakil')) return 'PIMPINAN UTAMA'
+    if (p.includes('wakil ketua')) return 'WAKIL KETUA'
+    if (p.includes('sekretaris') || p.includes('bendahara')) return 'SEKRETARIAT & KEUANGAN'
+    if (p.includes('bidang') || p.includes('humas') || p.includes('kaderisasi') ||
+        p.includes('pemuda') || p.includes('pemberdayaan') || p.includes('ekonomi') ||
+        p.includes('hukum') || p.includes('advokasi') || p.includes('litigasi') ||
+        p.includes('etik') || p.includes('kerukunan') || p.includes('lembaga') ||
+        p.includes('program') || p.includes('ketenagakerjaan') || p.includes('kepemudaan'))
+      return 'BIDANG-BIDANG'
+    if (p.includes('penasihat') || p.includes('pembina') || p.includes('pelindung'))
+      return 'DEWAN PENASIHAT'
+    return 'LAINNYA'
+  }
+
+  const categoryOrder = ['PIMPINAN UTAMA', 'WAKIL KETUA', 'SEKRETARIAT & KEUANGAN', 'BIDANG-BIDANG', 'DEWAN PENASIHAT', 'LAINNYA']
+  const categoryColors: Record<string, string> = {
+    'PIMPINAN UTAMA': 'from-red-500 to-orange-600',
+    'WAKIL KETUA': 'from-orange-400 to-amber-500',
+    'SEKRETARIAT & KEUANGAN': 'from-blue-500 to-cyan-600',
+    'BIDANG-BIDANG': 'from-emerald-500 to-teal-600',
+    'DEWAN PENASIHAT': 'from-purple-500 to-indigo-600',
+    'LAINNYA': 'from-slate-400 to-slate-500',
+  }
+
+  const grouped: Record<string, OrgPosition[]> = {}
+  for (const p of sorted) {
+    const cat = getCategory(p.positionName)
+    if (!grouped[cat]) grouped[cat] = []
+    grouped[cat].push(p)
+  }
+
+  // PengurusCard component
+  const PengurusCard = ({ p }: { p: OrgPosition }) => (
+    <div className="group relative flex items-start gap-3 p-3 rounded-lg border hover:shadow-md transition-all bg-white">
+      <Avatar className="w-11 h-11 shrink-0">
+        <AvatarFallback className="bg-gradient-to-br from-orange-500 to-red-600 text-white text-sm font-bold">
+          {p.fullName.charAt(0).toUpperCase()}
+        </AvatarFallback>
+      </Avatar>
+      <div className="flex-1 min-w-0">
+        <div className="font-semibold text-sm truncate">{p.fullName}</div>
+        <div className="text-xs text-orange-600 font-medium mt-0.5">{p.positionName}</div>
+        {p.phone && (
+          <a href={`https://wa.me/${p.phone.replace(/\D/g, '').replace(/^0/, '62')}`}
+             target="_blank" rel="noopener noreferrer"
+             className="flex items-center gap-1 mt-1 text-xs text-blue-600 hover:underline">
+            <Phone className="w-3 h-3" /> {p.phone}
+          </a>
+        )}
+      </div>
+      {canManage && (
+        <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-blue-600 hover:bg-blue-50"
+            onClick={() => setEditPos(p)} title="Edit">
+            <Edit className="w-3.5 h-3.5" />
+          </Button>
+          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-600 hover:bg-red-50"
+            onClick={() => setDeletePos(p)} title="Hapus">
+            <Trash2 className="w-3.5 h-3.5" />
+          </Button>
+        </div>
+      )}
+    </div>
+  )
+
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <CardTitle className="flex items-center gap-2 text-base">
             <Building2 className="w-4 h-4 text-orange-600" />
             Struktur Pengurus {level}
@@ -586,56 +663,80 @@ function PengurusSection({ level, territoryId, territoryFilter }: {
           </CardTitle>
           {canManage && (
             <Button onClick={() => setAddOpen(true)} size="sm" className="bg-gradient-to-r from-orange-600 to-red-600 text-white">
-              <Plus className="w-4 h-4 mr-1" /> Tambah
+              <Plus className="w-4 h-4 mr-1" /> Tambah Pengurus
             </Button>
           )}
         </div>
       </CardHeader>
       <CardContent>
         {positions.length === 0 ? (
-          <EmptyState icon={Building2} title="Belum ada pengurus" description={`Tambah pengurus ${level} baru.`} />
+          <EmptyState icon={Building2} title="Belum ada pengurus" description={`Tambah pengurus ${level} baru, atau upload SK lalu klik "Sinkronkan ke Pengurus".`} />
         ) : (
-          <div className="grid gap-2 md:grid-cols-2">
-            {positions.sort((a, b) => a.order - b.order).map((p) => (
-              <div key={p.id} className="group relative flex items-start gap-3 p-3 rounded-lg border hover:shadow-sm">
-                <Avatar className="w-10 h-10">
-                  <AvatarFallback className="bg-gradient-to-br from-orange-500 to-red-600 text-white text-xs font-semibold">
-                    {p.fullName.charAt(0).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium text-sm truncate">{p.fullName}</div>
-                  <div className="text-xs text-orange-600 font-medium">{p.positionName}</div>
-                  <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
-                    {p.phone && <span className="flex items-center gap-0.5"><Phone className="w-3 h-3" />{p.phone}</span>}
-                    {p.territory && <Badge variant="outline" className="text-[13px]">{p.territory.name}</Badge>}
+          <div className="space-y-6">
+            {categoryOrder.map((cat) => {
+              const members = grouped[cat]
+              if (!members || members.length === 0) return null
+              const gradient = categoryColors[cat] || 'from-slate-400 to-slate-500'
+
+              // Special layout for PIMPINAN UTAMA (center, large cards)
+              if (cat === 'PIMPINAN UTAMA') {
+                return (
+                  <div key={cat} className="space-y-2">
+                    <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gradient-to-r ${gradient} text-white text-xs font-bold uppercase tracking-wide`}>
+                      <Crown className="w-3 h-3" /> {cat}
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                      {members.map((p) => (
+                        <div key={p.id} className="group relative p-4 rounded-xl border-2 border-orange-200 bg-gradient-to-br from-orange-50 to-red-50 hover:shadow-lg transition-all">
+                          <div className="flex items-center gap-3">
+                            <Avatar className="w-14 h-14 shrink-0">
+                              <AvatarFallback className="bg-gradient-to-br from-red-500 to-orange-600 text-white text-lg font-bold">
+                                {p.fullName.charAt(0).toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1 min-w-0">
+                              <div className="font-bold text-sm truncate">{p.fullName}</div>
+                              <div className="text-xs text-orange-700 font-semibold mt-0.5">{p.positionName}</div>
+                              {p.phone && (
+                                <a href={`https://wa.me/${p.phone.replace(/\D/g, '').replace(/^0/, '62')}`}
+                                   target="_blank" rel="noopener noreferrer"
+                                   className="flex items-center gap-1 mt-1 text-xs text-blue-600 hover:underline">
+                                  <Phone className="w-3 h-3" /> {p.phone}
+                                </a>
+                              )}
+                            </div>
+                          </div>
+                          {canManage && (
+                            <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-blue-600 hover:bg-blue-50" onClick={() => setEditPos(p)} title="Edit">
+                                <Edit className="w-3.5 h-3.5" />
+                              </Button>
+                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-600 hover:bg-red-50" onClick={() => setDeletePos(p)} title="Hapus">
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              }
+
+              // Default layout for other categories
+              return (
+                <div key={cat} className="space-y-2">
+                  <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gradient-to-r ${gradient} text-white text-xs font-bold uppercase tracking-wide`}>
+                    {cat} <span className="opacity-80">({members.length})</span>
+                  </div>
+                  <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+                    {members.map((p) => (
+                      <PengurusCard key={p.id} p={p} />
+                    ))}
                   </div>
                 </div>
-                {/* Ikon Edit & Hapus eksplisit di sudut kanan atas */}
-                {canManage && (
-                  <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 w-7 p-0 text-blue-600 hover:bg-blue-50"
-                      onClick={() => setEditPos(p)}
-                      title="Edit Pengurus"
-                    >
-                      <Edit className="w-3.5 h-3.5" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 w-7 p-0 text-red-600 hover:bg-red-50"
-                      onClick={() => setDeletePos(p)}
-                      title="Hapus Pengurus"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
-                  </div>
-                )}
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </CardContent>
