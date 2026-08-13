@@ -33,6 +33,7 @@ import {
   Database, Crown, Building, MapPin, Users, FileText, Plus, Edit, Trash2,
   MoreVertical, Upload, Phone, Mail, User, ArrowLeft, Search, Building2,
   ShieldCheck, FileCheck, ScanText, Lock, ChevronRight, Layers, Loader2,
+  Eye, Download,
 } from 'lucide-react'
 
 // ============================================================
@@ -957,12 +958,29 @@ function SKSection({ level, territoryId, territoryFilter }: {
                   <code className="text-[13px] font-mono bg-muted px-1 rounded">{d.skNumber}</code>
                   <div className="text-xs text-muted-foreground mt-1">
                     {d.issuedBy} • {formatDateID(d.issuedAt)}
+                    {d.fileSize && ` • ${(d.fileSize / 1024).toFixed(0)} KB`}
                   </div>
-                  {d.ocrStatus === 'COMPLETED' && (
-                    <Badge variant="outline" className="text-[13px] mt-1 bg-emerald-50 text-emerald-700 border-emerald-200">
-                      <FileCheck className="w-3 h-3 mr-1" /> OCR Selesai
-                    </Badge>
-                  )}
+                  <div className="flex items-center gap-2 mt-1">
+                    <a
+                      href={`/api/sk/${d.id}/download`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 hover:underline"
+                    >
+                      <Eye className="w-3 h-3" /> Lihat
+                    </a>
+                    <a
+                      href={`/api/sk/${d.id}/download?download=1`}
+                      className="inline-flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-800 hover:underline"
+                    >
+                      <Download className="w-3 h-3" /> Unduh
+                    </a>
+                    {d.ocrStatus === 'COMPLETED' && (
+                      <Badge variant="outline" className="text-[13px] bg-emerald-50 text-emerald-700 border-emerald-200">
+                        <FileCheck className="w-3 h-3 mr-1" /> OCR Selesai
+                      </Badge>
+                    )}
+                  </div>
                 </div>
                 {canManage && (
                   <Button variant="ghost" size="sm" className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 text-red-600" onClick={() => setDeleteDoc(d)}>
@@ -1382,6 +1400,7 @@ function UploadSKDialogSimple({ open, onOpenChange, territoryId, territoryFilter
       const data = await res.json()
       if (!res.ok || !data.success) throw new Error(data.error || 'Upload gagal')
 
+      addToast(data.message || 'SK berhasil diunggah', 'success')
       setForm({ skNumber: '', title: '', issuedAt: '', issuedBy: '' }); setFile(null)
       onSuccess()
     } catch (e: any) { addToast(e.message, 'error') } finally { setLoading(false) }

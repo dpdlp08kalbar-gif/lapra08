@@ -215,6 +215,9 @@ model SKDocument {
   fileName      String?
   fileType      String?  // pdf, jpg, png, doc, docx, scan
   fileSize      Int?     // bytes
+  // PHASE 1 FIX: Store file content as base64 (Vercel-compatible, no filesystem)
+  // Allows download/view without external storage. Neon TEXT column can hold up to ~1GB.
+  fileData      String?  // base64-encoded file content (with data URL prefix)
   ocrStatus     String   @default("PENDING") // PENDING | PROCESSING | COMPLETED | FAILED
   extractedText String?  // hasil OCR
   ocrMetadata   String?  // JSON: nomor SK, tanggal, pihak yang dilantik (auto-detected)
