@@ -33,7 +33,7 @@ import {
   Database, Crown, Building, MapPin, Users, FileText, Plus, Edit, Trash2,
   MoreVertical, Upload, Phone, Mail, User, ArrowLeft, Search, Building2,
   ShieldCheck, FileCheck, ScanText, Lock, ChevronRight, Layers, Loader2,
-  Eye, Download,
+  Eye, Download, Clock,
 } from 'lucide-react'
 
 // ============================================================
@@ -857,6 +857,37 @@ function SKSection({ level, territoryId, territoryFilter }: {
     } catch (e: any) { addToast(e.message, 'error') }
   }
 
+  // === Handler: Sinkronkan SK yang sudah diupload ke Struktur Pengurus ===
+  // User klik tombol "Sinkronkan" per SK di daftar arsip
+  // → panggil /api/sk/[id]/sync-pengurus → dapat daftar pengurus
+  // → tampilkan OcrPreviewDialog → user klik tombol "Sinkronkan ke Struktur Pengurus"
+  const [syncLoading, setSyncLoading] = useState<string | null>(null)
+  const handleSyncPengurus = async (skId: string) => {
+    setSyncLoading(skId)
+    try {
+      const res = await fetch(`/api/sk/${skId}/sync-pengurus`, {
+        method: 'POST',
+        headers: { 'x-user-id': user?.id || '' },
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Gagal sync pengurus')
+      }
+
+      if (data.data.pengurus && data.data.pengurus.length > 0) {
+        // Tampilkan dialog preview dengan daftar pengurus
+        setOcrPreview(data.data)
+        addToast(`Berhasil ekstrak ${data.data.pengurus.length} pengurus dari SK. Klik tombol hijau untuk sinkronkan.`, 'success')
+      } else {
+        addToast('OCR selesai, tidak ada pengurus terdeteksi dari SK ini.', 'info')
+      }
+    } catch (e: any) {
+      addToast(`Gagal sync: ${e.message}`, 'error')
+    } finally {
+      setSyncLoading(null)
+    }
+  }
+
   if (loading) return <LoadingState />
 
   const canManage = user.role === 'SUPERADMIN' || user.role === 'ADMIN_DPN' ||
@@ -970,7 +1001,7 @@ function SKSection({ level, territoryId, territoryFilter }: {
                     {d.issuedBy} • {formatDateID(d.issuedAt)}
                     {d.fileSize && ` • ${(d.fileSize / 1024).toFixed(0)} KB`}
                   </div>
-                  <div className="flex items-center gap-2 mt-1">
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
                     <a
                       href={`/api/sk/${d.id}/download`}
                       target="_blank"
@@ -985,9 +1016,28 @@ function SKSection({ level, territoryId, territoryFilter }: {
                     >
                       <Download className="w-3 h-3" /> Unduh
                     </a>
+                    {canManage && (
+                      <button
+                        onClick={() => handleSyncPengurus(d.id)}
+                        disabled={syncLoading === d.id}
+                        className="inline-flex items-center gap-1 text-xs text-orange-700 bg-orange-50 border border-orange-200 px-2 py-1 rounded hover:bg-orange-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Ekstrak pengurus dari SK ini & sinkronkan ke Struktur Pengurus di atas"
+                      >
+                        {syncLoading === d.id ? (
+                          <><Loader2 className="w-3 h-3 animate-spin" /> Memproses...</>
+                        ) : (
+                          <><Users className="w-3 h-3" /> Sinkronkan ke Pengurus</>
+                        )}
+                      </button>
+                    )}
                     {d.ocrStatus === 'COMPLETED' && (
                       <Badge variant="outline" className="text-[13px] bg-emerald-50 text-emerald-700 border-emerald-200">
                         <FileCheck className="w-3 h-3 mr-1" /> OCR Selesai
+                      </Badge>
+                    )}
+                    {d.ocrStatus === 'PENDING' && (
+                      <Badge variant="outline" className="text-[13px] bg-amber-50 text-amber-700 border-amber-200">
+                        <Clock className="w-3 h-3 mr-1" /> OCR Pending
                       </Badge>
                     )}
                   </div>
