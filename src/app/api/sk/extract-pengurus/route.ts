@@ -166,7 +166,7 @@ export async function POST(request: NextRequest) {
       message: extractedPengurus.length > 0
         ? `Berhasil mengekstrak ${extractedPengurus.length} pengurus dari SK. Silakan verifikasi sebelum disimpan.`
         : ocrStatus === 'PENDING'
-        ? `SK "${file.name}" berhasil disimpan ke arsip. OCR ditunda (ZAI SDK tidak dikonfigurasi). Anda bisa lihat & download SK kapan saja.`
+        ? `SK "${file.name}" berhasil disimpan ke arsip. FOSS extractor selesai. Anda bisa lihat & download SK kapan saja.`
         : ocrStatus === 'FAILED'
         ? `SK "${file.name}" tersimpan, tapi OCR gagal. Anda tetap bisa lihat & download SK.`
         : 'OCR selesai namun tidak ada pengurus terdeteksi. SK tetap tersimpan sebagai arsip.',

@@ -59,8 +59,8 @@ const POSITION_NAME_PATTERNS = [
   // "Menetapkan Budi Santoso sebagai Ketua DPD"
   /(?:Menetapkan|mengangkat)\s+([A-Z][A-Za-z.\s,']+?)\s+(?:sebagai|menjadi|pada)\s+((?:Ketua|Sekretaris|Bendahara|Koordinator|Humas|Kaderisasi|Pemuda|Anggota|Penasihat|Pembina|Bidang|Wakil)(?:\s+\w+)?)/g,
   // LAPRA SK format: "1 Bun Hon Khiong 081234567890 Ketua" (nomor + nama + phone + jabatan)
-  // Use \b instead of ^ because pdfjs-dist returns flat text (no newlines per row)
-  /\b(\d+)\s+([A-Z][A-Za-z.\s,.'+]+?)\s+(\+?\d{8,15})\s+((?:Ketua|Sekretaris|Bendahara|Koordinator|Humas|Kaderisasi|Pemuda|Anggota|Penasihat|Pembina|Bidang|Wakil)(?:\s+\w+)?)/g,
+  // Phone pattern accepts spaces between digits (pdfjs-dist splits "08 7842151443")
+  /\b(\d+)\s+([A-Z][A-Za-z.\s,.'+]+?)\s+(\+?\d[\d\s]{6,18}\d)\s+((?:Ketua|Sekretaris|Bendahara|Koordinator|Humas|Kaderisasi|Pemuda|Anggota|Penasihat|Pembina|Bidang|Wakil)(?:\s+\w+)?)/g,
   // LAPRA SK format: "1 Bun Hon Khiong Ketua" (nomor + nama + jabatan, no phone)
   /\b(\d+)\s+([A-Z][A-Za-z.\s,.'+]+?)\s+((?:Ketua|Sekretaris|Bendahara|Koordinator|Humas|Kaderisasi|Pemuda|Anggota|Penasihat|Pembina|Bidang|Wakil)(?:\s+\w+)?)/g,
 ]
@@ -115,8 +115,13 @@ export async function extractPengurusFromPdfBuffer(
     for (let i = 1; i <= doc.numPages; i++) {
       const page = await doc.getPage(i)
       const content = await page.getTextContent()
-      // Join items with space (items are text fragments from PDF)
-      const pageText = content.items.map((item: any) => item.str).join(' ')
+      // Use hasEOL to reconstruct lines properly
+      // pdfjs-dist returns text items with hasEOL flag — when true, the item ends a line
+      let pageText = ''
+      for (const item of content.items as any[]) {
+        pageText += item.str
+        if (item.hasEOL) pageText += '\n'
+      }
       rawText += pageText + '\n'
     }
   } catch (e: any) {
@@ -180,7 +185,7 @@ export async function extractPengurusFromPdfBuffer(
       } else if (pi === 5) {
         // Pattern 6: "1 Name 0812345 Ketua" — match[1]=number, match[2]=name, match[3]=phone, match[4]=position
         name = match[2]
-        phone = match[3]
+        phone = match[3]?.replace(/\s/g, '') // remove spaces from phone (pdfjs-dist splits "08 7842...")
         position = match[4]
       } else if (pi === 6) {
         // Pattern 7: "1 Name Ketua" — match[1]=number, match[2]=name, match[3]=position
