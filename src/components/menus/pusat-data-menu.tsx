@@ -834,6 +834,10 @@ function SKSection({ level, territoryId, territoryFilter }: {
   // OCR auto-extract state
   const [ocrLoading, setOcrLoading] = useState(false)
   const [ocrPreview, setOcrPreview] = useState<any>(null)
+  // === Bulk paste daftar pengurus state ===
+  const [bulkPasteOpen, setBulkPasteOpen] = useState(false)
+  const [bulkPasteText, setBulkPasteText] = useState('')
+  const [bulkLoading, setBulkLoading] = useState(false)
 
   const loadData = () => {
     setLoading(true)
@@ -855,6 +859,46 @@ function SKSection({ level, territoryId, territoryFilter }: {
       await api(`/api/sk/${deleteDoc.id}`, { method: 'DELETE' })
       addToast('SK dihapus', 'success'); setDeleteDoc(null); loadData()
     } catch (e: any) { addToast(e.message, 'error') }
+  }
+
+  // === Bulk Paste Daftar Pengurus handler ===
+  // Parse daftar pengurus dari textarea → bulk create ke OrgPosition
+  // → langsung muncul di "Struktur Pengurus" di atas
+  const handleBulkPaste = async () => {
+    if (!bulkPasteText.trim()) {
+      addToast('Paste daftar pengurus dulu', 'error')
+      return
+    }
+    if (!territoryId) {
+      addToast('Territory ID tidak ditemukan. Pilih wilayah DPN/DPD/DPC dulu.', 'error')
+      return
+    }
+
+    setBulkLoading(true)
+    try {
+      const res = await fetch('/api/organization/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': user?.id || '' },
+        body: JSON.stringify({
+          territoryId,
+          level,
+          pengurusText: bulkPasteText,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) throw new Error(data.error)
+
+      addToast(data.message, 'success')
+      setBulkPasteText('')
+      setBulkPasteOpen(false)
+
+      // Trigger reload of pengurus list di parent component
+      window.dispatchEvent(new Event('pengurus-updated'))
+    } catch (e: any) {
+      addToast(e.message, 'error')
+    } finally {
+      setBulkLoading(false)
+    }
   }
 
   if (loading) return <LoadingState />
@@ -932,13 +976,17 @@ function SKSection({ level, territoryId, territoryFilter }: {
             <Badge variant="outline" className="text-xs">{docs.length} dokumen</Badge>
           </CardTitle>
           {canManage && (
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               {/* Upload SK biasa */}
               <Button onClick={() => setUploadOpen(true)} size="sm" variant="outline">
                 <Upload className="w-4 h-4 mr-1" /> Upload SK
               </Button>
               {/* Upload SK + OCR Auto-Extract */}
               <OcrExtractButton onFileSelected={handleOcrExtract} loading={ocrLoading} level={level} />
+              {/* Bulk Paste Daftar Pengurus (FOSS, no OCR needed) */}
+              <Button onClick={() => setBulkPasteOpen(true)} size="sm" variant="outline" className="border-emerald-300 text-emerald-700 hover:bg-emerald-50">
+                <Users className="w-4 h-4 mr-1" /> Paste Daftar Pengurus
+              </Button>
             </div>
           )}
         </div>
@@ -998,6 +1046,16 @@ function SKSection({ level, territoryId, territoryFilter }: {
         territoryId={territoryId}
         territoryFilter={territoryFilter}
         onSuccess={() => { loadData(); setUploadOpen(false); addToast('SK diupload, OCR diproses', 'success') }}
+      />
+      <BulkPastePengurusDialog
+        open={bulkPasteOpen}
+        onOpenChange={setBulkPasteOpen}
+        level={level}
+        territoryName={territoryFilter?.level === 'COUNTRY' ? 'Indonesia (DPN)' : territoryFilter?.level === 'PROVINCE' ? 'DPD' : 'DPC'}
+        bulkPasteText={bulkPasteText}
+        setBulkPasteText={setBulkPasteText}
+        onSubmit={handleBulkPaste}
+        loading={bulkLoading}
       />
       <AlertDialog open={!!deleteDoc} onOpenChange={(o) => !o && setDeleteDoc(null)}>
         <AlertDialogContent>
@@ -1430,6 +1488,119 @@ function UploadSKDialogSimple({ open, onOpenChange, territoryId, territoryFilter
           <div className="space-y-2"><Label>Penerbit</Label><Input value={form.issuedBy} onChange={(e) => setForm({ ...form, issuedBy: e.target.value })} /></div>
           <DialogFooter><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Batal</Button><Button type="submit" disabled={loading}>{loading ? 'Uploading...' : 'Upload'}</Button></DialogFooter>
         </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ============================================================
+// BULK PASTE PENGURUS DIALOG — 100% FOSS (no OCR, no ZAI)
+// ============================================================
+// User paste daftar pengurus dari SK (format bebas), sistem auto-parse
+// → bulk create ke OrgPosition → langsung muncul di Struktur Pengurus
+function BulkPastePengurusDialog({
+  open, onOpenChange, level, territoryName,
+  bulkPasteText, setBulkPasteText, onSubmit, loading,
+}: {
+  open: boolean
+  onOpenChange: (o: boolean) => void
+  level: string
+  territoryName: string
+  bulkPasteText: string
+  setBulkPasteText: (s: string) => void
+  onSubmit: () => void
+  loading: boolean
+}) {
+  const lines = bulkPasteText.split(/\r?\n/).filter(l => l.trim().length >= 3)
+  const exampleText = `Budi Santoso - Ketua
+Siti Aminah - Wakil Ketua
+Ahmad Yani - Sekretaris
+Dewi Lestari - Bendahara
+Eko Prasetyo, Koordinator Bidang Pemuda
+Rina Marlina (Humas)`
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-base">
+            <Users className="w-5 h-5 text-emerald-600" />
+            Paste Daftar Pengurus {level} — {territoryName}
+          </DialogTitle>
+          <DialogDescription>
+            Salin daftar pengurus dari SK (satu per baris). Sistem akan otomatis parse nama + jabatan, lalu bulk-create ke Struktur Pengurus di atas.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3 py-2">
+          {/* Format hints */}
+          <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-xs text-emerald-800">
+            <strong className="block mb-1">Format yang didukung (otomatis terdeteksi per baris):</strong>
+            <ul className="space-y-1 list-disc list-inside">
+              <li><code className="bg-white px-1 rounded">Nama - Jabatan</code> — pisahkan dengan tanda hubung</li>
+              <li><code className="bg-white px-1 rounded">Nama, Jabatan</code> — pisahkan dengan koma</li>
+              <li><code className="bg-white px-1 rounded">Nama (Jabatan)</code> — jabatan dalam kurung</li>
+              <li><code className="bg-white px-1 rounded">Jabatan: Nama</code> — misal "Ketua: Budi"</li>
+              <li><code className="bg-white px-1 rounded">1. Nama - Jabatan</code> — dengan nomor urut</li>
+            </ul>
+          </div>
+
+          {/* Textarea */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm">Daftar Pengurus (satu per baris) *</Label>
+              <span className="text-xs text-muted-foreground">
+                {lines.length} baris terdeteksi
+              </span>
+            </div>
+            <Textarea
+              value={bulkPasteText}
+              onChange={(e) => setBulkPasteText(e.target.value)}
+              rows={12}
+              placeholder={exampleText}
+              className="font-mono text-sm"
+            />
+          </div>
+
+          {/* Example */}
+          <details className="text-xs">
+            <summary className="cursor-pointer text-muted-foreground hover:text-foreground">Lihat contoh format</summary>
+            <pre className="mt-2 p-3 bg-muted rounded text-xs overflow-x-auto whitespace-pre-wrap">{exampleText}</pre>
+          </details>
+
+          {/* Action buttons */}
+          <div className="flex gap-2 justify-end pt-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
+              Batal
+            </Button>
+            <Button
+              onClick={onSubmit}
+              disabled={loading || lines.length === 0}
+              className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                  Memproses...
+                </>
+              ) : (
+                <>
+                  <Users className="w-4 h-4 mr-1" />
+                  Bulk Create {lines.length} Pengurus
+                </>
+              )}
+            </Button>
+          </div>
+
+          {/* Info */}
+          <p className="text-xs text-muted-foreground">
+            💡 <strong>Tip:</strong> Buka file SK Anda (PDF/Word), copy seluruh daftar pengurus, paste ke kotak di atas.
+            Sistem akan otomatis ekstrak nama + jabatan. Duplikat (nama + jabatan yang sama) akan di-skip otomatis.
+            {level === 'DPN' && ' Status: APPROVED otomatis (sebagai Super Admin/DPN).'}
+            {level === 'DPD' && ' Status: APPROVED otomatis (sebagai admin DPN).'}
+            {level === 'DPC' && ' Status: APPROVED otomatis (sebagai admin DPN).'}
+          </p>
+        </div>
       </DialogContent>
     </Dialog>
   )
