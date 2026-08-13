@@ -17,10 +17,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
-import { useToastStore } from '@/lib/store'
+import { useToastStore, useAuthStore } from '@/lib/store'
 import { formatDateTimeID } from '@/lib/format'
 import {
   CalendarDays, Plus, Calendar, CheckSquare, FileText, Users, MapPin, Activity,
+  Zap, Upload, Loader2,
 } from 'lucide-react'
 
 interface EventItem {
@@ -297,11 +298,30 @@ function AddEventDialog({
 
 function AttendanceTab() {
   const addToast = useToastStore((s) => s.addToast)
+  const user = useAuthStore((s: any) => s.user)
+  const [mode, setMode] = useState<'scheduled' | 'quick' | 'manual' | 'csv'>('scheduled')
   const [events, setEvents] = useState<EventItem[]>([])
   const [members, setMembers] = useState<any[]>([])
   const [selectedEvent, setSelectedEvent] = useState<string>('')
   const [attendance, setAttendance] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
+
+  // === Quick Event form state ===
+  const [quickForm, setQuickForm] = useState({
+    title: '',
+    date: new Date().toISOString().slice(0, 16),
+    location: '',
+    type: 'LAINNYA',
+    notes: '',
+  })
+
+  // === Manual names textarea ===
+  const [namesText, setNamesText] = useState('')
+
+  // === CSV upload state ===
+  const [csvFile, setCsvFile] = useState<File | null>(null)
+  const [csvPreview, setCsvPreview] = useState<any[]>([])
 
   useEffect(() => {
     api('/api/events').then((e) => {
@@ -318,6 +338,7 @@ function AttendanceTab() {
   }, [selectedEvent])
 
   const handleMarkAttendance = async (memberId: string, status: string) => {
+    if (!selectedEvent) return
     try {
       await api('/api/attendance', {
         method: 'POST',
@@ -330,6 +351,164 @@ function AttendanceTab() {
     }
   }
 
+  // === Submit Quick Event + Attendees (manual names) ===
+  const handleQuickEventSubmit = async () => {
+    if (!quickForm.title || !quickForm.date) {
+      addToast('Nama acara dan tanggal wajib diisi', 'error')
+      return
+    }
+    const names = namesText.split('\n').map((n) => n.trim()).filter((n) => n.length >= 2)
+    if (names.length === 0) {
+      addToast('Daftar peserta wajib diisi (minimal 1 nama, satu per baris)', 'error')
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      const res = await fetch('/api/attendance/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': user?.id || '' },
+        body: JSON.stringify({
+          mode: 'quick_event',
+          event: {
+            title: quickForm.title,
+            date: quickForm.date,
+            location: quickForm.location,
+            type: quickForm.type,
+            notes: quickForm.notes,
+          },
+          attendees: names.map((n) => ({ name: n, status: 'PRESENT' })),
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) throw new Error(data.error)
+
+      addToast(data.message, 'success')
+      // Reset form
+      setQuickForm({ title: '', date: new Date().toISOString().slice(0, 16), location: '', type: 'LAINNYA', notes: '' })
+      setNamesText('')
+      // Reload events list
+      api('/api/events').then(setEvents).catch(() => {})
+      setMode('scheduled')
+    } catch (e: any) {
+      addToast(e.message, 'error')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  // === Submit Manual Names (for existing event) ===
+  const handleManualNamesSubmit = async () => {
+    if (!selectedEvent) {
+      addToast('Pilih event dulu', 'error')
+      return
+    }
+    const names = namesText.split('\n').map((n) => n.trim()).filter((n) => n.length >= 2)
+    if (names.length === 0) {
+      addToast('Daftar nama wajib diisi (minimal 1 nama, satu per baris)', 'error')
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      const res = await fetch('/api/attendance/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': user?.id || '' },
+        body: JSON.stringify({
+          mode: 'manual_names',
+          eventId: selectedEvent,
+          namesText,
+          status: 'PRESENT',
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) throw new Error(data.error)
+
+      addToast(data.message, 'success')
+      setNamesText('')
+      // Reload attendance
+      api(`/api/attendance?eventId=${selectedEvent}`).then(setAttendance).catch(() => {})
+    } catch (e: any) {
+      addToast(e.message, 'error')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  // === Parse CSV file client-side ===
+  const handleCsvFileChange = async (file: File | null) => {
+    if (!file) {
+      setCsvFile(null)
+      setCsvPreview([])
+      return
+    }
+    setCsvFile(file)
+    try {
+      const text = await file.text()
+      const lines = text.split(/\r?\n/).filter((l) => l.trim())
+      const rows = lines.map((line) => {
+        // Parse CSV (handle quoted values)
+        const cols = line.match(/("([^"]*)"|([^,]*)),?/g)?.map((c) => c.replace(/,$/, '').replace(/^"|"$/g, '')) || []
+        return {
+          name: cols[0] || '',
+          phone: cols[1] || '',
+          territoryName: cols[2] || '',
+        }
+      }).filter((r) => r.name.length >= 2)
+      setCsvPreview(rows.slice(0, 10)) // Preview first 10
+    } catch (e: any) {
+      addToast(`Gagal parse CSV: ${e.message}`, 'error')
+    }
+  }
+
+  // === Submit CSV Upload ===
+  const handleCsvSubmit = async () => {
+    if (!selectedEvent) {
+      addToast('Pilih event dulu', 'error')
+      return
+    }
+    if (!csvFile || csvPreview.length === 0) {
+      addToast('Pilih file CSV dulu', 'error')
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      // Parse full CSV (not just preview)
+      const text = await csvFile.text()
+      const lines = text.split(/\r?\n/).filter((l) => l.trim())
+      const rows = lines.map((line) => {
+        const cols = line.match(/("([^"]*)"|([^,]*)),?/g)?.map((c) => c.replace(/,$/, '').replace(/^"|"$/g, '')) || []
+        return {
+          name: cols[0] || '',
+          phone: cols[1] || '',
+          territoryName: cols[2] || '',
+        }
+      }).filter((r) => r.name.length >= 2)
+
+      const res = await fetch('/api/attendance/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': user?.id || '' },
+        body: JSON.stringify({
+          mode: 'csv_upload',
+          eventId: selectedEvent,
+          rows,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) throw new Error(data.error)
+
+      addToast(data.message, 'success')
+      setCsvFile(null)
+      setCsvPreview([])
+      api(`/api/attendance?eventId=${selectedEvent}`).then(setAttendance).catch(() => {})
+    } catch (e: any) {
+      addToast(e.message, 'error')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   if (loading) return <LoadingState />
 
   const getMemberStatus = (memberId: string) => {
@@ -337,78 +516,397 @@ function AttendanceTab() {
     return rec?.status || null
   }
 
+  // Stats for selected event
+  const presentCount = attendance.filter((a) => a.status === 'PRESENT').length
+  const absentCount = attendance.filter((a) => a.status === 'ABSENT').length
+  const excusedCount = attendance.filter((a) => a.status === 'EXCUSED').length
+
   return (
     <div className="space-y-4">
-      <div className="space-y-2 max-w-md">
-        <Label>Pilih Event untuk Absensi</Label>
-        <Select value={selectedEvent} onValueChange={setSelectedEvent}>
-          <SelectTrigger><SelectValue placeholder="Pilih event..." /></SelectTrigger>
-          <SelectContent>
-            {events.map((e) => (
-              <SelectItem key={e.id} value={e.id}>{e.title} - {formatDateTimeID(e.startDate)}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      {/* Mode selector */}
+      <div className="flex flex-wrap gap-2 p-3 rounded-lg bg-muted/30 border">
+        <Button
+          size="sm"
+          variant={mode === 'scheduled' ? 'default' : 'outline'}
+          className={mode === 'scheduled' ? 'bg-orange-600 hover:bg-orange-700 text-white' : ''}
+          onClick={() => setMode('scheduled')}
+        >
+          <CheckSquare className="w-4 h-4 mr-1" /> Acara Terjadwal
+        </Button>
+        <Button
+          size="sm"
+          variant={mode === 'quick' ? 'default' : 'outline'}
+          className={mode === 'quick' ? 'bg-orange-600 hover:bg-orange-700 text-white' : ''}
+          onClick={() => setMode('quick')}
+        >
+          <Zap className="w-4 h-4 mr-1" /> Acara Dadakan
+        </Button>
+        <Button
+          size="sm"
+          variant={mode === 'manual' ? 'default' : 'outline'}
+          className={mode === 'manual' ? 'bg-orange-600 hover:bg-orange-700 text-white' : ''}
+          onClick={() => setMode('manual')}
+        >
+          <FileText className="w-4 h-4 mr-1" /> Ketik Manual
+        </Button>
+        <Button
+          size="sm"
+          variant={mode === 'csv' ? 'default' : 'outline'}
+          className={mode === 'csv' ? 'bg-orange-600 hover:bg-orange-700 text-white' : ''}
+          onClick={() => setMode('csv')}
+        >
+          <Upload className="w-4 h-4 mr-1" /> Upload CSV
+        </Button>
       </div>
 
-      {!selectedEvent ? (
-        <EmptyState icon={CheckSquare} title="Pilih event dulu" description="Pilih event dari dropdown di atas untuk mulai mencatat absensi." />
-      ) : (
+      {/* === MODE 1: SCHEDULED — Existing dropdown event + table === */}
+      {mode === 'scheduled' && (
+        <>
+          <div className="space-y-2 max-w-md">
+            <Label>Pilih Event untuk Absensi</Label>
+            <Select value={selectedEvent} onValueChange={setSelectedEvent}>
+              <SelectTrigger><SelectValue placeholder="Pilih event..." /></SelectTrigger>
+              <SelectContent>
+                {events.length === 0 ? (
+                  <SelectItem value="_empty" disabled>Tidak ada event — buat di tab Agenda atau gunakan mode Acara Dadakan</SelectItem>
+                ) : (
+                  events.map((e) => (
+                    <SelectItem key={e.id} value={e.id}>{e.title} - {formatDateTimeID(e.startDate)}</SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
+            {events.length === 0 && (
+              <p className="text-xs text-muted-foreground">
+                Belum ada event terdaftar. Gunakan mode <strong>Acara Dadakan</strong> untuk absensi cepat tanpa perlu buat event terjadwal.
+              </p>
+            )}
+          </div>
+
+          {!selectedEvent ? (
+            <EmptyState icon={CheckSquare} title="Pilih event dulu" description="Pilih event dari dropdown di atas untuk mulai mencatat absensi, atau gunakan mode Acara Dadakan / Ketik Manual / Upload CSV." />
+          ) : (
+            <>
+              {/* Stats summary */}
+              <div className="grid grid-cols-3 gap-2">
+                <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-center">
+                  <div className="text-2xl font-bold text-emerald-700">{presentCount}</div>
+                  <div className="text-xs text-emerald-700">Hadir</div>
+                </div>
+                <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-center">
+                  <div className="text-2xl font-bold text-red-700">{absentCount}</div>
+                  <div className="text-xs text-red-700">Tidak Hadir</div>
+                </div>
+                <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-center">
+                  <div className="text-2xl font-bold text-amber-700">{excusedCount}</div>
+                  <div className="text-xs text-amber-700">Izin</div>
+                </div>
+              </div>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Daftar Anggota untuk Absensi ({members.length})</CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Nama</TableHead>
+                        <TableHead>WhatsApp</TableHead>
+                        <TableHead>Wilayah</TableHead>
+                        <TableHead className="text-center">Status Kehadiran</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {members.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                            Belum ada anggota. Tambahkan anggota di menu Pusat Data Organisasi.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        members.map((m) => {
+                          const status = getMemberStatus(m.id)
+                          return (
+                            <TableRow key={m.id}>
+                              <TableCell className="font-medium">{m.fullName}</TableCell>
+                              <TableCell>{m.phone}</TableCell>
+                              <TableCell><Badge variant="outline" className="text-xs">{m.territory?.name}</Badge></TableCell>
+                              <TableCell>
+                                <div className="flex gap-1 justify-center">
+                                  <Button
+                                    size="sm"
+                                    variant={status === 'PRESENT' ? 'default' : 'outline'}
+                                    className={`h-7 text-xs ${status === 'PRESENT' ? 'bg-emerald-600' : ''}`}
+                                    onClick={() => handleMarkAttendance(m.id, 'PRESENT')}
+                                  >
+                                    Hadir
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant={status === 'ABSENT' ? 'default' : 'outline'}
+                                    className={`h-7 text-xs ${status === 'ABSENT' ? 'bg-red-600' : ''}`}
+                                    onClick={() => handleMarkAttendance(m.id, 'ABSENT')}
+                                  >
+                                    Tidak
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant={status === 'EXCUSED' ? 'default' : 'outline'}
+                                    className={`h-7 text-xs ${status === 'EXCUSED' ? 'bg-amber-600' : ''}`}
+                                    onClick={() => handleMarkAttendance(m.id, 'EXCUSED')}
+                                  >
+                                    Izin
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )
+                        })
+                      )}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </>
+          )}
+        </>
+      )}
+
+      {/* === MODE 2: QUICK EVENT (Acara Dadakan) === */}
+      {mode === 'quick' && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Daftar Anggota untuk Absensi ({members.length})</CardTitle>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Zap className="w-4 h-4 text-orange-600" /> Acara Dadakan + Absensi Cepat
+            </CardTitle>
+            <CardDescription>
+              Untuk acara impromptu yang belum terjadwal. Isi nama acara, tanggal, lokasi, lalu ketik nama peserta hadir (satu per baris). Sistem akan otomatis membuat event + mencatat absensi sekaligus.
+            </CardDescription>
           </CardHeader>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nama</TableHead>
-                  <TableHead>WhatsApp</TableHead>
-                  <TableHead>Wilayah</TableHead>
-                  <TableHead className="text-center">Status Kehadiran</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {members.map((m) => {
-                  const status = getMemberStatus(m.id)
-                  return (
-                    <TableRow key={m.id}>
-                      <TableCell className="font-medium">{m.fullName}</TableCell>
-                      <TableCell>{m.phone}</TableCell>
-                      <TableCell><Badge variant="outline" className="text-xs">{m.territory?.name}</Badge></TableCell>
-                      <TableCell>
-                        <div className="flex gap-1 justify-center">
-                          <Button
-                            size="sm"
-                            variant={status === 'PRESENT' ? 'default' : 'outline'}
-                            className={`h-7 text-xs ${status === 'PRESENT' ? 'bg-emerald-600' : ''}`}
-                            onClick={() => handleMarkAttendance(m.id, 'PRESENT')}
-                          >
-                            Hadir
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant={status === 'ABSENT' ? 'default' : 'outline'}
-                            className={`h-7 text-xs ${status === 'ABSENT' ? 'bg-red-600' : ''}`}
-                            onClick={() => handleMarkAttendance(m.id, 'ABSENT')}
-                          >
-                            Tidak
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant={status === 'EXCUSED' ? 'default' : 'outline'}
-                            className={`h-7 text-xs ${status === 'EXCUSED' ? 'bg-amber-600' : ''}`}
-                            onClick={() => handleMarkAttendance(m.id, 'EXCUSED')}
-                          >
-                            Izin
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
+          <CardContent className="space-y-4">
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="space-y-1 md:col-span-2">
+                <Label className="text-xs">Nama Acara *</Label>
+                <Input
+                  value={quickForm.title}
+                  onChange={(e) => setQuickForm({ ...quickForm, title: e.target.value })}
+                  placeholder="Mis. Pertemuan Koordinasi DPC Pontianak"
+                  className="text-sm"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Tanggal & Waktu *</Label>
+                <Input
+                  type="datetime-local"
+                  value={quickForm.date}
+                  onChange={(e) => setQuickForm({ ...quickForm, date: e.target.value })}
+                  className="text-sm"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Lokasi</Label>
+                <Input
+                  value={quickForm.location}
+                  onChange={(e) => setQuickForm({ ...quickForm, location: e.target.value })}
+                  placeholder="Mis. Sekretariat DPC Pontianak"
+                  className="text-sm"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Jenis Acara</Label>
+                <Select value={quickForm.type} onValueChange={(v) => setQuickForm({ ...quickForm, type: v })}>
+                  <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="PELANTIKAN">Pelantikan</SelectItem>
+                    <SelectItem value="MOBILISASI">Mobilisasi Massa</SelectItem>
+                    <SelectItem value="RAPAT">Rapat</SelectItem>
+                    <SelectItem value="SOSIAL">Aksi Sosial</SelectItem>
+                    <SelectItem value="LAINNYA">Lainnya</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Catatan (opsional)</Label>
+                <Input
+                  value={quickForm.notes}
+                  onChange={(e) => setQuickForm({ ...quickForm, notes: e.target.value })}
+                  placeholder="Mis. Pertemuan mendadak untuk bahas persiapan HUT"
+                  className="text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs">Daftar Peserta Hadir (satu nama per baris) *</Label>
+              <Textarea
+                value={namesText}
+                onChange={(e) => setNamesText(e.target.value)}
+                rows={8}
+                placeholder={'Budi Santoso\nSiti Aminah\nAhmad Yani\nDewi Lestari\n...'}
+                className="font-mono text-sm"
+              />
+              <p className="text-xs text-muted-foreground">
+                {namesText.split('\n').filter((n) => n.trim().length >= 2).length} nama terdeteksi. Anggota yang belum terdaftar akan otomatis dibuat (status ACTIVE) — perlu dilengkapi data WA & NIK nanti di menu Pusat Data Organisasi.
+              </p>
+            </div>
+
+            <Button
+              onClick={handleQuickEventSubmit}
+              disabled={submitting}
+              className="w-full bg-gradient-to-r from-orange-600 to-red-600 text-white"
+            >
+              {submitting ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Zap className="w-4 h-4 mr-1" />}
+              {submitting ? 'Memproses...' : 'Buat Acara + Catat Absensi'}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* === MODE 3: MANUAL NAMES (untuk event existing) === */}
+      {mode === 'manual' && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <FileText className="w-4 h-4 text-blue-600" /> Ketik Manual — Tambah Peserta Hadir
+            </CardTitle>
+            <CardDescription>
+              Untuk event yang sudah dipilih. Ketik nama peserta yang hadir (satu per baris). Cocok untuk absensi massal tanpa perlu klik satu-satu.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-1 max-w-md">
+              <Label className="text-xs">Pilih Event *</Label>
+              <Select value={selectedEvent} onValueChange={setSelectedEvent}>
+                <SelectTrigger className="text-sm"><SelectValue placeholder="Pilih event..." /></SelectTrigger>
+                <SelectContent>
+                  {events.length === 0 ? (
+                    <SelectItem value="_empty" disabled>Tidak ada event — gunakan mode Acara Dadakan</SelectItem>
+                  ) : (
+                    events.map((e) => (
+                      <SelectItem key={e.id} value={e.id}>{e.title} - {formatDateTimeID(e.startDate)}</SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs">Daftar Peserta Hadir (satu nama per baris) *</Label>
+              <Textarea
+                value={namesText}
+                onChange={(e) => setNamesText(e.target.value)}
+                rows={10}
+                placeholder={'Budi Santoso\nSiti Aminah\nAhmad Yani\n...'}
+                className="font-mono text-sm"
+              />
+              <p className="text-xs text-muted-foreground">
+                {namesText.split('\n').filter((n) => n.trim().length >= 2).length} nama terdeteksi. Semua akan di-set "Hadir".
+                Anggota yang belum terdaftar akan otomatis dibuat (status ACTIVE).
+              </p>
+            </div>
+
+            <Button
+              onClick={handleManualNamesSubmit}
+              disabled={submitting || !selectedEvent}
+              className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white"
+            >
+              {submitting ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <FileText className="w-4 h-4 mr-1" />}
+              {submitting ? 'Memproses...' : 'Catat Absensi Massal'}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* === MODE 4: CSV UPLOAD === */}
+      {mode === 'csv' && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Upload className="w-4 h-4 text-emerald-600" /> Upload CSV — Import Peserta
+            </CardTitle>
+            <CardDescription>
+              Upload file CSV/Excel berisi daftar peserta. Format kolom: <strong>Nama, WhatsApp, Wilayah</strong> (dipisah koma). Semua akan di-set "Hadir".
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-1 max-w-md">
+              <Label className="text-xs">Pilih Event *</Label>
+              <Select value={selectedEvent} onValueChange={setSelectedEvent}>
+                <SelectTrigger className="text-sm"><SelectValue placeholder="Pilih event..." /></SelectTrigger>
+                <SelectContent>
+                  {events.length === 0 ? (
+                    <SelectItem value="_empty" disabled>Tidak ada event — gunakan mode Acara Dadakan</SelectItem>
+                  ) : (
+                    events.map((e) => (
+                      <SelectItem key={e.id} value={e.id}>{e.title} - {formatDateTimeID(e.startDate)}</SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <Input
+                  type="file"
+                  accept=".csv,.txt"
+                  onChange={(e) => handleCsvFileChange(e.target.files?.[0] || null)}
+                  className="text-sm"
+                />
+                <a
+                  href="data:text/csv;charset=utf-8,Nama,WhatsApp,Wilayah%0ABudi Santoso,081234567890,Pontianak%0ASiti Aminah,081298765432,Sambas"
+                  download="template-absensi.csv"
+                  className="inline-flex items-center gap-1 px-3 py-2 text-xs border rounded-md hover:bg-accent whitespace-nowrap"
+                >
+                  <FileText className="w-3 h-3" /> Download Template
+                </a>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Format: <code className="bg-muted px-1 rounded text-[11px]">Nama,WhatsApp,Wilayah</code> — header opsional, dipisah koma.
+              </p>
+            </div>
+
+            {/* CSV Preview */}
+            {csvPreview.length > 0 && (
+              <div className="space-y-2">
+                <Label className="text-xs">Preview (10 baris pertama):</Label>
+                <div className="rounded border overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="text-xs">#</TableHead>
+                        <TableHead className="text-xs">Nama</TableHead>
+                        <TableHead className="text-xs">WhatsApp</TableHead>
+                        <TableHead className="text-xs">Wilayah</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {csvPreview.map((row, i) => (
+                        <TableRow key={i}>
+                          <TableCell className="text-xs text-muted-foreground">{i + 1}</TableCell>
+                          <TableCell className="text-xs font-medium">{row.name}</TableCell>
+                          <TableCell className="text-xs">{row.phone || '-'}</TableCell>
+                          <TableCell className="text-xs">{row.territoryName || '-'}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Total: {csvFile ? 'File dipilih' : 'Belum ada file'}
+                </p>
+              </div>
+            )}
+
+            <Button
+              onClick={handleCsvSubmit}
+              disabled={submitting || !selectedEvent || !csvFile}
+              className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 text-white"
+            >
+              {submitting ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Upload className="w-4 h-4 mr-1" />}
+              {submitting ? 'Mengimpor...' : 'Import & Catat Absensi'}
+            </Button>
           </CardContent>
         </Card>
       )}
