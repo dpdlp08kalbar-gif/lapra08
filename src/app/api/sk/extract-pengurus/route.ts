@@ -85,30 +85,37 @@ export async function POST(request: NextRequest) {
       data: { fileUrl: `/api/sk/${skDoc.id}/download` },
     })
 
-    // Proses OCR via VLM
+    // === OCR: best-effort (tidak wajib). File sudah tersimpan di DB. ===
+    // ZAI SDK opsional — kalau env vars tidak ada, OCR di-skip, SK tetap tersimpan.
     let extractedPengurus: any[] = []
     let extractedText = ''
+    let ocrStatus = 'PENDING' // PENDING (default) | COMPLETED (jika OCR berhasil) | FAILED (jika OCR error)
+    let ocrMessage = 'File SK tersimpan. OCR ditunda (ZAI SDK tidak dikonfigurasi).'
 
     try {
-      // === Init ZAI config dari env vars (untuk Vercel serverless) ===
-      if (!requireZaiConfig()) {
-        return NextResponse.json({
-          success: false,
-          error: 'Konfigurasi ZAI SDK belum lengkap. Set env vars: ZAI_BASE_URL, ZAI_API_KEY, ZAI_CHAT_ID, ZAI_TOKEN, ZAI_USER_ID di Vercel Project Settings.',
-        }, { status: 500 })
-      }
+      // Cek apakah ZAI SDK tersedia (env vars)
+      const zaiConfigReady = requireZaiConfig()
 
-      const zai = await ZAI.create()
-      const base64Image = `data:image/jpeg;base64,${fileBuffer.toString('base64')}`
+      if (!zaiConfigReady) {
+        // ZAI tidak dikonfigurasi — skip OCR, tapi SK tetap tersimpan
+        console.log('[SK Extract] ZAI SDK not configured — skipping OCR. File saved to DB.')
+        await db.sKDocument.update({
+          where: { id: skDoc.id },
+          data: { ocrStatus: 'PENDING', extractedText: 'OCR ditunda: ZAI SDK belum dikonfigurasi. File tetap tersimpan sebagai arsip.' },
+        })
+      } else {
+        // ZAI tersedia — jalankan OCR
+        const zai = await ZAI.create()
+        const base64Image = `data:image/jpeg;base64,${fileBuffer.toString('base64')}`
 
-      const completion = await zai.chat.completions.create({
-        messages: [
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'text',
-                text: `Anda adalah asisten ahli untuk ekstraksi data pengurus organisasi Laskar Prabowo 08 dari dokumen Surat Keputusan (SK). Analisis gambar SK ini dan ekstrak DAFTAR PENGURUS yang dilantik.
+        const completion = await zai.chat.completions.create({
+          messages: [
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'text',
+                  text: `Anda adalah asisten ahli untuk ekstraksi data pengurus organisasi Laskar Prabowo 08 dari dokumen Surat Keputusan (SK). Analisis gambar SK ini dan ekstrak DAFTAR PENGURUS yang dilantik.
 
 Kembalikan HANYA JSON dengan format:
 {
@@ -129,51 +136,56 @@ Kembalikan HANYA JSON dengan format:
 }
 
 Jika tidak ada pengurus yang terdeteksi, kembalikan array "pengurus" kosong. Hanya kembalikan JSON, tanpa teks tambahan.`,
-              },
-              {
-                type: 'image_url',
-                image_url: { url: base64Image },
-              },
-            ],
-          },
-        ],
-      })
+                },
+                {
+                  type: 'image_url',
+                  image_url: { url: base64Image },
+                },
+              ],
+            },
+          ],
+        } as any)
 
-      const responseText = completion.choices[0]?.message?.content || ''
-      extractedText = responseText
+        const responseText = completion.choices[0]?.message?.content || ''
+        extractedText = responseText
+        ocrStatus = 'COMPLETED'
+        ocrMessage = 'OCR selesai.'
 
-      // Parse JSON dari response
-      const jsonMatch = responseText.match(/\{[\s\S]*\}/)
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0])
-        extractedPengurus = parsed.pengurus || []
-        
-        // Update SK dengan info yang diekstrak
-        await db.sKDocument.update({
-          where: { id: skDoc.id },
-          data: {
-            ocrStatus: 'COMPLETED',
-            extractedText: responseText,
-            ocrMetadata: JSON.stringify({
-              ...parsed.skInfo,
-              pengurusCount: extractedPengurus.length,
-              autoDetected: true,
-              processedAt: new Date().toISOString(),
-            }),
-            skNumber: parsed.skInfo?.nomorSK || skDoc.skNumber,
-            title: parsed.skInfo?.tentang || file.name,
-            issuedBy: parsed.skInfo?.penerbit || 'Unknown',
-            issuedAt: parsed.skInfo?.tanggalTerbit ? new Date(parsed.skInfo.tanggalTerbit) : new Date(),
-          },
-        })
-      } else {
-        await db.sKDocument.update({
-          where: { id: skDoc.id },
-          data: { ocrStatus: 'COMPLETED', extractedText: responseText },
-        })
+        // Parse JSON dari response
+        const jsonMatch = responseText.match(/\{[\s\S]*\}/)
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0])
+          extractedPengurus = parsed.pengurus || []
+
+          // Update SK dengan info yang diekstrak
+          await db.sKDocument.update({
+            where: { id: skDoc.id },
+            data: {
+              ocrStatus: 'COMPLETED',
+              extractedText: responseText,
+              ocrMetadata: JSON.stringify({
+                ...parsed.skInfo,
+                pengurusCount: extractedPengurus.length,
+                autoDetected: true,
+                processedAt: new Date().toISOString(),
+              }),
+              skNumber: parsed.skInfo?.nomorSK || skDoc.skNumber,
+              title: parsed.skInfo?.tentang || file.name,
+              issuedBy: parsed.skInfo?.penerbit || 'Unknown',
+              issuedAt: parsed.skInfo?.tanggalTerbit ? new Date(parsed.skInfo.tanggalTerbit) : new Date(),
+            },
+          })
+        } else {
+          await db.sKDocument.update({
+            where: { id: skDoc.id },
+            data: { ocrStatus: 'COMPLETED', extractedText: responseText },
+          })
+        }
       }
     } catch (ocrError: any) {
       console.error('[OCR Error]', ocrError)
+      ocrStatus = 'FAILED'
+      ocrMessage = `OCR gagal: ${ocrError.message}. File tetap tersimpan sebagai arsip.`
       await db.sKDocument.update({
         where: { id: skDoc.id },
         data: { ocrStatus: 'FAILED', extractedText: `OCR gagal: ${ocrError.message}` },
@@ -192,9 +204,14 @@ Jika tidak ada pengurus yang terdeteksi, kembalikan array "pengurus" kosong. Han
         territoryId,
         territoryName: territory.name,
         extractedText,
+        ocrStatus,
       },
       message: extractedPengurus.length > 0
         ? `Berhasil mengekstrak ${extractedPengurus.length} pengurus dari SK. Silakan verifikasi sebelum disimpan.`
+        : ocrStatus === 'PENDING'
+        ? `SK "${file.name}" berhasil disimpan ke arsip. OCR ditunda (ZAI SDK tidak dikonfigurasi). Anda bisa lihat & download SK kapan saja.`
+        : ocrStatus === 'FAILED'
+        ? `SK "${file.name}" tersimpan, tapi OCR gagal. Anda tetap bisa lihat & download SK.`
         : 'OCR selesai namun tidak ada pengurus terdeteksi. SK tetap tersimpan sebagai arsip.',
     })
   } catch (e: any) {

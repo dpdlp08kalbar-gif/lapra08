@@ -36,14 +36,30 @@ export async function POST(request: NextRequest) {
     const dataUrl = `data:application/pdf;base64,${base64Pdf}`
     const fileUrl = dataUrl // store data URL directly (or could use separate /api/download endpoint)
 
-    // === OCR + AI ANALISIS via VLM ===
+    // === OCR + AI ANALISIS via VLM (best-effort, tidak wajib) ===
+    // File sudah di-buffer di memory. Kalau ZAI SDK tidak dikonfigurasi,
+    // return success dengan data placeholder — user tetap bisa pakai PDF.
 
-    // === Init ZAI config dari env vars (untuk Vercel serverless) ===
     if (!requireZaiConfig()) {
+      // ZAI tidak dikonfigurasi — return success dengan placeholder
       return NextResponse.json({
-        success: false,
-        error: 'Konfigurasi ZAI SDK belum lengkap. Set env vars: ZAI_BASE_URL, ZAI_API_KEY, ZAI_CHAT_ID, ZAI_TOKEN, ZAI_USER_ID di Vercel Project Settings.',
-      }, { status: 500 })
+        success: true,
+        data: {
+          title: file.name.replace(/\.pdf$/i, ''),
+          level: level || 'UNKNOWN',
+          territoryName: territoryCode || '',
+          territoryCode: territoryCode || '',
+          period: '',
+          programs: [],
+          topPriorities: [],
+          categories: [],
+          aiSummary: `PDF "${file.name}" berhasil di-upload (${(file.size / 1024).toFixed(0)} KB). Analisis AI ditunda — ZAI SDK tidak dikonfigurasi. Anda bisa isi data program kerja secara manual di bawah.`,
+          rawOcrText: '',
+          ocrSkipped: true,
+        },
+        fileUrl,
+        message: `PDF "${file.name}" berhasil di-upload. Analisis AI ditunda (ZAI tidak dikonfigurasi). Silakan lengkapi data program kerja secara manual.`,
+      })
     }
 
     const zai = await ZAI.create()
@@ -102,7 +118,7 @@ Kembalikan HANYA JSON valid:
         }
       ],
       thinking: { type: 'disabled' }
-    })
+    } as any)
 
     const rawContent = completion.choices[0]?.message?.content || ''
     
