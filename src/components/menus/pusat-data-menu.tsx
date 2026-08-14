@@ -49,7 +49,7 @@ interface OrgPosition {
   id: string; fullName: string; positionName: string; level: string
   territoryId: string; territory: { id: string; name: string; code: string }
   phone: string | null; email: string | null; photoUrl: string | null
-  ktaPhotoUrl: string | null; biodataUrl: string | null
+  ktaPhotoUrl: string | null; ktaNumber: string | null; biodataUrl: string | null
   startDate: string | null; isActive: boolean; order: number
 }
 
@@ -683,6 +683,14 @@ function PengurusSection({ level, territoryId, territoryFilter }: {
               <Mail className="w-3 h-3" /> {p.email}
             </div>
           )}
+          {/* Nomor KTA */}
+          {p.ktaNumber && p.ktaNumber !== '-' && (
+            <div className="flex items-center gap-1 mt-0.5 text-xs">
+              <Badge variant="outline" className="text-[11px] bg-indigo-50 text-indigo-700 border-indigo-200 font-mono">
+                KTA: {p.ktaNumber}
+              </Badge>
+            </div>
+          )}
           {/* Upload Biodata button */}
           {canManage && (
             <label className="inline-flex items-center gap-1 mt-1.5 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded hover:bg-emerald-100 cursor-pointer" title="Upload Biodata (PDF/JPG/PNG, max 5MB)">
@@ -781,6 +789,13 @@ function PengurusSection({ level, territoryId, territoryFilter }: {
                               {p.email && p.email !== '-' && (
                                 <div className="flex items-center gap-1 mt-0.5 text-xs text-muted-foreground">
                                   <Mail className="w-3 h-3" /> {p.email}
+                                </div>
+                              )}
+                              {p.ktaNumber && p.ktaNumber !== '-' && (
+                                <div className="flex items-center gap-1 mt-0.5">
+                                  <Badge variant="outline" className="text-[11px] bg-indigo-50 text-indigo-700 border-indigo-200 font-mono">
+                                    KTA: {p.ktaNumber}
+                                  </Badge>
                                 </div>
                               )}
                               {canManage && (
@@ -1565,6 +1580,7 @@ function EditPositionDialog({ position, onOpenChange, onSuccess }: any) {
         fullName: position.fullName, positionName: position.positionName,
         phone: position.phone || '', email: position.email || '',
         ktaPhotoUrl: position.ktaPhotoUrl || null,
+        ktaNumber: position.ktaNumber || '',
         biodataUrl: position.biodataUrl || null,
         isActive: position.isActive,
       })
@@ -1666,6 +1682,11 @@ function EditPositionDialog({ position, onOpenChange, onSuccess }: any) {
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2"><Label>WhatsApp</Label><Input value={form.phone || ''} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="08xxx" /></div>
             <div className="space-y-2"><Label>Email</Label><Input type="email" value={form.email || ''} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
+          </div>
+          <div className="space-y-2">
+            <Label>Nomor KTA</Label>
+            <Input value={form.ktaNumber || ''} onChange={(e) => setForm({ ...form, ktaNumber: e.target.value })} placeholder="LAPRA08.ID.61.71.26.00001" className="font-mono text-sm" />
+            <p className="text-xs text-muted-foreground">Format: LAPRA08.[NEGARA].[PROVINSI].[KAB/KOTA].[TAHUN].[URUT]</p>
           </div>
           <div className="space-y-2">
             <Label>Status</Label>

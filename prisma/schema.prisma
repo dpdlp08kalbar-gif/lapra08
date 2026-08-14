@@ -191,6 +191,7 @@ model OrgPosition {
   email           String?
   photoUrl        String?  // KTA photo (base64 data URL or URL)
   ktaPhotoUrl     String?  // KTA (Kartu Tanda Anggota) photo — base64 data URL
+  ktaNumber       String?  // Nomor KTA: LAPRA08.ID.61.71.26.00001
   biodataUrl      String?  // Biodata document (PDF/Image) — base64 data URL
   idCardUrl       String?  // KTP / Paspor / identitas pengurus
   startDate       DateTime?
