@@ -2131,3 +2131,31 @@ Stage Summary:
 - Per-card (line 418-443): link "Lihat Bukti ↗" buka bukti pelaksanaan terbaru, tombol "Bukti (N)" untuk upload/kelola
 - Build OK (1 error pre-existing line 220, unrelated)
 - Dev server running di http://localhost:3000
+
+---
+Task ID: LAPRA08-DOC-ICON-FIX-V3
+Agent: Main Agent (Super Z)
+Task: Perbaiki implementasi — tombol "Dokumen Program Kerja" di AWAL setiap program CARD (bukan header)
+
+Work Log:
+- Re-analisis screenshot baru (pasted_image_1786695866280.png) dengan VLM
+- User annotation: "lihat dokmen program kerja, yg saya minta belom ada"
+- VLM analysis: tombol "Dokumen Program Kerja" (icon+text) di AWAL card, sebelum judul
+- REVERT: hapus ikon FileCheck yang salah ditaruh di header (di antara "—" judul)
+- REVERT: hapus levelPdfs reduce logic + titleParts split
+- Kembalikan header ke kondisi awal: judul biasa + badge "X program" + tombol Upload/Tambah
+- IMPLEMENTASI BARU di setiap program card:
+  - Wrap content kiri dalam <div className="flex items-start gap-3 flex-1 min-w-0">
+  - Di AWAL wrapper: tombol ikon FileCheck (w-16 h-16, border-2, blue) dengan label "Dokumen Program"
+  - Klik → /api/program-kerja/{item.pdfId}/view (buka PDF di tab baru)
+  - Hidden jika item tidak punya pdfId
+  - Setelah tombol: konten lama (title, description, status, action buttons)
+- Fix struktur div: tambah 1 </div> penutup untuk wrapper baru
+
+Stage Summary:
+- File: src/components/menus/program-kerja-menu.tsx
+- Header (line 310-330): kembali normal, judul + badge + Upload/Tambah (tanpa ikon dokumen)
+- Per-card (line 372-426): tombol Dokumen Program Kerja (ikon + text "Dokumen Program") di AWAL card
+- Layout per-card: [📄 Dokumen Program] [Judul + Desc + Status + Tombol Bukti] ... [Edit] [Delete]
+- Build OK (1 error pre-existing line 220, unrelated)
+- Dev server running di http://localhost:3000

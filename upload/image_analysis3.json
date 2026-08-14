@@ -1,0 +1,28 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "Based on my careful analysis of the image, here are the precise answers to your questions:\n\n**1. Is this showing a HEADER or individual PROGRAM CARDS?**\nThis is showing **individual PROGRAM CARDS** (specifically, a list of program items/rows). The top section with the orange calendar icon is the page header (\"Program & Kegiatan\"), but the annotated area shows individual program entry cards below the statistics boxes.\n\n**2. FIRST card (top) details:**\n*   **Title text exactly:** `Program Kerja Nasional & Daerah — DPD Kalimantan Barat`\n*   **Buttons on the right side:**\n    1.  `Upload PDF` (with upload icon)\n    2.  `Tambah Program` (blue button with plus icon)\n\n**3. SECOND card (bottom) - What changed?**\n*   **What was added:** A new button/link labeled **\"Dokumen Program Kerja\"** with a document icon (looks like a file/page icon).\n*   **Where exactly:** It was added on the **left side of the title**, immediately **before** the title text begins.\n*   **Format:** It is an **icon + text** combination (icon first, then text).\n\n**4. Annotation text/arrow:**\n*   **Text:** \"lihat dokmen program kerja , yg saya minta belom ada\" (translation: \"see program work document, which I requested is not yet there\")\n*   **Pointing to:** It points specifically to the newly added **\"Dokumen Program Kerja\"** button on the second card.\n\n**5. Right side buttons comparison:**\nThe buttons appear to be **the same structure**, though only partially visible on the second card:\n*   **Card 1:** `Upload PDF` | `Tambah Program`\n*   **Card 2:** [Edit/Pencil icon] | [Delete/Trash icon] *(Note: These appear to be action buttons for that specific row, whereas Card 1 shows global actions)*\n\n**6. '30 program' badge location:**\n*   **Yes**, there is a \"30 program\" badge.\n*   It appears in the **FIRST card (top)** only, positioned immediately after the title text \"Program Kerja Nasional & Daerah — DPD Kalimantan Barat\".\n\n**7. Position of the new icon/button:**\nThe correct answer is **(b) Right after any left-side icons but before the title text starts** — or more precisely, it sits at the **far left of the content area**, before the title text begins.\n*(Technically, it's positioned at the start of the line, before the title text, making it the leftmost element in that row's content area).*\n\n**8. OVERALL layout structure (Left to Right):**\n\n**First Card (Top):**\n```\n[Icon] [Title Text: Program Kerja Nasional & Daerah — DPD Kalimantan Barat] [Badge: 30 program] ................... [Upload PDF] [Tambah Program]\n```\n\n**Second Card (Bottom):**\n```\n[NEW: Dokumen Program Kerja Button] [Title Text: Tujuan, strategi, dan arah kebijakan program kerja...] .......................................... [Edit Icon] [Delete Icon]\n```\n\n**Summary for implementation:**\nYou need to add a **\"Dokumen Program Kerja\"** button (with document icon) at the **beginning of each program card row**, **before** the title text. This should appear as the leftmost element in the card's content area, to the left of where the program title is displayed.",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1786695940,
+  "id": "20260814162506a5a6fd31dd4a42a1",
+  "model": "glm-5v-turbo",
+  "object": "chat.completion",
+  "request_id": "20260814162506a5a6fd31dd4a42a1",
+  "usage": {
+    "completion_tokens": 764,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "prompt_tokens": 1644,
+    "prompt_tokens_details": {
+      "cached_tokens": 2
+    },
+    "total_tokens": 2408
+  }
+}

@@ -307,46 +307,13 @@ function ProgramLevelView({
     DITUNDA: items.filter(i => i.status === 'DITUNDA').length,
   }
 
-  // === Daftar PDF Program Kerja yang terhubung dengan level ini ===
-  // Setiap upload PDF menghasilkan 1 pdfId yang dipakai semua program items dari PDF itu
-  const levelPdfs: string[] = items
-    .filter((i: any) => i.pdfId)
-    .reduce((acc: string[], item: any) => {
-      if (!acc.includes(item.pdfId)) acc.push(item.pdfId)
-      return acc
-    }, [])
-
-  // Split judul pada ' — ' untuk menyisipkan ikon dokumen di antara bagian judul
-  // Contoh: "Program Kerja Nasional & Daerah — DPD Kalimantan Barat"
-  // Menjadi: "Program Kerja Nasional & Daerah — [📄] DPD Kalimantan Barat"
-  const titleParts = title.split(' — ')
-  const hasPdfIcon = levelPdfs.length > 0
-  const primaryPdfId = levelPdfs[0]
-
   return (
     <div className="space-y-4">
       <Button variant="ghost" size="sm" onClick={onBack}><ChevronRight className="w-4 h-4 rotate-180" /> Kembali</Button>
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h3 className="text-base font-bold flex items-center gap-2 flex-wrap">
           <Icon className={`w-5 h-5 bg-gradient-to-br ${accentColor} bg-clip-text`} />
-          {/* Judul dengan ikon dokumen disisipkan di antara ' — ' */}
-          {hasPdfIcon ? (
-            <>
-              <span>{titleParts[0]}</span>
-              <span className="text-muted-foreground">—</span>
-              <a
-                href={`/api/program-kerja/${primaryPdfId}/view`}
-                target="_blank"
-                rel="noopener noreferrer"
-                title={`Buka PDF Program Kerja ${territoryName}${levelPdfs.length > 1 ? ` (${levelPdfs.length} dokumen tersedia)` : ''}`}
-                className="inline-flex items-center justify-center w-7 h-7 rounded-md text-blue-700 bg-blue-50 border border-blue-200 hover:bg-blue-100 hover:border-blue-400 hover:shadow-sm transition-all">
-                <FileCheck className="w-4 h-4" />
-              </a>
-              <span>{titleParts.slice(1).join(' — ')}</span>
-            </>
-          ) : (
-            <span>{title}</span>
-          )}
+          {title}
           <Badge variant="outline" className="text-[13px]">{filtered.length} program</Badge>
         </h3>
         {isSuperAdmin && (
@@ -405,14 +372,27 @@ function ProgramLevelView({
             return (
               <div key={item.id} className="group relative rounded-lg border p-4 hover:shadow-md transition-all bg-white">
                 <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-sm">{item.title}</div>
-                    {item.description && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{item.description}</p>}
-                    <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground flex-wrap">
-                      {item.location && <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {item.location}</span>}
-                      {item.date && <span className="flex items-center gap-1"><CalendarDays className="w-3 h-3" /> {item.date}</span>}
-                      <Badge variant="outline" className={`text-[11px] ${statusColor}`}>{item.status || 'DIRENCANAKAN'}</Badge>
-                    </div>
+                  <div className="flex items-start gap-3 flex-1 min-w-0">
+                    {/* === Tombol Dokumen Program Kerja (PDF rencana) — di AWAL card, sebelum judul === */}
+                    {item.pdfId && (
+                      <a
+                        href={`/api/program-kerja/${item.pdfId}/view`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title="Buka PDF Program Kerja (dokumen perencanaan)"
+                        className="shrink-0 inline-flex flex-col items-center justify-center gap-1 w-16 h-16 rounded-lg border-2 border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:border-blue-400 hover:shadow-sm transition-all">
+                        <FileCheck className="w-5 h-5" />
+                        <span className="text-[10px] font-semibold leading-tight text-center">Dokumen<br/>Program</span>
+                      </a>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-sm">{item.title}</div>
+                      {item.description && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{item.description}</p>}
+                      <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground flex-wrap">
+                        {item.location && <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {item.location}</span>}
+                        {item.date && <span className="flex items-center gap-1"><CalendarDays className="w-3 h-3" /> {item.date}</span>}
+                        <Badge variant="outline" className={`text-[11px] ${statusColor}`}>{item.status || 'DIRENCANAKAN'}</Badge>
+                      </div>
                     {/* Action buttons row — separate from status info */}
                     <div className="flex items-center gap-2 mt-2 flex-wrap">
                       {/* Lihat Bukti Pelaksanaan (foto/dokumen kegiatan) — link utama, buka bukti terbaru langsung */}
@@ -442,6 +422,7 @@ function ProgramLevelView({
                         )
                       })()}
                     </div>
+                  </div>
                   </div>
                   {isSuperAdmin && (
                     <div className="flex gap-1 shrink-0">
