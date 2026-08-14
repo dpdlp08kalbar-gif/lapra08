@@ -2327,3 +2327,57 @@ Stage Summary:
 - Commit 0ca6d51 di-push ke origin/main
 - Vercel auto-deploy ~1-2 menit
 - Setelah deploy: hard refresh lapra08.vercel.app → klik Lihat Dokumen → PDF akan terbuka di tab baru
+
+---
+Task ID: LAPRA08-AUDIT-LIHAT-BUKTI
+Agent: Main Agent (Super Z)
+Task: Audit struktur "Lihat Bukti" — pastikan PDF bukti pelaksanaan bisa dibuka
+
+Work Log:
+- User request: "oke berhasil, cek juga struktur lihat bukti jika di uplod bukti hrs bisa di buka juga file pdfnya"
+- Audit 3 tempat link bukti pelaksanaan:
+
+  1. Link "Lihat Bukti ↗" di card per-item (line 449)
+     - Sebelum: <a href={latest.dataUrl} target="_blank">
+     - Issue: Browser modern (Chrome 60+) batasi navigasi data URL → PDF sering gagal buka
+
+  2. Thumbnail PDF/DOC di Edit Dialog (line 580)
+     - Sebelum: <a href={ev.dataUrl} target="_blank">
+     - Issue: sama — data URL untuk PDF tidak reliable
+
+  3. Link "Lihat ↗" di Bukti Pelaksanaan Dialog (line 762)
+     - Sebelum: <a href={ev.dataUrl} target="_blank">
+     - Issue: sama
+
+- Root cause: Bukti pelaksanaan disimpan sebagai data URL base64 (data:application/pdf;base64,...).
+  Browser modern Chrome 60+ membatasi navigasi data URL di top-level window → PDF tidak terbuka otomatis.
+
+- SOLUSI: tambah handler handleViewEvidence yang convert data URL → Blob URL:
+    1. Parse data URL: data:[mime];base64,[content]
+    2. atob() decode base64 → byte array
+    3. new Blob([buffer], {type: mimeType})
+    4. URL.createObjectURL(blob) → blob URL
+    5. Buat <a> element dengan href=blobUrl, target=_blank
+    6. Untuk PDF/DOC: tambah download attribute (paksa download, lebih reliable)
+    7. document.body.appendChild(a) → a.click() → document.body.removeChild(a)
+    8. setTimeout(() => URL.revokeObjectURL(blobUrl), 60000) — cleanup
+
+- Perubahan:
+  1. Tambah handleViewEvidence (line 339-387) — reuse evidenceLoading state dari line 203
+  2. Link "Lihat Bukti ↗" → <button onClick={() => handleViewEvidence(...)}> dengan loading spinner
+  3. Thumbnail PDF/DOC → <button onClick={() => handleViewEvidence(...)}> dengan loading spinner
+  4. Link "Lihat ↗" di Bukti Dialog → tetap pakai <a href> (foto langsung buka),
+     TAPI tambah tombol "Buka File" (highlighted) khusus untuk PDF/DOC yang pakai handleViewEvidence
+
+- Kompatibilitas:
+  - Foto (JPG/PNG): tetap <a href={dataUrl}> langsung — gambar tidak ada masalah di data URL
+  - PDF: handleViewEvidence → blob URL + download attribute → download file PDF (reliable)
+  - DOC/DOCX: handleViewEvidence → blob URL + download attribute → download file DOC
+
+Stage Summary:
+- File: src/components/menus/program-kerja-menu.tsx
+- 3 tempat link bukti pelaksanaan → sekarang bisa buka PDF/DOC reliably
+- Commit e1665bf di-push ke origin/main
+- Vercel auto-deploy ~1-2 menit
+- Setelah deploy: hard refresh lapra08.vercel.app
+- Test: upload bukti PDF di salah satu program → klik "Lihat Bukti ↗" → PDF akan download & bisa dibuka
