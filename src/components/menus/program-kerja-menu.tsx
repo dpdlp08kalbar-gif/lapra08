@@ -196,6 +196,7 @@ function ProgramLevelView({
   const [pdfFile, setPdfFile] = useState<File | null>(null)
   const [ocrLoading, setOcrLoading] = useState(false)
   const [extractResult, setExtractResult] = useState<any>(null)
+  const [filterStatus, setFilterStatus] = useState('ALL')
 
   const reload = () => {
     api('/api/gallery').then((all: any[]) => {
@@ -234,7 +235,18 @@ function ProgramLevelView({
 
   if (loading) return <LoadingState />
 
-  const filtered = items.filter((i: any) => !search || i.title?.toLowerCase().includes(search.toLowerCase()) || i.description?.toLowerCase().includes(search.toLowerCase()))
+  const filtered = items.filter((i: any) =>
+    (!search || i.title?.toLowerCase().includes(search.toLowerCase()) || i.description?.toLowerCase().includes(search.toLowerCase())) &&
+    (filterStatus === 'ALL' || (i.status || 'DIRENCANAKAN') === filterStatus)
+  )
+
+  // Stats by status
+  const statusCounts = {
+    DIRENCANAKAN: items.filter(i => (i.status || 'DIRENCANAKAN') === 'DIRENCANAKAN').length,
+    BERJALAN: items.filter(i => i.status === 'BERJALAN').length,
+    SELESAI: items.filter(i => i.status === 'SELESAI').length,
+    DITUNDA: items.filter(i => i.status === 'DITUNDA').length,
+  }
 
   return (
     <div className="space-y-4">
@@ -258,37 +270,79 @@ function ProgramLevelView({
         )}
       </div>
 
-      <Input placeholder="Cari program..." value={search} onChange={(e) => setSearch(e.target.value)} className="max-w-md" />
+      {/* Status Stats Cards */}
+      <div className="grid grid-cols-4 gap-2">
+        {[
+          { key: 'DIRENCANAKAN', label: 'Direncanakan', color: 'bg-amber-50 border-amber-200 text-amber-700', count: statusCounts.DIRENCANAKAN },
+          { key: 'BERJALAN', label: 'Berjalan', color: 'bg-blue-50 border-blue-200 text-blue-700', count: statusCounts.BERJALAN },
+          { key: 'SELESAI', label: 'Selesai', color: 'bg-emerald-50 border-emerald-200 text-emerald-700', count: statusCounts.SELESAI },
+          { key: 'DITUNDA', label: 'Ditunda', color: 'bg-red-50 border-red-200 text-red-700', count: statusCounts.DITUNDA },
+        ].map(s => (
+          <button key={s.key} onClick={() => setFilterStatus(filterStatus === s.key ? 'ALL' : s.key)}
+            className={`rounded-lg border p-3 text-center transition-all ${s.color} ${filterStatus === s.key ? 'ring-2 ring-offset-1 ring-current scale-105' : 'hover:scale-105'}`}>
+            <div className="text-2xl font-bold">{s.count}</div>
+            <div className="text-xs font-medium">{s.label}</div>
+          </button>
+        ))}
+      </div>
+
+      {/* Search + Filter */}
+      <div className="flex gap-2 flex-wrap">
+        <Input placeholder="Cari program..." value={search} onChange={(e) => setSearch(e.target.value)} className="max-w-md flex-1" />
+        <Select value={filterStatus} onValueChange={setFilterStatus}>
+          <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ALL">Semua Status</SelectItem>
+            <SelectItem value="DIRENCANAKAN">Direncanakan</SelectItem>
+            <SelectItem value="BERJALAN">Berjalan</SelectItem>
+            <SelectItem value="SELESAI">Selesai</SelectItem>
+            <SelectItem value="DITUNDA">Ditunda</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
 
       {filtered.length === 0 ? (
         <EmptyState icon={Icon} title={`Belum ada program ${level}`} description={`Tambah program ${level} ${territoryName} baru, atau upload PDF program kerja.`} />
       ) : (
         <div className="space-y-2">
-          {filtered.map((item: any) => (
-            <div key={item.id} className="group relative rounded-lg border p-4 hover:shadow-md transition-all bg-white">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-sm">{item.title}</div>
-                  {item.description && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{item.description}</p>}
-                  <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground flex-wrap">
-                    {item.location && <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {item.location}</span>}
-                    {item.date && <span className="flex items-center gap-1"><CalendarDays className="w-3 h-3" /> {item.date}</span>}
-                    <Badge variant="outline" className="text-[11px]">{item.status || 'DIRENCANAKAN'}</Badge>
+          {filtered.map((item: any) => {
+            const statusColor = item.status === 'SELESAI' ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+              : item.status === 'BERJALAN' ? 'bg-blue-100 text-blue-700 border-blue-200'
+              : item.status === 'DITUNDA' ? 'bg-red-100 text-red-700 border-red-200'
+              : 'bg-amber-100 text-amber-700 border-amber-200'
+            return (
+              <div key={item.id} className="group relative rounded-lg border p-4 hover:shadow-md transition-all bg-white">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-sm">{item.title}</div>
+                    {item.description && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{item.description}</p>}
+                    <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground flex-wrap">
+                      {item.location && <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {item.location}</span>}
+                      {item.date && <span className="flex items-center gap-1"><CalendarDays className="w-3 h-3" /> {item.date}</span>}
+                      <Badge variant="outline" className={`text-[11px] ${statusColor}`}>{item.status || 'DIRENCANAKAN'}</Badge>
+                      {/* Link to view PDF if program came from PDF upload */}
+                      {item.pdfId && (
+                        <a href={`/api/program-kerja/${item.pdfId}/view`} target="_blank" rel="noopener noreferrer"
+                           className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline">
+                          <FileCheck className="w-3 h-3" /> Lihat PDF ↗
+                        </a>
+                      )}
+                    </div>
                   </div>
+                  {isSuperAdmin && (
+                    <div className="flex gap-1 shrink-0">
+                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-blue-600 hover:bg-blue-50" onClick={() => { setEditItem(item); setForm({ title: item.title || '', description: item.description || '', location: item.location || '', date: item.date || '', status: item.status || 'DIRENCANAKAN' }); setAddOpen(true) }}>
+                        <Edit className="w-3.5 h-3.5" />
+                      </Button>
+                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-600 hover:bg-red-50" onClick={() => setDeleteItem(item)}>
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
-                {isSuperAdmin && (
-                  <div className="flex gap-1 shrink-0">
-                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-blue-600 hover:bg-blue-50" onClick={() => { setEditItem(item); setForm({ title: item.title || '', description: item.description || '', location: item.location || '', date: item.date || '', status: item.status || 'DIRENCANAKAN' }); setAddOpen(true) }}>
-                      <Edit className="w-3.5 h-3.5" />
-                    </Button>
-                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-600 hover:bg-red-50" onClick={() => setDeleteItem(item)}>
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
-                  </div>
-                )}
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
 

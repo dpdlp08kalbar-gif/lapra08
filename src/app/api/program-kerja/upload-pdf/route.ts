@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
             territoryName,
             location: prog.location || '',
             date: prog.timeline || '',
-            status: 'DIRENCANAKAN',
+            status: prog.status || 'DIRENCANAKAN',
             pdfId,
           }
           await db.systemSetting.create({
@@ -295,6 +295,13 @@ function extractProgramsFromText(text: string, fileName: string): {
       else if (/pelantikan|deklarasi|rapat|musyawarah/.test(lowerName)) category = 'KEORGANISASIAN'
       else if (/turnamen|festival|olahraga|seni|budaya/.test(lowerName)) category = 'OLAHRAGA_SENI'
 
+      // Determine status from context keywords
+      let status = 'DIRENCANAKAN'
+      const lowerContext = contextLines.toLowerCase()
+      if (/selesai|terlaksana|tuntas|done|completed|realisasi/.test(lowerContext)) status = 'SELESAI'
+      else if (/berjalan|ongoing|proses|sedang\s+dilaksanakan|in progress/.test(lowerContext)) status = 'BERJALAN'
+      else if (/ditunda|delay|postpone|batal|cancel/.test(lowerContext)) status = 'DITUNDA'
+
       currentProgram = {
         name: programName.substring(0, 200),
         description: contextLines.substring(0, 500).trim() || `Program terdeteksi dari PDF: ${programName}`,
@@ -304,6 +311,7 @@ function extractProgramsFromText(text: string, fileName: string): {
         priority: programs.length + 1,
         category,
         location,
+        status,
       }
     }
   }
