@@ -336,6 +336,56 @@ function ProgramLevelView({
     }
   }
 
+  // === Handler: buka bukti pelaksanaan (foto/PDF/DOC) dari data URL base64 ===
+  // Pakai convert data URL → blob URL agar kompatibel dengan browser modern (Chrome 60+ batasi data URL)
+  // CATATAN: evidenceLoading sudah dideklarasi di line 203 (state upload bukti)
+  const handleViewEvidence = async (dataUrl: string, fileName: string = 'bukti-pelaksanaan') => {
+    setEvidenceLoading(true)
+    try {
+      // Parse data URL: data:[mime];base64,[content]
+      const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/)
+      if (!match) {
+        // Fallback: buka langsung data URL (lama)
+        window.open(dataUrl, '_blank')
+        return
+      }
+      const [, mimeType, base64] = match
+      const byteChars = atob(base64)
+      const byteNumbers = new Array(byteChars.length)
+      for (let i = 0; i < byteChars.length; i++) byteNumbers[i] = byteChars.charCodeAt(i)
+      const buffer = new Uint8Array(byteNumbers)
+      const blob = new Blob([buffer], { type: mimeType })
+      const blobUrl = URL.createObjectURL(blob)
+
+      // Tentukan ekstensi file dari mime type
+      const ext = mimeType === 'application/pdf' ? '.pdf'
+        : mimeType === 'image/png' ? '.png'
+        : mimeType === 'image/jpeg' ? '.jpg'
+        : mimeType === 'application/msword' ? '.doc'
+        : ''
+      const safeName = fileName.includes('.') ? fileName : `${fileName}${ext}`
+
+      // Untuk gambar: buka di tab baru (inline). Untuk PDF/DOC: pakai anchor + download attribute
+      const a = document.createElement('a')
+      a.href = blobUrl
+      a.target = '_blank'
+      a.rel = 'noopener noreferrer'
+      if (mimeType === 'application/pdf' || mimeType === 'application/msword') {
+        a.download = safeName  // paksa download untuk PDF/DOC (lebih reliable)
+      }
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+
+      // Cleanup blob URL setelah 60 detik
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60000)
+    } catch (e: any) {
+      addToast(`Gagal membuka bukti: ${e.message}`, 'error')
+    } finally {
+      setEvidenceLoading(false)
+    }
+  }
+
   return (
     <div className="space-y-4">
       <Button variant="ghost" size="sm" onClick={onBack}><ChevronRight className="w-4 h-4 rotate-180" /> Kembali</Button>
@@ -446,11 +496,14 @@ function ProgramLevelView({
                         if (evFiles.length === 0) return null
                         const latest = evFiles[evFiles.length - 1] // bukti terbaru
                         return (
-                          <a href={latest.dataUrl} target="_blank" rel="noopener noreferrer"
-                             className="inline-flex items-center gap-1 text-xs text-blue-700 bg-blue-50 border border-blue-200 px-2 py-1 rounded hover:bg-blue-100 font-medium"
-                             title={`Buka bukti pelaksanaan terbaru: ${latest.fileName}`}>
-                            <FileCheck className="w-3.5 h-3.5" /> Lihat Bukti ↗
-                          </a>
+                          <button
+                            onClick={() => handleViewEvidence(latest.dataUrl, latest.fileName)}
+                            disabled={evidenceLoading}
+                            className="inline-flex items-center gap-1 text-xs text-blue-700 bg-blue-50 border border-blue-200 px-2 py-1 rounded hover:bg-blue-100 font-medium disabled:opacity-50"
+                            title={`Buka bukti pelaksanaan terbaru: ${latest.fileName}`}>
+                            {evidenceLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileCheck className="w-3.5 h-3.5" />}
+                            Lihat Bukti ↗
+                          </button>
                         )
                       })()}
                       {/* Kelola Bukti Pelaksanaan (upload + lihat semua) */}
@@ -577,9 +630,11 @@ function ProgramLevelView({
                               {ev.fileType === 'jpg' || ev.fileType === 'jpeg' || ev.fileType === 'png' ? (
                                 <img src={ev.dataUrl} alt={ev.fileName} className="w-full h-24 rounded-lg object-cover border" />
                               ) : (
-                                <a href={ev.dataUrl} target="_blank" rel="noopener noreferrer" className="w-full h-24 rounded-lg bg-blue-50 border flex items-center justify-center">
-                                  <FileCheck className="w-8 h-8 text-blue-500" />
-                                </a>
+                                <button type="button" disabled={evidenceLoading}
+                                  onClick={() => handleViewEvidence(ev.dataUrl, ev.fileName)}
+                                  className="w-full h-24 rounded-lg bg-blue-50 border flex items-center justify-center hover:bg-blue-100 disabled:opacity-50">
+                                  {evidenceLoading ? <Loader2 className="w-8 h-8 text-blue-500 animate-spin" /> : <FileCheck className="w-8 h-8 text-blue-500" />}
+                                </button>
                               )}
                               <div className="text-[11px] text-muted-foreground mt-1 truncate">{ev.fileName}</div>
                               {isSuperAdmin && (
@@ -762,6 +817,16 @@ function ProgramLevelView({
                     <a href={ev.dataUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline mt-1">
                       <Eye className="w-3 h-3" /> Lihat ↗
                     </a>
+                    {/* === Tambahan: Tombol "Buka" pakai handleViewEvidence (blob URL) === */}
+                    {/* Untuk PDF/DOC yang sering gagal buka di data URL, pakai handler ini */}
+                    {(ev.fileType !== 'jpg' && ev.fileType !== 'jpeg' && ev.fileType !== 'png') && (
+                      <button
+                        onClick={() => handleViewEvidence(ev.dataUrl, ev.fileName)}
+                        disabled={evidenceLoading}
+                        className="inline-flex items-center gap-1 text-xs text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded hover:bg-blue-100 ml-2 disabled:opacity-50">
+                        {evidenceLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileCheck className="w-3 h-3" />} Buka File
+                      </button>
+                    )}
                   </div>
                   {isSuperAdmin && (
                     <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-600 hover:bg-red-50"
