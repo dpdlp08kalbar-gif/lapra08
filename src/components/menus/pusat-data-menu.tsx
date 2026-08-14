@@ -673,6 +673,14 @@ function PengurusSection({ level, territoryId, territoryFilter }: {
         <div className="flex-1 min-w-0">
           <div className="font-semibold text-sm truncate">{p.fullName}</div>
           <div className="text-xs text-orange-600 font-medium mt-0.5">{p.positionName}</div>
+          {/* Nomor KTA — di bawah jabatan, di atas WA */}
+          {p.ktaNumber && p.ktaNumber !== '-' && (
+            <div className="flex items-center gap-1 mt-0.5 text-xs">
+              <Badge variant="outline" className="text-[11px] bg-indigo-50 text-indigo-700 border-indigo-200 font-mono">
+                KTA: {p.ktaNumber}
+              </Badge>
+            </div>
+          )}
           {p.phone && (
             <a href={`https://wa.me/${p.phone.replace(/\D/g, '').replace(/^0/, '62')}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 mt-1 text-xs text-blue-600 hover:underline">
               <Phone className="w-3 h-3" /> {p.phone}
@@ -681,14 +689,6 @@ function PengurusSection({ level, territoryId, territoryFilter }: {
           {p.email && p.email !== '-' && (
             <div className="flex items-center gap-1 mt-0.5 text-xs text-muted-foreground">
               <Mail className="w-3 h-3" /> {p.email}
-            </div>
-          )}
-          {/* Nomor KTA */}
-          {p.ktaNumber && p.ktaNumber !== '-' && (
-            <div className="flex items-center gap-1 mt-0.5 text-xs">
-              <Badge variant="outline" className="text-[11px] bg-indigo-50 text-indigo-700 border-indigo-200 font-mono">
-                KTA: {p.ktaNumber}
-              </Badge>
             </div>
           )}
           {/* Upload Biodata button */}
@@ -779,6 +779,14 @@ function PengurusSection({ level, territoryId, territoryFilter }: {
                             <div className="flex-1 min-w-0">
                               <div className="font-bold text-sm truncate">{p.fullName}</div>
                               <div className="text-xs text-orange-700 font-semibold mt-0.5">{p.positionName}</div>
+                              {/* Nomor KTA — di bawah jabatan, di atas WA */}
+                              {p.ktaNumber && p.ktaNumber !== '-' && (
+                                <div className="flex items-center gap-1 mt-0.5">
+                                  <Badge variant="outline" className="text-[11px] bg-indigo-50 text-indigo-700 border-indigo-200 font-mono">
+                                    KTA: {p.ktaNumber}
+                                  </Badge>
+                                </div>
+                              )}
                               {p.phone && (
                                 <a href={`https://wa.me/${p.phone.replace(/\D/g, '').replace(/^0/, '62')}`}
                                    target="_blank" rel="noopener noreferrer"
@@ -789,13 +797,6 @@ function PengurusSection({ level, territoryId, territoryFilter }: {
                               {p.email && p.email !== '-' && (
                                 <div className="flex items-center gap-1 mt-0.5 text-xs text-muted-foreground">
                                   <Mail className="w-3 h-3" /> {p.email}
-                                </div>
-                              )}
-                              {p.ktaNumber && p.ktaNumber !== '-' && (
-                                <div className="flex items-center gap-1 mt-0.5">
-                                  <Badge variant="outline" className="text-[11px] bg-indigo-50 text-indigo-700 border-indigo-200 font-mono">
-                                    KTA: {p.ktaNumber}
-                                  </Badge>
                                 </div>
                               )}
                               {canManage && (
