@@ -416,11 +416,11 @@ function ProgramLevelView({
               Lihat Dokumen
             </Button>
           )}
-          {/* === Tombol Admin: Upload PDF + Tambah Program === */}
+          {/* === Tombol Admin: Unggah File + Tambah Program === */}
           {isSuperAdmin && (
             <>
               <Button size="sm" variant="outline" onClick={() => setPdfUploadOpen(true)}>
-                <Upload className="w-4 h-4 mr-1" /> Upload PDF
+                <Upload className="w-4 h-4 mr-1" /> Unggah File
               </Button>
               <Button size="sm" onClick={() => { setEditItem(null); setForm({ title: '', description: '', location: '', date: '', status: 'DIRENCANAKAN' }); setAddOpen(true) }}
                 className={`bg-gradient-to-r ${accentColor} text-white`}>
@@ -606,13 +606,20 @@ function ProgramLevelView({
                             onChange={async (e) => {
                               const f = e.target.files?.[0]
                               if (!f) return
-                              if (f.size > 5 * 1024 * 1024) { addToast('Maksimal 5MB', 'error'); return }
+                              if (f.size > 50 * 1024 * 1024) { addToast('Maksimal 50MB', 'error'); return }
                               try {
                                 const buf = Buffer.from(await f.arrayBuffer())
                                 const ext = f.name.toLowerCase().match(/\.([^.]+)$/)?.[1] || 'jpg'
-                                const mime = ext === 'pdf' ? 'application/pdf' : ext === 'png' ? 'image/png' : 'image/jpeg'
+                                const mime = ext === 'pdf' ? 'application/pdf'
+                                  : ext === 'png' ? 'image/png'
+                                  : ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg'
+                                  : ext === 'webp' ? 'image/webp'
+                                  : ext === 'mp4' ? 'video/mp4'
+                                  : ext === 'mov' ? 'video/quicktime'
+                                  : ext === 'webm' ? 'video/webm'
+                                  : 'application/octet-stream'
                                 const dataUrl = `data:${mime};base64,${buf.toString('base64')}`
-                                const newEv = [...evFiles, { id: `ev_${Date.now()}`, fileName: f.name, fileSize: f.size, fileType: ext, dataUrl, uploadedAt: new Date().toISOString() }]
+                                const newEv = [...evFiles, { id: `ev_${Date.now()}`, fileName: f.name, fileSize: f.size, fileType: ext, mimeType: mime, dataUrl, uploadedAt: new Date().toISOString() }]
                                 const updateData: any = { evidenceFiles: JSON.stringify(newEv) }
                                 if ((editItem.status || 'DIRENCANAKAN') === 'DIRENCANAKAN') updateData.status = 'BERJALAN'
                                 await api('/api/gallery', { method: 'PUT', body: JSON.stringify({ id: editItem.id, ...updateData }) })
@@ -625,7 +632,7 @@ function ProgramLevelView({
                           <label htmlFor="edit-evidence-upload" className="cursor-pointer inline-flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded hover:bg-emerald-100">
                             <Camera className="w-4 h-4" /> Upload Bukti Pelaksanaan
                           </label>
-                          <p className="text-xs text-muted-foreground mt-1">Foto (JPG/PNG) atau Dokumen (PDF/DOC), max 5MB</p>
+                          <p className="text-xs text-muted-foreground mt-1">Gambar (JPG/PNG/WebP), PDF, DOC, atau Video (MP4/MOV/WebM) — maksimal 50MB</p>
                         </div>
                       )}
 
@@ -634,8 +641,17 @@ function ProgramLevelView({
                         <div className="grid grid-cols-3 gap-2">
                           {evFiles.map((ev: any, i: number) => (
                             <div key={ev.id || i} className="relative group">
-                              {ev.fileType === 'jpg' || ev.fileType === 'jpeg' || ev.fileType === 'png' ? (
+                              {ev.fileType === 'jpg' || ev.fileType === 'jpeg' || ev.fileType === 'png' || ev.fileType === 'webp' ? (
                                 <img src={ev.dataUrl} alt={ev.fileName} className="w-full h-24 rounded-lg object-cover border" />
+                              ) : ev.fileType === 'mp4' || ev.fileType === 'mov' || ev.fileType === 'webm' ? (
+                                <button type="button" disabled={evidenceLoading}
+                                  onClick={() => handleViewEvidence(ev.dataUrl, ev.fileName)}
+                                  className="w-full h-24 rounded-lg bg-black border overflow-hidden relative hover:opacity-80 disabled:opacity-50">
+                                  <video src={ev.dataUrl} className="w-full h-full object-cover" muted preload="metadata" />
+                                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                    {evidenceLoading ? <Loader2 className="w-8 h-8 text-white animate-spin" /> : null}
+                                  </div>
+                                </button>
                               ) : (
                                 <button type="button" disabled={evidenceLoading}
                                   onClick={() => handleViewEvidence(ev.dataUrl, ev.fileName)}
@@ -688,18 +704,18 @@ function ProgramLevelView({
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* PDF Upload + Preview Dialog */}
+      {/* File Upload Dialog — mendukung gambar (JPG/PNG/WebP), PDF, DOC, video (MP4/MOV/WebM) */}
       <Dialog open={pdfUploadOpen} onOpenChange={(o) => { setPdfUploadOpen(o); if (!o) { setPdfFile(null); setExtractResult(null) } }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Upload PDF {title}</DialogTitle>
-            <DialogDescription>{territoryName} — Upload PDF, sistem akan baca isi & extract program kerja otomatis (100% FOSS, tanpa biaya).</DialogDescription>
+            <DialogTitle>Unggah File {title}</DialogTitle>
+            <DialogDescription>{territoryName} — Unggah dokumen pendukung (PDF, gambar, atau video). PDF akan otomatis di-extract menjadi program items.</DialogDescription>
           </DialogHeader>
 
-          {/* File picker — tampil saat tidak loading, tanpa preview hasil */}
+          {/* File picker — tampil saat tidak loading */}
           {!ocrLoading && (
             <div className="border-2 border-dashed rounded-lg p-6 text-center">
-              <input type="file" accept=".pdf" className="hidden" id="prog-pdf-upload" onChange={(e) => setPdfFile(e.target.files?.[0] || null)} />
+              <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf,.doc,.docx,video/mp4,video/quicktime,video/webm" className="hidden" id="prog-pdf-upload" onChange={(e) => setPdfFile(e.target.files?.[0] || null)} />
               {pdfFile ? (
                 <div>
                   <FileCheck className="w-12 h-12 text-emerald-600 mx-auto mb-2" />
@@ -710,8 +726,8 @@ function ProgramLevelView({
               ) : (
                 <div>
                   <Upload className="w-12 h-12 text-gray-400 mx-auto mb-2" />
-                  <div className="text-sm">Klik untuk <Button type="button" variant="link" className="p-0 h-auto" onClick={() => document.getElementById('prog-pdf-upload')?.click()}>pilih file PDF</Button></div>
-                  <div className="text-xs text-muted-foreground mt-1">PDF, maksimal 20MB</div>
+                  <div className="text-sm">Klik untuk <Button type="button" variant="link" className="p-0 h-auto" onClick={() => document.getElementById('prog-pdf-upload')?.click()}>pilih file</Button></div>
+                  <div className="text-xs text-muted-foreground mt-1">Gambar (JPG/PNG/WebP), PDF, DOC, atau Video (MP4/MOV/WebM) — maksimal 50MB</div>
                 </div>
               )}
             </div>
@@ -721,8 +737,8 @@ function ProgramLevelView({
           {ocrLoading && (
             <div className="text-center py-8">
               <Loader2 className="w-10 h-10 animate-spin mx-auto text-orange-600" />
-              <p className="text-sm mt-2 font-medium">Sedang membaca PDF & menyimpan program...</p>
-              <p className="text-xs text-muted-foreground mt-1">Mohon tunggu, sistem sedang memproses dokumen Anda.</p>
+              <p className="text-sm mt-2 font-medium">Sedang mengunggah & memproses file...</p>
+              <p className="text-xs text-muted-foreground mt-1">Mohon tunggu, sistem sedang memproses dokumen Anda. Untuk file besar (video), proses ini bisa memakan waktu lebih lama.</p>
             </div>
           )}
 
@@ -742,10 +758,18 @@ function ProgramLevelView({
                 formData.append('level', level)
                 formData.append('territoryCode', territoryCode)
                 formData.append('territoryName', territoryName)
+                // === API route akan deteksi tipe file otomatis ===
+                // PDF → extract teks + simpan program items
+                // Non-PDF (gambar/video/doc) → simpan sebagai dokumen pendukung saja
                 const res = await fetch('/api/program-kerja/upload-pdf', { method: 'POST', headers: { 'x-user-id': useAuthStore.getState().user?.id || '' }, body: formData })
                 const data = await res.json()
                 if (!data.success) throw new Error(data.error)
-                addToast(`PDF "${pdfFile.name}" berhasil diupload & ${data.data?.savedCount || 0} program tersimpan`, 'success')
+                // Pesan berbeda untuk PDF vs non-PDF
+                if (data.data?.fileType === 'pdf') {
+                  addToast(`PDF "${pdfFile.name}" berhasil diupload & ${data.data?.savedCount || 0} program tersimpan`, 'success')
+                } else {
+                  addToast(`File "${pdfFile.name}" berhasil diupload sebagai dokumen pendukung`, 'success')
+                }
                 setPdfUploadOpen(false)
                 setPdfFile(null)
                 setExtractResult(null)
@@ -753,7 +777,7 @@ function ProgramLevelView({
               } catch (e: any) { addToast(e.message, 'error') }
               finally { setOcrLoading(false) }
             }} className={`bg-gradient-to-r ${accentColor} text-white`}>
-              {ocrLoading ? 'Memproses...' : 'Upload & Simpan'}
+              {ocrLoading ? 'Memproses...' : 'Unggah & Simpan'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -797,7 +821,7 @@ function ProgramLevelView({
                   <Upload className="w-10 h-10 text-gray-400 mx-auto mb-2" />
                   <div className="text-sm">Klik untuk <Button type="button" variant="link" className="p-0 h-auto"
                     onClick={() => document.getElementById('evidence-upload')?.click()}>pilih file bukti</Button></div>
-                  <div className="text-xs text-muted-foreground mt-1">Foto (JPG/PNG) atau Dokumen (PDF/DOC), maksimal 5MB</div>
+                  <div className="text-xs text-muted-foreground mt-1">Gambar (JPG/PNG/WebP), PDF, DOC, atau Video (MP4/MOV/WebM) — maksimal 50MB</div>
                 </div>
               )}
             </div>
@@ -809,9 +833,11 @@ function ProgramLevelView({
               <div className="text-sm font-semibold">Bukti Terupload ({evidenceDialog.files.length}):</div>
               {evidenceDialog.files.map((ev: any, i: number) => (
                 <div key={ev.id || i} className="flex items-start gap-3 p-3 rounded-lg border bg-white">
-                  {/* Thumbnail for images, icon for docs */}
-                  {ev.fileType === 'jpg' || ev.fileType === 'jpeg' || ev.fileType === 'png' ? (
+                  {/* Thumbnail: gambar → img, video → video preview, dokumen → icon */}
+                  {ev.fileType === 'jpg' || ev.fileType === 'jpeg' || ev.fileType === 'png' || ev.fileType === 'webp' ? (
                     <img src={ev.dataUrl} alt={ev.fileName} className="w-16 h-16 rounded-lg object-cover border" />
+                  ) : ev.fileType === 'mp4' || ev.fileType === 'mov' || ev.fileType === 'webm' ? (
+                    <video src={ev.dataUrl} className="w-16 h-16 rounded-lg object-cover border bg-black" muted />
                   ) : (
                     <div className="w-16 h-16 rounded-lg bg-blue-50 flex items-center justify-center border">
                       <FileCheck className="w-8 h-8 text-blue-500" />

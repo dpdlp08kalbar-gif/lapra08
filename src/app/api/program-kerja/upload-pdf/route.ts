@@ -25,14 +25,92 @@ export async function POST(request: NextRequest) {
     const territoryCode = formData.get('territoryCode') as string
     const territoryName = formData.get('territoryName') as string
 
-    if (!file) return NextResponse.json({ success: false, error: 'File PDF wajib' }, { status: 400 })
-    if (!file.type.includes('pdf')) return NextResponse.json({ success: false, error: 'File harus PDF' }, { status: 400 })
-    if (file.size > 20 * 1024 * 1024) return NextResponse.json({ success: false, error: 'Ukuran PDF maksimal 20MB' }, { status: 400 })
+    if (!file) return NextResponse.json({ success: false, error: 'File wajib diupload' }, { status: 400 })
+    // === Format yang didukung: PDF, gambar (JPG/PNG/WebP), DOC, video (MP4/MOV/WebM) ===
+    const allowedTypes = [
+      'application/pdf',
+      'image/jpeg', 'image/png', 'image/webp',
+      'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'video/mp4', 'video/quicktime', 'video/webm',
+    ]
+    const allowedExts = ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'doc', 'docx', 'mp4', 'mov', 'qt', 'webm']
+    const fileExt = file.name.toLowerCase().match(/\.([^.]+)$/)?.[1] || ''
+    if (!allowedTypes.includes(file.type) && !allowedExts.includes(fileExt)) {
+      return NextResponse.json({
+        success: false,
+        error: `Format tidak didukung. Yang diterima: PDF, JPG, PNG, WebP, DOC, MP4, MOV, WebM (dari file: ${file.name})`
+      }, { status: 400 })
+    }
+    // Size limit: 50MB untuk semua format
+    if (file.size > 50 * 1024 * 1024) return NextResponse.json({ success: false, error: 'Ukuran file maksimal 50MB' }, { status: 400 })
 
-    // === Step 1: Extract text from PDF using pdfjs-dist (FOSS, no API key) ===
+    // === Cek apakah file adalah PDF? ===
+    const isPdf = file.type === 'application/pdf' || fileExt === 'pdf'
+
+    // === Step 1: Save file as base64 in SystemSetting ===
     const fileBuffer = Buffer.from(await file.arrayBuffer())
-    let rawText = ''
+    const fileId = `pdf_prog_${Date.now()}`
+    const fileDataUrl = `data:${file.type || 'application/octet-stream'};base64,${fileBuffer.toString('base64')}`
 
+    await db.systemSetting.create({
+      data: {
+        key: fileId,
+        value: JSON.stringify({
+          id: fileId,
+          fileName: file.name,
+          fileSize: file.size,
+          fileType: fileExt,
+          mimeType: file.type,
+          fileData: fileDataUrl,
+          level,
+          territoryCode,
+          territoryName,
+          uploadedBy: user.fullName,
+          uploadedAt: new Date().toISOString(),
+          category: 'PROGRAM_PDF', // dipertahankan untuk backward compat (view route cek ini)
+        }),
+        category: 'PROGRAM_PDF',
+        description: `File Program: ${file.name} (${level} ${territoryName})`,
+      },
+    })
+
+    // === Jika BUKAN PDF → selesai di sini (simpan dokumen pendukung saja, tanpa extract) ===
+    if (!isPdf) {
+      // Buat satu gallery item sebagai placeholder dokumen pendukung
+      const itemData = {
+        id: `prog_${Date.now()}`,
+        title: file.name.replace(/\.[^.]+$/, ''),
+        description: `Dokumen pendukung (${fileExt.toUpperCase()}) — diupload oleh ${user.fullName}`,
+        category: 'PROGRAM_KERJA',
+        level, territoryCode, territoryName,
+        location: '', date: '', status: 'DIRENCANAKAN',
+        pdfId: fileId,
+      }
+      await db.systemSetting.create({
+        data: {
+          key: itemData.id,
+          value: JSON.stringify(itemData),
+          category: 'GALLERY',
+          description: `Program: ${itemData.title}`,
+        },
+      })
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          pdfId: fileId,
+          fileType: fileExt,
+          fileName: file.name,
+          savedCount: 1,
+          level, territoryCode, territoryName,
+          viewUrl: `/api/program-kerja/${fileId}/view`,
+          message: `File "${file.name}" berhasil diupload sebagai dokumen pendukung.`,
+        },
+      })
+    }
+
+    // === Step 1b (PDF only): Extract text using pdfjs-dist (FOSS, no API key) ===
+    let rawText = ''
     try {
       const pdfjs = await import('pdfjs-dist/legacy/build/pdf.js')
       const data = new Uint8Array(fileBuffer)
@@ -61,18 +139,19 @@ export async function POST(request: NextRequest) {
     // === Step 2: Extract program info via pattern matching ===
     const result = extractProgramsFromText(normalizedText, file.name)
 
-    // === Step 3: Save PDF as base64 in SystemSetting (for view/download) ===
-    const pdfId = `pdf_prog_${Date.now()}`
-    const pdfDataUrl = `data:application/pdf;base64,${fileBuffer.toString('base64')}`
-
-    await db.systemSetting.create({
+    // === Step 3: Update existing SystemSetting record dengan hasil extract (PDF only) ===
+    // File sudah disimpan di Step 1 (line 50-75). Sekarang tinggal update dengan hasil extract.
+    const pdfId = fileId // reuse fileId yang sudah dibuat di Step 1
+    await db.systemSetting.update({
+      where: { key: pdfId },
       data: {
-        key: pdfId,
         value: JSON.stringify({
           id: pdfId,
           fileName: file.name,
           fileSize: file.size,
-          fileData: pdfDataUrl,
+          fileType: 'pdf',
+          mimeType: 'application/pdf',
+          fileData: `data:application/pdf;base64,${fileBuffer.toString('base64')}`,
           level,
           territoryCode,
           territoryName,
@@ -83,8 +162,6 @@ export async function POST(request: NextRequest) {
           aiSummary: result.aiSummary,
           rawTextLength: normalizedText.length,
         }),
-        category: 'PROGRAM_PDF',
-        description: `Program Kerja PDF: ${file.name} (${level} ${territoryName})`,
       },
     })
 
