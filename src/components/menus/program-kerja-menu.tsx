@@ -379,11 +379,15 @@ function ProgramLevelView({
                       {item.location && <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {item.location}</span>}
                       {item.date && <span className="flex items-center gap-1"><CalendarDays className="w-3 h-3" /> {item.date}</span>}
                       <Badge variant="outline" className={`text-[11px] ${statusColor}`}>{item.status || 'DIRENCANAKAN'}</Badge>
-                      {/* Link to view PDF if program came from PDF upload */}
+                    </div>
+                    {/* Action buttons row — separate from status info */}
+                    <div className="flex items-center gap-2 mt-2 flex-wrap">
+                      {/* Buka Dokumen Program Kerja (PDF rencana) */}
                       {item.pdfId && (
                         <a href={`/api/program-kerja/${item.pdfId}/view`} target="_blank" rel="noopener noreferrer"
-                           className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline">
-                          <FileCheck className="w-3 h-3" /> Lihat PDF ↗
+                           className="inline-flex items-center gap-1 text-xs text-blue-700 bg-blue-50 border border-blue-200 px-2 py-1 rounded hover:bg-blue-100 font-medium"
+                           title="Buka dokumen PDF Program Kerja (rencana)">
+                          <FileCheck className="w-3.5 h-3.5" /> Dokumen Program Kerja ↗
                         </a>
                       )}
                       {/* Bukti Pelaksanaan */}
@@ -392,10 +396,10 @@ function ProgramLevelView({
                         return (
                           <button
                             onClick={() => setEvidenceDialog({ item, files: evFiles })}
-                            className="inline-flex items-center gap-1 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded hover:bg-emerald-100"
+                            className="inline-flex items-center gap-1 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded hover:bg-emerald-100 font-medium"
                             title="Upload/Lihat Bukti Pelaksanaan"
                           >
-                            <Camera className="w-3 h-3" /> Bukti ({evFiles.length})
+                            <Camera className="w-3.5 h-3.5" /> Bukti Pelaksanaan ({evFiles.length})
                           </button>
                         )
                       })()}
