@@ -2101,3 +2101,33 @@ Stage Summary:
 - Menggunakan DropdownMenu untuk handle single/multi PDF
 - Build OK (1 error pre-existing di line 221, unrelated)
 - Dev server running di http://localhost:3000
+
+---
+Task ID: LAPRA08-DOC-ICON-FIX-V2
+Agent: Main Agent (Super Z)
+Task: Perbaiki implementasi ikon dokumen di header + ubah link per-card (sesuai feedback "salah besar")
+
+Work Log:
+- Re-analisis screenshot dengan VLM (pertanyaan lebih spesifik)
+- Kesalahan implementasi sebelumnya:
+  1. Saya buat tombol "Lihat Dokumen" dengan TEXT + DROPDOWN — seharusnya CUMA IKON
+  2. Saya taruh SETELAH badge "X program" — seharusnya DI DALAM judul (antara "—" dan "DPD Kalimantan Barat")
+  3. Saya buat dropdown menu — seharusnya LINK LANGSUNG ke PDF
+- Revert: hapus import DropdownMenu + hapus tombol "Lihat Dokumen" + hapus levelPdfs reduce logic
+- Implementasi baru (HEADER):
+  - Split title pada " — " menjadi titleParts[]
+  - Sisipkan ikon FileCheck (no text, w-7 h-7) di antara "—" dan sisa judul
+  - Ikon langsung link ke /api/program-kerja/{primaryPdfId}/view (buka tab baru)
+  - Hidden jika belum ada PDF di level tersebut
+- Implementasi baru (PER-CARD program item):
+  - Hapus link lama "Dokumen Program Kerja ↗" (yang buka PDF — sekarang fungsi ini di header)
+  - Tambah link baru "Lihat Bukti ↗" → buka bukti pelaksanaan TERBARU langsung di tab baru
+  - Jika bukti kosong → link hidden
+  - Tombol "Bukti Pelaksanaan (N)" → diubah jadi "Bukti (N)" → tetap buka dialog upload/kelola
+
+Stage Summary:
+- File: src/components/menus/program-kerja-menu.tsx
+- Header (line 310-363): ikon FileCheck disisipkan di tengah judul antara "—" — klik buka PDF
+- Per-card (line 418-443): link "Lihat Bukti ↗" buka bukti pelaksanaan terbaru, tombol "Bukti (N)" untuk upload/kelola
+- Build OK (1 error pre-existing line 220, unrelated)
+- Dev server running di http://localhost:3000
