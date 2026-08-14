@@ -16,7 +16,7 @@ import { useToastStore, useAuthStore } from '@/lib/store'
 import { useIsSuperAdmin } from './portal-menus'
 import {
   Crown, Building2, MapPin, ChevronRight, Plus, Edit, Trash2,
-  Upload, FileCheck, Loader2, CalendarDays, Briefcase,
+  Upload, FileCheck, Loader2, CalendarDays, Briefcase, Camera, Eye, X,
 } from 'lucide-react'
 
 interface Territory {
@@ -197,6 +197,10 @@ function ProgramLevelView({
   const [ocrLoading, setOcrLoading] = useState(false)
   const [extractResult, setExtractResult] = useState<any>(null)
   const [filterStatus, setFilterStatus] = useState('ALL')
+  // Bukti pelaksanaan state
+  const [evidenceDialog, setEvidenceDialog] = useState<any>(null) // { item, files: [] }
+  const [evidenceFile, setEvidenceFile] = useState<File | null>(null)
+  const [evidenceLoading, setEvidenceLoading] = useState(false)
 
   const reload = () => {
     api('/api/gallery').then((all: any[]) => {
@@ -230,6 +234,61 @@ function ProgramLevelView({
       await api(`/api/gallery?id=${deleteItem.id}`, { method: 'DELETE' })
       addToast('Program dihapus', 'success')
       setDeleteItem(null); reload()
+    } catch (e: any) { addToast(e.message, 'error') }
+  }
+
+  // === Upload Bukti Pelaksanaan ===
+  const handleUploadEvidence = async () => {
+    if (!evidenceFile || !evidenceDialog?.item) return
+    const max = 5 * 1024 * 1024
+    if (evidenceFile.size > max) { addToast('Ukuran file maksimal 5MB', 'error'); return }
+
+    setEvidenceLoading(true)
+    try {
+      const buf = Buffer.from(await evidenceFile.arrayBuffer())
+      const ext = evidenceFile.name.toLowerCase().match(/\.([^.]+)$/)?.[1] || 'jpg'
+      const mime = ext === 'pdf' ? 'application/pdf'
+        : ext === 'png' ? 'image/png'
+        : ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg'
+        : ext === 'doc' || ext === 'docx' ? 'application/msword'
+        : 'application/octet-stream'
+      const dataUrl = `data:${mime};base64,${buf.toString('base64')}`
+
+      // Get existing evidence files
+      const item = evidenceDialog.item
+      const existingEvidence = item.evidenceFiles ? (typeof item.evidenceFiles === 'string' ? JSON.parse(item.evidenceFiles) : item.evidenceFiles) : []
+      const newEvidence = [...existingEvidence, {
+        id: `ev_${Date.now()}`,
+        fileName: evidenceFile.name,
+        fileSize: evidenceFile.size,
+        fileType: ext,
+        dataUrl,
+        uploadedAt: new Date().toISOString(),
+      }]
+
+      // Update program item with evidence + auto-update status to BERJALAN if still DIRENCANAKAN
+      const updateData: any = { evidenceFiles: JSON.stringify(newEvidence) }
+      if ((item.status || 'DIRENCANAKAN') === 'DIRENCANAKAN') {
+        updateData.status = 'BERJALAN'
+      }
+      await api('/api/gallery', { method: 'PUT', body: JSON.stringify({ id: item.id, ...updateData }) })
+
+      addToast(`Bukti pelaksanaan "${evidenceFile.name}" berhasil diupload${updateData.status ? '. Status diubah ke BERJALAN' : ''}`, 'success')
+      setEvidenceFile(null)
+      setEvidenceDialog(null)
+      reload()
+    } catch (e: any) { addToast(e.message, 'error') }
+    finally { setEvidenceLoading(false) }
+  }
+
+  // === Delete evidence file ===
+  const handleDeleteEvidence = async (itemId: string, evidenceId: string, currentEvidence: any[]) => {
+    try {
+      const filtered = currentEvidence.filter(e => e.id !== evidenceId)
+      await api('/api/gallery', { method: 'PUT', body: JSON.stringify({ id: itemId, evidenceFiles: JSON.stringify(filtered) }) })
+      addToast('Bukti dihapus', 'success')
+      setEvidenceDialog(null)
+      reload()
     } catch (e: any) { addToast(e.message, 'error') }
   }
 
@@ -327,6 +386,19 @@ function ProgramLevelView({
                           <FileCheck className="w-3 h-3" /> Lihat PDF ↗
                         </a>
                       )}
+                      {/* Bukti Pelaksanaan */}
+                      {(() => {
+                        const evFiles = item.evidenceFiles ? (typeof item.evidenceFiles === 'string' ? JSON.parse(item.evidenceFiles) : item.evidenceFiles) : []
+                        return (
+                          <button
+                            onClick={() => setEvidenceDialog({ item, files: evFiles })}
+                            className="inline-flex items-center gap-1 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded hover:bg-emerald-100"
+                            title="Upload/Lihat Bukti Pelaksanaan"
+                          >
+                            <Camera className="w-3 h-3" /> Bukti ({evFiles.length})
+                          </button>
+                        )
+                      })()}
                     </div>
                   </div>
                   {isSuperAdmin && (
@@ -529,6 +601,94 @@ function ProgramLevelView({
                 </Button>
               </>
             )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Bukti Pelaksanaan */}
+      <Dialog open={!!evidenceDialog} onOpenChange={(o) => { if (!o) { setEvidenceDialog(null); setEvidenceFile(null) } }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Camera className="w-5 h-5 text-emerald-600" />
+              Bukti Pelaksanaan Program
+            </DialogTitle>
+            <DialogDescription>
+              {evidenceDialog?.item?.title || 'Program'}
+              {evidenceDialog?.files?.length > 0 && ` — ${evidenceDialog.files.length} bukti terupload`}
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Upload area */}
+          {isSuperAdmin && (
+            <div className="border-2 border-dashed rounded-lg p-4 text-center">
+              <input type="file" accept="image/jpeg,image/png,application/pdf,.doc,.docx" className="hidden" id="evidence-upload"
+                onChange={(e) => setEvidenceFile(e.target.files?.[0] || null)} />
+              {evidenceFile ? (
+                <div>
+                  <FileCheck className="w-10 h-10 text-emerald-600 mx-auto mb-2" />
+                  <div className="text-sm font-medium">{evidenceFile.name}</div>
+                  <div className="text-xs text-muted-foreground mt-1">{(evidenceFile.size / 1024).toFixed(0)} KB</div>
+                  <div className="flex gap-2 justify-center mt-2">
+                    <Button type="button" variant="link" size="sm" onClick={() => document.getElementById('evidence-upload')?.click()}>Ganti file</Button>
+                    <Button type="button" size="sm" disabled={evidenceLoading} onClick={handleUploadEvidence}
+                      className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white">
+                      {evidenceLoading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Upload className="w-4 h-4 mr-1" />}
+                      {evidenceLoading ? 'Mengupload...' : 'Upload Bukti'}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <Upload className="w-10 h-10 text-gray-400 mx-auto mb-2" />
+                  <div className="text-sm">Klik untuk <Button type="button" variant="link" className="p-0 h-auto"
+                    onClick={() => document.getElementById('evidence-upload')?.click()}>pilih file bukti</Button></div>
+                  <div className="text-xs text-muted-foreground mt-1">Foto (JPG/PNG) atau Dokumen (PDF/DOC), maksimal 5MB</div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* List of uploaded evidence */}
+          {evidenceDialog?.files?.length > 0 && (
+            <div className="space-y-2">
+              <div className="text-sm font-semibold">Bukti Terupload ({evidenceDialog.files.length}):</div>
+              {evidenceDialog.files.map((ev: any, i: number) => (
+                <div key={ev.id || i} className="flex items-start gap-3 p-3 rounded-lg border bg-white">
+                  {/* Thumbnail for images, icon for docs */}
+                  {ev.fileType === 'jpg' || ev.fileType === 'jpeg' || ev.fileType === 'png' ? (
+                    <img src={ev.dataUrl} alt={ev.fileName} className="w-16 h-16 rounded-lg object-cover border" />
+                  ) : (
+                    <div className="w-16 h-16 rounded-lg bg-blue-50 flex items-center justify-center border">
+                      <FileCheck className="w-8 h-8 text-blue-500" />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium truncate">{ev.fileName}</div>
+                    <div className="text-xs text-muted-foreground">{(ev.fileSize / 1024).toFixed(0)} KB • {ev.fileType?.toUpperCase()}</div>
+                    {ev.uploadedAt && <div className="text-xs text-muted-foreground mt-0.5">Upload: {new Date(ev.uploadedAt).toLocaleDateString('id-ID')}</div>}
+                    <a href={ev.dataUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline mt-1">
+                      <Eye className="w-3 h-3" /> Lihat ↗
+                    </a>
+                  </div>
+                  {isSuperAdmin && (
+                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-600 hover:bg-red-50"
+                      onClick={() => handleDeleteEvidence(evidenceDialog.item.id, ev.id, evidenceDialog.files)}>
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Empty state */}
+          {(!evidenceDialog?.files || evidenceDialog.files.length === 0) && !isSuperAdmin && (
+            <div className="text-center py-4 text-sm text-muted-foreground">Belum ada bukti pelaksanaan diupload.</div>
+          )}
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => { setEvidenceDialog(null); setEvidenceFile(null) }}>Tutup</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
