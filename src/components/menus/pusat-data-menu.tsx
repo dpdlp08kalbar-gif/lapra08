@@ -657,9 +657,9 @@ function PengurusSection({ level, territoryId, territoryFilter }: {
         {/* Avatar: KTA photo if available, else initial */}
         <div className="relative shrink-0">
           {p.ktaPhotoUrl ? (
-            <img src={p.ktaPhotoUrl} alt={p.fullName} className="w-11 h-11 rounded-full object-cover border-2 border-orange-300" />
+            <img src={p.ktaPhotoUrl} alt={p.fullName} className="w-20 h-20 rounded-xl object-cover border-2 border-orange-300 shadow-sm" />
           ) : (
-            <div className="w-11 h-11 rounded-full bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center text-white text-sm font-bold">
+            <div className="w-20 h-20 rounded-xl bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center text-white text-xl font-bold shadow-sm">
               {p.fullName !== '-' ? p.fullName.charAt(0).toUpperCase() : '?'}
             </div>
           )}
@@ -761,13 +761,11 @@ function PengurusSection({ level, territoryId, territoryFilter }: {
                           <div className="flex items-center gap-3">
                             <div className="relative shrink-0">
                               {p.ktaPhotoUrl ? (
-                                <img src={p.ktaPhotoUrl} alt={p.fullName} className="w-14 h-14 rounded-xl object-cover border-2 border-orange-300" />
+                                <img src={p.ktaPhotoUrl} alt={p.fullName} className="w-24 h-24 rounded-xl object-cover border-2 border-orange-300 shadow-md" />
                               ) : (
-                                <Avatar className="w-14 h-14 shrink-0">
-                                  <AvatarFallback className="bg-gradient-to-br from-red-500 to-orange-600 text-white text-lg font-bold">
-                                    {p.fullName !== '-' ? p.fullName.charAt(0).toUpperCase() : '?'}
-                                  </AvatarFallback>
-                                </Avatar>
+                                <div className="w-24 h-24 rounded-xl bg-gradient-to-br from-red-500 to-orange-600 flex items-center justify-center text-white text-2xl font-bold shadow-md">
+                                  {p.fullName !== '-' ? p.fullName.charAt(0).toUpperCase() : '?'}
+                                </div>
                               )}
                               {canManage && (
                                 <label className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-blue-600 hover:bg-blue-700 flex items-center justify-center cursor-pointer" title="Upload KTA">
@@ -1704,9 +1702,9 @@ function EditPositionDialog({ position, onOpenChange, onSuccess }: any) {
             <Label>Foto KTA (Kartu Tanda Anggota)</Label>
             <div className="flex items-center gap-2">
               {form.ktaPhotoUrl ? (
-                <img src={form.ktaPhotoUrl} alt="KTA" className="w-16 h-16 rounded-lg object-cover border" />
+                <img src={form.ktaPhotoUrl} alt="KTA" className="w-24 h-24 rounded-xl object-cover border-2 border-orange-300 shadow-sm" />
               ) : (
-                <div className="w-16 h-16 rounded-lg bg-muted flex items-center justify-center"><FileText className="w-6 h-6 text-muted-foreground" /></div>
+                <div className="w-24 h-24 rounded-xl bg-muted flex items-center justify-center"><FileText className="w-8 h-8 text-muted-foreground" /></div>
               )}
               <label className="cursor-pointer text-xs text-blue-600 hover:underline">
                 {form.ktaPhotoUrl ? 'Ganti KTA' : 'Upload KTA'}
