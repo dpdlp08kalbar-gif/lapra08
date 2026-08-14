@@ -1,0 +1,28 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "Based on the screenshot provided, here is the description of the card's layout and buttons:\n\n**1. Visible Buttons/Links on the Card**\nEach program card (e.g., \"Mekanisme pelaksanaan...\") contains the following interactive elements:\n*   **Top Right (Card Level):** An **Edit** icon (pencil) and a **Delete** icon (trash can).\n*   **Bottom Left (Status & Actions):**\n    *   A status badge (e.g., yellow \"DIRENCANAKAN\").\n    *   A **\"Bukti\"** button/link with green text and an icon, showing a count in parentheses (e.g., \"(0)\").\n\n**2. The 'Bukti' Button**\n*   **Yes**, there is a 'Bukti' button with green text.\n*   **Location:** It is located at the **bottom-left area** of the white card, positioned directly below the program description text and underneath the yellow status badge (\"DIRENCANAKAN\").\n\n**3. Other Action Buttons Next to It**\n*   There are **no other action buttons or links located immediately next to** the 'Bukti' button on the same line.\n*   The only other action buttons for this specific item are located at the **top-right corner** of the card (the Edit and Delete icons), which are horizontally aligned with the title of the program.\n\n**4. Proposed Layout for 'Lihat Bukti' Button**\nTo add a 'Lihat Bukti' button **next to** the existing 'Bukti' button:\n*   **Position:** The new button should be placed immediately to the **right** of the current green \"Bukti (0)\" button.\n*   **Alignment:** It should share the same vertical row as the 'Bukti' button, maintaining alignment with the left margin of the content above it (the description and status badge).\n*   **Visual Style:** To match the UI, it would likely be a similar-sized button or link, possibly styled with blue text or a distinct outline to differentiate it from the green \"Bukti\" button, creating a small horizontal group of action links at the bottom left of the card.",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1786705018,
+  "id": "20260814185654a4908b57768f494a",
+  "model": "glm-5v-turbo",
+  "object": "chat.completion",
+  "request_id": "20260814185654a4908b57768f494a",
+  "usage": {
+    "completion_tokens": 461,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "prompt_tokens": 1433,
+    "prompt_tokens_details": {
+      "cached_tokens": 2
+    },
+    "total_tokens": 1894
+  }
+}

@@ -490,33 +490,32 @@ function ProgramLevelView({
                       </div>
                     {/* Action buttons row — separate from status info */}
                     <div className="flex items-center gap-2 mt-2 flex-wrap">
-                      {/* Lihat Bukti Pelaksanaan (foto/dokumen kegiatan) — link utama, buka bukti terbaru langsung */}
+                      {/* === Tombol "Bukti (N)" — kelola/upload bukti (SELALU TAMPIL) === */}
+                      {/* === Tombol "Lihat Bukti" — buka bukti terbaru (SELALU TAMPIL di sebelah kanan "Bukti") === */}
                       {(() => {
                         const evFiles = item.evidenceFiles ? (typeof item.evidenceFiles === 'string' ? JSON.parse(item.evidenceFiles) : item.evidenceFiles) : []
-                        if (evFiles.length === 0) return null
-                        const latest = evFiles[evFiles.length - 1] // bukti terbaru
+                        const hasEvidence = evFiles.length > 0
+                        const latest = hasEvidence ? evFiles[evFiles.length - 1] : null
                         return (
-                          <button
-                            onClick={() => handleViewEvidence(latest.dataUrl, latest.fileName)}
-                            disabled={evidenceLoading}
-                            className="inline-flex items-center gap-1 text-xs text-blue-700 bg-blue-50 border border-blue-200 px-2 py-1 rounded hover:bg-blue-100 font-medium disabled:opacity-50"
-                            title={`Buka bukti pelaksanaan terbaru: ${latest.fileName}`}>
-                            {evidenceLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileCheck className="w-3.5 h-3.5" />}
-                            Lihat Bukti ↗
-                          </button>
-                        )
-                      })()}
-                      {/* Kelola Bukti Pelaksanaan (upload + lihat semua) */}
-                      {(() => {
-                        const evFiles = item.evidenceFiles ? (typeof item.evidenceFiles === 'string' ? JSON.parse(item.evidenceFiles) : item.evidenceFiles) : []
-                        return (
-                          <button
-                            onClick={() => setEvidenceDialog({ item, files: evFiles })}
-                            className="inline-flex items-center gap-1 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded hover:bg-emerald-100 font-medium"
-                            title="Upload/Kelola Bukti Pelaksanaan"
-                          >
-                            <Camera className="w-3.5 h-3.5" /> Bukti ({evFiles.length})
-                          </button>
+                          <>
+                            {/* Tombol "Bukti (N)" — buka dialog upload/kelola */}
+                            <button
+                              onClick={() => setEvidenceDialog({ item, files: evFiles })}
+                              className="inline-flex items-center gap-1 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded hover:bg-emerald-100 font-medium"
+                              title="Upload/Kelola Bukti Pelaksanaan"
+                            >
+                              <Camera className="w-3.5 h-3.5" /> Bukti ({evFiles.length})
+                            </button>
+                            {/* Tombol "Lihat Bukti" — buka bukti terbaru langsung di tab baru */}
+                            <button
+                              onClick={() => hasEvidence && latest ? handleViewEvidence(latest.dataUrl, latest.fileName) : setEvidenceDialog({ item, files: evFiles })}
+                              disabled={evidenceLoading || !hasEvidence}
+                              className="inline-flex items-center gap-1 text-xs text-blue-700 bg-blue-50 border border-blue-200 px-2 py-1 rounded hover:bg-blue-100 font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+                              title={hasEvidence ? `Buka bukti pelaksanaan terbaru: ${latest.fileName}` : 'Belum ada bukti terupload. Klik tombol Bukti untuk upload.'}>
+                              {evidenceLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileCheck className="w-3.5 h-3.5" />}
+                              Lihat Bukti ↗
+                            </button>
+                          </>
                         )
                       })()}
                     </div>
