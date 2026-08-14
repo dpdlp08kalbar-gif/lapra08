@@ -2187,3 +2187,47 @@ Stage Summary:
 - 4 commits berhasil di-push ke origin/main
 - Vercel akan auto-trigger deploy baru
 - User perlu refresh lapra08.vercel.app setelah ~2 menit
+
+---
+Task ID: LAPRA08-HAPUS-PREVIEW-PDF
+Agent: Main Agent (Super Z)
+Task: Audit + hapus menu Preview PDF yang gagal tampil — sesuai feedback user
+
+Work Log:
+- User report: "anda menampilkan di menu upload sebelum di simpan anda tampilkan priview itupun juga gagal priview. hapus saja menu priviewnya"
+- User attach 2 screenshot: (1) main page, (2) Upload PDF dialog
+- Analisis VLM 2 screenshot:
+  - Screenshot 1: main page list program (tombol Dokumen Program sudah muncul ✓)
+  - Screenshot 2: Upload PDF Dialog dengan pesan "sistem akan baca isi & extract program kerja otomatis"
+- AUDIT kode ditemukan 2 menu Preview:
+
+  1. Dialog Edit/Tambah Program (line 470-487):
+     - "Preview PDF Program Kerja" section
+     - Berisi: link "Buka PDF di tab baru ↗" + INLINE IFRAME PDF Preview (h-96)
+     - Masalah: iframe gagal render PDF di Vercel production (kemungkinan CSP atau PDF tidak punya header Content-Disposition: inline)
+     - SOLUSI: Hapus iframe preview, pertahankan hanya info box + link "Buka PDF di tab baru ↗"
+
+  2. Dialog Upload PDF (line 622-685):
+     - "Preview Results" section setelah upload & extract selesai
+     - Berisi: success banner, document title, AI summary, list program terdeteksi (badge timeline/budget/target/location/category), raw text preview (details/summary), link "Lihat PDF Asli ↗"
+     - Masalah: extractResult gagal tampil (user bilang "gagal priview") — kemungkinan error saat extract atau UI tidak muncul
+     - SOLUSI: Hapus seluruh Preview Results section, ganti flow:
+       - Sebelum: upload → loading → preview results → user klik "Selesai" → simpan
+       - Sesudah: upload → loading → langsung simpan + toast notifikasi + tutup dialog
+
+- Perubahan spesifik:
+  - Line 470-487: Hapus iframe Preview PDF di Edit Dialog
+  - Line 590-657: Restructure Upload PDF Dialog
+    - File picker: tampil saat !ocrLoading (bukan !extractResult)
+    - Hapus seluruh Preview Results block (extractResult conditional)
+    - Footer: simplify jadi 2 tombol (Batal + Upload & Simpan)
+    - Handler upload: setelah sukses → addToast + setPdfUploadOpen(false) + reload()
+    - Tombol "Upload & Extract" → "Upload & Simpan"
+
+Stage Summary:
+- File: src/components/menus/program-kerja-menu.tsx
+- 5 files changed, 87 insertions(+), 102 deletions(-) — net penghapusan 15 lines
+- Build OK (1 error pre-existing line 220, unrelated)
+- Commit 35044c0 sudah di-push ke origin/main
+- Vercel akan auto-deploy dalam 1-2 menit
+- Setelah deploy: hard refresh lapra08.vercel.app
