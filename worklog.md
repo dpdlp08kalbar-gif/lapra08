@@ -2417,3 +2417,90 @@ Stage Summary:
 - Commit 397882d di-push ke origin/main
 - Vercel auto-deploy ~1-2 menit
 - Setelah deploy: hard refresh lapra08.vercel.app
+
+---
+Task ID: LAPRA08-UNGGAH-FILE-ALL-FORMATS
+Agent: Main Agent (Super Z)
+Task: Audit + ubah "Upload PDF" → "Unggah File" + dukung semua format (gambar/PDF/DOC/video) di semua menu Program & Kegiatan
+
+Work Log:
+- User attach 2 screenshot (menu Aksi Sosial & Kemitraan) + request:
+  "Sistem harus mendukung upload/pengunggahan dalam berbagai format dokumen dan multimedia.
+   Format yang wajib diterima: gambar (JPG, PNG, WebP), dokumen digital (PDF), serta file multimedia lainnya termasuk video.
+   Kesimpulan: teks 'Upload PDF' ganti → 'Unggah File'. Terapkan juga pada menu lainnya."
+
+AUDIT:
+- 3 menu (Program Kerja, Aksi Sosial & Sinergi, Kemitraan) SEMUA pakai ProgramContentManager
+- Cukup update 1 file: src/components/menus/program-kerja-menu.tsx + API route upload-pdf
+- Auto berlaku untuk semua menu (single source of truth)
+
+PERUBAHAN FRONTEND (program-kerja-menu.tsx):
+1. Tombol header (line 419-424):
+   - Sebelum: "Upload PDF"
+   - Sesudah: "Unggah File"
+
+2. Upload Dialog (line 691-718):
+   - Dialog title: "Upload PDF {title}" → "Unggah File {title}"
+   - Dialog desc: hapus teks "extract program kerja otomatis" → "Unggah dokumen pendukung (PDF, gambar, atau video). PDF akan otomatis di-extract"
+   - accept attribute: ".pdf" → "image/jpeg,image/png,image/webp,application/pdf,.doc,.docx,video/mp4,video/quicktime,video/webm"
+   - Helper text: "PDF, maksimal 20MB" → "Gambar (JPG/PNG/WebP), PDF, DOC, atau Video (MP4/MOV/WebM) — maksimal 50MB"
+   - Loading text: "Sedang membaca PDF..." → "Sedang mengunggah & memproses file... Untuk file besar (video), proses bisa lebih lama."
+
+3. Footer button (line 736-765):
+   - Label: "Upload & Simpan" → "Unggah & Simpan"
+   - Toast pesan conditional: PDF → "PDF ... berhasil diupload & X program tersimpan", Non-PDF → "File ... berhasil diupload sebagai dokumen pendukung"
+
+4. edit-evidence-upload input (line 605-624):
+   - Size limit: 5MB → 50MB
+   - Mime detection: tambah WebP + video (MP4/MOV/WebM)
+   - Simpan mimeType ke evidence object untuk deteksi tipe saat preview
+
+5. Upload Bukti dialog (line 815):
+   - Helper text: "Foto (JPG/PNG) atau Dokumen (PDF/DOC), maksimal 5MB" → "Gambar (JPG/PNG/WebP), PDF, DOC, atau Video (MP4/MOV/WebM) — maksimal 50MB"
+
+6. Thumbnail preview di Bukti Dialog (line 826-836):
+   - Tambah case video: <video src={ev.dataUrl} muted /> thumbnail
+
+7. Thumbnail preview di Edit Dialog (line 643-661):
+   - Tambah case video: <video src={ev.dataUrl} className="w-full h-full object-cover" muted preload="metadata" />
+   - Hover overlay dengan loading spinner
+
+PERUBAHAN BACKEND (api/program-kerja/upload-pdf/route.ts):
+1. Validasi format (line 28-43):
+   - Sebelum: hanya cek file.type.includes('pdf')
+   - Sesudah: whitelist 9 mime types + 11 ekstensi (PDF/JPG/PNG/WebP/DOC/DOCX/MP4/MOV/QT/WebM)
+
+2. Size limit (line 45):
+   - Sebelum: 20MB
+   - Sesudah: 50MB
+
+3. Branching logic (line 47-110):
+   - isPdf = cek file.type === 'application/pdf' atau ext === 'pdf'
+   - Untuk semua format: simpan file sebagai SystemSetting (PROGRAM_PDF category)
+   - Jika BUKAN PDF: buat 1 gallery item placeholder + return sukses (skip extract)
+   - Jika PDF: lanjut ke extract teks + auto-save program items (seperti sebelumnya)
+
+4. Refactor (line 142-166):
+   - Sebelum: duplikat save SystemSetting (Step 3)
+   - Sesudah: Update existing record dengan hasil extract (tidak duplikat)
+
+Format yang didukung setelah deploy:
+| Kategori | Format | Ext | Behavior |
+|----------|--------|-----|----------|
+| Gambar | JPG, JPEG | .jpg/.jpeg | Simpan + thumbnail img |
+| Gambar | PNG | .png | Simpan + thumbnail img |
+| Gambar | WebP | .webp | Simpan + thumbnail img |
+| Dokumen | PDF | .pdf | Simpan + extract teks + auto-save program items |
+| Dokumen | DOC | .doc | Simpan sebagai dokumen pendukung |
+| Dokumen | DOCX | .docx | Simpan sebagai dokumen pendukung |
+| Video | MP4 | .mp4 | Simpan + thumbnail video preview |
+| Video | MOV | .mov | Simpan + thumbnail video preview |
+| Video | WebM | .webm | Simpan + thumbnail video preview |
+
+Stage Summary:
+- Files: program-kerja-menu.tsx + api/program-kerja/upload-pdf/route.ts
+- 4 files changed, 138 insertions(+), 35 deletions(-)
+- Commit dbe791d di-push ke origin/main
+- Vercel auto-deploy ~1-2 menit
+- Setelah deploy: hard refresh lapra08.vercel.app
+- Test: masuk menu Program & Kegiatan → pilih DPN/DPD/DPC → klik "Unggah File" → bisa pilih PDF/gambar/video
