@@ -307,6 +307,9 @@ function ProgramLevelView({
     DITUNDA: items.filter(i => i.status === 'DITUNDA').length,
   }
 
+  // === Cari PDF pertama yang sudah ter-upload di level ini (untuk tombol "Lihat Dokumen") ===
+  const firstPdfId = items.find((i: any) => i.pdfId)?.pdfId
+
   return (
     <div className="space-y-4">
       <Button variant="ghost" size="sm" onClick={onBack}><ChevronRight className="w-4 h-4 rotate-180" /> Kembali</Button>
@@ -316,17 +319,30 @@ function ProgramLevelView({
           {title}
           <Badge variant="outline" className="text-[13px]">{filtered.length} program</Badge>
         </h3>
-        {isSuperAdmin && (
-          <div className="flex gap-2">
-            <Button size="sm" variant="outline" onClick={() => setPdfUploadOpen(true)}>
-              <Upload className="w-4 h-4 mr-1" /> Upload PDF
+        <div className="flex gap-2 flex-wrap">
+          {/* === Tombol Lihat Dokumen — buka PDF Program Kerja yang sudah ter-upload === */}
+          {/* Tujuan: verifikasi file yang di-upload berhasil/tidak */}
+          {/* Visible untuk SEMUA user (admin + member) */}
+          {firstPdfId && (
+            <Button size="sm" variant="outline" asChild className="border-blue-300 text-blue-700 hover:bg-blue-50 hover:text-blue-800">
+              <a href={`/api/program-kerja/${firstPdfId}/view`} target="_blank" rel="noopener noreferrer" title="Buka PDF Program Kerja yang sudah ter-upload di level ini">
+                <FileCheck className="w-4 h-4 mr-1" /> Lihat Dokumen
+              </a>
             </Button>
-            <Button size="sm" onClick={() => { setEditItem(null); setForm({ title: '', description: '', location: '', date: '', status: 'DIRENCANAKAN' }); setAddOpen(true) }}
-              className={`bg-gradient-to-r ${accentColor} text-white`}>
-              <Plus className="w-4 h-4 mr-1" /> Tambah Program
-            </Button>
-          </div>
-        )}
+          )}
+          {/* === Tombol Admin: Upload PDF + Tambah Program === */}
+          {isSuperAdmin && (
+            <>
+              <Button size="sm" variant="outline" onClick={() => setPdfUploadOpen(true)}>
+                <Upload className="w-4 h-4 mr-1" /> Upload PDF
+              </Button>
+              <Button size="sm" onClick={() => { setEditItem(null); setForm({ title: '', description: '', location: '', date: '', status: 'DIRENCANAKAN' }); setAddOpen(true) }}
+                className={`bg-gradient-to-r ${accentColor} text-white`}>
+                <Plus className="w-4 h-4 mr-1" /> Tambah Program
+              </Button>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Status Stats Cards */}

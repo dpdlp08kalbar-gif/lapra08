@@ -1,0 +1,28 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "Berikut analisis detail berdasarkan screenshot yang Anda tunjukkan:\n\n## 1. **Apa yang ditampilkan?**\nIni adalah **halaman utama (header area)** dari sebuah dashboard program kerja, bukan dialog/modal. Terdiri dari:\n- Header navigasi dengan judul dan tombol aksi\n- 4 kartu statistik status program\n- Area pencarian/filter di bawahnya\n\n## 2. **Detail Bagian Header (Paling Atas)**\n\n**Dari kiri ke kanan:**\n- **Kiri**: Tombol \"< Kembali\" + Ikon tas + Judul \"Program Kerja Nasional & Daerah — DPD Kalimantan Barat\" + Badge \"60 program\"\n- **Kanan (Group Tombol Aksi)**: \n  - 📤 **\"Upload PDF\"** (tombol outline/putih dengan ikon upload)\n  - ➕ **\"Tambah Program\"** (tombol biru solid)\n\n## 3. **Maksud \"Teks Upload\"**\n\"Teks upload\" merujuk pada **tombol \"Upload PDF\"** yang terletak di **header bagian kanan atas**, tepatnya di sebelah kiri tombol \"Tambah Program\".\n\n## 4. **Layout Header (Kiri → Kanan)**\n```\n[< Kembali] [📋 Program Kerja...] [60 program]                    [📤 Upload PDF] [➕ Tambah Program]\n```\n\n## 5. **Lokasi Penambahan Button Baru**\nUser ingin menambahkan tombol **\"Lihat Dokumen\"** di **HEADER** (area paling atas), spesifiknya:\n- **Posisi**: Di antara/samping tombol \"Upload PDF\" \n- **Area**: Header kanan (action bar), sebelum atau sesudah \"Upload PDF\"\n\n## 6. **Apakah sudah ada \"Lihat Dokumen\"?**\n**TIDAK ADA.** Saat ini hanya ada 2 tombol di header kanan: \"Upload PDF\" dan \"Tambah Program\". Belum ada tombol \"Lihat Dokumen\".\n\n## 7. **Perbedaan dengan Screenshot Sebelumnya**\nJika sebelumnya Anda melihat dialog/form input, screenshot ini menunjukkan **tampilan list/dashboard utama**, bukan form input individual.\n\n---\n\n### **Kesimpulan Posisi yang Diminta:**\n\n```\nSEBELUM:    [📤 Upload PDF] [➕ Tambah Program]\n\nSESUDAH:    [👁 Lihat Dokumen] [📤 Upload PDF] [➕ Tambah Program]\n             ATAU\n            [📤 Upload PDF] [👁 Lihat Dokumen] [➕ Tambah Program]\n```\n\n**Rekomendasi**: Letakkan **\"Lihat Dokumen\" di sebelah kiri \"Upload PDF\"** (paling kiri di group tombol kanan), karena secara logika flow-nya adalah: *View existing → Upload new → Add new record*.\n\nApakah posisi ini sesuai dengan yang Anda maksud? Atau apakah \"Lihat Dokumen\" seharusnya muncul hanya setelah file PDF di-upload (di dalam card/dialog tertentu)?",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1786702227,
+  "id": "202608141810194805eb776f264e04",
+  "model": "glm-5v-turbo",
+  "object": "chat.completion",
+  "request_id": "202608141810194805eb776f264e04",
+  "usage": {
+    "completion_tokens": 708,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "prompt_tokens": 629,
+    "prompt_tokens_details": {
+      "cached_tokens": 2
+    },
+    "total_tokens": 1337
+  }
+}
