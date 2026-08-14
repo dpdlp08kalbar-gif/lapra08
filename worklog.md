@@ -2273,3 +2273,57 @@ Stage Summary:
 - Commit a384406 di-push ke origin/main
 - Vercel auto-deploy ~1-2 menit
 - Setelah deploy: hard refresh lapra08.vercel.app
+
+---
+Task ID: LAPRA08-FIX-UNAUTHORIZED-PDF
+Agent: Main Agent (Super Z)
+Task: Fix error {"success":false,"error":"Unauthorized"} saat klik tombol Lihat Dokumen
+
+Work Log:
+- User report: tombol "Lihat Dokumen" sudah muncul, tapi diklik → unauthorized
+- 2 screenshot attach: pesan error JSON di tab baru
+
+AUDIT ROOT CAUSE:
+- API route /api/program-kerja/[id]/view (line 11-14):
+    const user = await getUserFromRequest(request)
+    if (!user) return NextResponse.json({success:false, error:'Unauthorized'}, {status:401})
+- getUserFromRequest baca header `x-user-id`:
+    const userId = request.headers.get('x-user-id')
+    if (!userId) return null
+- Tombol "Lihat Dokumen" pakai <a href="/api/program-kerja/.../view" target="_blank">
+- Saat klik, browser navigasi GET biasa → TIDAK kirim header x-user-id
+- API tidak tahu siapa user → balas Unauthorized
+
+SOLUSI:
+- Ganti <a href> dengan <button onClick={handleViewPdf}>
+- handleViewPdf pakai fetch() manual dengan header x-user-id:
+    const userId = useAuthStore.getState().user?.id || ''
+    const res = await fetch(`/api/program-kerja/${pdfId}/view`, {
+      headers: { 'x-user-id': userId },
+    })
+    const blob = await res.blob()
+    const blobUrl = URL.createObjectURL(blob)
+    window.open(blobUrl, '_blank')
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 60000)
+- Tambah state pdfLoading + loading spinner (Loader2) saat fetch
+- Toast error jika gagal
+
+PERUBAHAN:
+1. Tombol "Lihat Dokumen" di header (line 348-360):
+   - Sebelum: <Button asChild><a href>...</a></Button>
+   - Sesudah: <Button onClick={() => handleViewPdf(firstPdfId)} disabled={pdfLoading}>
+
+2. Tombol "Dokumen Program" di card per-item (line 420-432):
+   - Sebelum: <a href={...} target="_blank">
+   - Sesudah: <button onClick={() => handleViewPdf(item.pdfId)} disabled={pdfLoading}>
+
+3. Link "Buka PDF di tab baru" di Edit Dialog (line 523-528):
+   - Sebelum: <a href={...} target="_blank">
+   - Sesudah: <button onClick={() => handleViewPdf(editItem.pdfId)} disabled={pdfLoading}>
+
+Stage Summary:
+- File: src/components/menus/program-kerja-menu.tsx
+- Semua 3 tempat link PDF view → pakai handleViewPdf (authenticated fetch + blob URL)
+- Commit 0ca6d51 di-push ke origin/main
+- Vercel auto-deploy ~1-2 menit
+- Setelah deploy: hard refresh lapra08.vercel.app → klik Lihat Dokumen → PDF akan terbuka di tab baru
