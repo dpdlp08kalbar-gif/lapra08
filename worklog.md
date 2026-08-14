@@ -2159,3 +2159,31 @@ Stage Summary:
 - Layout per-card: [📄 Dokumen Program] [Judul + Desc + Status + Tombol Bukti] ... [Edit] [Delete]
 - Build OK (1 error pre-existing line 220, unrelated)
 - Dev server running di http://localhost:3000
+
+---
+Task ID: LAPRA08-DOC-ICON-DEPLOY
+Agent: Main Agent (Super Z)
+Task: Audit kenapa user masih lihat versi lama — deploy ke Vercel
+
+Work Log:
+- User report: "tdk berhasil sama sekali (gagal), coba audit"
+- Analisis screenshot production (lapra08.vercel.app) dengan VLM
+- Audit root cause:
+  - git status: nothing to commit (file sudah committed auto)
+  - git log origin/main..HEAD: 4 commits AHEAD of remote (belum di-push!)
+  - Local HEAD: 9fdd692 (perubahan terbaru saya)
+  - Remote HEAD: 6aaa8b2 (versi lama "Fix: Pisah tombol...")
+  - Vercel auto-deploy dari origin/main → user lihat versi LAMA
+- Solusi: git push origin main (push 4 commits: 6aaa8b2..9fdd692)
+- Vercel akan auto-deploy dalam ~1-2 menit
+
+Root Cause:
+- Perubahan kode sudah benar di local file
+- Tapi commit-nya belum di-push ke GitHub
+- Vercel deploy dari GitHub origin/main, bukan dari local file system
+- User akses lapra08.vercel.app (production) → lihat versi LAMA
+
+Stage Summary:
+- 4 commits berhasil di-push ke origin/main
+- Vercel akan auto-trigger deploy baru
+- User perlu refresh lapra08.vercel.app setelah ~2 menit
