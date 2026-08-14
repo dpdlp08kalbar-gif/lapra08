@@ -467,7 +467,7 @@ function ProgramLevelView({
               </Select>
             </div>
 
-            {/* === Preview PDF Program Kerja (jika dari upload PDF) === */}
+            {/* === Info Dokumen Program Kerja (bukan preview, cuma link) === */}
             {editItem?.pdfId && (
               <div className="space-y-2">
                 <Label>Dokumen Program Kerja (PDF)</Label>
@@ -481,8 +481,6 @@ function ProgramLevelView({
                     </a>
                   </div>
                 </div>
-                {/* Inline PDF Preview */}
-                <iframe src={`/api/program-kerja/${editItem.pdfId}/view`} className="w-full h-96 rounded-lg border" title="Preview PDF" />
               </div>
             )}
 
@@ -589,8 +587,8 @@ function ProgramLevelView({
             <DialogDescription>{territoryName} — Upload PDF, sistem akan baca isi & extract program kerja otomatis (100% FOSS, tanpa biaya).</DialogDescription>
           </DialogHeader>
 
-          {/* File picker */}
-          {!extractResult && (
+          {/* File picker — tampil saat tidak loading, tanpa preview hasil */}
+          {!ocrLoading && (
             <div className="border-2 border-dashed rounded-lg p-6 text-center">
               <input type="file" accept=".pdf" className="hidden" id="prog-pdf-upload" onChange={(e) => setPdfFile(e.target.files?.[0] || null)} />
               {pdfFile ? (
@@ -614,109 +612,40 @@ function ProgramLevelView({
           {ocrLoading && (
             <div className="text-center py-8">
               <Loader2 className="w-10 h-10 animate-spin mx-auto text-orange-600" />
-              <p className="text-sm mt-2 font-medium">Sedang membaca PDF & extracting program...</p>
-              <p className="text-xs text-muted-foreground mt-1">Mohon tunggu, sistem sedang menganalisis dokumen Anda.</p>
+              <p className="text-sm mt-2 font-medium">Sedang membaca PDF & menyimpan program...</p>
+              <p className="text-xs text-muted-foreground mt-1">Mohon tunggu, sistem sedang memproses dokumen Anda.</p>
             </div>
           )}
 
-          {/* Preview Results */}
-          {extractResult && !ocrLoading && (
-            <div className="space-y-3">
-              {/* Success banner */}
-              <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-sm text-emerald-800 flex items-start gap-2">
-                <FileCheck className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-                <div>
-                  <div className="font-semibold">Berhasil! {extractResult.data.savedCount} program disimpan.</div>
-                  <div className="text-xs mt-1">{extractResult.data.programs.length} program terdeteksi dari PDF. Data sudah otomatis tersimpan di daftar program.</div>
-                </div>
-              </div>
-
-              {/* Document title */}
-              <div className="rounded-lg bg-muted/50 p-3">
-                <div className="text-xs text-muted-foreground font-semibold mb-1">Judul Dokumen:</div>
-                <div className="text-sm font-medium">{extractResult.data.title}</div>
-              </div>
-
-              {/* AI Summary */}
-              <div className="rounded-lg bg-blue-50 border border-blue-200 p-3">
-                <div className="text-xs text-blue-800 font-semibold mb-1">Ringkasan Otomatis:</div>
-                <p className="text-xs text-blue-700">{extractResult.data.aiSummary}</p>
-              </div>
-
-              {/* List of extracted programs */}
-              {extractResult.data.programs.length > 0 && (
-                <div className="space-y-2">
-                  <div className="text-sm font-semibold">Program Terdeteksi ({extractResult.data.programs.length}):</div>
-                  {extractResult.data.programs.map((prog: any, i: number) => (
-                    <div key={i} className="rounded-lg border p-3 bg-white">
-                      <div className="flex items-start gap-2">
-                        <Badge variant="outline" className="text-[11px] bg-orange-50 text-orange-700 border-orange-200 shrink-0">#{prog.priority}</Badge>
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium text-sm">{prog.name}</div>
-                          {prog.description && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{prog.description.substring(0, 200)}</p>}
-                          <div className="flex items-center gap-2 mt-2 flex-wrap">
-                            {prog.timeline && <Badge variant="outline" className="text-[11px] bg-blue-50 text-blue-700 border-blue-200">{prog.timeline}</Badge>}
-                            {prog.budget && <Badge variant="outline" className="text-[11px] bg-emerald-50 text-emerald-700 border-emerald-200">{prog.budget}</Badge>}
-                            {prog.target && <Badge variant="outline" className="text-[11px] bg-purple-50 text-purple-700 border-purple-200">{prog.target}</Badge>}
-                            {prog.location && <Badge variant="outline" className="text-[11px] bg-amber-50 text-amber-700 border-amber-200">{prog.location}</Badge>}
-                            <Badge variant="outline" className="text-[11px] bg-slate-50 text-slate-700 border-slate-200">{prog.category}</Badge>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Raw text preview */}
-              <details>
-                <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground">Lihat teks asli PDF (2000 karakter pertama)</summary>
-                <pre className="mt-2 p-3 bg-muted rounded text-xs overflow-x-auto whitespace-pre-wrap max-h-40 overflow-y-auto">{extractResult.data.rawTextPreview}</pre>
-              </details>
-
-              {/* View original PDF */}
-              {extractResult.data.viewUrl && (
-                <a href={extractResult.data.viewUrl} target="_blank" rel="noopener noreferrer"
-                   className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline">
-                  <FileCheck className="w-3 h-3" /> Lihat PDF Asli ↗
-                </a>
-              )}
-            </div>
-          )}
+          {/* === Preview Results DIHAPUS — sesuai permintaan user === */}
+          {/* Sebelumnya: tampilkan extractResult (success banner, AI summary, list program, raw text, link PDF)
+              Sekarang: setelah upload sukses → langsung tutup dialog + toast notifikasi */}
 
           {/* Footer buttons */}
           <DialogFooter>
-            {extractResult ? (
-              <>
-                <Button type="button" variant="outline" onClick={() => { setExtractResult(null); setPdfFile(null) }}>Upload Lagi</Button>
-                <Button type="button" onClick={() => { setPdfUploadOpen(false); setPdfFile(null); setExtractResult(null); reload() }} className={`bg-gradient-to-r ${accentColor} text-white`}>
-                  Selesai
-                </Button>
-              </>
-            ) : (
-              <>
-                <Button type="button" variant="outline" onClick={() => { setPdfUploadOpen(false); setPdfFile(null) }}>Batal</Button>
-                <Button type="button" disabled={!pdfFile || ocrLoading} onClick={async () => {
-                  if (!pdfFile) return
-                  setOcrLoading(true)
-                  try {
-                    const formData = new FormData()
-                    formData.append('file', pdfFile)
-                    formData.append('level', level)
-                    formData.append('territoryCode', territoryCode)
-                    formData.append('territoryName', territoryName)
-                    const res = await fetch('/api/program-kerja/upload-pdf', { method: 'POST', headers: { 'x-user-id': useAuthStore.getState().user?.id || '' }, body: formData })
-                    const data = await res.json()
-                    if (!data.success) throw new Error(data.error)
-                    setExtractResult(data)
-                    reload()
-                  } catch (e: any) { addToast(e.message, 'error') }
-                  finally { setOcrLoading(false) }
-                }} className={`bg-gradient-to-r ${accentColor} text-white`}>
-                  {ocrLoading ? 'Memproses...' : 'Upload & Extract'}
-                </Button>
-              </>
-            )}
+            <Button type="button" variant="outline" disabled={ocrLoading} onClick={() => { setPdfUploadOpen(false); setPdfFile(null); setExtractResult(null) }}>Batal</Button>
+            <Button type="button" disabled={!pdfFile || ocrLoading} onClick={async () => {
+              if (!pdfFile) return
+              setOcrLoading(true)
+              try {
+                const formData = new FormData()
+                formData.append('file', pdfFile)
+                formData.append('level', level)
+                formData.append('territoryCode', territoryCode)
+                formData.append('territoryName', territoryName)
+                const res = await fetch('/api/program-kerja/upload-pdf', { method: 'POST', headers: { 'x-user-id': useAuthStore.getState().user?.id || '' }, body: formData })
+                const data = await res.json()
+                if (!data.success) throw new Error(data.error)
+                addToast(`PDF "${pdfFile.name}" berhasil diupload & ${data.data?.savedCount || 0} program tersimpan`, 'success')
+                setPdfUploadOpen(false)
+                setPdfFile(null)
+                setExtractResult(null)
+                reload()
+              } catch (e: any) { addToast(e.message, 'error') }
+              finally { setOcrLoading(false) }
+            }} className={`bg-gradient-to-r ${accentColor} text-white`}>
+              {ocrLoading ? 'Memproses...' : 'Upload & Simpan'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
