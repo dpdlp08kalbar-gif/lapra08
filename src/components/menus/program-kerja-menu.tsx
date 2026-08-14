@@ -310,6 +310,32 @@ function ProgramLevelView({
   // === Cari PDF pertama yang sudah ter-upload di level ini (untuk tombol "Lihat Dokumen") ===
   const firstPdfId = items.find((i: any) => i.pdfId)?.pdfId
 
+  // === Handler: buka PDF via authenticated fetch (kirim x-user-id header) ===
+  // Pakai fetch manual + window.open(URL.createObjectURL) karena <a href> tidak kirim header
+  const [pdfLoading, setPdfLoading] = useState(false)
+  const handleViewPdf = async (pdfId: string) => {
+    setPdfLoading(true)
+    try {
+      const userId = useAuthStore.getState().user?.id || ''
+      const res = await fetch(`/api/program-kerja/${pdfId}/view`, {
+        headers: { 'x-user-id': userId },
+      })
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null)
+        throw new Error(errData?.error || `HTTP ${res.status}`)
+      }
+      const blob = await res.blob()
+      const blobUrl = URL.createObjectURL(blob)
+      window.open(blobUrl, '_blank')
+      // Cleanup blob URL setelah 60 detik (cukup waktu untuk render)
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60000)
+    } catch (e: any) {
+      addToast(`Gagal membuka PDF: ${e.message}`, 'error')
+    } finally {
+      setPdfLoading(false)
+    }
+  }
+
   return (
     <div className="space-y-4">
       <Button variant="ghost" size="sm" onClick={onBack}><ChevronRight className="w-4 h-4 rotate-180" /> Kembali</Button>
@@ -324,10 +350,12 @@ function ProgramLevelView({
           {/* Tujuan: verifikasi file yang di-upload berhasil/tidak */}
           {/* Visible untuk SEMUA user (admin + member) */}
           {firstPdfId && (
-            <Button size="sm" variant="outline" asChild className="border-blue-300 text-blue-700 hover:bg-blue-50 hover:text-blue-800">
-              <a href={`/api/program-kerja/${firstPdfId}/view`} target="_blank" rel="noopener noreferrer" title="Buka PDF Program Kerja yang sudah ter-upload di level ini">
-                <FileCheck className="w-4 h-4 mr-1" /> Lihat Dokumen
-              </a>
+            <Button size="sm" variant="outline" disabled={pdfLoading}
+              onClick={() => handleViewPdf(firstPdfId)}
+              className="border-blue-300 text-blue-700 hover:bg-blue-50 hover:text-blue-800"
+              title="Buka PDF Program Kerja yang sudah ter-upload di level ini">
+              {pdfLoading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <FileCheck className="w-4 h-4 mr-1" />}
+              Lihat Dokumen
             </Button>
           )}
           {/* === Tombol Admin: Upload PDF + Tambah Program === */}
@@ -390,16 +418,17 @@ function ProgramLevelView({
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-start gap-3 flex-1 min-w-0">
                     {/* === Tombol Dokumen Program Kerja (PDF rencana) — di AWAL card, sebelum judul === */}
+                    {/* Pakai onClick handler (bukan <a href>) agar x-user-id header terkirim */}
                     {item.pdfId && (
-                      <a
-                        href={`/api/program-kerja/${item.pdfId}/view`}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                      <button
+                        type="button"
+                        disabled={pdfLoading}
+                        onClick={() => handleViewPdf(item.pdfId)}
                         title="Buka PDF Program Kerja (dokumen perencanaan)"
-                        className="shrink-0 inline-flex flex-col items-center justify-center gap-1 w-16 h-16 rounded-lg border-2 border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:border-blue-400 hover:shadow-sm transition-all">
-                        <FileCheck className="w-5 h-5" />
+                        className="shrink-0 inline-flex flex-col items-center justify-center gap-1 w-16 h-16 rounded-lg border-2 border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:border-blue-400 hover:shadow-sm transition-all disabled:opacity-50 disabled:cursor-wait">
+                        {pdfLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <FileCheck className="w-5 h-5" />}
                         <span className="text-[10px] font-semibold leading-tight text-center">Dokumen<br/>Program</span>
-                      </a>
+                      </button>
                     )}
                     <div className="flex-1 min-w-0">
                       <div className="font-semibold text-sm">{item.title}</div>
@@ -491,10 +520,12 @@ function ProgramLevelView({
                   <FileCheck className="w-8 h-8 text-blue-500 shrink-0" />
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium">PDF Program Kerja</div>
-                    <a href={`/api/program-kerja/${editItem.pdfId}/view`} target="_blank" rel="noopener noreferrer"
-                       className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-1">
-                      <Eye className="w-3 h-3" /> Buka PDF di tab baru ↗
-                    </a>
+                    <button type="button" disabled={pdfLoading}
+                      onClick={() => handleViewPdf(editItem.pdfId)}
+                      className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-1 disabled:opacity-50">
+                      {pdfLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Eye className="w-3 h-3" />}
+                      Buka PDF di tab baru ↗
+                    </button>
                   </div>
                 </div>
               </div>
