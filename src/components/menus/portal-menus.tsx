@@ -4348,30 +4348,96 @@ function HubungiKamiManager() {
 }
 
 // ----- FAQ -----
+// FAQ dapat diedit (CRUD) hanya oleh Super Admin. User lain hanya lihat (read-only).
+// FAQ disimpan ke database via /api/faq. Jika database kosong, fallback ke 12 FAQ default hardcoded.
 function FaqManager() {
+  const addToast = useToastStore((s) => s.addToast)
+  const isSuperAdmin = useIsSuperAdmin()
   const [faqs, setFaqs] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [openItem, setOpenItem] = useState<string | null>(null)
+  // === Edit/Tambah dialog state (Super Admin only) ===
+  const [editDialog, setEditDialog] = useState<any>(null) // null | { faq: any } | { faq: null, isNew: true }
+  const [saving, setSaving] = useState(false)
+  const [deleteConfirm, setDeleteConfirm] = useState<any>(null) // null | faq
+  const [form, setForm] = useState({ id: '', category: 'KEANGGOTAAN', q: '', a: '' })
+
+  const DEFAULT_FAQS = [
+    { id: 'faq_1', category: 'KEANGGOTAAN', q: 'Bagaimana cara mendaftar menjadi anggota LAPRA 08?', a: 'Pendaftaran anggota LAPRA 08 dilakukan melalui DPC setempat (Kabupaten/Kota). Anda dapat mengunjungi sekretariat DPC di wilayah Anda, mengisi formulir pendaftaran, melampirkan fotokopi KTP dan pas foto, serta membayar iuran pendaftaran. Setelah diverifikasi, Anda akan menerima KTA (Kartu Tanda Anggota) digital dengan format unik LAPRA08.[NEGARA].[PROVINSI].[KAB/KOTA].[TAHUN].[URUT].' },
+    { id: 'faq_2', category: 'KEANGGOTAAN', q: 'Apakah anggota luar negeri bisa mendaftar?', a: 'Ya. LAPRA 08 memiliki DPD di 5 negara (Amerika Serikat, Cina, Malaysia, Arab Saudi, dan Australia). Warga Indonesia yang berdomisili di negara tersebut dapat mendaftar melalui DPD setempat. Format KTA internasional menggunakan kode negara setempat, misalnya LAPRA08.US.00.LAX.26.00001 untuk anggota di Los Angeles.' },
+    { id: 'faq_3', category: 'KEANGGOTAAN', q: 'Berapa iuran anggota LAPRA 08?', a: 'Iuran anggota dibagi menjadi beberapa kategori: (1) Iuran bulanan anggota biasa Rp 25.000/bulan; (2) Iuran bulanan pengurus Rp 50.000/bulan; (3) Iuran tahunan dapat dibayar di muka dengan diskon. Iuran dapat dibayarkan melalui transfer ke rekening resmi DPC atau via QRIS. Khusus anggota luar negeri, iuran setara USD 5/bulan.' },
+    { id: 'faq_4', category: 'STRUKTUR', q: 'Apa saja tingkatan struktur pengurus LAPRA 08?', a: 'Struktur LAPRA 08 terdiri dari 5 tingkat: (1) DPN (Dewan Pimpinan Pusat) di tingkat nasional; (2) Koorwil (Koordinator Wilayah) yang membawahi 7 wilayah Indonesia + 1 LN; (3) DPD (Dewan Pimpinan Daerah) di tingkat provinsi/negara LN; (4) Koor DPD (Koordinator Region) yang membawahi kelompok DPC; (5) DPC (Dewan Pimpinan Cabang) di tingkat kabupaten/kota. Total ada 38 provinsi + IKN + 5 negara LN.' },
+    { id: 'faq_5', category: 'STRUKTUR', q: 'Siapa Ketua Umum DPN LAPRA 08 periode 2024-2029?', a: 'Pengurus DPN LAPRA 08 periode 2024-2029 dipimpin oleh Dr. (HC) Hashim S. Djojohadikusumo sebagai Ketua Dewan Pembina, dan Devi Taurisa, S.H., M.H., C.L.D. sebagai Ketua Umum DPN. Sekretaris Jenderal dijabat oleh Brigjen. Pol. (Purn) Dr. R. Nurhadi, S.I.K., M.Si., CHRMP, dan Bendahara Umum adalah Timmy Rorimpandey, S.E., M.M. Pembaruan pengurus inti dilakukan pada Maret 2026.' },
+    { id: 'faq_6', category: 'PROGRAM', q: 'Apa program unggulan LAPRA 08?', a: 'Program unggulan LAPRA 08 meliputi: (1) Sosialisasi Asta Cita Presiden Prabowo ke seluruh DPD di 38 provinsi; (2) Penguatan kader DPC se-Indonesia melalui pelatihan rutin; (3) Aksi sosial seperti bakti sosial, donor darah, dan distribusi sembako; (4) Kemitraan dengan ummat, ormas Islam, kementerian, dan BUMN untuk program CSR; (5) Digitalisasi sistem informasi internal untuk efisiensi administrasi.' },
+    { id: 'faq_7', category: 'PROGRAM', q: 'Bagaimana cara mengajukan proposal kemitraan dengan LAPRA 08?', a: 'Proposal kemitraan dapat diajukan melalui email resmi sekretariat@lapra08.id dengan subject "Proposal Kemitraan - [Nama Institusi]". Lampirkan profil institusi, latar belakang kemitraan, lingkup kerja sama, dan expected outcomes. Tim Sekretariat DPN akan melakukan review dalam 14 hari kerja dan menghubungi Anda untuk diskusi lebih lanjut jika proposal memenuhi kriteria.' },
+    { id: 'faq_8', category: 'LAYANAN', q: 'Bagaimana cara mengajukan pengaduan atau aspirasi?', a: 'Pengaduan dan aspirasi dapat disampaikan melalui: (1) Formulir "Hubungi Kami" di menu Kontak & Sekretariat; (2) Pusat Pengaduan & Aspirasi di menu Layanan & Advokasi; (3) WhatsApp resmi DPC setempat; (4) Surat resmi ke sekretariat DPN. Setiap pengaduan akan ditindaklanjuti dalam 1x24 jam (kasus normal) atau 2 jam (kasus urgent). Identitas pelapor dilindungi sesuai kebijakan privasi.' },
+    { id: 'faq_9', category: 'LAYANAN', q: 'Apakah LAPRA 08 menyediakan bantuan hukum untuk anggota?', a: 'Ya, LAPRA 08 menyediakan layanan bantuan hukum untuk anggota yang menghadapi kasus hukum terkait aktivitas keorganisasian. Layanan ini diakses melalui menu "Bantuan Hukum" di Layanan & Advokasi. Tim advokasi DPN akan melakukan assessment kasus, memberikan konsultasi awal gratis, dan jika diperlukan, merujuk ke pengacara mitra dengan tarif khusus untuk anggota.' },
+    { id: 'faq_10', category: 'LAINNYA', q: 'Bagaimana cara mendapatkan KTA digital?', a: 'KTA digital diterbitkan secara otomatis setelah pendaftaran anggota diverifikasi oleh pengurus DPC. KTA dapat diakses melalui menu "Layanan KTA" di portal LAPRA 08. Format KTA: LAPRA08.[NEGARA].[PROVINSI].[KAB/KOTA].[TAHUN].[URUT]. KTA digital berisi QR code untuk verifikasi keaslian, foto anggota, dan data keanggotaan. KTA fisik dapat dicetak di DPC dengan biaya Rp 25.000.' },
+    { id: 'faq_11', category: 'LAINNYA', q: 'Apakah portal LAPRA 08 bisa diakses publik?', a: 'Portal LAPRA 08 bersifat semi-publik. Beranda, Profil, Pusat Media (berita & galeri), dan Program & Kegiatan dapat diakses publik. Sedangkan menu operasional seperti Dashboard, Pusat Data Organisasi, Logistik, Komunikasi, Keuangan, dan User hanya dapat diakses oleh pengurus yang telah login dengan role yang sesuai (SUPERADMIN, ADMIN_DPN, ADMIN_KOORWIL, ADMIN_DPD, ADMIN_KOOR_DPD, ADMIN_DPC). Isolasi data otomatis diterapkan sesuai hierarki wilayah.' },
+    { id: 'faq_12', category: 'LAINNYA', q: 'Bagaimana cara melaporkan kendala teknis portal?', a: 'Kendala teknis dapat dilaporkan melalui menu "Pusat Bantuan & Tiket" di Layanan & Advokasi. Pilih kategori "Bug/Error Sistem" atau "Permintaan Fitur", sertakan tangkapan layar dan langkah reproduksi jika memungkinkan. Tim IT DPN akan merespons dalam 4 jam kerja. Untuk kendala kritis (sistem tidak bisa diakses), hubungi hotline IT DPN di +62 811-9090-08 (24/7).' },
+  ]
+
+  // === Load FAQ from API. Jika database kosong, gunakan DEFAULT_FAQS ===
+  const reload = () => {
+    setLoading(true)
+    api('/api/faq')
+      .then((data: any[]) => {
+        if (data && data.length > 0) {
+          // API return { id, key, value: {id, category, q, a} } — extract value
+          const parsed = data.map((item: any) => item.value || item).filter(Boolean)
+          setFaqs(parsed)
+        } else {
+          // Database kosong → pakai default (Super Admin bisa edit, nanti disimpan ke DB)
+          setFaqs(DEFAULT_FAQS)
+        }
+      })
+      .catch(() => setFaqs(DEFAULT_FAQS))
+      .finally(() => setLoading(false))
+  }
 
   useEffect(() => {
-    const defaults = [
-      { id: 'faq_1', category: 'KEANGGOTAAN', q: 'Bagaimana cara mendaftar menjadi anggota LAPRA 08?', a: 'Pendaftaran anggota LAPRA 08 dilakukan melalui DPC setempat (Kabupaten/Kota). Anda dapat mengunjungi sekretariat DPC di wilayah Anda, mengisi formulir pendaftaran, melampirkan fotokopi KTP dan pas foto, serta membayar iuran pendaftaran. Setelah diverifikasi, Anda akan menerima KTA (Kartu Tanda Anggota) digital dengan format unik LAPRA08.[NEGARA].[PROVINSI].[KAB/KOTA].[TAHUN].[URUT].' },
-      { id: 'faq_2', category: 'KEANGGOTAAN', q: 'Apakah anggota luar negeri bisa mendaftar?', a: 'Ya. LAPRA 08 memiliki DPD di 5 negara (Amerika Serikat, Cina, Malaysia, Arab Saudi, dan Australia). Warga Indonesia yang berdomisili di negara tersebut dapat mendaftar melalui DPD setempat. Format KTA internasional menggunakan kode negara setempat, misalnya LAPRA08.US.00.LAX.26.00001 untuk anggota di Los Angeles.' },
-      { id: 'faq_3', category: 'KEANGGOTAAN', q: 'Berapa iuran anggota LAPRA 08?', a: 'Iuran anggota dibagi menjadi beberapa kategori: (1) Iuran bulanan anggota biasa Rp 25.000/bulan; (2) Iuran bulanan pengurus Rp 50.000/bulan; (3) Iuran tahunan dapat dibayar di muka dengan diskon. Iuran dapat dibayarkan melalui transfer ke rekening resmi DPC atau via QRIS. Khusus anggota luar negeri, iuran setara USD 5/bulan.' },
-      { id: 'faq_4', category: 'STRUKTUR', q: 'Apa saja tingkatan struktur pengurus LAPRA 08?', a: 'Struktur LAPRA 08 terdiri dari 5 tingkat: (1) DPN (Dewan Pimpinan Pusat) di tingkat nasional; (2) Koorwil (Koordinator Wilayah) yang membawahi 7 wilayah Indonesia + 1 LN; (3) DPD (Dewan Pimpinan Daerah) di tingkat provinsi/negara LN; (4) Koor DPD (Koordinator Region) yang membawahi kelompok DPC; (5) DPC (Dewan Pimpinan Cabang) di tingkat kabupaten/kota. Total ada 38 provinsi + IKN + 5 negara LN.' },
-      { id: 'faq_5', category: 'STRUKTUR', q: 'Siapa Ketua Umum DPN LAPRA 08 periode 2024-2029?', a: 'Pengurus DPN LAPRA 08 periode 2024-2029 dipimpin oleh Dr. (HC) Hashim S. Djojohadikusumo sebagai Ketua Dewan Pembina, dan Devi Taurisa, S.H., M.H., C.L.D. sebagai Ketua Umum DPN. Sekretaris Jenderal dijabat oleh Brigjen. Pol. (Purn) Dr. R. Nurhadi, S.I.K., M.Si., CHRMP, dan Bendahara Umum adalah Timmy Rorimpandey, S.E., M.M. Pembaruan pengurus inti dilakukan pada Maret 2026.' },
-      { id: 'faq_6', category: 'PROGRAM', q: 'Apa program unggulan LAPRA 08?', a: 'Program unggulan LAPRA 08 meliputi: (1) Sosialisasi Asta Cita Presiden Prabowo ke seluruh DPD di 38 provinsi; (2) Penguatan kader DPC se-Indonesia melalui pelatihan rutin; (3) Aksi sosial seperti bakti sosial, donor darah, dan distribusi sembako; (4) Kemitraan dengan ummat, ormas Islam, kementerian, dan BUMN untuk program CSR; (5) Digitalisasi sistem informasi internal untuk efisiensi administrasi.' },
-      { id: 'faq_7', category: 'PROGRAM', q: 'Bagaimana cara mengajukan proposal kemitraan dengan LAPRA 08?', a: 'Proposal kemitraan dapat diajukan melalui email resmi sekretariat@lapra08.id dengan subject "Proposal Kemitraan - [Nama Institusi]". Lampirkan profil institusi, latar belakang kemitraan, lingkup kerja sama, dan expected outcomes. Tim Sekretariat DPN akan melakukan review dalam 14 hari kerja dan menghubungi Anda untuk diskusi lebih lanjut jika proposal memenuhi kriteria.' },
-      { id: 'faq_8', category: 'LAYANAN', q: 'Bagaimana cara mengajukan pengaduan atau aspirasi?', a: 'Pengaduan dan aspirasi dapat disampaikan melalui: (1) Formulir "Hubungi Kami" di menu Kontak & Sekretariat; (2) Pusat Pengaduan & Aspirasi di menu Layanan & Advokasi; (3) WhatsApp resmi DPC setempat; (4) Surat resmi ke sekretariat DPN. Setiap pengaduan akan ditindaklanjuti dalam 1x24 jam (kasus normal) atau 2 jam (kasus urgent). Identitas pelapor dilindungi sesuai kebijakan privasi.' },
-      { id: 'faq_9', category: 'LAYANAN', q: 'Apakah LAPRA 08 menyediakan bantuan hukum untuk anggota?', a: 'Ya, LAPRA 08 menyediakan layanan bantuan hukum untuk anggota yang menghadapi kasus hukum terkait aktivitas keorganisasian. Layanan ini diakses melalui menu "Bantuan Hukum" di Layanan & Advokasi. Tim advokasi DPN akan melakukan assessment kasus, memberikan konsultasi awal gratis, dan jika diperlukan, merujuk ke pengacara mitra dengan tarif khusus untuk anggota.' },
-      { id: 'faq_10', category: 'LAINNYA', q: 'Bagaimana cara mendapatkan KTA digital?', a: 'KTA digital diterbitkan secara otomatis setelah pendaftaran anggota diverifikasi oleh pengurus DPC. KTA dapat diakses melalui menu "Layanan KTA" di portal LAPRA 08. Format KTA: LAPRA08.[NEGARA].[PROVINSI].[KAB/KOTA].[TAHUN].[URUT]. KTA digital berisi QR code untuk verifikasi keaslian, foto anggota, dan data keanggotaan. KTA fisik dapat dicetak di DPC dengan biaya Rp 25.000.' },
-      { id: 'faq_11', category: 'LAINNYA', q: 'Apakah portal LAPRA 08 bisa diakses publik?', a: 'Portal LAPRA 08 bersifat semi-publik. Beranda, Profil, Pusat Media (berita & galeri), dan Program & Kegiatan dapat diakses publik. Sedangkan menu operasional seperti Dashboard, Pusat Data Organisasi, Logistik, Komunikasi, Keuangan, dan User hanya dapat diakses oleh pengurus yang telah login dengan role yang sesuai (SUPERADMIN, ADMIN_DPN, ADMIN_KOORWIL, ADMIN_DPD, ADMIN_KOOR_DPD, ADMIN_DPC). Isolasi data otomatis diterapkan sesuai hierarki wilayah.' },
-      { id: 'faq_12', category: 'LAINNYA', q: 'Bagaimana cara melaporkan kendala teknis portal?', a: 'Kendala teknis dapat dilaporkan melalui menu "Pusat Bantuan & Tiket" di Layanan & Advokasi. Pilih kategori "Bug/Error Sistem" atau "Permintaan Fitur", sertakan tangkapan layar dan langkah reproduksi jika memungkinkan. Tim IT DPN akan merespons dalam 4 jam kerja. Untuk kendala kritis (sistem tidak bisa diakses), hubungi hotline IT DPN di +62 811-9090-08 (24/7).' },
-    ]
-    setFaqs(defaults)
-    setLoading(false)
+    reload()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // === Handler: Simpan FAQ (create or update) — Super Admin only ===
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!form.q.trim() || !form.a.trim()) {
+      addToast('Pertanyaan dan jawaban wajib diisi', 'error')
+      return
+    }
+    setSaving(true)
+    try {
+      const id = form.id || `faq_${Date.now()}`
+      await api('/api/faq', {
+        method: 'POST',
+        body: JSON.stringify({ id, category: form.category, q: form.q, a: form.a }),
+      })
+      addToast(editDialog?.isNew ? 'FAQ baru ditambahkan' : 'FAQ diperbarui', 'success')
+      setEditDialog(null)
+      setForm({ id: '', category: 'KEANGGOTAAN', q: '', a: '' })
+      reload()
+    } catch (e: any) {
+      addToast(e.message, 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // === Handler: Hapus FAQ — Super Admin only ===
+  const handleDelete = async () => {
+    if (!deleteConfirm) return
+    try {
+      await api(`/api/faq?id=${deleteConfirm.id}`, { method: 'DELETE' })
+      addToast('FAQ dihapus', 'success')
+      setDeleteConfirm(null)
+      reload()
+    } catch (e: any) {
+      addToast(e.message, 'error')
+    }
+  }
 
   if (loading) return <LoadingState />
 
@@ -4388,8 +4454,20 @@ function FaqManager() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base"><HelpCircle className="w-4 h-4 text-emerald-600" /> FAQ - Pertanyaan yang Sering Diajukan ({filtered.length})</CardTitle>
-        <CardDescription>Temukan jawaban cepat untuk pertanyaan umum tentang LAPRA 08</CardDescription>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <HelpCircle className="w-4 h-4 text-emerald-600" /> FAQ - Pertanyaan yang Sering Diajukan ({filtered.length})
+          {/* === Tombol "Tambah FAQ" — Super Admin only === */}
+          {isSuperAdmin && (
+            <Button size="sm" className="ml-auto bg-emerald-600 hover:bg-emerald-700 text-white"
+              onClick={() => { setEditDialog({ isNew: true }); setForm({ id: '', category: 'KEANGGOTAAN', q: '', a: '' }) }}>
+              <Plus className="w-4 h-4 mr-1" /> Tambah FAQ
+            </Button>
+          )}
+        </CardTitle>
+        <CardDescription>
+          Temukan jawaban cepat untuk pertanyaan umum tentang LAPRA 08
+          {isSuperAdmin && <span className="block text-xs text-emerald-700 mt-1 font-medium">🔓 Mode Super Admin — Anda dapat menambah, mengedit, dan menghapus FAQ</span>}
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="relative max-w-md">
@@ -4417,19 +4495,40 @@ function FaqManager() {
             const isOpen = openItem === faq.id
             return (
               <div key={faq.id} className="rounded-xl border bg-white overflow-hidden">
-                <button onClick={() => setOpenItem(isOpen ? null : faq.id)} className="w-full p-4 flex items-start gap-3 hover:bg-accent/50 transition-colors text-left">
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${cat.color}`}>
-                    <CatIcon className="w-4 h-4" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-sm">{faq.q}</div>
-                    <Badge variant="outline" className={`text-[13px] mt-1 ${cat.color}`}>{cat.label}</Badge>
-                  </div>
-                  <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform shrink-0 mt-1 ${isOpen ? 'rotate-90' : ''}`} />
-                </button>
+                <div className="flex items-stretch">
+                  <button onClick={() => setOpenItem(isOpen ? null : faq.id)} className="flex-1 p-4 flex items-start gap-3 hover:bg-accent/50 transition-colors text-left">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${cat.color}`}>
+                      <CatIcon className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-sm">{faq.q}</div>
+                      <Badge variant="outline" className={`text-[13px] mt-1 ${cat.color}`}>{cat.label}</Badge>
+                    </div>
+                    <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform shrink-0 mt-1 ${isOpen ? 'rotate-90' : ''}`} />
+                  </button>
+                  {/* === Tombol Edit/Hapus — Super Admin only === */}
+                  {isSuperAdmin && (
+                    <div className="flex flex-col gap-1 p-2 border-l bg-slate-50/50 justify-center">
+                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-blue-600 hover:bg-blue-50"
+                        onClick={() => {
+                          setEditDialog({ faq })
+                          setForm({ id: faq.id, category: faq.category, q: faq.q, a: faq.a })
+                          if (!isOpen) setOpenItem(faq.id) // auto-expand saat edit
+                        }}
+                        title="Edit FAQ">
+                        <Edit className="w-3.5 h-3.5" />
+                      </Button>
+                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-600 hover:bg-red-50"
+                        onClick={() => setDeleteConfirm(faq)}
+                        title="Hapus FAQ">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
                 {isOpen && (
                   <div className="px-4 pb-4 pt-0 text-sm text-muted-foreground leading-relaxed border-t bg-slate-50/50">
-                    <p className="mt-3">{faq.a}</p>
+                    <p className="mt-3 whitespace-pre-wrap">{faq.a}</p>
                   </div>
                 )}
               </div>
@@ -4438,6 +4537,70 @@ function FaqManager() {
         </div>
         {filtered.length === 0 && <EmptyState icon={HelpCircle} title="Tidak ada FAQ cocok" description="Coba kata kunci lain atau hubungi sekretariat langsung." />}
       </CardContent>
+
+      {/* === Dialog Tambah/Edit FAQ — Super Admin only === */}
+      <Dialog open={!!editDialog} onOpenChange={(o) => { if (!o) { setEditDialog(null); setForm({ id: '', category: 'KEANGGOTAAN', q: '', a: '' }) } }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editDialog?.isNew ? 'Tambah FAQ Baru' : 'Edit FAQ'}</DialogTitle>
+            <DialogDescription>
+              {editDialog?.isNew
+                ? 'Tambah pertanyaan dan jawaban baru ke daftar FAQ'
+                : 'Edit pertanyaan atau jawaban FAQ yang dipilih'}
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSave} className="space-y-4">
+            <div className="space-y-2">
+              <Label>Kategori</Label>
+              <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="KEANGGOTAAN">Keanggotaan</SelectItem>
+                  <SelectItem value="STRUKTUR">Struktur Organisasi</SelectItem>
+                  <SelectItem value="PROGRAM">Program & Kegiatan</SelectItem>
+                  <SelectItem value="LAYANAN">Layanan & Advokasi</SelectItem>
+                  <SelectItem value="LAINNYA">Lainnya</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Pertanyaan *</Label>
+              <Input value={form.q} onChange={(e) => setForm({ ...form, q: e.target.value })} required placeholder="Contoh: Bagaimana cara mendaftar menjadi anggota LAPRA 08?" />
+            </div>
+            <div className="space-y-2">
+              <Label>Jawaban *</Label>
+              <Textarea value={form.a} onChange={(e) => setForm({ ...form, a: e.target.value })} required rows={6}
+                placeholder="Tulis jawaban lengkap dan informatif. Mendukung multiline (tekan Enter untuk baris baru)." />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => { setEditDialog(null); setForm({ id: '', category: 'KEANGGOTAAN', q: '', a: '' }) }}>Batal</Button>
+              <Button type="submit" disabled={saving} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                {saving ? 'Menyimpan...' : editDialog?.isNew ? 'Tambah FAQ' : 'Simpan Perubahan'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* === Dialog Konfirmasi Hapus FAQ === */}
+      <AlertDialog open={!!deleteConfirm} onOpenChange={(o) => !o && setDeleteConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus FAQ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Yakin ingin menghapus pertanyaan berikut?
+              <br /><br />
+              <strong>"{deleteConfirm?.q}"</strong>
+              <br /><br />
+              <span className="text-xs text-muted-foreground">Tindakan ini tidak dapat dibatalkan.</span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">Hapus</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   )
 }
