@@ -420,7 +420,7 @@ function ProgramLevelView({
 
       {/* Add/Edit Dialog */}
       <Dialog open={addOpen} onOpenChange={(o) => { setAddOpen(o); if (!o) setEditItem(null) }}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editItem ? 'Edit' : 'Tambah'} Program {level}</DialogTitle>
             <DialogDescription>{territoryName}</DialogDescription>
@@ -443,6 +443,99 @@ function ProgramLevelView({
                 </SelectContent>
               </Select>
             </div>
+
+            {/* === Preview PDF Program Kerja (jika dari upload PDF) === */}
+            {editItem?.pdfId && (
+              <div className="space-y-2">
+                <Label>Dokumen Program Kerja (PDF)</Label>
+                <div className="flex items-center gap-3 p-3 rounded-lg border bg-blue-50">
+                  <FileCheck className="w-8 h-8 text-blue-500 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium">PDF Program Kerja</div>
+                    <a href={`/api/program-kerja/${editItem.pdfId}/view`} target="_blank" rel="noopener noreferrer"
+                       className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-1">
+                      <Eye className="w-3 h-3" /> Buka PDF di tab baru ↗
+                    </a>
+                  </div>
+                </div>
+                {/* Inline PDF Preview */}
+                <iframe src={`/api/program-kerja/${editItem.pdfId}/view`} className="w-full h-96 rounded-lg border" title="Preview PDF" />
+              </div>
+            )}
+
+            {/* === Upload Bukti Pelaksanaan === */}
+            {editItem && (
+              <div className="space-y-2">
+                <Label>Bukti Pelaksanaan (Foto/Dokumen)</Label>
+                {(() => {
+                  const evFiles = editItem.evidenceFiles ? (typeof editItem.evidenceFiles === 'string' ? JSON.parse(editItem.evidenceFiles) : editItem.evidenceFiles) : []
+                  return (
+                    <div className="space-y-2">
+                      {/* Upload button */}
+                      {isSuperAdmin && (
+                        <div className="border-2 border-dashed rounded-lg p-3 text-center">
+                          <input type="file" accept="image/jpeg,image/png,application/pdf,.doc,.docx" className="hidden" id="edit-evidence-upload"
+                            onChange={async (e) => {
+                              const f = e.target.files?.[0]
+                              if (!f) return
+                              if (f.size > 5 * 1024 * 1024) { addToast('Maksimal 5MB', 'error'); return }
+                              try {
+                                const buf = Buffer.from(await f.arrayBuffer())
+                                const ext = f.name.toLowerCase().match(/\.([^.]+)$/)?.[1] || 'jpg'
+                                const mime = ext === 'pdf' ? 'application/pdf' : ext === 'png' ? 'image/png' : 'image/jpeg'
+                                const dataUrl = `data:${mime};base64,${buf.toString('base64')}`
+                                const newEv = [...evFiles, { id: `ev_${Date.now()}`, fileName: f.name, fileSize: f.size, fileType: ext, dataUrl, uploadedAt: new Date().toISOString() }]
+                                const updateData: any = { evidenceFiles: JSON.stringify(newEv) }
+                                if ((editItem.status || 'DIRENCANAKAN') === 'DIRENCANAKAN') updateData.status = 'BERJALAN'
+                                await api('/api/gallery', { method: 'PUT', body: JSON.stringify({ id: editItem.id, ...updateData }) })
+                                addToast('Bukti pelaksanaan diupload', 'success')
+                                reload()
+                                setEditItem({ ...editItem, evidenceFiles: JSON.stringify(newEv), status: updateData.status || editItem.status })
+                              } catch (err: any) { addToast(err.message, 'error') }
+                              e.target.value = ''
+                            }} />
+                          <label htmlFor="edit-evidence-upload" className="cursor-pointer inline-flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded hover:bg-emerald-100">
+                            <Camera className="w-4 h-4" /> Upload Bukti Pelaksanaan
+                          </label>
+                          <p className="text-xs text-muted-foreground mt-1">Foto (JPG/PNG) atau Dokumen (PDF/DOC), max 5MB</p>
+                        </div>
+                      )}
+
+                      {/* List existing evidence */}
+                      {evFiles.length > 0 && (
+                        <div className="grid grid-cols-3 gap-2">
+                          {evFiles.map((ev: any, i: number) => (
+                            <div key={ev.id || i} className="relative group">
+                              {ev.fileType === 'jpg' || ev.fileType === 'jpeg' || ev.fileType === 'png' ? (
+                                <img src={ev.dataUrl} alt={ev.fileName} className="w-full h-24 rounded-lg object-cover border" />
+                              ) : (
+                                <a href={ev.dataUrl} target="_blank" rel="noopener noreferrer" className="w-full h-24 rounded-lg bg-blue-50 border flex items-center justify-center">
+                                  <FileCheck className="w-8 h-8 text-blue-500" />
+                                </a>
+                              )}
+                              <div className="text-[11px] text-muted-foreground mt-1 truncate">{ev.fileName}</div>
+                              {isSuperAdmin && (
+                                <button type="button" className="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-600 text-white flex items-center justify-center opacity-0 group-hover:opacity-100"
+                                  onClick={async () => {
+                                    const filtered = evFiles.filter((e: any) => e.id !== ev.id)
+                                    await api('/api/gallery', { method: 'PUT', body: JSON.stringify({ id: editItem.id, evidenceFiles: JSON.stringify(filtered) }) })
+                                    addToast('Bukti dihapus', 'success')
+                                    reload()
+                                    setEditItem({ ...editItem, evidenceFiles: JSON.stringify(filtered) })
+                                  }}>
+                                  <X className="w-3 h-3" />
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
+              </div>
+            )}
+
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => { setAddOpen(false); setEditItem(null) }}>Batal</Button>
               <Button type="submit" disabled={saving} className={`bg-gradient-to-r ${accentColor} text-white`}>{saving ? 'Menyimpan...' : 'Simpan'}</Button>
