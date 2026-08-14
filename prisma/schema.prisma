@@ -189,7 +189,9 @@ model OrgPosition {
   territory       Territory @relation(fields: [territoryId], references: [id])
   phone           String?
   email           String?
-  photoUrl        String?
+  photoUrl        String?  // KTA photo (base64 data URL or URL)
+  ktaPhotoUrl     String?  // KTA (Kartu Tanda Anggota) photo — base64 data URL
+  biodataUrl      String?  // Biodata document (PDF/Image) — base64 data URL
   idCardUrl       String?  // KTP / Paspor / identitas pengurus
   startDate       DateTime?
   endDate         DateTime?
@@ -197,7 +199,7 @@ model OrgPosition {
   approvalStatus  String   @default("APPROVED") // PENDING | APPROVED | REJECTED
   approvedById    String?
   approvedAt      DateTime?
-  source          String   @default("MANUAL") // MANUAL | OCR_EXTRACT
+  source          String   @default("MANUAL") // MANUAL | OCR_EXTRACT | TEMPLATE
   order           Int      @default(0)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt

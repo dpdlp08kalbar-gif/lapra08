@@ -49,6 +49,7 @@ interface OrgPosition {
   id: string; fullName: string; positionName: string; level: string
   territoryId: string; territory: { id: string; name: string; code: string }
   phone: string | null; email: string | null; photoUrl: string | null
+  ktaPhotoUrl: string | null; biodataUrl: string | null
   startDate: string | null; isActive: boolean; order: number
 }
 
@@ -618,37 +619,98 @@ function PengurusSection({ level, territoryId, territoryFilter }: {
     grouped[cat].push(p)
   }
 
+  // Helper: handle KTA photo upload (base64)
+  const handleKtaUpload = async (positionId: string, file: File) => {
+    if (!file.type.startsWith('image/')) { addToast('File KTA harus berupa gambar (JPG/PNG)', 'error'); return }
+    if (file.size > 2 * 1024 * 1024) { addToast('Ukuran KTA maksimal 2MB', 'error'); return }
+    try {
+      const buf = Buffer.from(await file.arrayBuffer())
+      const mime = file.type || 'image/jpeg'
+      const dataUrl = `data:${mime};base64,${buf.toString('base64')}`
+      await api(`/api/organization/${positionId}`, { method: 'PUT', body: JSON.stringify({ ktaPhotoUrl: dataUrl }) })
+      addToast('Foto KTA berhasil diupload', 'success')
+      loadData()
+    } catch (e: any) { addToast(e.message, 'error') }
+  }
+
+  // Helper: handle Biodata upload (base64)
+  const handleBiodataUpload = async (positionId: string, file: File) => {
+    const allowed = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg']
+    if (!allowed.includes(file.type) && !file.name.match(/\.(pdf|jpg|jpeg|png)$/i)) {
+      addToast('File biodata harus PDF/JPG/PNG', 'error'); return
+    }
+    if (file.size > 5 * 1024 * 1024) { addToast('Ukuran biodata maksimal 5MB', 'error'); return }
+    try {
+      const buf = Buffer.from(await file.arrayBuffer())
+      const mime = file.type || (file.name.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg')
+      const dataUrl = `data:${mime};base64,${buf.toString('base64')}`
+      await api(`/api/organization/${positionId}`, { method: 'PUT', body: JSON.stringify({ biodataUrl: dataUrl }) })
+      addToast('Biodata berhasil diupload', 'success')
+      loadData()
+    } catch (e: any) { addToast(e.message, 'error') }
+  }
+
   // PengurusCard component
   const PengurusCard = ({ p }: { p: OrgPosition }) => (
-    <div className="group relative flex items-start gap-3 p-3 rounded-lg border hover:shadow-md transition-all bg-white">
-      <Avatar className="w-11 h-11 shrink-0">
-        <AvatarFallback className="bg-gradient-to-br from-orange-500 to-red-600 text-white text-sm font-bold">
-          {p.fullName.charAt(0).toUpperCase()}
-        </AvatarFallback>
-      </Avatar>
-      <div className="flex-1 min-w-0">
-        <div className="font-semibold text-sm truncate">{p.fullName}</div>
-        <div className="text-xs text-orange-600 font-medium mt-0.5">{p.positionName}</div>
-        {p.phone && (
-          <a href={`https://wa.me/${p.phone.replace(/\D/g, '').replace(/^0/, '62')}`}
-             target="_blank" rel="noopener noreferrer"
-             className="flex items-center gap-1 mt-1 text-xs text-blue-600 hover:underline">
-            <Phone className="w-3 h-3" /> {p.phone}
-          </a>
+    <div className="group relative flex flex-col p-3 rounded-lg border hover:shadow-md transition-all bg-white">
+      <div className="flex items-start gap-3">
+        {/* Avatar: KTA photo if available, else initial */}
+        <div className="relative shrink-0">
+          {p.ktaPhotoUrl ? (
+            <img src={p.ktaPhotoUrl} alt={p.fullName} className="w-11 h-11 rounded-full object-cover border-2 border-orange-300" />
+          ) : (
+            <div className="w-11 h-11 rounded-full bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center text-white text-sm font-bold">
+              {p.fullName !== '-' ? p.fullName.charAt(0).toUpperCase() : '?'}
+            </div>
+          )}
+          {canManage && (
+            <label className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-blue-600 hover:bg-blue-700 flex items-center justify-center cursor-pointer" title="Upload KTA">
+              <Upload className="w-3 h-3 text-white" />
+              <input type="file" accept="image/jpeg,image/png" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleKtaUpload(p.id, f); e.target.value = '' }} />
+            </label>
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="font-semibold text-sm truncate">{p.fullName}</div>
+          <div className="text-xs text-orange-600 font-medium mt-0.5">{p.positionName}</div>
+          {p.phone && (
+            <a href={`https://wa.me/${p.phone.replace(/\D/g, '').replace(/^0/, '62')}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 mt-1 text-xs text-blue-600 hover:underline">
+              <Phone className="w-3 h-3" /> {p.phone}
+            </a>
+          )}
+          {p.email && p.email !== '-' && (
+            <div className="flex items-center gap-1 mt-0.5 text-xs text-muted-foreground">
+              <Mail className="w-3 h-3" /> {p.email}
+            </div>
+          )}
+          {/* Upload Biodata button */}
+          {canManage && (
+            <label className="inline-flex items-center gap-1 mt-1.5 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded hover:bg-emerald-100 cursor-pointer" title="Upload Biodata (PDF/JPG/PNG, max 5MB)">
+              <FileText className="w-3 h-3" />
+              {p.biodataUrl ? 'Lihat Biodata' : 'Upload Biodata'}
+              {p.biodataUrl && (
+                <a href={p.biodataUrl} target="_blank" rel="noopener noreferrer" className="ml-1 text-blue-600 hover:underline" onClick={(e) => e.stopPropagation()}>↗</a>
+              )}
+              <input type="file" accept=".pdf,image/jpeg,image/png" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleBiodataUpload(p.id, f); e.target.value = '' }} />
+            </label>
+          )}
+          {p.biodataUrl && !canManage && (
+            <a href={p.biodataUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 mt-1.5 text-xs text-emerald-700 hover:underline">
+              <FileText className="w-3 h-3" /> Lihat Biodata
+            </a>
+          )}
+        </div>
+        {canManage && (
+          <div className="flex gap-1 shrink-0">
+            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-blue-600 hover:bg-blue-50" onClick={() => setEditPos(p)} title="Edit Jabatan & Data">
+              <Edit className="w-3.5 h-3.5" />
+            </Button>
+            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-600 hover:bg-red-50" onClick={() => setDeletePos(p)} title="Hapus Pengurus">
+              <Trash2 className="w-3.5 h-3.5" />
+            </Button>
+          </div>
         )}
       </div>
-      {canManage && (
-        <div className="flex gap-1 shrink-0">
-          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-blue-600 hover:bg-blue-50"
-            onClick={() => setEditPos(p)} title="Edit Jabatan & Data">
-            <Edit className="w-3.5 h-3.5" />
-          </Button>
-          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-600 hover:bg-red-50"
-            onClick={() => setDeletePos(p)} title="Hapus Pengurus">
-            <Trash2 className="w-3.5 h-3.5" />
-          </Button>
-        </div>
-      )}
     </div>
   )
 
@@ -689,11 +751,23 @@ function PengurusSection({ level, territoryId, territoryFilter }: {
                       {members.map((p) => (
                         <div key={p.id} className="group relative p-4 rounded-xl border-2 border-orange-200 bg-gradient-to-br from-orange-50 to-red-50 hover:shadow-lg transition-all">
                           <div className="flex items-center gap-3">
-                            <Avatar className="w-14 h-14 shrink-0">
-                              <AvatarFallback className="bg-gradient-to-br from-red-500 to-orange-600 text-white text-lg font-bold">
-                                {p.fullName.charAt(0).toUpperCase()}
-                              </AvatarFallback>
-                            </Avatar>
+                            <div className="relative shrink-0">
+                              {p.ktaPhotoUrl ? (
+                                <img src={p.ktaPhotoUrl} alt={p.fullName} className="w-14 h-14 rounded-xl object-cover border-2 border-orange-300" />
+                              ) : (
+                                <Avatar className="w-14 h-14 shrink-0">
+                                  <AvatarFallback className="bg-gradient-to-br from-red-500 to-orange-600 text-white text-lg font-bold">
+                                    {p.fullName !== '-' ? p.fullName.charAt(0).toUpperCase() : '?'}
+                                  </AvatarFallback>
+                                </Avatar>
+                              )}
+                              {canManage && (
+                                <label className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-blue-600 hover:bg-blue-700 flex items-center justify-center cursor-pointer" title="Upload KTA">
+                                  <Upload className="w-3 h-3 text-white" />
+                                  <input type="file" accept="image/jpeg,image/png" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleKtaUpload(p.id, f); e.target.value = '' }} />
+                                </label>
+                              )}
+                            </div>
                             <div className="flex-1 min-w-0">
                               <div className="font-bold text-sm truncate">{p.fullName}</div>
                               <div className="text-xs text-orange-700 font-semibold mt-0.5">{p.positionName}</div>
@@ -703,6 +777,19 @@ function PengurusSection({ level, territoryId, territoryFilter }: {
                                    className="flex items-center gap-1 mt-1 text-xs text-blue-600 hover:underline">
                                   <Phone className="w-3 h-3" /> {p.phone}
                                 </a>
+                              )}
+                              {p.email && p.email !== '-' && (
+                                <div className="flex items-center gap-1 mt-0.5 text-xs text-muted-foreground">
+                                  <Mail className="w-3 h-3" /> {p.email}
+                                </div>
+                              )}
+                              {canManage && (
+                                <label className="inline-flex items-center gap-1 mt-1.5 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded hover:bg-emerald-100 cursor-pointer" title="Upload Biodata">
+                                  <FileText className="w-3 h-3" />
+                                  {p.biodataUrl ? 'Lihat Biodata' : 'Upload Biodata'}
+                                  {p.biodataUrl && (<a href={p.biodataUrl} target="_blank" rel="noopener noreferrer" className="ml-1 text-blue-600 hover:underline" onClick={(e) => e.stopPropagation()}>↗</a>)}
+                                  <input type="file" accept=".pdf,image/jpeg,image/png" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleBiodataUpload(p.id, f); e.target.value = '' }} />
+                                </label>
                               )}
                             </div>
                           </div>
@@ -1469,11 +1556,21 @@ function EditPositionDialog({ position, onOpenChange, onSuccess }: any) {
   const [form, setForm] = useState<any>({})
   const [loading, setLoading] = useState(false)
   const [useCustomPosition, setUseCustomPosition] = useState(false)
+  const [ktaFile, setKtaFile] = useState<File | null>(null)
+  const [biodataFile, setBiodataFile] = useState<File | null>(null)
 
   useEffect(() => {
     if (position) {
-      setForm({ fullName: position.fullName, positionName: position.positionName, phone: position.phone || '', email: position.email || '', isActive: position.isActive })
+      setForm({
+        fullName: position.fullName, positionName: position.positionName,
+        phone: position.phone || '', email: position.email || '',
+        ktaPhotoUrl: position.ktaPhotoUrl || null,
+        biodataUrl: position.biodataUrl || null,
+        isActive: position.isActive,
+      })
       setUseCustomPosition(false)
+      setKtaFile(null)
+      setBiodataFile(null)
     }
   }, [position])
 
@@ -1481,8 +1578,24 @@ function EditPositionDialog({ position, onOpenChange, onSuccess }: any) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault(); setLoading(true)
-    try { await api(`/api/organization/${position.id}`, { method: 'PUT', body: JSON.stringify(form) }); onSuccess() }
-    catch (e: any) { addToast(e.message, 'error') } finally { setLoading(false) }
+    try {
+      const payload = { ...form }
+      // Upload KTA
+      if (ktaFile) {
+        const buf = Buffer.from(await ktaFile.arrayBuffer())
+        const mime = ktaFile.type || 'image/jpeg'
+        payload.ktaPhotoUrl = `data:${mime};base64,${buf.toString('base64')}`
+      }
+      // Upload Biodata
+      if (biodataFile) {
+        const buf = Buffer.from(await biodataFile.arrayBuffer())
+        const mime = biodataFile.type || (biodataFile.name.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg')
+        payload.biodataUrl = `data:${mime};base64,${buf.toString('base64')}`
+      }
+      await api(`/api/organization/${position.id}`, { method: 'PUT', body: JSON.stringify(payload) })
+      onSuccess()
+    } catch (e: any) { addToast(e.message, 'error') }
+    finally { setLoading(false) }
   }
 
   const COMMON_POSITIONS = [
@@ -1563,6 +1676,40 @@ function EditPositionDialog({ position, onOpenChange, onSuccess }: any) {
                 <SelectItem value="false">Nonaktif</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+          {/* Upload KTA Photo */}
+          <div className="space-y-2">
+            <Label>Foto KTA (Kartu Tanda Anggota)</Label>
+            <div className="flex items-center gap-2">
+              {form.ktaPhotoUrl ? (
+                <img src={form.ktaPhotoUrl} alt="KTA" className="w-16 h-16 rounded-lg object-cover border" />
+              ) : (
+                <div className="w-16 h-16 rounded-lg bg-muted flex items-center justify-center"><FileText className="w-6 h-6 text-muted-foreground" /></div>
+              )}
+              <label className="cursor-pointer text-xs text-blue-600 hover:underline">
+                {form.ktaPhotoUrl ? 'Ganti KTA' : 'Upload KTA'}
+                <input type="file" accept="image/jpeg,image/png" className="hidden" onChange={(e) => { setKtaFile(e.target.files?.[0] || null); if (e.target.files?.[0]) { const r = new FileReader(); r.onload = (ev) => setForm({ ...form, ktaPhotoUrl: ev.target?.result }); r.readAsDataURL(e.target.files[0]); } }} />
+              </label>
+              {ktaFile && <span className="text-xs text-muted-foreground">{ktaFile.name}</span>}
+            </div>
+            <p className="text-xs text-muted-foreground">Format: JPG/PNG, maksimal 2MB</p>
+          </div>
+          {/* Upload Biodata */}
+          <div className="space-y-2">
+            <Label>Biodata (PDF/JPG/PNG)</Label>
+            <div className="flex items-center gap-2">
+              {form.biodataUrl ? (
+                <a href={form.biodataUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">Lihat Biodata ↗</a>
+              ) : (
+                <span className="text-xs text-muted-foreground">Belum ada biodata</span>
+              )}
+              <label className="cursor-pointer text-xs text-emerald-600 hover:underline">
+                {form.biodataUrl ? 'Ganti Biodata' : 'Upload Biodata'}
+                <input type="file" accept=".pdf,image/jpeg,image/png" className="hidden" onChange={(e) => { setBiodataFile(e.target.files?.[0] || null); if (e.target.files?.[0]) { const r = new FileReader(); r.onload = (ev) => setForm({ ...form, biodataUrl: ev.target?.result }); r.readAsDataURL(e.target.files[0]); } }} />
+              </label>
+              {biodataFile && <span className="text-xs text-muted-foreground">{biodataFile.name}</span>}
+            </div>
+            <p className="text-xs text-muted-foreground">Format: PDF/JPG/PNG, maksimal 5MB</p>
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Batal</Button>
