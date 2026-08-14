@@ -2231,3 +2231,45 @@ Stage Summary:
 - Commit 35044c0 sudah di-push ke origin/main
 - Vercel akan auto-deploy dalam 1-2 menit
 - Setelah deploy: hard refresh lapra08.vercel.app
+
+---
+Task ID: LAPRA08-LIHAT-DOKUMEN-HEADER
+Agent: Main Agent (Super Z)
+Task: Audit + tambah tombol "Lihat Dokumen" di HEADER sebelah "Upload PDF"
+
+Work Log:
+- User attach screenshot (pasted_image_1786702182332.png) + klarifikasi:
+  "maksd saya di samping teks upload, anda tambah menu lihat dokumen (untuk membuka file yg terupload berhasil atau tdknya) dokumen yg dimaksd adalah Dokumen Program kerja"
+- VLM analysis screenshot:
+  - Lokasi target: HEADER kanan (action bar atas)
+  - Saat ini: [Upload PDF] [Tambah Program] (admin only)
+  - Target: [Lihat Dokumen] [Upload PDF] [Tambah Program]
+- AUDIT:
+  - Filter items: cari yang punya pdfId → ambil yang pertama (firstPdfId)
+  - Jika firstPdfId ada → render tombol "Lihat Dokumen"
+  - Klik tombol → buka PDF di tab baru via /api/program-kerja/{firstPdfId}/view
+  - Tujuan: user bisa cek apakah file yang di-upload berhasil tersimpan & dapat dibuka
+
+- Implementasi:
+  - Line 310-311: tambah `const firstPdfId = items.find((i: any) => i.pdfId)?.pdfId`
+  - Line 322-345: restructure header action bar:
+    - Wrapper <div className="flex gap-2 flex-wrap"> untuk semua tombol
+    - Tombol "Lihat Dokumen" (conditional firstPdfId) — OUTSIDE isSuperAdmin (visible all users)
+    - Tombol "Upload PDF" + "Tambah Program" — INSIDE isSuperAdmin (admin only)
+  - Tombol "Lihat Dokumen":
+    - Komponen: <Button asChild variant="outline" className="border-blue-300 text-blue-700 hover:bg-blue-50">
+    - Ikon: FileCheck
+    - Label: "Lihat Dokumen"
+    - Link: /api/program-kerja/{firstPdfId}/view (target="_blank")
+    - Title tooltip: "Buka PDF Program Kerja yang sudah ter-upload di level ini"
+
+Stage Summary:
+- File: src/components/menus/program-kerja-menu.tsx
+- Header layout:
+  - Super Admin (sudah upload PDF): [📄 Lihat Dokumen] [📤 Upload PDF] [➕ Tambah Program]
+  - Super Admin (belum upload PDF): [📤 Upload PDF] [➕ Tambah Program]
+  - Member (sudah upload PDF): [📄 Lihat Dokumen]
+  - Member (belum upload PDF): (kosong)
+- Commit a384406 di-push ke origin/main
+- Vercel auto-deploy ~1-2 menit
+- Setelah deploy: hard refresh lapra08.vercel.app
