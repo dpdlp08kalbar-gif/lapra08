@@ -2381,3 +2381,39 @@ Stage Summary:
 - Vercel auto-deploy ~1-2 menit
 - Setelah deploy: hard refresh lapra08.vercel.app
 - Test: upload bukti PDF di salah satu program → klik "Lihat Bukti ↗" → PDF akan download & bisa dibuka
+
+---
+Task ID: LAPRA08-LIHAT-BUKTI-POSITION
+Agent: Main Agent (Super Z)
+Task: Tombol "Lihat Bukti" SELALU tampil di sebelah kanan tombol "Bukti (N)"
+
+Work Log:
+- User attach screenshot + klarifikasi: "hrs ada menu lihat bukti di samping teks 'bukti'"
+- Audit kode:
+  - Tombol "Lihat Bukti ↗" hanya muncul jika evFiles.length > 0 (line 496: `if (evFiles.length === 0) return null`)
+  - Tombol "Bukti (N)" selalu muncul
+  - Jika belum upload bukti → tombol "Lihat Bukti" tidak terlihat sama sekali
+- User mau: tombol "Lihat Bukti" SELALU tampil di sebelah kanan "Bukti (N)" untuk konsistensi UI
+
+SOLUSI:
+- Hapus kondisi `if (evFiles.length === 0) return null`
+- Gabungkan kedua tombol dalam satu IIFE block
+- Urutan: [Bukti (N)] [Lihat Bukti ↗] — selalu berdampingan
+- Tombol "Lihat Bukti":
+  - Jika ada bukti: aktif, klik → handleViewEvidence(latest.dataUrl, latest.fileName)
+  - Jika belum ada bukti: disabled, tooltip "Belum ada bukti terupload. Klik tombol Bukti untuk upload."
+  - Loading: tampil Loader2 spinner
+- Styling:
+  - Bukti: bg-emerald-50 text-emerald-700 border-emerald-200 (hijau)
+  - Lihat Bukti: bg-blue-50 text-blue-700 border-blue-200 (biru)
+  - Disabled: opacity-40 cursor-not-allowed
+
+Stage Summary:
+- File: src/components/menus/program-kerja-menu.tsx
+- Layout per-card sekarang:
+  [📄 Dokumen] [Judul + Desc + Status]
+              [📷 Bukti (N)] [📄 Lihat Bukti ↗]
+  (jika ada PDF)                          (selalu tampil)
+- Commit 397882d di-push ke origin/main
+- Vercel auto-deploy ~1-2 menit
+- Setelah deploy: hard refresh lapra08.vercel.app
