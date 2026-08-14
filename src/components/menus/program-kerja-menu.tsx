@@ -240,17 +240,24 @@ function ProgramLevelView({
   // === Upload Bukti Pelaksanaan ===
   const handleUploadEvidence = async () => {
     if (!evidenceFile || !evidenceDialog?.item) return
-    const max = 5 * 1024 * 1024
-    if (evidenceFile.size > max) { addToast('Ukuran file maksimal 5MB', 'error'); return }
+    // === Format: gambar (JPG/PNG/WebP), PDF, DOC, video (MP4/MOV/WebM) ===
+    // Size limit: 50MB (sebelumnya 5MB — terlalu kecil untuk video)
+    const max = 50 * 1024 * 1024
+    if (evidenceFile.size > max) { addToast('Ukuran file maksimal 50MB', 'error'); return }
 
     setEvidenceLoading(true)
     try {
       const buf = Buffer.from(await evidenceFile.arrayBuffer())
       const ext = evidenceFile.name.toLowerCase().match(/\.([^.]+)$/)?.[1] || 'jpg'
+      // === Deteksi mime type (termasuk WebP + video) ===
       const mime = ext === 'pdf' ? 'application/pdf'
         : ext === 'png' ? 'image/png'
         : ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg'
+        : ext === 'webp' ? 'image/webp'
         : ext === 'doc' || ext === 'docx' ? 'application/msword'
+        : ext === 'mp4' ? 'video/mp4'
+        : ext === 'mov' || ext === 'qt' ? 'video/quicktime'
+        : ext === 'webm' ? 'video/webm'
         : 'application/octet-stream'
       const dataUrl = `data:${mime};base64,${buf.toString('base64')}`
 
@@ -262,6 +269,7 @@ function ProgramLevelView({
         fileName: evidenceFile.name,
         fileSize: evidenceFile.size,
         fileType: ext,
+        mimeType: mime,
         dataUrl,
         uploadedAt: new Date().toISOString(),
       }]
@@ -594,7 +602,7 @@ function ProgramLevelView({
                       {/* Upload button */}
                       {isSuperAdmin && (
                         <div className="border-2 border-dashed rounded-lg p-3 text-center">
-                          <input type="file" accept="image/jpeg,image/png,application/pdf,.doc,.docx" className="hidden" id="edit-evidence-upload"
+                          <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf,.doc,.docx,video/mp4,video/quicktime,video/webm" className="hidden" id="edit-evidence-upload"
                             onChange={async (e) => {
                               const f = e.target.files?.[0]
                               if (!f) return
@@ -768,7 +776,7 @@ function ProgramLevelView({
           {/* Upload area */}
           {isSuperAdmin && (
             <div className="border-2 border-dashed rounded-lg p-4 text-center">
-              <input type="file" accept="image/jpeg,image/png,application/pdf,.doc,.docx" className="hidden" id="evidence-upload"
+              <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf,.doc,.docx,video/mp4,video/quicktime,video/webm" className="hidden" id="evidence-upload"
                 onChange={(e) => setEvidenceFile(e.target.files?.[0] || null)} />
               {evidenceFile ? (
                 <div>
