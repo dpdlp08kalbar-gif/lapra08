@@ -1,0 +1,384 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { api } from '@/lib/api-client'
+import { PageHeader, LoadingState, EmptyState } from '@/components/ui-helpers'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
+import { useToastStore, useAuthStore } from '@/lib/store'
+import { useIsSuperAdmin } from './portal-menus'
+import {
+  Crown, Building2, MapPin, ChevronRight, Plus, Edit, Trash2,
+  Upload, FileCheck, Loader2, CalendarDays, Briefcase,
+} from 'lucide-react'
+
+interface Territory {
+  id: string; name: string; code: string; level: string; parentId: string | null
+}
+
+// ============================================================
+// MAIN: Program Kerja with DPN/DPD/DPC hierarchy
+// ============================================================
+export function ProgramContentManager({ title, description, icon: Icon, category, accentColor }: {
+  title: string; description: string; icon: any; category: string; accentColor: string
+}) {
+  const [view, setView] = useState<'home' | 'dpn' | 'dpd-list' | 'dpd-detail' | 'dpc-list' | 'dpc-detail'>('home')
+  const [territories, setTerritories] = useState<Territory[]>([])
+  const [regencies, setRegencies] = useState<Territory[]>([])
+  const [selectedProv, setSelectedProv] = useState<Territory | null>(null)
+  const [selectedRegency, setSelectedRegency] = useState<Territory | null>(null)
+  const [items, setItems] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    Promise.all([
+      api('/api/territory'),
+      api('/api/gallery'),
+    ]).then(([allTerr, allGallery]) => {
+      setTerritories((allTerr as any[]).filter(t => t.level === 'PROVINCE'))
+      setRegencies((allTerr as any[]).filter(t => t.level === 'REGENCY'))
+      setItems((allGallery as any[]).filter(a => a.category === category))
+    }).catch(() => {}).finally(() => setLoading(false))
+  }, [])
+
+  const isFiltered = (i: any, code: string, level: string) =>
+    i.territoryCode === code || (i.level === level && i.territoryCode === code)
+
+  const dpnItems = items.filter(i => !i.territoryCode || i.territoryCode === 'ID' || i.level === 'DPN')
+  const dpdCount = items.filter(i => i.level === 'DPD' || (i.territoryCode && i.territoryCode.length === 2 && i.territoryCode !== 'ID')).length
+  const dpcCount = items.filter(i => i.level === 'DPC' || (i.territoryCode && i.territoryCode.length >= 4)).length
+
+  // === HOME: 3 Kartu DPN/DPD/DPC ===
+  if (view === 'home') {
+    const cards = [
+      { key: 'dpn', title: 'DPN', subtitle: 'Pusat Nasional', desc: `${title} tingkat DPN`, count: dpnItems.length, icon: Crown, grad: 'from-red-500 to-orange-600' },
+      { key: 'dpd', title: 'DPD', subtitle: 'Provinsi', desc: `${title} DPD se-Indonesia + LN`, count: dpdCount, icon: Building2, grad: 'from-blue-500 to-cyan-600' },
+      { key: 'dpc', title: 'DPC', subtitle: 'Kabupaten/Kota', desc: `${title} DPC per DPD`, count: dpcCount, icon: MapPin, grad: 'from-emerald-500 to-teal-600' },
+    ]
+    return (
+      <div className="space-y-4">
+        <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs text-blue-800">
+          <strong>Hierarki:</strong> DPN (Pusat Nasional) → DPD (Provinsi) → DPC (Kabupaten/Kota).
+          Pilih tingkat untuk melihat {title.toLowerCase()} masing-masing wilayah.
+        </div>
+        <div className="grid gap-4 md:grid-cols-3">
+          {cards.map(c => (
+            <div key={c.key} className="rounded-2xl border-2 hover:shadow-lg transition-all cursor-pointer overflow-hidden"
+              onClick={() => { setView(c.key === 'dpn' ? 'dpn' : c.key === 'dpd' ? 'dpd-list' : 'dpc-list'); setSelectedProv(null); setSelectedRegency(null) }}>
+              <div className={`bg-gradient-to-br ${c.grad} p-5 text-white`}>
+                <c.icon className="w-8 h-8 mb-2" />
+                <div className="text-xl font-bold">{c.title}</div>
+                <div className="text-sm opacity-90">{c.subtitle}</div>
+              </div>
+              <div className="p-4 bg-white">
+                <div className="text-sm text-muted-foreground mb-2">{c.desc}</div>
+                <div className="flex items-center justify-between">
+                  <Badge variant="outline" className="text-[13px]">{c.count} program</Badge>
+                  <span className="text-xs font-medium text-blue-600">Buka <ChevronRight className="w-4 h-4 inline" /></span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  // === DPN VIEW ===
+  if (view === 'dpn') {
+    return <ProgramLevelView title={`${title} — DPN (Pusat Nasional)`} description={description} icon={Icon} accentColor={accentColor} items={dpnItems} loading={loading} category={category} level="DPN" territoryCode="ID" territoryName="DPN (Pusat Nasional)" onBack={() => setView('home')} items_ref={items} setItems={setItems} />
+  }
+
+  // === DPD LIST VIEW ===
+  if (view === 'dpd-list') {
+    return (
+      <div className="space-y-4">
+        <Button variant="ghost" size="sm" onClick={() => setView('home')}><ChevronRight className="w-4 h-4 rotate-180" /> Kembali</Button>
+        <h3 className="text-base font-bold flex items-center gap-2"><Building2 className="w-5 h-5 text-blue-600" /> Pilih DPD (Provinsi)</h3>
+        <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+          {territories.map(prov => {
+            const count = items.filter(i => isFiltered(i, prov.code, 'DPD')).length
+            return (
+              <button key={prov.code} onClick={() => { setSelectedProv(prov); setView('dpd-detail') }}
+                className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent transition-all text-left">
+                <span className="text-sm font-medium">{prov.name}</span>
+                <Badge variant="outline" className="text-[13px]">{count > 0 ? `${count} program` : 'Kosong'}</Badge>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+
+  // === DPD DETAIL VIEW ===
+  if (view === 'dpd-detail' && selectedProv) {
+    const dpdItems = items.filter(i => isFiltered(i, selectedProv.code, 'DPD'))
+    return <ProgramLevelView title={`${title} — DPD ${selectedProv.name}`} description={description} icon={Icon} accentColor={accentColor} items={dpdItems} loading={loading} category={category} level="DPD" territoryCode={selectedProv.code} territoryName={`DPD ${selectedProv.name}`} onBack={() => { setSelectedProv(null); setView('dpd-list') }} items_ref={items} setItems={setItems} />
+  }
+
+  // === DPC LIST VIEW (pilih provinsi dulu) ===
+  if (view === 'dpc-list') {
+    return (
+      <div className="space-y-4">
+        <Button variant="ghost" size="sm" onClick={() => setView('home')}><ChevronRight className="w-4 h-4 rotate-180" /> Kembali</Button>
+        <h3 className="text-base font-bold flex items-center gap-2"><MapPin className="w-5 h-5 text-emerald-600" /> Pilih DPD (Provinsi) untuk lihat DPC</h3>
+        <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+          {territories.map(prov => {
+            const regCount = regencies.filter(r => r.parentId === prov.id).length
+            return (
+              <button key={prov.code} onClick={() => { setSelectedProv(prov); setView('dpc-detail'); setSelectedRegency(null) }}
+                className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent transition-all text-left">
+                <span className="text-sm font-medium">{prov.name}</span>
+                <Badge variant="outline" className="text-[13px]">{regCount > 0 ? `${regCount} DPC` : 'Kosong'}</Badge>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+
+  // === DPC DETAIL VIEW (list kab/kota di provinsi terpilih) ===
+  if (view === 'dpc-detail' && selectedProv) {
+    const provRegencies = regencies.filter(r => r.parentId === selectedProv.id)
+    return (
+      <div className="space-y-4">
+        <Button variant="ghost" size="sm" onClick={() => { setSelectedProv(null); setView('dpc-list') }}><ChevronRight className="w-4 h-4 rotate-180" /> Kembali ke daftar provinsi</Button>
+        <h3 className="text-base font-bold flex items-center gap-2"><MapPin className="w-5 h-5 text-emerald-600" /> DPC di {selectedProv.name}</h3>
+        <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+          {provRegencies.length === 0 ? (
+            <p className="text-sm text-muted-foreground col-span-full">Belum ada DPC terdaftar di provinsi ini.</p>
+          ) : provRegencies.map(reg => {
+            const count = items.filter(i => isFiltered(i, reg.code, 'DPC')).length
+            return (
+              <button key={reg.code} onClick={() => setSelectedRegency(reg)}
+                className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent transition-all text-left">
+                <span className="text-sm font-medium">{reg.name}</span>
+                <Badge variant="outline" className="text-[13px]">{count > 0 ? `${count} program` : 'Kosong'}</Badge>
+              </button>
+            )
+          })}
+        </div>
+        {selectedRegency && (() => {
+          const dpcItems = items.filter(i => isFiltered(i, selectedRegency.code, 'DPC'))
+          return <ProgramLevelView title={`${title} — DPC ${selectedRegency.name}`} description={description} icon={Icon} accentColor={accentColor} items={dpcItems} loading={loading} category={category} level="DPC" territoryCode={selectedRegency.code} territoryName={`DPC ${selectedRegency.name}`} onBack={() => setSelectedRegency(null)} items_ref={items} setItems={setItems} />
+        })()}
+      </div>
+    )
+  }
+
+  return null
+}
+
+// ============================================================
+// PROGRAM LEVEL VIEW — Content for DPN/DPD/DPC
+// ============================================================
+function ProgramLevelView({
+  title, description, icon: Icon, accentColor, items, loading, category, level, territoryCode, territoryName, onBack, items_ref, setItems,
+}: any) {
+  const addToast = useToastStore((s) => s.addToast)
+  const isSuperAdmin = useIsSuperAdmin()
+  const [search, setSearch] = useState('')
+  const [addOpen, setAddOpen] = useState(false)
+  const [editItem, setEditItem] = useState<any>(null)
+  const [deleteItem, setDeleteItem] = useState<any>(null)
+  const [form, setForm] = useState({ title: '', description: '', location: '', date: '', status: 'DIRENCANAKAN' })
+  const [saving, setSaving] = useState(false)
+  const [pdfUploadOpen, setPdfUploadOpen] = useState(false)
+  const [pdfFile, setPdfFile] = useState<File | null>(null)
+  const [ocrLoading, setOcrLoading] = useState(false)
+
+  const reload = () => {
+    api('/api/gallery').then((all: any[]) => {
+      setItems(all.filter(a => a.category === category))
+    }).catch(() => {})
+  }
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const itemData = {
+      id: editItem?.id || `prog_${Date.now()}`,
+      title: form.title, description: form.description, location: form.location,
+      date: form.date, status: form.status, category, level, territoryCode, territoryName,
+    }
+    try {
+      if (editItem) {
+        await api('/api/gallery', { method: 'PUT', body: JSON.stringify({ id: editItem.id, ...itemData }) })
+        addToast('Program diperbarui', 'success')
+      } else {
+        await api('/api/gallery', { method: 'POST', body: JSON.stringify(itemData) })
+        addToast('Program ditambahkan', 'success')
+      }
+      setForm({ title: '', description: '', location: '', date: '', status: 'DIRENCANAKAN' })
+      setAddOpen(false); setEditItem(null); reload()
+    } catch (e: any) { addToast(e.message, 'error') }
+  }
+
+  const handleDelete = async () => {
+    if (!deleteItem) return
+    try {
+      await api(`/api/gallery?id=${deleteItem.id}`, { method: 'DELETE' })
+      addToast('Program dihapus', 'success')
+      setDeleteItem(null); reload()
+    } catch (e: any) { addToast(e.message, 'error') }
+  }
+
+  if (loading) return <LoadingState />
+
+  const filtered = items.filter((i: any) => !search || i.title?.toLowerCase().includes(search.toLowerCase()) || i.description?.toLowerCase().includes(search.toLowerCase()))
+
+  return (
+    <div className="space-y-4">
+      <Button variant="ghost" size="sm" onClick={onBack}><ChevronRight className="w-4 h-4 rotate-180" /> Kembali</Button>
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <h3 className="text-base font-bold flex items-center gap-2">
+          <Icon className={`w-5 h-5 bg-gradient-to-br ${accentColor} bg-clip-text`} />
+          {title}
+          <Badge variant="outline" className="text-[13px]">{filtered.length} program</Badge>
+        </h3>
+        {isSuperAdmin && (
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={() => setPdfUploadOpen(true)}>
+              <Upload className="w-4 h-4 mr-1" /> Upload PDF
+            </Button>
+            <Button size="sm" onClick={() => { setEditItem(null); setForm({ title: '', description: '', location: '', date: '', status: 'DIRENCANAKAN' }); setAddOpen(true) }}
+              className={`bg-gradient-to-r ${accentColor} text-white`}>
+              <Plus className="w-4 h-4 mr-1" /> Tambah Program
+            </Button>
+          </div>
+        )}
+      </div>
+
+      <Input placeholder="Cari program..." value={search} onChange={(e) => setSearch(e.target.value)} className="max-w-md" />
+
+      {filtered.length === 0 ? (
+        <EmptyState icon={Icon} title={`Belum ada program ${level}`} description={`Tambah program ${level} ${territoryName} baru, atau upload PDF program kerja.`} />
+      ) : (
+        <div className="space-y-2">
+          {filtered.map((item: any) => (
+            <div key={item.id} className="group relative rounded-lg border p-4 hover:shadow-md transition-all bg-white">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold text-sm">{item.title}</div>
+                  {item.description && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{item.description}</p>}
+                  <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground flex-wrap">
+                    {item.location && <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {item.location}</span>}
+                    {item.date && <span className="flex items-center gap-1"><CalendarDays className="w-3 h-3" /> {item.date}</span>}
+                    <Badge variant="outline" className="text-[11px]">{item.status || 'DIRENCANAKAN'}</Badge>
+                  </div>
+                </div>
+                {isSuperAdmin && (
+                  <div className="flex gap-1 shrink-0">
+                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-blue-600 hover:bg-blue-50" onClick={() => { setEditItem(item); setForm({ title: item.title || '', description: item.description || '', location: item.location || '', date: item.date || '', status: item.status || 'DIRENCANAKAN' }); setAddOpen(true) }}>
+                      <Edit className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-600 hover:bg-red-50" onClick={() => setDeleteItem(item)}>
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Add/Edit Dialog */}
+      <Dialog open={addOpen} onOpenChange={(o) => { setAddOpen(o); if (!o) setEditItem(null) }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{editItem ? 'Edit' : 'Tambah'} Program {level}</DialogTitle>
+            <DialogDescription>{territoryName}</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSave} className="space-y-3">
+            <div className="space-y-2"><Label>Judul Program *</Label><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required /></div>
+            <div className="space-y-2"><Label>Deskripsi</Label><Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2"><Label>Lokasi</Label><Input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} /></div>
+              <div className="space-y-2"><Label>Tanggal</Label><Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></div>
+            </div>
+            <div className="space-y-2"><Label>Status</Label>
+              <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="DIRENCANAKAN">Direncanakan</SelectItem>
+                  <SelectItem value="BERJALAN">Berjalan</SelectItem>
+                  <SelectItem value="SELESAI">Selesai</SelectItem>
+                  <SelectItem value="DITUNDA">Ditunda</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => { setAddOpen(false); setEditItem(null) }}>Batal</Button>
+              <Button type="submit" disabled={saving} className={`bg-gradient-to-r ${accentColor} text-white`}>{saving ? 'Menyimpan...' : 'Simpan'}</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Dialog */}
+      <AlertDialog open={!!deleteItem} onOpenChange={(o) => !o && setDeleteItem(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus Program?</AlertDialogTitle>
+            <AlertDialogDescription>Yakin hapus <strong>{deleteItem?.title}</strong>?</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">Hapus</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* PDF Upload Dialog */}
+      <Dialog open={pdfUploadOpen} onOpenChange={setPdfUploadOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Upload PDF {title}</DialogTitle>
+            <DialogDescription>{territoryName} — Upload file PDF program kerja. Sistem akan mencoba membaca isi PDF.</DialogDescription>
+          </DialogHeader>
+          <div className="border-2 border-dashed rounded-lg p-4 text-center">
+            <input type="file" accept=".pdf" className="hidden" id="prog-pdf-upload" onChange={(e) => setPdfFile(e.target.files?.[0] || null)} />
+            {pdfFile ? (
+              <div><FileCheck className="w-8 h-8 text-emerald-600 mx-auto mb-1" /><div className="text-sm font-medium">{pdfFile.name}</div><Button type="button" variant="link" size="sm" onClick={() => document.getElementById('prog-pdf-upload')?.click()}>Ganti</Button></div>
+            ) : (
+              <div><Upload className="w-8 h-8 text-gray-400 mx-auto mb-1" /><div className="text-sm">Klik untuk <Button type="button" variant="link" className="p-0 h-auto" onClick={() => document.getElementById('prog-pdf-upload')?.click()}>pilih file PDF</Button></div><div className="text-xs text-muted-foreground">PDF, max 20MB</div></div>
+            )}
+          </div>
+          {ocrLoading && <div className="text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto" /><p className="text-sm mt-1">Memproses PDF...</p></div>}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => { setPdfUploadOpen(false); setPdfFile(null) }}>Batal</Button>
+            <Button type="button" disabled={!pdfFile || ocrLoading} onClick={async () => {
+              if (!pdfFile) return
+              setOcrLoading(true)
+              try {
+                const formData = new FormData()
+                formData.append('file', pdfFile)
+                formData.append('level', level)
+                formData.append('territoryCode', territoryCode)
+                formData.append('territoryName', territoryName)
+                const res = await fetch('/api/program-kerja/upload-pdf', { method: 'POST', headers: { 'x-user-id': useAuthStore.getState().user?.id || '' }, body: formData })
+                const data = await res.json()
+                if (!data.success) throw new Error(data.error)
+                addToast(data.message, 'success')
+                reload()
+                setPdfUploadOpen(false); setPdfFile(null)
+              } catch (e: any) { addToast(e.message, 'error') }
+              finally { setOcrLoading(false) }
+            }} className={`bg-gradient-to-r ${accentColor} text-white`}>
+              {ocrLoading ? 'Memproses...' : 'Upload & Proses'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
