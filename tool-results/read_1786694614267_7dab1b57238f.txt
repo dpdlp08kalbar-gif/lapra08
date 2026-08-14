@@ -1,0 +1,795 @@
+     1→'use client'
+     2→
+     3→import { useState, useEffect } from 'react'
+     4→import { api } from '@/lib/api-client'
+     5→import { PageHeader, LoadingState, EmptyState } from '@/components/ui-helpers'
+     6→import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+     7→import { Badge } from '@/components/ui/badge'
+     8→import { Button } from '@/components/ui/button'
+     9→import { Input } from '@/components/ui/input'
+    10→import { Label } from '@/components/ui/label'
+    11→import { Textarea } from '@/components/ui/textarea'
+    12→import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+    13→import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+    14→import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
+    15→import { useToastStore, useAuthStore } from '@/lib/store'
+    16→import { useIsSuperAdmin } from './portal-menus'
+    17→import {
+    18→  Crown, Building2, MapPin, ChevronRight, Plus, Edit, Trash2,
+    19→  Upload, FileCheck, Loader2, CalendarDays, Briefcase, Camera, Eye, X,
+    20→} from 'lucide-react'
+    21→
+    22→interface Territory {
+    23→  id: string; name: string; code: string; level: string; parentId: string | null
+    24→}
+    25→
+    26→// ============================================================
+    27→// MAIN: Program Kerja with DPN/DPD/DPC hierarchy
+    28→// ============================================================
+    29→export function ProgramContentManager({ title, description, icon: Icon, category, accentColor }: {
+    30→  title: string; description: string; icon: any; category: string; accentColor: string
+    31→}) {
+    32→  const [view, setView] = useState<'home' | 'dpn' | 'dpd-list' | 'dpd-detail' | 'dpc-list' | 'dpc-detail'>('home')
+    33→  const [territories, setTerritories] = useState<Territory[]>([])
+    34→  const [regencies, setRegencies] = useState<Territory[]>([])
+    35→  const [selectedProv, setSelectedProv] = useState<Territory | null>(null)
+    36→  const [selectedRegency, setSelectedRegency] = useState<Territory | null>(null)
+    37→  const [items, setItems] = useState<any[]>([])
+    38→  const [loading, setLoading] = useState(true)
+    39→
+    40→  useEffect(() => {
+    41→    Promise.all([
+    42→      api('/api/territory'),
+    43→      api('/api/gallery'),
+    44→    ]).then(([allTerr, allGallery]) => {
+    45→      setTerritories((allTerr as any[]).filter(t => t.level === 'PROVINCE'))
+    46→      setRegencies((allTerr as any[]).filter(t => t.level === 'REGENCY'))
+    47→      setItems((allGallery as any[]).filter(a => a.category === category))
+    48→    }).catch(() => {}).finally(() => setLoading(false))
+    49→  }, [])
+    50→
+    51→  const isFiltered = (i: any, code: string, level: string) =>
+    52→    i.territoryCode === code || (i.level === level && i.territoryCode === code)
+    53→
+    54→  const dpnItems = items.filter(i => !i.territoryCode || i.territoryCode === 'ID' || i.level === 'DPN')
+    55→  const dpdCount = items.filter(i => i.level === 'DPD' || (i.territoryCode && i.territoryCode.length === 2 && i.territoryCode !== 'ID')).length
+    56→  const dpcCount = items.filter(i => i.level === 'DPC' || (i.territoryCode && i.territoryCode.length >= 4)).length
+    57→
+    58→  // === HOME: 3 Kartu DPN/DPD/DPC ===
+    59→  if (view === 'home') {
+    60→    const cards = [
+    61→      { key: 'dpn', title: 'DPN', subtitle: 'Pusat Nasional', desc: `${title} tingkat DPN`, count: dpnItems.length, icon: Crown, grad: 'from-red-500 to-orange-600' },
+    62→      { key: 'dpd', title: 'DPD', subtitle: 'Provinsi', desc: `${title} DPD se-Indonesia + LN`, count: dpdCount, icon: Building2, grad: 'from-blue-500 to-cyan-600' },
+    63→      { key: 'dpc', title: 'DPC', subtitle: 'Kabupaten/Kota', desc: `${title} DPC per DPD`, count: dpcCount, icon: MapPin, grad: 'from-emerald-500 to-teal-600' },
+    64→    ]
+    65→    return (
+    66→      <div className="space-y-4">
+    67→        <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs text-blue-800">
+    68→          <strong>Hierarki:</strong> DPN (Pusat Nasional) → DPD (Provinsi) → DPC (Kabupaten/Kota).
+    69→          Pilih tingkat untuk melihat {title.toLowerCase()} masing-masing wilayah.
+    70→        </div>
+    71→        <div className="grid gap-4 md:grid-cols-3">
+    72→          {cards.map(c => (
+    73→            <div key={c.key} className="rounded-2xl border-2 hover:shadow-lg transition-all cursor-pointer overflow-hidden"
+    74→              onClick={() => { setView(c.key === 'dpn' ? 'dpn' : c.key === 'dpd' ? 'dpd-list' : 'dpc-list'); setSelectedProv(null); setSelectedRegency(null) }}>
+    75→              <div className={`bg-gradient-to-br ${c.grad} p-5 text-white`}>
+    76→                <c.icon className="w-8 h-8 mb-2" />
+    77→                <div className="text-xl font-bold">{c.title}</div>
+    78→                <div className="text-sm opacity-90">{c.subtitle}</div>
+    79→              </div>
+    80→              <div className="p-4 bg-white">
+    81→                <div className="text-sm text-muted-foreground mb-2">{c.desc}</div>
+    82→                <div className="flex items-center justify-between">
+    83→                  <Badge variant="outline" className="text-[13px]">{c.count} program</Badge>
+    84→                  <span className="text-xs font-medium text-blue-600">Buka <ChevronRight className="w-4 h-4 inline" /></span>
+    85→                </div>
+    86→              </div>
+    87→            </div>
+    88→          ))}
+    89→        </div>
+    90→      </div>
+    91→    )
+    92→  }
+    93→
+    94→  // === DPN VIEW ===
+    95→  if (view === 'dpn') {
+    96→    return <ProgramLevelView title={`${title} — DPN (Pusat Nasional)`} description={description} icon={Icon} accentColor={accentColor} items={dpnItems} loading={loading} category={category} level="DPN" territoryCode="ID" territoryName="DPN (Pusat Nasional)" onBack={() => setView('home')} items_ref={items} setItems={setItems} />
+    97→  }
+    98→
+    99→  // === DPD LIST VIEW ===
+   100→  if (view === 'dpd-list') {
+   101→    return (
+   102→      <div className="space-y-4">
+   103→        <Button variant="ghost" size="sm" onClick={() => setView('home')}><ChevronRight className="w-4 h-4 rotate-180" /> Kembali</Button>
+   104→        <h3 className="text-base font-bold flex items-center gap-2"><Building2 className="w-5 h-5 text-blue-600" /> Pilih DPD (Provinsi)</h3>
+   105→        <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+   106→          {territories.map(prov => {
+   107→            const count = items.filter(i => isFiltered(i, prov.code, 'DPD')).length
+   108→            return (
+   109→              <button key={prov.code} onClick={() => { setSelectedProv(prov); setView('dpd-detail') }}
+   110→                className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent transition-all text-left">
+   111→                <span className="text-sm font-medium">{prov.name}</span>
+   112→                <Badge variant="outline" className="text-[13px]">{count > 0 ? `${count} program` : 'Kosong'}</Badge>
+   113→              </button>
+   114→            )
+   115→          })}
+   116→        </div>
+   117→      </div>
+   118→    )
+   119→  }
+   120→
+   121→  // === DPD DETAIL VIEW ===
+   122→  if (view === 'dpd-detail' && selectedProv) {
+   123→    const dpdItems = items.filter(i => isFiltered(i, selectedProv.code, 'DPD'))
+   124→    return <ProgramLevelView title={`${title} — DPD ${selectedProv.name}`} description={description} icon={Icon} accentColor={accentColor} items={dpdItems} loading={loading} category={category} level="DPD" territoryCode={selectedProv.code} territoryName={`DPD ${selectedProv.name}`} onBack={() => { setSelectedProv(null); setView('dpd-list') }} items_ref={items} setItems={setItems} />
+   125→  }
+   126→
+   127→  // === DPC LIST VIEW (pilih provinsi dulu) ===
+   128→  if (view === 'dpc-list') {
+   129→    return (
+   130→      <div className="space-y-4">
+   131→        <Button variant="ghost" size="sm" onClick={() => setView('home')}><ChevronRight className="w-4 h-4 rotate-180" /> Kembali</Button>
+   132→        <h3 className="text-base font-bold flex items-center gap-2"><MapPin className="w-5 h-5 text-emerald-600" /> Pilih DPD (Provinsi) untuk lihat DPC</h3>
+   133→        <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+   134→          {territories.map(prov => {
+   135→            const regCount = regencies.filter(r => r.parentId === prov.id).length
+   136→            return (
+   137→              <button key={prov.code} onClick={() => { setSelectedProv(prov); setView('dpc-detail'); setSelectedRegency(null) }}
+   138→                className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent transition-all text-left">
+   139→                <span className="text-sm font-medium">{prov.name}</span>
+   140→                <Badge variant="outline" className="text-[13px]">{regCount > 0 ? `${regCount} DPC` : 'Kosong'}</Badge>
+   141→              </button>
+   142→            )
+   143→          })}
+   144→        </div>
+   145→      </div>
+   146→    )
+   147→  }
+   148→
+   149→  // === DPC DETAIL VIEW (list kab/kota di provinsi terpilih) ===
+   150→  if (view === 'dpc-detail' && selectedProv) {
+   151→    const provRegencies = regencies.filter(r => r.parentId === selectedProv.id)
+   152→    return (
+   153→      <div className="space-y-4">
+   154→        <Button variant="ghost" size="sm" onClick={() => { setSelectedProv(null); setView('dpc-list') }}><ChevronRight className="w-4 h-4 rotate-180" /> Kembali ke daftar provinsi</Button>
+   155→        <h3 className="text-base font-bold flex items-center gap-2"><MapPin className="w-5 h-5 text-emerald-600" /> DPC di {selectedProv.name}</h3>
+   156→        <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+   157→          {provRegencies.length === 0 ? (
+   158→            <p className="text-sm text-muted-foreground col-span-full">Belum ada DPC terdaftar di provinsi ini.</p>
+   159→          ) : provRegencies.map(reg => {
+   160→            const count = items.filter(i => isFiltered(i, reg.code, 'DPC')).length
+   161→            return (
+   162→              <button key={reg.code} onClick={() => setSelectedRegency(reg)}
+   163→                className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent transition-all text-left">
+   164→                <span className="text-sm font-medium">{reg.name}</span>
+   165→                <Badge variant="outline" className="text-[13px]">{count > 0 ? `${count} program` : 'Kosong'}</Badge>
+   166→              </button>
+   167→            )
+   168→          })}
+   169→        </div>
+   170→        {selectedRegency && (() => {
+   171→          const dpcItems = items.filter(i => isFiltered(i, selectedRegency.code, 'DPC'))
+   172→          return <ProgramLevelView title={`${title} — DPC ${selectedRegency.name}`} description={description} icon={Icon} accentColor={accentColor} items={dpcItems} loading={loading} category={category} level="DPC" territoryCode={selectedRegency.code} territoryName={`DPC ${selectedRegency.name}`} onBack={() => setSelectedRegency(null)} items_ref={items} setItems={setItems} />
+   173→        })()}
+   174→      </div>
+   175→    )
+   176→  }
+   177→
+   178→  return null
+   179→}
+   180→
+   181→// ============================================================
+   182→// PROGRAM LEVEL VIEW — Content for DPN/DPD/DPC
+   183→// ============================================================
+   184→function ProgramLevelView({
+   185→  title, description, icon: Icon, accentColor, items, loading, category, level, territoryCode, territoryName, onBack, items_ref, setItems,
+   186→}: any) {
+   187→  const addToast = useToastStore((s) => s.addToast)
+   188→  const isSuperAdmin = useIsSuperAdmin()
+   189→  const [search, setSearch] = useState('')
+   190→  const [addOpen, setAddOpen] = useState(false)
+   191→  const [editItem, setEditItem] = useState<any>(null)
+   192→  const [deleteItem, setDeleteItem] = useState<any>(null)
+   193→  const [form, setForm] = useState({ title: '', description: '', location: '', date: '', status: 'DIRENCANAKAN' })
+   194→  const [saving, setSaving] = useState(false)
+   195→  const [pdfUploadOpen, setPdfUploadOpen] = useState(false)
+   196→  const [pdfFile, setPdfFile] = useState<File | null>(null)
+   197→  const [ocrLoading, setOcrLoading] = useState(false)
+   198→  const [extractResult, setExtractResult] = useState<any>(null)
+   199→  const [filterStatus, setFilterStatus] = useState('ALL')
+   200→  // Bukti pelaksanaan state
+   201→  const [evidenceDialog, setEvidenceDialog] = useState<any>(null) // { item, files: [] }
+   202→  const [evidenceFile, setEvidenceFile] = useState<File | null>(null)
+   203→  const [evidenceLoading, setEvidenceLoading] = useState(false)
+   204→
+   205→  const reload = () => {
+   206→    api('/api/gallery').then((all: any[]) => {
+   207→      setItems(all.filter(a => a.category === category))
+   208→    }).catch(() => {})
+   209→  }
+   210→
+   211→  const handleSave = async (e: React.FormEvent) => {
+   212→    e.preventDefault()
+   213→    const itemData = {
+   214→      id: editItem?.id || `prog_${Date.now()}`,
+   215→      title: form.title, description: form.description, location: form.location,
+   216→      date: form.date, status: form.status, category, level, territoryCode, territoryName,
+   217→    }
+   218→    try {
+   219→      if (editItem) {
+   220→        await api('/api/gallery', { method: 'PUT', body: JSON.stringify({ id: editItem.id, ...itemData }) })
+   221→        addToast('Program diperbarui', 'success')
+   222→      } else {
+   223→        await api('/api/gallery', { method: 'POST', body: JSON.stringify(itemData) })
+   224→        addToast('Program ditambahkan', 'success')
+   225→      }
+   226→      setForm({ title: '', description: '', location: '', date: '', status: 'DIRENCANAKAN' })
+   227→      setAddOpen(false); setEditItem(null); reload()
+   228→    } catch (e: any) { addToast(e.message, 'error') }
+   229→  }
+   230→
+   231→  const handleDelete = async () => {
+   232→    if (!deleteItem) return
+   233→    try {
+   234→      await api(`/api/gallery?id=${deleteItem.id}`, { method: 'DELETE' })
+   235→      addToast('Program dihapus', 'success')
+   236→      setDeleteItem(null); reload()
+   237→    } catch (e: any) { addToast(e.message, 'error') }
+   238→  }
+   239→
+   240→  // === Upload Bukti Pelaksanaan ===
+   241→  const handleUploadEvidence = async () => {
+   242→    if (!evidenceFile || !evidenceDialog?.item) return
+   243→    const max = 5 * 1024 * 1024
+   244→    if (evidenceFile.size > max) { addToast('Ukuran file maksimal 5MB', 'error'); return }
+   245→
+   246→    setEvidenceLoading(true)
+   247→    try {
+   248→      const buf = Buffer.from(await evidenceFile.arrayBuffer())
+   249→      const ext = evidenceFile.name.toLowerCase().match(/\.([^.]+)$/)?.[1] || 'jpg'
+   250→      const mime = ext === 'pdf' ? 'application/pdf'
+   251→        : ext === 'png' ? 'image/png'
+   252→        : ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg'
+   253→        : ext === 'doc' || ext === 'docx' ? 'application/msword'
+   254→        : 'application/octet-stream'
+   255→      const dataUrl = `data:${mime};base64,${buf.toString('base64')}`
+   256→
+   257→      // Get existing evidence files
+   258→      const item = evidenceDialog.item
+   259→      const existingEvidence = item.evidenceFiles ? (typeof item.evidenceFiles === 'string' ? JSON.parse(item.evidenceFiles) : item.evidenceFiles) : []
+   260→      const newEvidence = [...existingEvidence, {
+   261→        id: `ev_${Date.now()}`,
+   262→        fileName: evidenceFile.name,
+   263→        fileSize: evidenceFile.size,
+   264→        fileType: ext,
+   265→        dataUrl,
+   266→        uploadedAt: new Date().toISOString(),
+   267→      }]
+   268→
+   269→      // Update program item with evidence + auto-update status to BERJALAN if still DIRENCANAKAN
+   270→      const updateData: any = { evidenceFiles: JSON.stringify(newEvidence) }
+   271→      if ((item.status || 'DIRENCANAKAN') === 'DIRENCANAKAN') {
+   272→        updateData.status = 'BERJALAN'
+   273→      }
+   274→      await api('/api/gallery', { method: 'PUT', body: JSON.stringify({ id: item.id, ...updateData }) })
+   275→
+   276→      addToast(`Bukti pelaksanaan "${evidenceFile.name}" berhasil diupload${updateData.status ? '. Status diubah ke BERJALAN' : ''}`, 'success')
+   277→      setEvidenceFile(null)
+   278→      setEvidenceDialog(null)
+   279→      reload()
+   280→    } catch (e: any) { addToast(e.message, 'error') }
+   281→    finally { setEvidenceLoading(false) }
+   282→  }
+   283→
+   284→  // === Delete evidence file ===
+   285→  const handleDeleteEvidence = async (itemId: string, evidenceId: string, currentEvidence: any[]) => {
+   286→    try {
+   287→      const filtered = currentEvidence.filter(e => e.id !== evidenceId)
+   288→      await api('/api/gallery', { method: 'PUT', body: JSON.stringify({ id: itemId, evidenceFiles: JSON.stringify(filtered) }) })
+   289→      addToast('Bukti dihapus', 'success')
+   290→      setEvidenceDialog(null)
+   291→      reload()
+   292→    } catch (e: any) { addToast(e.message, 'error') }
+   293→  }
+   294→
+   295→  if (loading) return <LoadingState />
+   296→
+   297→  const filtered = items.filter((i: any) =>
+   298→    (!search || i.title?.toLowerCase().includes(search.toLowerCase()) || i.description?.toLowerCase().includes(search.toLowerCase())) &&
+   299→    (filterStatus === 'ALL' || (i.status || 'DIRENCANAKAN') === filterStatus)
+   300→  )
+   301→
+   302→  // Stats by status
+   303→  const statusCounts = {
+   304→    DIRENCANAKAN: items.filter(i => (i.status || 'DIRENCANAKAN') === 'DIRENCANAKAN').length,
+   305→    BERJALAN: items.filter(i => i.status === 'BERJALAN').length,
+   306→    SELESAI: items.filter(i => i.status === 'SELESAI').length,
+   307→    DITUNDA: items.filter(i => i.status === 'DITUNDA').length,
+   308→  }
+   309→
+   310→  return (
+   311→    <div className="space-y-4">
+   312→      <Button variant="ghost" size="sm" onClick={onBack}><ChevronRight className="w-4 h-4 rotate-180" /> Kembali</Button>
+   313→      <div className="flex items-center justify-between flex-wrap gap-2">
+   314→        <h3 className="text-base font-bold flex items-center gap-2">
+   315→          <Icon className={`w-5 h-5 bg-gradient-to-br ${accentColor} bg-clip-text`} />
+   316→          {title}
+   317→          <Badge variant="outline" className="text-[13px]">{filtered.length} program</Badge>
+   318→        </h3>
+   319→        {isSuperAdmin && (
+   320→          <div className="flex gap-2">
+   321→            <Button size="sm" variant="outline" onClick={() => setPdfUploadOpen(true)}>
+   322→              <Upload className="w-4 h-4 mr-1" /> Upload PDF
+   323→            </Button>
+   324→            <Button size="sm" onClick={() => { setEditItem(null); setForm({ title: '', description: '', location: '', date: '', status: 'DIRENCANAKAN' }); setAddOpen(true) }}
+   325→              className={`bg-gradient-to-r ${accentColor} text-white`}>
+   326→              <Plus className="w-4 h-4 mr-1" /> Tambah Program
+   327→            </Button>
+   328→          </div>
+   329→        )}
+   330→      </div>
+   331→
+   332→      {/* Status Stats Cards */}
+   333→      <div className="grid grid-cols-4 gap-2">
+   334→        {[
+   335→          { key: 'DIRENCANAKAN', label: 'Direncanakan', color: 'bg-amber-50 border-amber-200 text-amber-700', count: statusCounts.DIRENCANAKAN },
+   336→          { key: 'BERJALAN', label: 'Berjalan', color: 'bg-blue-50 border-blue-200 text-blue-700', count: statusCounts.BERJALAN },
+   337→          { key: 'SELESAI', label: 'Selesai', color: 'bg-emerald-50 border-emerald-200 text-emerald-700', count: statusCounts.SELESAI },
+   338→          { key: 'DITUNDA', label: 'Ditunda', color: 'bg-red-50 border-red-200 text-red-700', count: statusCounts.DITUNDA },
+   339→        ].map(s => (
+   340→          <button key={s.key} onClick={() => setFilterStatus(filterStatus === s.key ? 'ALL' : s.key)}
+   341→            className={`rounded-lg border p-3 text-center transition-all ${s.color} ${filterStatus === s.key ? 'ring-2 ring-offset-1 ring-current scale-105' : 'hover:scale-105'}`}>
+   342→            <div className="text-2xl font-bold">{s.count}</div>
+   343→            <div className="text-xs font-medium">{s.label}</div>
+   344→          </button>
+   345→        ))}
+   346→      </div>
+   347→
+   348→      {/* Search + Filter */}
+   349→      <div className="flex gap-2 flex-wrap">
+   350→        <Input placeholder="Cari program..." value={search} onChange={(e) => setSearch(e.target.value)} className="max-w-md flex-1" />
+   351→        <Select value={filterStatus} onValueChange={setFilterStatus}>
+   352→          <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+   353→          <SelectContent>
+   354→            <SelectItem value="ALL">Semua Status</SelectItem>
+   355→            <SelectItem value="DIRENCANAKAN">Direncanakan</SelectItem>
+   356→            <SelectItem value="BERJALAN">Berjalan</SelectItem>
+   357→            <SelectItem value="SELESAI">Selesai</SelectItem>
+   358→            <SelectItem value="DITUNDA">Ditunda</SelectItem>
+   359→          </SelectContent>
+   360→        </Select>
+   361→      </div>
+   362→
+   363→      {filtered.length === 0 ? (
+   364→        <EmptyState icon={Icon} title={`Belum ada program ${level}`} description={`Tambah program ${level} ${territoryName} baru, atau upload PDF program kerja.`} />
+   365→      ) : (
+   366→        <div className="space-y-2">
+   367→          {filtered.map((item: any) => {
+   368→            const statusColor = item.status === 'SELESAI' ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+   369→              : item.status === 'BERJALAN' ? 'bg-blue-100 text-blue-700 border-blue-200'
+   370→              : item.status === 'DITUNDA' ? 'bg-red-100 text-red-700 border-red-200'
+   371→              : 'bg-amber-100 text-amber-700 border-amber-200'
+   372→            return (
+   373→              <div key={item.id} className="group relative rounded-lg border p-4 hover:shadow-md transition-all bg-white">
+   374→                <div className="flex items-start justify-between gap-3">
+   375→                  <div className="flex-1 min-w-0">
+   376→                    <div className="font-semibold text-sm">{item.title}</div>
+   377→                    {item.description && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{item.description}</p>}
+   378→                    <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground flex-wrap">
+   379→                      {item.location && <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {item.location}</span>}
+   380→                      {item.date && <span className="flex items-center gap-1"><CalendarDays className="w-3 h-3" /> {item.date}</span>}
+   381→                      <Badge variant="outline" className={`text-[11px] ${statusColor}`}>{item.status || 'DIRENCANAKAN'}</Badge>
+   382→                    </div>
+   383→                    {/* Action buttons row — separate from status info */}
+   384→                    <div className="flex items-center gap-2 mt-2 flex-wrap">
+   385→                      {/* Buka Dokumen Program Kerja (PDF rencana) */}
+   386→                      {item.pdfId && (
+   387→                        <a href={`/api/program-kerja/${item.pdfId}/view`} target="_blank" rel="noopener noreferrer"
+   388→                           className="inline-flex items-center gap-1 text-xs text-blue-700 bg-blue-50 border border-blue-200 px-2 py-1 rounded hover:bg-blue-100 font-medium"
+   389→                           title="Buka dokumen PDF Program Kerja (rencana)">
+   390→                          <FileCheck className="w-3.5 h-3.5" /> Dokumen Program Kerja ↗
+   391→                        </a>
+   392→                      )}
+   393→                      {/* Bukti Pelaksanaan */}
+   394→                      {(() => {
+   395→                        const evFiles = item.evidenceFiles ? (typeof item.evidenceFiles === 'string' ? JSON.parse(item.evidenceFiles) : item.evidenceFiles) : []
+   396→                        return (
+   397→                          <button
+   398→                            onClick={() => setEvidenceDialog({ item, files: evFiles })}
+   399→                            className="inline-flex items-center gap-1 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded hover:bg-emerald-100 font-medium"
+   400→                            title="Upload/Lihat Bukti Pelaksanaan"
+   401→                          >
+   402→                            <Camera className="w-3.5 h-3.5" /> Bukti Pelaksanaan ({evFiles.length})
+   403→                          </button>
+   404→                        )
+   405→                      })()}
+   406→                    </div>
+   407→                  </div>
+   408→                  {isSuperAdmin && (
+   409→                    <div className="flex gap-1 shrink-0">
+   410→                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-blue-600 hover:bg-blue-50" onClick={() => { setEditItem(item); setForm({ title: item.title || '', description: item.description || '', location: item.location || '', date: item.date || '', status: item.status || 'DIRENCANAKAN' }); setAddOpen(true) }}>
+   411→                        <Edit className="w-3.5 h-3.5" />
+   412→                      </Button>
+   413→                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-600 hover:bg-red-50" onClick={() => setDeleteItem(item)}>
+   414→                        <Trash2 className="w-3.5 h-3.5" />
+   415→                      </Button>
+   416→                    </div>
+   417→                  )}
+   418→                </div>
+   419→              </div>
+   420→            )
+   421→          })}
+   422→        </div>
+   423→      )}
+   424→
+   425→      {/* Add/Edit Dialog */}
+   426→      <Dialog open={addOpen} onOpenChange={(o) => { setAddOpen(o); if (!o) setEditItem(null) }}>
+   427→        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+   428→          <DialogHeader>
+   429→            <DialogTitle>{editItem ? 'Edit' : 'Tambah'} Program {level}</DialogTitle>
+   430→            <DialogDescription>{territoryName}</DialogDescription>
+   431→          </DialogHeader>
+   432→          <form onSubmit={handleSave} className="space-y-3">
+   433→            <div className="space-y-2"><Label>Judul Program *</Label><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required /></div>
+   434→            <div className="space-y-2"><Label>Deskripsi</Label><Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} /></div>
+   435→            <div className="grid grid-cols-2 gap-3">
+   436→              <div className="space-y-2"><Label>Lokasi</Label><Input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} /></div>
+   437→              <div className="space-y-2"><Label>Tanggal</Label><Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></div>
+   438→            </div>
+   439→            <div className="space-y-2"><Label>Status</Label>
+   440→              <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
+   441→                <SelectTrigger><SelectValue /></SelectTrigger>
+   442→                <SelectContent>
+   443→                  <SelectItem value="DIRENCANAKAN">Direncanakan</SelectItem>
+   444→                  <SelectItem value="BERJALAN">Berjalan</SelectItem>
+   445→                  <SelectItem value="SELESAI">Selesai</SelectItem>
+   446→                  <SelectItem value="DITUNDA">Ditunda</SelectItem>
+   447→                </SelectContent>
+   448→              </Select>
+   449→            </div>
+   450→
+   451→            {/* === Preview PDF Program Kerja (jika dari upload PDF) === */}
+   452→            {editItem?.pdfId && (
+   453→              <div className="space-y-2">
+   454→                <Label>Dokumen Program Kerja (PDF)</Label>
+   455→                <div className="flex items-center gap-3 p-3 rounded-lg border bg-blue-50">
+   456→                  <FileCheck className="w-8 h-8 text-blue-500 shrink-0" />
+   457→                  <div className="flex-1 min-w-0">
+   458→                    <div className="text-sm font-medium">PDF Program Kerja</div>
+   459→                    <a href={`/api/program-kerja/${editItem.pdfId}/view`} target="_blank" rel="noopener noreferrer"
+   460→                       className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-1">
+   461→                      <Eye className="w-3 h-3" /> Buka PDF di tab baru ↗
+   462→                    </a>
+   463→                  </div>
+   464→                </div>
+   465→                {/* Inline PDF Preview */}
+   466→                <iframe src={`/api/program-kerja/${editItem.pdfId}/view`} className="w-full h-96 rounded-lg border" title="Preview PDF" />
+   467→              </div>
+   468→            )}
+   469→
+   470→            {/* === Upload Bukti Pelaksanaan === */}
+   471→            {editItem && (
+   472→              <div className="space-y-2">
+   473→                <Label>Bukti Pelaksanaan (Foto/Dokumen)</Label>
+   474→                {(() => {
+   475→                  const evFiles = editItem.evidenceFiles ? (typeof editItem.evidenceFiles === 'string' ? JSON.parse(editItem.evidenceFiles) : editItem.evidenceFiles) : []
+   476→                  return (
+   477→                    <div className="space-y-2">
+   478→                      {/* Upload button */}
+   479→                      {isSuperAdmin && (
+   480→                        <div className="border-2 border-dashed rounded-lg p-3 text-center">
+   481→                          <input type="file" accept="image/jpeg,image/png,application/pdf,.doc,.docx" className="hidden" id="edit-evidence-upload"
+   482→                            onChange={async (e) => {
+   483→                              const f = e.target.files?.[0]
+   484→                              if (!f) return
+   485→                              if (f.size > 5 * 1024 * 1024) { addToast('Maksimal 5MB', 'error'); return }
+   486→                              try {
+   487→                                const buf = Buffer.from(await f.arrayBuffer())
+   488→                                const ext = f.name.toLowerCase().match(/\.([^.]+)$/)?.[1] || 'jpg'
+   489→                                const mime = ext === 'pdf' ? 'application/pdf' : ext === 'png' ? 'image/png' : 'image/jpeg'
+   490→                                const dataUrl = `data:${mime};base64,${buf.toString('base64')}`
+   491→                                const newEv = [...evFiles, { id: `ev_${Date.now()}`, fileName: f.name, fileSize: f.size, fileType: ext, dataUrl, uploadedAt: new Date().toISOString() }]
+   492→                                const updateData: any = { evidenceFiles: JSON.stringify(newEv) }
+   493→                                if ((editItem.status || 'DIRENCANAKAN') === 'DIRENCANAKAN') updateData.status = 'BERJALAN'
+   494→                                await api('/api/gallery', { method: 'PUT', body: JSON.stringify({ id: editItem.id, ...updateData }) })
+   495→                                addToast('Bukti pelaksanaan diupload', 'success')
+   496→                                reload()
+   497→                                setEditItem({ ...editItem, evidenceFiles: JSON.stringify(newEv), status: updateData.status || editItem.status })
+   498→                              } catch (err: any) { addToast(err.message, 'error') }
+   499→                              e.target.value = ''
+   500→                            }} />
+   501→                          <label htmlFor="edit-evidence-upload" className="cursor-pointer inline-flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded hover:bg-emerald-100">
+   502→                            <Camera className="w-4 h-4" /> Upload Bukti Pelaksanaan
+   503→                          </label>
+   504→                          <p className="text-xs text-muted-foreground mt-1">Foto (JPG/PNG) atau Dokumen (PDF/DOC), max 5MB</p>
+   505→                        </div>
+   506→                      )}
+   507→
+   508→                      {/* List existing evidence */}
+   509→                      {evFiles.length > 0 && (
+   510→                        <div className="grid grid-cols-3 gap-2">
+   511→                          {evFiles.map((ev: any, i: number) => (
+   512→                            <div key={ev.id || i} className="relative group">
+   513→                              {ev.fileType === 'jpg' || ev.fileType === 'jpeg' || ev.fileType === 'png' ? (
+   514→                                <img src={ev.dataUrl} alt={ev.fileName} className="w-full h-24 rounded-lg object-cover border" />
+   515→                              ) : (
+   516→                                <a href={ev.dataUrl} target="_blank" rel="noopener noreferrer" className="w-full h-24 rounded-lg bg-blue-50 border flex items-center justify-center">
+   517→                                  <FileCheck className="w-8 h-8 text-blue-500" />
+   518→                                </a>
+   519→                              )}
+   520→                              <div className="text-[11px] text-muted-foreground mt-1 truncate">{ev.fileName}</div>
+   521→                              {isSuperAdmin && (
+   522→                                <button type="button" className="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-600 text-white flex items-center justify-center opacity-0 group-hover:opacity-100"
+   523→                                  onClick={async () => {
+   524→                                    const filtered = evFiles.filter((e: any) => e.id !== ev.id)
+   525→                                    await api('/api/gallery', { method: 'PUT', body: JSON.stringify({ id: editItem.id, evidenceFiles: JSON.stringify(filtered) }) })
+   526→                                    addToast('Bukti dihapus', 'success')
+   527→                                    reload()
+   528→                                    setEditItem({ ...editItem, evidenceFiles: JSON.stringify(filtered) })
+   529→                                  }}>
+   530→                                  <X className="w-3 h-3" />
+   531→                                </button>
+   532→                              )}
+   533→                            </div>
+   534→                          ))}
+   535→                        </div>
+   536→                      )}
+   537→                    </div>
+   538→                  )
+   539→                })()}
+   540→              </div>
+   541→            )}
+   542→
+   543→            <DialogFooter>
+   544→              <Button type="button" variant="outline" onClick={() => { setAddOpen(false); setEditItem(null) }}>Batal</Button>
+   545→              <Button type="submit" disabled={saving} className={`bg-gradient-to-r ${accentColor} text-white`}>{saving ? 'Menyimpan...' : 'Simpan'}</Button>
+   546→            </DialogFooter>
+   547→          </form>
+   548→        </DialogContent>
+   549→      </Dialog>
+   550→
+   551→      {/* Delete Dialog */}
+   552→      <AlertDialog open={!!deleteItem} onOpenChange={(o) => !o && setDeleteItem(null)}>
+   553→        <AlertDialogContent>
+   554→          <AlertDialogHeader>
+   555→            <AlertDialogTitle>Hapus Program?</AlertDialogTitle>
+   556→            <AlertDialogDescription>Yakin hapus <strong>{deleteItem?.title}</strong>?</AlertDialogDescription>
+   557→          </AlertDialogHeader>
+   558→          <AlertDialogFooter>
+   559→            <AlertDialogCancel>Batal</AlertDialogCancel>
+   560→            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">Hapus</AlertDialogAction>
+   561→          </AlertDialogFooter>
+   562→        </AlertDialogContent>
+   563→      </AlertDialog>
+   564→
+   565→      {/* PDF Upload + Preview Dialog */}
+   566→      <Dialog open={pdfUploadOpen} onOpenChange={(o) => { setPdfUploadOpen(o); if (!o) { setPdfFile(null); setExtractResult(null) } }}>
+   567→        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+   568→          <DialogHeader>
+   569→            <DialogTitle>Upload PDF {title}</DialogTitle>
+   570→            <DialogDescription>{territoryName} — Upload PDF, sistem akan baca isi & extract program kerja otomatis (100% FOSS, tanpa biaya).</DialogDescription>
+   571→          </DialogHeader>
+   572→
+   573→          {/* File picker */}
+   574→          {!extractResult && (
+   575→            <div className="border-2 border-dashed rounded-lg p-6 text-center">
+   576→              <input type="file" accept=".pdf" className="hidden" id="prog-pdf-upload" onChange={(e) => setPdfFile(e.target.files?.[0] || null)} />
+   577→              {pdfFile ? (
+   578→                <div>
+   579→                  <FileCheck className="w-12 h-12 text-emerald-600 mx-auto mb-2" />
+   580→                  <div className="text-sm font-medium">{pdfFile.name}</div>
+   581→                  <div className="text-xs text-muted-foreground mt-1">{(pdfFile.size / 1024).toFixed(0)} KB</div>
+   582→                  <Button type="button" variant="link" size="sm" onClick={() => document.getElementById('prog-pdf-upload')?.click()}>Ganti file</Button>
+   583→                </div>
+   584→              ) : (
+   585→                <div>
+   586→                  <Upload className="w-12 h-12 text-gray-400 mx-auto mb-2" />
+   587→                  <div className="text-sm">Klik untuk <Button type="button" variant="link" className="p-0 h-auto" onClick={() => document.getElementById('prog-pdf-upload')?.click()}>pilih file PDF</Button></div>
+   588→                  <div className="text-xs text-muted-foreground mt-1">PDF, maksimal 20MB</div>
+   589→                </div>
+   590→              )}
+   591→            </div>
+   592→          )}
+   593→
+   594→          {/* Loading */}
+   595→          {ocrLoading && (
+   596→            <div className="text-center py-8">
+   597→              <Loader2 className="w-10 h-10 animate-spin mx-auto text-orange-600" />
+   598→              <p className="text-sm mt-2 font-medium">Sedang membaca PDF & extracting program...</p>
+   599→              <p className="text-xs text-muted-foreground mt-1">Mohon tunggu, sistem sedang menganalisis dokumen Anda.</p>
+   600→            </div>
+   601→          )}
+   602→
+   603→          {/* Preview Results */}
+   604→          {extractResult && !ocrLoading && (
+   605→            <div className="space-y-3">
+   606→              {/* Success banner */}
+   607→              <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-sm text-emerald-800 flex items-start gap-2">
+   608→                <FileCheck className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+   609→                <div>
+   610→                  <div className="font-semibold">Berhasil! {extractResult.data.savedCount} program disimpan.</div>
+   611→                  <div className="text-xs mt-1">{extractResult.data.programs.length} program terdeteksi dari PDF. Data sudah otomatis tersimpan di daftar program.</div>
+   612→                </div>
+   613→              </div>
+   614→
+   615→              {/* Document title */}
+   616→              <div className="rounded-lg bg-muted/50 p-3">
+   617→                <div className="text-xs text-muted-foreground font-semibold mb-1">Judul Dokumen:</div>
+   618→                <div className="text-sm font-medium">{extractResult.data.title}</div>
+   619→              </div>
+   620→
+   621→              {/* AI Summary */}
+   622→              <div className="rounded-lg bg-blue-50 border border-blue-200 p-3">
+   623→                <div className="text-xs text-blue-800 font-semibold mb-1">Ringkasan Otomatis:</div>
+   624→                <p className="text-xs text-blue-700">{extractResult.data.aiSummary}</p>
+   625→              </div>
+   626→
+   627→              {/* List of extracted programs */}
+   628→              {extractResult.data.programs.length > 0 && (
+   629→                <div className="space-y-2">
+   630→                  <div className="text-sm font-semibold">Program Terdeteksi ({extractResult.data.programs.length}):</div>
+   631→                  {extractResult.data.programs.map((prog: any, i: number) => (
+   632→                    <div key={i} className="rounded-lg border p-3 bg-white">
+   633→                      <div className="flex items-start gap-2">
+   634→                        <Badge variant="outline" className="text-[11px] bg-orange-50 text-orange-700 border-orange-200 shrink-0">#{prog.priority}</Badge>
+   635→                        <div className="flex-1 min-w-0">
+   636→                          <div className="font-medium text-sm">{prog.name}</div>
+   637→                          {prog.description && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{prog.description.substring(0, 200)}</p>}
+   638→                          <div className="flex items-center gap-2 mt-2 flex-wrap">
+   639→                            {prog.timeline && <Badge variant="outline" className="text-[11px] bg-blue-50 text-blue-700 border-blue-200">{prog.timeline}</Badge>}
+   640→                            {prog.budget && <Badge variant="outline" className="text-[11px] bg-emerald-50 text-emerald-700 border-emerald-200">{prog.budget}</Badge>}
+   641→                            {prog.target && <Badge variant="outline" className="text-[11px] bg-purple-50 text-purple-700 border-purple-200">{prog.target}</Badge>}
+   642→                            {prog.location && <Badge variant="outline" className="text-[11px] bg-amber-50 text-amber-700 border-amber-200">{prog.location}</Badge>}
+   643→                            <Badge variant="outline" className="text-[11px] bg-slate-50 text-slate-700 border-slate-200">{prog.category}</Badge>
+   644→                          </div>
+   645→                        </div>
+   646→                      </div>
+   647→                    </div>
+   648→                  ))}
+   649→                </div>
+   650→              )}
+   651→
+   652→              {/* Raw text preview */}
+   653→              <details>
+   654→                <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground">Lihat teks asli PDF (2000 karakter pertama)</summary>
+   655→                <pre className="mt-2 p-3 bg-muted rounded text-xs overflow-x-auto whitespace-pre-wrap max-h-40 overflow-y-auto">{extractResult.data.rawTextPreview}</pre>
+   656→              </details>
+   657→
+   658→              {/* View original PDF */}
+   659→              {extractResult.data.viewUrl && (
+   660→                <a href={extractResult.data.viewUrl} target="_blank" rel="noopener noreferrer"
+   661→                   className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline">
+   662→                  <FileCheck className="w-3 h-3" /> Lihat PDF Asli ↗
+   663→                </a>
+   664→              )}
+   665→            </div>
+   666→          )}
+   667→
+   668→          {/* Footer buttons */}
+   669→          <DialogFooter>
+   670→            {extractResult ? (
+   671→              <>
+   672→                <Button type="button" variant="outline" onClick={() => { setExtractResult(null); setPdfFile(null) }}>Upload Lagi</Button>
+   673→                <Button type="button" onClick={() => { setPdfUploadOpen(false); setPdfFile(null); setExtractResult(null); reload() }} className={`bg-gradient-to-r ${accentColor} text-white`}>
+   674→                  Selesai
+   675→                </Button>
+   676→              </>
+   677→            ) : (
+   678→              <>
+   679→                <Button type="button" variant="outline" onClick={() => { setPdfUploadOpen(false); setPdfFile(null) }}>Batal</Button>
+   680→                <Button type="button" disabled={!pdfFile || ocrLoading} onClick={async () => {
+   681→                  if (!pdfFile) return
+   682→                  setOcrLoading(true)
+   683→                  try {
+   684→                    const formData = new FormData()
+   685→                    formData.append('file', pdfFile)
+   686→                    formData.append('level', level)
+   687→                    formData.append('territoryCode', territoryCode)
+   688→                    formData.append('territoryName', territoryName)
+   689→                    const res = await fetch('/api/program-kerja/upload-pdf', { method: 'POST', headers: { 'x-user-id': useAuthStore.getState().user?.id || '' }, body: formData })
+   690→                    const data = await res.json()
+   691→                    if (!data.success) throw new Error(data.error)
+   692→                    setExtractResult(data)
+   693→                    reload()
+   694→                  } catch (e: any) { addToast(e.message, 'error') }
+   695→                  finally { setOcrLoading(false) }
+   696→                }} className={`bg-gradient-to-r ${accentColor} text-white`}>
+   697→                  {ocrLoading ? 'Memproses...' : 'Upload & Extract'}
+   698→                </Button>
+   699→              </>
+   700→            )}
+   701→          </DialogFooter>
+   702→        </DialogContent>
+   703→      </Dialog>
+   704→
+   705→      {/* Dialog Bukti Pelaksanaan */}
+   706→      <Dialog open={!!evidenceDialog} onOpenChange={(o) => { if (!o) { setEvidenceDialog(null); setEvidenceFile(null) } }}>
+   707→        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+   708→          <DialogHeader>
+   709→            <DialogTitle className="flex items-center gap-2">
+   710→              <Camera className="w-5 h-5 text-emerald-600" />
+   711→              Bukti Pelaksanaan Program
+   712→            </DialogTitle>
+   713→            <DialogDescription>
+   714→              {evidenceDialog?.item?.title || 'Program'}
+   715→              {evidenceDialog?.files?.length > 0 && ` — ${evidenceDialog.files.length} bukti terupload`}
+   716→            </DialogDescription>
+   717→          </DialogHeader>
+   718→
+   719→          {/* Upload area */}
+   720→          {isSuperAdmin && (
+   721→            <div className="border-2 border-dashed rounded-lg p-4 text-center">
+   722→              <input type="file" accept="image/jpeg,image/png,application/pdf,.doc,.docx" className="hidden" id="evidence-upload"
+   723→                onChange={(e) => setEvidenceFile(e.target.files?.[0] || null)} />
+   724→              {evidenceFile ? (
+   725→                <div>
+   726→                  <FileCheck className="w-10 h-10 text-emerald-600 mx-auto mb-2" />
+   727→                  <div className="text-sm font-medium">{evidenceFile.name}</div>
+   728→                  <div className="text-xs text-muted-foreground mt-1">{(evidenceFile.size / 1024).toFixed(0)} KB</div>
+   729→                  <div className="flex gap-2 justify-center mt-2">
+   730→                    <Button type="button" variant="link" size="sm" onClick={() => document.getElementById('evidence-upload')?.click()}>Ganti file</Button>
+   731→                    <Button type="button" size="sm" disabled={evidenceLoading} onClick={handleUploadEvidence}
+   732→                      className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white">
+   733→                      {evidenceLoading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Upload className="w-4 h-4 mr-1" />}
+   734→                      {evidenceLoading ? 'Mengupload...' : 'Upload Bukti'}
+   735→                    </Button>
+   736→                  </div>
+   737→                </div>
+   738→              ) : (
+   739→                <div>
+   740→                  <Upload className="w-10 h-10 text-gray-400 mx-auto mb-2" />
+   741→                  <div className="text-sm">Klik untuk <Button type="button" variant="link" className="p-0 h-auto"
+   742→                    onClick={() => document.getElementById('evidence-upload')?.click()}>pilih file bukti</Button></div>
+   743→                  <div className="text-xs text-muted-foreground mt-1">Foto (JPG/PNG) atau Dokumen (PDF/DOC), maksimal 5MB</div>
+   744→                </div>
+   745→              )}
+   746→            </div>
+   747→          )}
+   748→
+   749→          {/* List of uploaded evidence */}
+   750→          {evidenceDialog?.files?.length > 0 && (
+   751→            <div className="space-y-2">
+   752→              <div className="text-sm font-semibold">Bukti Terupload ({evidenceDialog.files.length}):</div>
+   753→              {evidenceDialog.files.map((ev: any, i: number) => (
+   754→                <div key={ev.id || i} className="flex items-start gap-3 p-3 rounded-lg border bg-white">
+   755→                  {/* Thumbnail for images, icon for docs */}
+   756→                  {ev.fileType === 'jpg' || ev.fileType === 'jpeg' || ev.fileType === 'png' ? (
+   757→                    <img src={ev.dataUrl} alt={ev.fileName} className="w-16 h-16 rounded-lg object-cover border" />
+   758→                  ) : (
+   759→                    <div className="w-16 h-16 rounded-lg bg-blue-50 flex items-center justify-center border">
+   760→                      <FileCheck className="w-8 h-8 text-blue-500" />
+   761→                    </div>
+   762→                  )}
+   763→                  <div className="flex-1 min-w-0">
+   764→                    <div className="text-sm font-medium truncate">{ev.fileName}</div>
+   765→                    <div className="text-xs text-muted-foreground">{(ev.fileSize / 1024).toFixed(0)} KB • {ev.fileType?.toUpperCase()}</div>
+   766→                    {ev.uploadedAt && <div className="text-xs text-muted-foreground mt-0.5">Upload: {new Date(ev.uploadedAt).toLocaleDateString('id-ID')}</div>}
+   767→                    <a href={ev.dataUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline mt-1">
+   768→                      <Eye className="w-3 h-3" /> Lihat ↗
+   769→                    </a>
+   770→                  </div>
+   771→                  {isSuperAdmin && (
+   772→                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-600 hover:bg-red-50"
+   773→                      onClick={() => handleDeleteEvidence(evidenceDialog.item.id, ev.id, evidenceDialog.files)}>
+   774→                      <Trash2 className="w-3.5 h-3.5" />
+   775→                    </Button>
+   776→                  )}
+   777→                </div>
+   778→              ))}
+   779→            </div>
+   780→          )}
+   781→
+   782→          {/* Empty state */}
+   783→          {(!evidenceDialog?.files || evidenceDialog.files.length === 0) && !isSuperAdmin && (
+   784→            <div className="text-center py-4 text-sm text-muted-foreground">Belum ada bukti pelaksanaan diupload.</div>
+   785→          )}
+   786→
+   787→          <DialogFooter>
+   788→            <Button type="button" variant="outline" onClick={() => { setEvidenceDialog(null); setEvidenceFile(null) }}>Tutup</Button>
+   789→          </DialogFooter>
+   790→        </DialogContent>
+   791→      </Dialog>
+   792→    </div>
+   793→  )
+   794→}
+   795→

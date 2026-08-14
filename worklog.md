@@ -2077,3 +2077,27 @@ Stage Summary:
 - DPC → dropdown provinsi → dropdown kab/kota di provinsi tersebut (515 DPC)
 - territoryCode + territoryName dikirim ke API + disimpan di program items
 - Sesuai dengan struktur menu Pusat Data Organisasi
+
+---
+Task ID: LAPRA08-DOC-ICON-FIX
+Agent: Main Agent (Super Z)
+Task: Tambahkan ikon dokumen yang bisa diklik di header Program Kerja (sebelah judul) untuk buka PDF Program Kerja — sesuai screenshot user
+
+Work Log:
+- Menganalisis screenshot user (pasted_image_1786694496800.png) menggunakan VLM
+- User mau: ikon FileCheck yang bisa diklik di header Program Kerja (sebelah "30 program" badge)
+- Klik ikon → buka PDF Program Kerja di tab baru
+- Filter items dengan pdfId di level aktif (DPN/DPD/DPC) → group by pdfId → levelPdfs[]
+- Tambahkan import DropdownMenu components dari shadcn/ui
+- Tambahkan tombol "Lihat Dokumen" dengan ikon FileCheck + label + badge count (jika multi PDF)
+- Jika hanya 1 PDF → label "PDF Program Kerja"
+- Jika multi PDF → label "Dokumen 1, 2, ..." dengan info jumlah program per PDF
+- Tombol visible untuk SEMUA user (tidak hanya super admin), agar member bisa lihat PDF
+- Hidden jika belum ada PDF di level tersebut
+
+Stage Summary:
+- File: src/components/menus/program-kerja-menu.tsx (line 15, 311-324, 334-385)
+- Tombol ditempatkan di header sebelah badge "X program"
+- Menggunakan DropdownMenu untuk handle single/multi PDF
+- Build OK (1 error pre-existing di line 221, unrelated)
+- Dev server running di http://localhost:3000

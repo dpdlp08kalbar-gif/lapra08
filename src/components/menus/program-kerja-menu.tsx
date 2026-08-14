@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
 import { useToastStore, useAuthStore } from '@/lib/store'
 import { useIsSuperAdmin } from './portal-menus'
 import {
@@ -307,14 +308,81 @@ function ProgramLevelView({
     DITUNDA: items.filter(i => i.status === 'DITUNDA').length,
   }
 
+  // === Daftar PDF Program Kerja yang terhubung dengan level ini ===
+  // Setiap upload PDF menghasilkan 1 pdfId yang dipakai semua program items dari PDF itu
+  const levelPdfs: { pdfId: string; programCount: number; firstItemTitle: string }[] = items
+    .filter((i: any) => i.pdfId)
+    .reduce((acc: any[], item: any) => {
+      if (!acc.find(p => p.pdfId === item.pdfId)) {
+        acc.push({
+          pdfId: item.pdfId,
+          programCount: items.filter((i: any) => i.pdfId === item.pdfId).length,
+          firstItemTitle: item.title || '',
+        })
+      }
+      return acc
+    }, [])
+
   return (
     <div className="space-y-4">
       <Button variant="ghost" size="sm" onClick={onBack}><ChevronRight className="w-4 h-4 rotate-180" /> Kembali</Button>
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <h3 className="text-base font-bold flex items-center gap-2">
+        <h3 className="text-base font-bold flex items-center gap-2 flex-wrap">
           <Icon className={`w-5 h-5 bg-gradient-to-br ${accentColor} bg-clip-text`} />
           {title}
           <Badge variant="outline" className="text-[13px]">{filtered.length} program</Badge>
+          {/* === Tombol Ikon Dokumen: Klik untuk buka PDF Program Kerja === */}
+          {levelPdfs.length > 0 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-md hover:bg-blue-100 hover:border-blue-300 hover:shadow-sm transition-all"
+                  title={`Buka PDF Program Kerja${levelPdfs.length > 1 ? ` (${levelPdfs.length} dokumen tersedia)` : ''}`}>
+                  <FileCheck className="w-4 h-4" />
+                  <span>Lihat Dokumen</span>
+                  {levelPdfs.length > 1 && (
+                    <span className="ml-0.5 px-1.5 py-0.5 rounded-full bg-blue-600 text-white text-[10px] font-bold leading-none">{levelPdfs.length}</span>
+                  )}
+                  <span className="opacity-70 text-[11px]">↗</span>
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-72">
+                <DropdownMenuLabel className="text-xs text-muted-foreground font-semibold">
+                  Dokumen PDF Program Kerja {territoryName}
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {levelPdfs.map((pdf, idx) => (
+                  <DropdownMenuItem key={pdf.pdfId} asChild>
+                    <a
+                      href={`/api/program-kerja/${pdf.pdfId}/view`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between gap-2 cursor-pointer p-2">
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <FileCheck className="w-4 h-4 text-blue-600 shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium truncate">
+                            {levelPdfs.length === 1 ? 'PDF Program Kerja' : `Dokumen ${idx + 1}`}
+                          </div>
+                          <div className="text-[11px] text-muted-foreground flex items-center gap-1">
+                            <span>{pdf.programCount} program</span>
+                            {pdf.firstItemTitle && (
+                              <>
+                                <span className="opacity-50">•</span>
+                                <span className="truncate">{pdf.firstItemTitle}</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <span className="text-blue-600 text-xs shrink-0">Buka ↗</span>
+                    </a>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </h3>
         {isSuperAdmin && (
           <div className="flex gap-2">

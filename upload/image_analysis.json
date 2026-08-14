@@ -1,0 +1,28 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "This image shows a **web UI interface** (likely a dashboard or admin panel) displaying program management cards with a comparison between two states. Here's the detailed breakdown:\n\n## Overall Layout\n- Two horizontal card rows stacked vertically\n- Dark gray/black background between them\n- Handwritten annotations/arrows indicating a transformation\n\n---\n\n## Top Card (Original State)\n**Background:** White/light gray rounded rectangle\n\n**Left Section - Program Title:**\n- **Icon:** Briefcase/document icon (📋)\n- **Text:** \"Program Kerja Nasional & Daerah — DPD Kalimantan Barat\"\n- **Badge:** Gray pill-shaped tag showing \"30 program\"\n\n**Right Section - Action Buttons:**\n1. **\"Upload PDF\" button** - White background, black text, upload icon (↑) on left\n2. **\"Tambah Program\" button** - Blue/purple gradient background, white text, plus icon (+) on left\n\n---\n\n## Middle Annotation Area\n- Text: \"**Menjadi**\" (Indonesian for \"Becomes\")\n- Arrow pointing down to second card\n- Oval shape containing: \"**Lihat dok**\" (abbreviation for \"Lihat dokumen\" / \"View document\")\n\n---\n\n## Bottom Card (Modified State)\n**Background:** White/light gray rounded rectangle\n\n**Left Section - Modified Title:**\n- **Icon:** Briefcase icon (📋)\n- **Text:** \"Program Kerja Nasional & Daerah — [BLACK RECTANGLE] — DPD Kalimantan Barat\"\n  - *Note: There's a black rectangular redaction/placeholder between the em-dashes*\n- **New Element:** A document/file icon inserted between the title parts (appears to be a clickable attachment or document preview icon)\n\n**Right Section - Action Buttons:**\n- Identical to top card:\n  1. **\"Upload PDF\" button** (white, with upload icon)\n  2. **\"Tambah Program\" button** (blue gradient, with plus icon)\n\n---\n\n## Design Elements Summary\n- **Typography:** Sans-serif font, bold for titles, regular for buttons\n- **Color scheme:** White cards, blue accent (#4F46E5 or similar), gray badges\n- **Icons:** Line-style icons (briefcase, upload arrow, plus sign)\n- **Spacing:** Generous padding inside cards, aligned button groups to the right\n- **Visual hierarchy:** Title left-aligned, actions right-aligned, badge inline with title\n\nThe image appears to demonstrate a **UI state change** where a document attachment is added to the program card, with the annotation suggesting this allows users to \"view documents\" (Lihat dok).",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1786694598,
+  "id": "20260814160257a89622db11084d6a",
+  "model": "glm-5v-turbo",
+  "object": "chat.completion",
+  "request_id": "20260814160257a89622db11084d6a",
+  "usage": {
+    "completion_tokens": 552,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "prompt_tokens": 363,
+    "prompt_tokens_details": {
+      "cached_tokens": 2
+    },
+    "total_tokens": 915
+  }
+}
