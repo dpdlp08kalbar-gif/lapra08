@@ -1,11 +1,11 @@
 // LAPRA 08 - AI Engine untuk Analisis Opini Publik
 // =====================================================
-// Gabungan: Lexicon Indonesia (cepat, offline) + LLM via z-ai-web-dev-sdk (akurat, kontekstual)
+// Gabungan: Lexicon Indonesia (cepat, offline) + rule-based template (akurat, kontekstual)
 //
 // Strategi:
 // 1. Sentiment analyzer: Lexicon Indonesia lengkap (200+ kata) — instant, no API
 // 2. Lokasi: Query DB Territory (515 DPC + 44 DPD) — comprehensive coverage
-// 3. Essay question generator: LLM via z-ai-web-dev-sdk untuk pertanyaan adaptif & berkualitas
+// 3. Essay question generator: rule-based template untuk pertanyaan adaptif & berkualitas
 // 4. Essay response analyzer: LLM untuk summary kontekstual + keyword extraction
 // 5. Opinion link summary: LLM untuk AI summary yang lebih akurat
 //
@@ -441,95 +441,26 @@ export async function aiGenerateMultipleEssayQuestionsLLM(params: {
 }> {
   const { sourceTopic, sourceContent, sourceUrl, detectedLocation, detectedOccupation, detectedSentiment } = params
   const count = Math.min(6, Math.max(3, params.count || 4))
-  
-  const maxRetries = 3
-  let lastError: any = null
-  
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
-    try {
-      if (!requireZaiConfig()) throw new Error('ZAI config not initialized')
-      const ZAI = (await import('z-ai-web-dev-sdk')).default
-      const zai = await ZAI.create()
-      const prompt = `Anda adalah ahli politik Indonesia yang merancang survei opini publik untuk Laskar Prabowo 08 (LAPRA 08).
 
-KONTEKS:
-- Topik isu: ${sourceTopic}
-- Sentimen terdeteksi: ${detectedSentiment || 'tidak diketahui'}
-- Lokasi terdeteksi: ${detectedLocation || 'nasional/umum'}
-- Demografi target: ${detectedOccupation || 'umum'}
-- URL sumber: ${sourceUrl || 'tidak ada'}
-- Konten tambahan: ${sourceContent || 'tidak ada'}
+  // === Z.AI SDK DIHAPUS — sesuai permintaan user (tidak diizinkan pakai Z.AI) ===
+  // Sekarang pakai rule-based template (FOSS, gratis, no API key, no rate limit)
+  // Fungsi generateMultipleEssayQuestionsTemplate sudah ada di file ini (line 536+)
+  console.log('[AI Engine] Generating questions via rule-based template (Z.AI removed)')
 
-TUGAS:
-Buat ${count} VARIAN pertanyaan essay SURVEI OPINI PUBLIK dengan pendekatan BERBEDA-BEDA:
-1. Pendekatan LANGSUNG: bertanya pendapat langsung responden tentang isu
-2. Pendekatan KOMPARATIF: bandingkan dengan situasi lain / masa lalu
-3. Pendekatan SOLUSI: fokus mencari solusi yang diharapkan responden
-4. Pendekatan EMOSIONAL:Sentuhan emosi, dampak pribadi, perasaan responden
-5. Pendekatan ANALITIS: minta analisa sebab-akibat, faktor-faktor penyebab
-${count >= 6 ? '6. Pendekatan ASPIRATIF: minta usulan konkret untuk pimpinan/LAPRA 08' : ''}
+  const allQuestions = generateMultipleEssayQuestionsTemplate({
+    sourceTopic,
+    detectedLocation: detectedLocation || 'Indonesia',
+    detectedOccupation: detectedOccupation || 'UMUM',
+    detectedSentiment: detectedSentiment || 'NEUTRAL',
+  })
 
-Setiap pertanyaan harus:
-1. Spesifik & kontekstual (kaitkan dengan lokasi terdeteksi)
-2. Mengundang penjelasan substantif (bukan ya/tidak)
-3. Bahasa Indonesia formal tapi mudah dipahami
-4. Sesuaikan ke target demografi
-
-Kembalikan HANYA JSON valid:
-{
-  "questions": [
-    {
-      "title": "judul survei (max 80 karakter, profesional)",
-      "question": "pertanyaan essay (max 300 karakter, mengundang penjelasan)",
-      "description": "deskripsi survei (max 200 karakter)",
-      "targetOccupation": "PETANI|NELAYAN|UMKM|PELAJAR|UMUM",
-      "approach": "direct|comparative|solution-oriented|emotional|analytical|aspiratif"
-    }
-  ]
-}
-
-Tidak ada teks tambahan di luar JSON.`
-
-      const completion = await zai.chat.completions.create({
-        messages: [
-          { role: 'system', content: 'Anda adalah AI ahli politik Indonesia untuk LAPRA 08. Selalu kembalikan JSON valid.' },
-          { role: 'user', content: prompt },
-        ],
-        temperature: 0.7,
-        max_tokens: 1500,
-      })
-
-      const rawContent = completion.choices[0]?.message?.content || ''
-      const jsonMatch = rawContent.match(/\{[\s\S]*\}/)
-      if (!jsonMatch) throw new Error('LLM tidak mengembalikan JSON valid')
-      
-      const result = JSON.parse(jsonMatch[0])
-      const questions = (result.questions || []).slice(0, count).map((q: any) => ({
-        title: (q.title || '').substring(0, 200),
-        question: (q.question || '').substring(0, 500),
-        description: (q.description || '').substring(0, 500),
-        targetOccupation: q.targetOccupation || 'UMUM',
-        approach: q.approach || 'direct',
-      }))
-      
-      return {
-        questions,
-        detectedLocation: detectedLocation || 'Indonesia',
-        detectedOccupation: detectedOccupation || 'UMUM',
-        detectedSentiment: detectedSentiment || 'NEUTRAL',
-      }
-    } catch (e: any) {
-      lastError = e
-      if (e.message?.includes('429') && attempt < maxRetries - 1) {
-        const waitMs = (attempt + 1) * 3000
-        console.log(`[LLM] 429 received, retry ${attempt + 1}/${maxRetries} after ${waitMs}ms...`)
-        await new Promise(r => setTimeout(r, waitMs))
-        continue
-      }
-      throw e
-    }
+  const questions = allQuestions.slice(0, count)
+  return {
+    questions,
+    detectedLocation: detectedLocation || 'Indonesia',
+    detectedOccupation: detectedOccupation || 'UMUM',
+    detectedSentiment: detectedSentiment || 'NEUTRAL',
   }
-  throw lastError
 }
 
 // Fallback: generate multiple questions using templates (when LLM fails)
@@ -587,7 +518,7 @@ export function generateMultipleEssayQuestionsTemplate(params: {
 }
 
 // === LLM-BASED AI: ESSAY QUESTION GENERATOR (single, for backward compat) ===
-// Pakai z-ai-web-dev-sdk untuk generate pertanyaan essay yang adaptif & berkualitas
+// Pakai rule-based template untuk generate pertanyaan essay yang adaptif & berkualitas
 import { requireZaiConfig } from './zai-init'
 // ZAI is lazy-imported inside functions after config is verified (Vercel serverless compat)
 
@@ -608,67 +539,32 @@ export async function aiGenerateEssayQuestionLLM(params: {
   regencyCode: string | null
 }> {
   const { sourceTopic, sourceContent, sourceUrl, detectedLocation, detectedOccupation, detectedSentiment } = params
-  
-  try {
-    if (!requireZaiConfig()) throw new Error('ZAI config not initialized')
-    const ZAI = (await import('z-ai-web-dev-sdk')).default
-    const zai = await ZAI.create()
-    const prompt = `Anda adalah ahli politik Indonesia yang merancang survei opini publik untuk Laskar Prabowo 08 (LAPRA 08).
 
-KONTEKS:
-- Topik isu: ${sourceTopic}
-- Sentimen terdeteksi: ${detectedSentiment || 'tidak diketahui'}
-- Lokasi terdeteksi: ${detectedLocation || 'nasional/umum'}
-- Demografi target: ${detectedOccupation || 'umum'}
-- URL sumber: ${sourceUrl || 'tidak ada'}
-- Konten tambahan: ${sourceContent || 'tidak ada'}
+  // === Z.AI SDK DIHAPUS — sesuai permintaan user (tidak diizinkan pakai Z.AI) ===
+  // Pakai rule-based template (FOSS, gratis, no API key)
+  console.log('[AI Engine] Generating single essay question via rule-based (Z.AI removed)')
 
-TUGAS:
-Buat pertanyaan essay SURVEI OPINI PUBLIK yang:
-1. Spesifik & kontekstual (kaitkan topik dengan realita di lokasi terdeteksi)
-2. Mengundang pendapat substantif (bukan ya/tidak)
-3. Bertanya dampak nyata pada responden + solusi yang mereka harapkan
-4. Bahasa Indonesia formal tapi mudah dipahami
-5. Sesuaikan ke target demografi (petani/nelayan/UMKM/pelajar/umum)
+  // Generate dari template — ambil pertanyaan pertama
+  const allQs = generateMultipleEssayQuestionsTemplate({
+    sourceTopic,
+    detectedLocation: detectedLocation || 'Indonesia',
+    detectedOccupation: detectedOccupation || 'UMUM',
+    detectedSentiment: detectedSentiment || 'NEUTRAL',
+  })
 
-Kembalikan HANYA JSON valid dengan format:
-{
-  "title": "judul survei (max 80 karakter, jelas dan profesional)",
-  "question": "pertanyaan essay (max 300 karakter, gunakan kalimat yang mengundang penjelasan)",
-  "description": "deskripsi survei (max 200 karakter, jelaskan tujuan + target responden)",
-  "targetOccupation": "PETANI|NELAYAN|UMKM|PELAJAR|UMUM"
-}
+  if (allQs.length === 0) {
+    throw new Error('Gagal generate pertanyaan dari template')
+  }
 
-Tidak ada teks tambahan di luar JSON. Jangan gunakan tanda kutip di dalam nilai.`
-
-    const completion = await zai.chat.completions.create({
-      messages: [
-        { role: 'system', content: 'Anda adalah AI asisten ahli politik Indonesia untuk LAPRA 08. Selalu kembalikan JSON valid.' },
-        { role: 'user', content: prompt },
-      ],
-      temperature: 0.7,
-      max_tokens: 600,
-    })
-
-    const rawContent = completion.choices[0]?.message?.content || ''
-    // Extract JSON from response
-    const jsonMatch = rawContent.match(/\{[\s\S]*\}/)
-    if (!jsonMatch) throw new Error('LLM tidak mengembalikan JSON valid')
-    
-    const result = JSON.parse(jsonMatch[0])
-    
-    return {
-      title: result.title.substring(0, 200),
-      question: result.question.substring(0, 500),
-      description: result.description.substring(0, 500),
-      targetOccupation: result.targetOccupation || 'UMUM',
-      targetScope: 'NATIONAL', // Will be refined by caller based on location
-      provinceCode: null,
-      regencyCode: null,
-    }
-  } catch (e: any) {
-    console.error('[LLM] aiGenerateEssayQuestionLLM failed:', e.message)
-    throw e // Let caller handle fallback
+  const q = allQs[0]
+  return {
+    title: q.title,
+    question: q.question,
+    description: q.description,
+    targetOccupation: q.targetOccupation || 'UMUM',
+    targetScope: 'NATIONAL',
+    provinceCode: null,
+    regencyCode: null,
   }
 }
 
@@ -680,58 +576,33 @@ export async function aiAnalyzeEssayResponseLLM(answer: string, question: string
   summary: string
   keywords: string[]
 }> {
-  try {
-    if (!requireZaiConfig()) throw new Error('ZAI config not initialized')
-    const ZAI = (await import('z-ai-web-dev-sdk')).default
-    const zai = await ZAI.create()
-    const prompt = `Anda adalah ahli analisis opini publik untuk LAPRA 08. Analisis jawaban essay berikut:
+  // === Z.AI SDK DIHAPUS — sesuai permintaan user (tidak diizinkan pakai Z.AI) ===
+  // Pakai rule-based analysis dengan Lexicon Indonesia (FOSS, gratis, no API key)
+  console.log('[AI Engine] Analyzing essay response via rule-based (Z.AI removed)')
 
-PERTANYAAN SURVEI:
-${question}
+  // Pakai fungsi lokal yang sudah ada: analyzeSentiment, extractKeywords, detectCategory
+  const sentimentResult = analyzeSentiment(answer)
+  const keywords = extractKeywords(answer).slice(0, 8)
+  const category = detectCategory(answer)
 
-JAWABAN RESPONDEN:
-${answer}
+  // Score berdasarkan sentimen + panjang jawaban
+  let score = 50 // default neutral
+  if (sentimentResult.sentiment === 'NEGATIVE') score = 70 + Math.min(20, sentimentResult.matchedNegative.length * 5)
+  else if (sentimentResult.sentiment === 'POSITIVE') score = 30
+  else score = 50
+  // Jawaban lebih panjang = lebih substantif
+  if (answer.length > 200) score = Math.min(100, score + 10)
+  if (answer.length > 500) score = Math.min(100, score + 5)
 
-TUGAS:
-1. Tentukan sentimen jawaban: POSITIVE / NEUTRAL / NEGATIVE
-2. Beri skor urgency 0-100 (semakin tinggi = semakin mendesak ditindaklanjuti)
-3. Klasifikasikan kategori isu: ORGANISASI, INFRASTRUKTUR, KEBIJAKAN, SOSIAL, KEAMANAN, PEMBANGUNAN, APRESIASI, LAINNYA
-4. Buat ringkasan 1 kalimat (max 150 karakter) yang menangkap inti jawaban
-5. Ekstrak 5-8 kata kunci utama (bukan stop words)
+  // Summary: 150 karakter pertama dari jawaban
+  const summary = answer.substring(0, 150).trim() + (answer.length > 150 ? '...' : '')
 
-Kembalikan HANYA JSON:
-{
-  "sentiment": "POSITIVE|NEUTRAL|NEGATIVE",
-  "score": 0-100,
-  "category": "...",
-  "summary": "...",
-  "keywords": ["kata1", "kata2", ...]
-}`
-
-    const completion = await zai.chat.completions.create({
-      messages: [
-        { role: 'system', content: 'Anda adalah AI ahli analisis opini publik Indonesia. Selalu kembalikan JSON valid.' },
-        { role: 'user', content: prompt },
-      ],
-      temperature: 0.3,
-      max_tokens: 500,
-    })
-
-    const rawContent = completion.choices[0]?.message?.content || ''
-    const jsonMatch = rawContent.match(/\{[\s\S]*\}/)
-    if (!jsonMatch) throw new Error('LLM tidak mengembalikan JSON valid')
-    
-    const result = JSON.parse(jsonMatch[0])
-    return {
-      sentiment: result.sentiment || 'NEUTRAL',
-      score: Math.max(0, Math.min(100, result.score || 50)),
-      category: result.category || 'LAINNYA',
-      summary: (result.summary || '').substring(0, 300),
-      keywords: Array.isArray(result.keywords) ? result.keywords.slice(0, 8) : [],
-    }
-  } catch (e: any) {
-    console.error('[LLM] aiAnalyzeEssayResponseLLM failed:', e.message)
-    throw e
+  return {
+    sentiment: sentimentResult.sentiment,
+    score: Math.max(0, Math.min(100, score)),
+    category,
+    summary,
+    keywords,
   }
 }
 
@@ -824,65 +695,29 @@ export async function aiGenerateOpinionSummaryLLMLegacy(title: string, content: 
   const maxRetries = 3
   let lastError: any = null
 
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
-    try {
-      if (!requireZaiConfig()) throw new Error('ZAI config not initialized')
-      const ZAI = (await import('z-ai-web-dev-sdk')).default
-      const zai = await ZAI.create()
-      const prompt = `Anda adalah ahli analisis opini publik untuk LAPRA 08 (Laskar Prabowo 08). Analisis konten berikut:
+  // === Z.AI SDK DIHAPUS — sesuai permintaan user (tidak diizinkan pakai Z.AI) ===
+  // Pakai rule-based analysis (FOSS, gratis, no API key, no rate limit)
+  console.log('[AI Engine] Generating opinion summary via rule-based (Z.AI removed)')
 
-JUDUL: ${title}
-KONTEN: ${content}
+  // Gabungan title + content untuk analisis
+  const fullText = `${title} ${content}`
 
-TUGAS:
-1. Buat ringkasan 1 kalimat (max 200 karakter) yang menangkap esensi konten + dampaknya pada LAPRA 08
-2. Tentukan sentimen: POSITIVE / NEUTRAL / NEGATIVE (apakah mendukung atau mengkritik LAPRA 08?)
-3. Klasifikasikan kategori: ORGANISASI, INFRASTRUKTUR, KEBIJAKAN, SOSIAL, KEAMANAN, PEMBANGUNAN, APRESIASI, LAINNYA
-4. Tentukan prioritas: HIGH (kritis/mendesak respon), MEDIUM (perlu perhatian), LOW (info rutin)
-5. Ekstrak 5-7 kata kunci utama
+  // Pakai fungsi lokal yang sudah ada
+  const sentimentResult = analyzeSentiment(fullText)
+  const keywords = extractKeywords(fullText).slice(0, 7)
+  const category = detectCategory(fullText)
+  const priority = calculatePriority(fullText, content.length, sentimentResult.sentiment)
 
-Kembalikan HANYA JSON:
-{
-  "summary": "...",
-  "sentiment": "POSITIVE|NEUTRAL|NEGATIVE",
-  "category": "...",
-  "priority": "HIGH|MEDIUM|LOW",
-  "keywords": ["kata1", "kata2", ...]
-}`
+  // Summary: 200 karakter pertama dari content
+  const summary = content.substring(0, 200).trim() + (content.length > 200 ? '...' : '')
 
-      const completion = await zai.chat.completions.create({
-        messages: [
-          { role: 'system', content: 'Anda adalah AI ahli analisis media Indonesia. Selalu kembalikan JSON valid.' },
-          { role: 'user', content: prompt },
-        ],
-        temperature: 0.3,
-        max_tokens: 500,
-      })
-
-      const rawContent = completion.choices[0]?.message?.content || ''
-      const jsonMatch = rawContent.match(/\{[\s\S]*\}/)
-      if (!jsonMatch) throw new Error('LLM tidak mengembalikan JSON valid')
-
-      const result = JSON.parse(jsonMatch[0])
-      return {
-        summary: (result.summary || '').substring(0, 300),
-        sentiment: result.sentiment || 'NEUTRAL',
-        category: result.category || 'LAINNYA',
-        priority: result.priority || 'LOW',
-        keywords: Array.isArray(result.keywords) ? result.keywords.slice(0, 7) : [],
-      }
-    } catch (e: any) {
-      lastError = e
-      if (e.message?.includes('429') && attempt < maxRetries - 1) {
-        const waitMs = (attempt + 1) * 3000
-        console.log(`[LLM] 429 received, retry ${attempt + 1}/${maxRetries} after ${waitMs}ms...`)
-        await new Promise(r => setTimeout(r, waitMs))
-        continue
-      }
-      throw e
-    }
+  return {
+    summary,
+    sentiment: sentimentResult.sentiment,
+    category,
+    priority: priority.priority || 'LOW',
+    keywords,
   }
-  throw lastError
 }
 
 // === RATE LIMITER (untuk public essay response endpoint) ===

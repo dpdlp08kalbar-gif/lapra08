@@ -1,8 +1,10 @@
-// LAPRA 08 - API: News Fetch Content (Page Reader via z-ai-web-dev-sdk)
+// LAPRA 08 - API: News Fetch Content (Page Reader — pakai fetch() + HTML parser FOSS)
 // POST /api/news/fetch-content { url } - fetch full article: title, content (plain text), publishedTime, imageUrl
+//
+// === Z.AI SDK DIHAPUS — sesuai permintaan user (tidak diizinkan pakai Z.AI) ===
+// Sekarang pakai fetch() standar + regex HTML parser (FOSS, gratis, no API key)
 import { NextRequest, NextResponse } from 'next/server'
 import { getUserFromRequest } from '@/lib/server-helpers'
-import { requireZaiConfig } from '@/lib/zai-init'
 
 // Strip HTML tags & convert to plain text. Collapses whitespace.
 function htmlToPlainText(html: string): string {
@@ -47,6 +49,33 @@ function extractFirstImageFromHtml(html: string): string | null {
   return imgMatch && imgMatch[1] ? imgMatch[1] : null
 }
 
+// === Parse metadata dari <meta> tags (og:title, og:image, dll) ===
+function parseMetaTags(html: string): Record<string, string> {
+  const meta: Record<string, string> = {}
+  // Match <meta property="og:title" content="..."> atau <meta name="twitter:title" content="...">
+  const metaRegex = /<meta\s+(?:property|name)=["']([^"']+)["']\s+content=["']([^"']*)["']/gi
+  let match
+  while ((match = metaRegex.exec(html)) !== null) {
+    if (match[1] && match[2]) {
+      meta[match[1].toLowerCase()] = match[2]
+    }
+  }
+  // Match reverse order: content first then property/name
+  const metaRegexReverse = /<meta\s+content=["']([^"']*)["']\s+(?:property|name)=["']([^"']+)["']/gi
+  while ((match = metaRegexReverse.exec(html)) !== null) {
+    if (match[1] && match[2]) {
+      meta[match[2].toLowerCase()] = match[1]
+    }
+  }
+  return meta
+}
+
+// === Extract <title>...</title> ===
+function extractTitleTag(html: string): string | null {
+  const match = html.match(/<title[^>]*>([^<]+)<\/title>/i)
+  return match && match[1] ? match[1].trim() : null
+}
+
 export async function POST(request: NextRequest) {
   const user = await getUserFromRequest(request)
   if (!user) {
@@ -81,45 +110,53 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // === Init ZAI config dari env vars (untuk Vercel serverless) ===
-    if (!requireZaiConfig()) {
-      return NextResponse.json({
-        success: false,
-        error: 'Konfigurasi ZAI SDK belum lengkap. Set env vars: ZAI_BASE_URL, ZAI_API_KEY, ZAI_CHAT_ID, ZAI_TOKEN, ZAI_USER_ID di Vercel Project Settings.',
-      }, { status: 500 })
+    // === HAPUS Z.AI — pakai fetch() standar (FOSS, gratis) ===
+    let html = ''
+    try {
+      const fetchRes = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; LAPRA08Bot/1.0; +https://lapra08.vercel.app)',
+          'Accept': 'text/html,application/xhtml+xml',
+          'Accept-Language': 'id-ID,id;q=0.9,en;q=0.8',
+        },
+        redirect: 'follow',
+        signal: AbortSignal.timeout(15000), // 15 detik timeout
+      })
+      if (!fetchRes.ok) {
+        return NextResponse.json(
+          { success: false, error: `Gagal fetch URL: HTTP ${fetchRes.status}` },
+          { status: 502 }
+        )
+      }
+      html = await fetchRes.text()
+    } catch (fetchErr: any) {
+      return NextResponse.json(
+        { success: false, error: `Gagal fetch URL: ${fetchErr.message}` },
+        { status: 502 }
+      )
     }
 
-    const ZAI = (await import('z-ai-web-dev-sdk')).default
-    const zai = await ZAI.create()
-    const rawResult = await zai.functions.invoke('page_reader', { url })
-
-    // The SDK may return either the data directly or wrapped in { data }
-    const data: any =
-      rawResult && typeof rawResult === 'object' && 'data' in rawResult
-        ? (rawResult as any).data
-        : rawResult
-
-    if (!data) {
+    if (!html) {
       return NextResponse.json(
         { success: false, error: 'Tidak dapat membaca konten halaman' },
         { status: 502 }
       )
     }
 
-    const html: string = data.html || ''
-    const metadata: any = data.metadata || {}
+    // === Parse metadata dari <meta> tags ===
+    const metadata = parseMetaTags(html)
 
-    // Title: prefer og:title then explicit title
-    const title: string = data.title || metadata['og:title'] || metadata['twitter:title'] || ''
+    // Title: prefer og:title then <title> tag then twitter:title
+    const titleTag = extractTitleTag(html)
+    const title: string = metadata['og:title'] || titleTag || metadata['twitter:title'] || ''
 
-    // Published time: prefer explicit, then metadata article:published_time
+    // Published time: prefer article:published_time then article:modified_time
     const publishedTime: string | null =
-      data.publishedTime ||
       metadata['article:published_time'] ||
       metadata['article:modified_time'] ||
       null
 
-    // Image: prefer og:image then twitter:image, then first <img> in HTML
+    // Image: prefer og:image then twitter:image then first <img> in HTML
     let imageUrl: string | null =
       metadata['og:image'] ||
       metadata['twitter:image'] ||
@@ -130,11 +167,11 @@ export async function POST(request: NextRequest) {
       imageUrl = extractFirstImageFromHtml(html)
     }
 
+    // Description: prefer og:description then meta description
+    const description: string = metadata['og:description'] || metadata['description'] || ''
+
     // Convert HTML to plain text
     const content = htmlToPlainText(html)
-
-    // Also expose short description (often a clean summary)
-    const description: string = data.description || metadata['og:description'] || ''
 
     return NextResponse.json({
       success: true,

@@ -45,23 +45,36 @@ export async function POST(request: NextRequest) {
         prompt: 'Indonesian political rally, large crowd of supporters in red shirts with raised fists, stage with speakers, Indonesian flags waving, outdoor venue, photojournalism style, dramatic lighting' },
     ]
 
-    // Generate setiap foto via Z.AI image API
-    const ZAI = (await import('z-ai-web-dev-sdk')).default
-    const zai = await ZAI.create()
+    // === HAPUS Z.AI SDK — ganti dengan Picsum.photos (Lorem Picsum, gratis, no API key) ===
+    // Picsum.photos adalah layanan foto gratis dari Unsplash yang di-randomize
+    // URL: https://picsum.photos/seed/{seed}/1344/768 → return foto landscape random
+    //
+    // Sebelumnya pakai Z.AI image generation API, tapi user melarang pakai Z.AI di sistem ini.
+    // Sekarang pakai Picsum.photos (gratis, tanpa API key, tanpa rate limit berlebihan).
 
-    for (const photo of photoPrompts) {
+    for (let i = 0; i < photoPrompts.length; i++) {
+      const photo = photoPrompts[i]
       try {
-        const response = await zai.images.generations.create({
-          prompt: photo.prompt,
-          size: '1344x768', // landscape
-        })
+        // Generate unique seed untuk Picsum (agar foto berbeda tiap item)
+        const seed = `lapra08-${i}-${Date.now()}`
+        const imageUrl = `https://picsum.photos/seed/${seed}/1344/768`
+        const thumbnailUrl = `https://picsum.photos/seed/${seed}/400/240`
 
-        if (!response.data || !response.data[0] || !response.data[0].base64) {
-          throw new Error('Invalid response dari image API')
+        // Fetch gambar dari Picsum.photos lalu convert ke base64 untuk disimpan di DB
+        // (agar tetap persisten walau Picsum down di masa depan)
+        let dataUrl = imageUrl  // fallback: pakai URL langsung kalau fetch gagal
+        try {
+          const imgRes = await fetch(imageUrl, { redirect: 'follow' })
+          if (imgRes.ok) {
+            const arrayBuffer = await imgRes.arrayBuffer()
+            const buffer = Buffer.from(arrayBuffer)
+            const base64 = buffer.toString('base64')
+            dataUrl = `data:image/jpeg;base64,${base64}`
+          }
+        } catch (fetchErr) {
+          // Jika fetch gagal, tetap pakai URL Picsum langsung (akan di-load browser)
+          console.warn(`[Seed Demo] Fetch Picsum gagal untuk ${photo.title}, pakai URL langsung`)
         }
-
-        const imageBase64 = response.data[0].base64
-        const dataUrl = `data:image/png;base64,${imageBase64}`
 
         const id = `gallery_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`
         await db.systemSetting.create({

@@ -149,11 +149,11 @@ export async function scrapeSocialMediaViaDDG(
   }
 
   const queries: { platform: DDGResult['platform']; query: string }[] = []
-  for (const platform of platforms) {
-    const cfg = PLATFORM_SITE_FILTERS.find(c => c.platform === platform)
+  for (const pf of platforms) {
+    const cfg = PLATFORM_SITE_FILTERS.find(c => c.platform === pf)
     if (!cfg) continue
     const q = `${BASE_QUERY}${locationFilter} site:${cfg.siteFilter}`
-    queries.push({ platform, query: q })
+    queries.push({ platform: cfg.platform, query: q })
   }
 
   // Fire all queries in parallel
@@ -179,4 +179,97 @@ export async function scrapeSocialMediaViaDDG(
     seen.add(r.url)
     return true
   })
+}
+
+// ============================================================
+// GENERAL WEB SEARCH via DuckDuckGo (untuk News Search)
+// ============================================================
+// Mencari artikel web general (bukan khusus social media)
+// Returns: array hasil { url, title, snippet, hostName, date }
+//
+// 100% gratis, no API key, no auth — pakai DuckDuckGo HTML endpoint
+export type WebSearchResult = {
+  url: string
+  title: string
+  snippet: string
+  hostName: string
+  date: string
+}
+
+export async function searchViaDDG(query: string, maxResults: number = 10): Promise<WebSearchResult[]> {
+  const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`
+  try {
+    const res = await fetch(url, {
+      headers: { 'User-Agent': DDG_UA, Accept: 'text/html' },
+      signal: AbortSignal.timeout(15000),
+      cache: 'no-store',
+    })
+    if (!res.ok) {
+      console.error(`[DDG Search] HTTP ${res.status} for query: ${query}`)
+      return []
+    }
+    const html = await res.text()
+    return parseDDGHtmlForWebSearch(html, maxResults)
+  } catch (e: any) {
+    console.error(`[DDG Search] Failed for query "${query}":`, e.message)
+    return []
+  }
+}
+
+function parseDDGHtmlForWebSearch(html: string, maxResults: number): WebSearchResult[] {
+  const results: WebSearchResult[] = []
+  // DDG HTML structure: <a class="result__a" href="...">title</a>
+  // + <a class="result__snippet">snippet</a>
+  // atau <div class="result__body">...<a class="result__a" href="U">T</a>...<a class="result__snippet" href="U">S</a>...
+
+  // Pattern: <a rel="nofollow" class="result__a" href="REDIRECT_URL">TITLE</a>
+  const linkRegex = /<a[^>]*class="result__a"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi
+  // Pattern: snippet in <a class="result__snippet" href="...">SNIPPET</a>
+  const snippetRegex = /<a[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/a>/gi
+
+  // Collect all links
+  const links: { url: string; title: string }[] = []
+  let m
+  while ((m = linkRegex.exec(html)) !== null && links.length < maxResults * 2) {
+    const rawUrl = m[1] || ''
+    const titleHtml = m[2] || ''
+    // DDG wraps URLs in redirect: //duckduckgo.com/l/?uddg=ENCODED_URL&...
+    let actualUrl = rawUrl
+    const uddgMatch = rawUrl.match(/uddg=([^&]+)/)
+    if (uddgMatch && uddgMatch[1]) {
+      try {
+        actualUrl = decodeURIComponent(uddgMatch[1])
+      } catch {
+        // keep rawUrl
+      }
+    }
+    const title = stripHtml(titleHtml).trim()
+    if (actualUrl && title) {
+      links.push({ url: actualUrl, title })
+    }
+  }
+
+  // Collect all snippets (in order)
+  const snippets: string[] = []
+  while ((m = snippetRegex.exec(html)) !== null) {
+    snippets.push(stripHtml(m[1] || '').trim())
+  }
+
+  // Build results
+  for (let i = 0; i < links.length && results.length < maxResults; i++) {
+    const link = links[i]
+    let hostName = ''
+    try {
+      hostName = new URL(link.url).hostname
+    } catch {}
+    results.push({
+      url: link.url,
+      title: link.title,
+      snippet: snippets[i] || '',
+      hostName,
+      date: '', // DDG HTML doesn't reliably provide date
+    })
+  }
+
+  return results
 }

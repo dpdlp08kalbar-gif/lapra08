@@ -5043,19 +5043,29 @@ function FaqManager() {
     { id: 'faq_20', category: 'LAINNYA', q: 'Bagaimana kebijakan privasi dan keamanan data anggota di portal LAPRA 08?', a: 'Data anggota dilindungi sesuai UU PDP No. 27 Tahun 2022. Kebijakan: (1) Data anggota hanya dapat diakses oleh pengurus dengan otorisasi sesuai hierarki wilayah; (2) Data sensitif (no KTP, alamat lengkap) dienkripsi di database; (3) Setiap akses dicatat dalam audit log; (4) Anggota dapat request akses/hapus data (GDPR-style) melalui menu "Pengaturan" > "Privasi Data"; (5) Tidak ada data yang dibagikan ke pihak ketiga tanpa persetujuan tertulis anggota.' },
   ]
 
-  // === Load FAQ from API. Jika database kosong, gunakan DEFAULT_FAQS ===
+  // === Load FAQ from API. Gabungkan DEFAULT_FAQS + data DB (deduplikasi by ID) ===
+  // Jika database kosong → pakai DEFAULT_FAQS (20 FAQ)
+  // Jika database ada data → gabungkan DEFAULT + DB (DB override DEFAULT by ID)
   const reload = () => {
     setLoading(true)
     api('/api/faq')
       .then((data: any[]) => {
-        if (data && data.length > 0) {
-          // API return { id, key, value: {id, category, q, a} } — extract value
-          const parsed = data.map((item: any) => item.value || item).filter(Boolean)
-          setFaqs(parsed)
-        } else {
-          // Database kosong -> pakai default (Super Admin bisa edit, nanti disimpan ke DB)
-          setFaqs(DEFAULT_FAQS)
-        }
+        // Extract value dari response API
+        const dbFaqs = (data || [])
+          .map((item: any) => item.value || item)
+          .filter(Boolean)
+          .filter((f: any) => f && f.id && f.q && f.a) // validasi field wajib
+
+        // Map DEFAULT_FAQS by ID untuk override
+        const defaultMap = new Map(DEFAULT_FAQS.map(f => [f.id, f]))
+        const dbMap = new Map(dbFaqs.map((f: any) => [f.id, f]))
+
+        // Gabungan: semua default + semua DB (DB override default dengan ID sama)
+        const merged = [
+          ...DEFAULT_FAQS.map(f => dbMap.get(f.id) || f),  // default, di-override DB jika ada
+          ...dbFaqs.filter((f: any) => !defaultMap.has(f.id)),  // DB items yang bukan default
+        ]
+        setFaqs(merged)
       })
       .catch(() => setFaqs(DEFAULT_FAQS))
       .finally(() => setLoading(false))

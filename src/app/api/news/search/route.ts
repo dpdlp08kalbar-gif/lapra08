@@ -1,10 +1,13 @@
-// LAPRA 08 - API: News Search (Google via z-ai-web-dev-sdk)
+// LAPRA 08 - API: News Search (DuckDuckGo via ddg-scraper.ts — FOSS, gratis, no API key)
 // POST /api/news/search { query } - search web, enrich with isRelevant & alreadyAdded
 // GET  /api/news/search - return suggested queries
+//
+// === Z.AI SDK DIHAPUS — sesuai permintaan user (tidak diizinkan pakai Z.AI) ===
+// Sekarang pakai DuckDuckGo HTML search via ddg-scraper.ts (100% gratis, no API key, no auth)
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getUserFromRequest } from '@/lib/server-helpers'
-import { requireZaiConfig } from '@/lib/zai-init'
+import { searchViaDDG } from '@/lib/ddg-scraper'
 
 // STRICT keywords - berita harus mengandung salah satu untuk dianggap relevan
 const LAPRA_KEYWORDS = [
@@ -59,7 +62,7 @@ export async function GET(request: NextRequest) {
   })
 }
 
-// POST - Search web for news
+// POST - Search web for news via DuckDuckGo (FOSS, no API key)
 export async function POST(request: NextRequest) {
   const user = await getUserFromRequest(request)
   if (!user) {
@@ -85,26 +88,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // === Init ZAI config dari env vars (untuk Vercel serverless) ===
-    if (!requireZaiConfig()) {
-      return NextResponse.json({
-        success: false,
-        error: 'Konfigurasi ZAI SDK belum lengkap. Set env vars: ZAI_BASE_URL, ZAI_API_KEY, ZAI_CHAT_ID, ZAI_TOKEN, ZAI_USER_ID di Vercel Project Settings.',
-      }, { status: 500 })
-    }
+    // === HAPUS Z.AI — pakai DuckDuckGo HTML search (FOSS, gratis, no API key) ===
+    console.log(`[News Search] Using DuckDuckGo (FOSS) for query: "${query}"`)
+    const ddgResults = await searchViaDDG(query, num)
 
-    const ZAI = (await import('z-ai-web-dev-sdk')).default
-    const zai = await ZAI.create()
-    const rawResults = await zai.functions.invoke('web_search', { query, num })
-
-    // The SDK returns either an array directly or wrapped in { data: [...] }
-    const list: any[] = Array.isArray(rawResults)
-      ? rawResults
-      : Array.isArray((rawResults as any)?.data)
-        ? (rawResults as any).data
-        : []
-
-    if (list.length === 0) {
+    if (ddgResults.length === 0) {
       return NextResponse.json({
         success: true,
         data: [],
@@ -113,7 +101,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Collect all URLs to check duplicates against existing announcements
-    const urls = list.map((r: any) => r.url).filter(Boolean) as string[]
+    const urls = ddgResults.map((r) => r.url).filter(Boolean)
 
     const existingByUrl = await db.announcement.findMany({
       where: { sourceUrl: { in: urls } },
@@ -122,10 +110,10 @@ export async function POST(request: NextRequest) {
     const existingUrlSet = new Set(existingByUrl.map((a) => a.sourceUrl))
 
     // Enrich each result with isRelevant & alreadyAdded
-    const enriched = list.map((r: any) => {
-      const title = r.name || ''
+    const enriched = ddgResults.map((r) => {
+      const title = r.title || ''
       const snippet = r.snippet || ''
-      const host = r.host_name || ''
+      const host = r.hostName || ''
       const url = r.url || ''
       const haystack = `${title} ${snippet} ${host} ${url}`.toLowerCase()
 
