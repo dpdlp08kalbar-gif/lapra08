@@ -55,6 +55,18 @@ const ORG_VARIANTS = [
   'Relawan Laskar Prabowo 08',
 ]
 
+// === BROADENED: tambah keyword terkait Prabowo untuk menjangkau berita lebih luas ===
+// FIX: "LAPRA 08 Kalimantan Barat" → 0 hasil di Google News
+// Tapi "Prabowo relawan Kalimantan Barat" → 8+ hasil
+const BROAD_KEYWORDS = [
+  'Prabowo relawan',
+  'Prabowo pendukung',
+  'Prabowo konsolidasi',
+  'Prabowo pemenangan',
+  'Gerindra',
+  'Prabowo Gibran',
+]
+
 // === 38 PROVINSI + KOTA UTAMA + TOKOH LOKAL + INSTITUSI ===
 // Format: { prov, nickname, kota, kodim, kejati, dprd }
 const WILAYAH_MATRIX: {
@@ -107,31 +119,32 @@ const WILAYAH_MATRIX: {
 ]
 
 // === GENERATE LEXICON MATRIX QUERIES (otomatis dari matrix) ===
-// Formula: ORG_VARIANTS × WILAYAH_MATRIX = 4 × 38 = 152 base queries
-// + kota utama queries (4 × 38 × avg 3 kota = ~456 queries)
-// Total: ~600+ queries, rotasi 5 per batch
+// FIX v3: Broaden query — "LAPRA 08" terlalu niche untuk Google News
+// Tambah "Prabowo relawan [daerah]" yang punya 8+ hasil per provinsi
 function generateLexiconQueries(): string[] {
   const queries: string[] = []
 
+  // TIER 1: Broad keywords × provinsi (PRIORITAS — paling banyak hasil)
+  for (const broad of BROAD_KEYWORDS) {
+    for (const w of WILAYAH_MATRIX) {
+      // broad + provinsi
+      queries.push(`${broad} ${w.prov}`)
+      // broad + kota utama
+      if (w.kota[0] && w.kota[0] !== w.prov) {
+        queries.push(`${broad} ${w.kota[0]}`)
+      }
+    }
+  }
+
+  // TIER 2: Org-specific × provinsi (untuk data LAPRA spesifik)
   for (const org of ORG_VARIANTS) {
     for (const w of WILAYAH_MATRIX) {
-      // Query 1: org + provinsi
+      // org + provinsi
       queries.push(`"${org}" ${w.prov} OR ${w.nick}`)
-
-      // Query 2: org + kota utama (hanya 1 kota per provinsi untuk hemat batch)
+      // org + kota utama
       const kota = w.kota[0]
       if (kota && kota !== w.prov) {
         queries.push(`"${org}" ${kota}`)
-      }
-
-      // Query 3: org + kodim (institusi lokal)
-      if (w.kodim) {
-        queries.push(`"${org}" ${w.kodim}`)
-      }
-
-      // Query 4: org + dprd (untuk berita politik lokal)
-      if (w.dprd) {
-        queries.push(`"${org}" ${w.dprd}`)
       }
     }
   }
@@ -356,11 +369,13 @@ async function scrapeGoogleNews(maxResults = 5): Promise<ScrapedPost[]> {
       const items = parsed.items?.slice(0, 3) || [] // 3 item per feed
 
       for (const item of items) {
-        // Filter: hanya simpan yang mengandung keyword LAPRA/Prabowo
+        // Filter: BROADENED — simpan berita terkait Prabowo/relawan/Gerindra/pemilu
         const text = `${item.title || ''} ${item.contentSnippet || ''}`.toLowerCase()
         const isRelevant = text.includes('laskar prabowo') || text.includes('lapra') ||
                            text.includes('prabowo') || text.includes('asta cita') ||
-                           text.includes('pemilu') || text.includes('pilkada')
+                           text.includes('pemilu') || text.includes('pilkada') ||
+                           text.includes('relawan') || text.includes('gerindra') ||
+                           text.includes('prabowo gibran') || text.includes('pemenangan')
 
         if (!isRelevant) continue
 
