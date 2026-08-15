@@ -112,24 +112,11 @@ const WILAYAH_MATRIX: {
 ]
 
 // === GENERATE LEXICON MATRIX QUERIES (otomatis dari matrix) ===
-// FIX v3: Broaden query — "LAPRA 08" terlalu niche untuk Google News
-// Tambah "Prabowo relawan [daerah]" yang punya 8+ hasil per provinsi
+// HANYA LAPRA 08 / Laskar Prabowo 08 — tidak boleh menangkap organisasi lain
 function generateLexiconQueries(): string[] {
   const queries: string[] = []
 
-  // TIER 1: Broad keywords × provinsi (PRIORITAS — paling banyak hasil)
-  for (const broad of BROAD_KEYWORDS) {
-    for (const w of WILAYAH_MATRIX) {
-      // broad + provinsi
-      queries.push(`${broad} ${w.prov}`)
-      // broad + kota utama
-      if (w.kota[0] && w.kota[0] !== w.prov) {
-        queries.push(`${broad} ${w.kota[0]}`)
-      }
-    }
-  }
-
-  // TIER 2: Org-specific × provinsi (untuk data LAPRA spesifik)
+  // ORG_VARIANTS × WILAYAH_MATRIX = 4 × 38 = 152+ query
   for (const org of ORG_VARIANTS) {
     for (const w of WILAYAH_MATRIX) {
       // org + provinsi
@@ -396,13 +383,14 @@ async function scrapeGoogleNews(maxResults = 5): Promise<ScrapedPost[]> {
       const items = parsed.items?.slice(0, 3) || [] // 3 item per feed
 
       for (const item of items) {
-        // Filter: BROADENED — simpan berita terkait Prabowo/relawan/Gerindra/pemilu
+        // Filter: HANYA Laskar Prabowo 08 / LAPRA 08 — tidak boleh organisasi lain
         const text = `${item.title || ''} ${item.contentSnippet || ''}`.toLowerCase()
-        const isRelevant = text.includes('laskar prabowo') || text.includes('lapra') ||
-                           text.includes('prabowo') || text.includes('asta cita') ||
-                           text.includes('pemilu') || text.includes('pilkada') ||
-                           text.includes('relawan') || text.includes('gerindra') ||
-                           text.includes('prabowo gibran') || text.includes('pemenangan')
+        const isRelevant = text.includes('laskar prabowo 08') ||
+                           text.includes('laskar prabowo 08') ||
+                           text.includes('lapra 08') ||
+                           text.includes('lapra08') ||
+                           text.includes('lp 08') ||
+                           text.includes('relawan laskar prabowo 08')
 
         if (!isRelevant) continue
 
