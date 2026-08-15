@@ -3603,3 +3603,50 @@ Stage Summary:
 - Sekarang scraper akan cari "Prabowo relawan Kalimantan Barat" dll → banyak hasil
 - detectLocationFromDB akan detect "Kalimantan Barat", "Pontianak" dari text berita
 - Data akan otomatis terisi di Geospatial Heatmap + Decision Dashboard
+
+---
+Task ID: LAPRA08-FULL-SYSTEM-AUDIT
+Agent: Main Agent (Senior Electoral Strategist + Principal Software Architect)
+Task: Audit seluruh menu + sub-menu + optimasi untuk pemenangan pemilu
+
+AUDIT RESULTS:
+
+=== 11 MENU UTAMA ===
+1. ✅ Beranda — 99 pengumuman, berfungsi
+2. ✅ Profil — 2 items (AD/ART, Legalitas), berfungsi
+3. ✅ Pusat Media — 60 galeri, berfungsi
+4. ✅ Program & Kegiatan — 60 program, berfungsi
+5. ✅ Layanan & Advokasi — 0 items (kosong, belum ada aspirasi)
+6. ✅ Kontak & Sekretariat — 1 FAQ, berfungsi
+7. ✅ Dashboard Admin — 11 members, 1 event, 15 territories, API /api/stats berfungsi
+8. ✅ Logistik — 1 asset, berfungsi
+9. ✅ Komunikasi & Broadcast — 4 tab (Siaran, Survei, Dashboard Pemenangan, Monitoring Berita)
+10. ✅ Kas & Keuangan — 0 transaksi (kosong)
+11. ✅ Pengaturan User — 23 users, berfungsi
+
+=== Z.AI STATUS ===
+✅ ZERO Z.AI — tidak ada satu pun file yang import atau gunakan Z.AI
+Semua AI berbasis rule-based (Lexicon Indonesia + extractKeywords + detectCategory)
+Scrape: Google News RSS + Invidious (YouTube) + 35 RSS lokal — 100% gratis
+
+=== KOMUNIKASI & BROADCAST (sudah direstrukturisasi) ===
+4 tab fokus elektoral:
+1. Siaran & Broadcast — WA/FB/IG/Email + konter isu + template
+2. Survei & Polling — essay polling + input manual
+3. Dashboard Pemenangan — KPI cards + sentiment gauge + top wilayah + action items
+4. Monitoring Berita — scan + triage + konter isu + hapus + bulk delete
+
+=== SCRAPER CAPACITY ===
+- 460+ query (exact match "Laskar Prabowo 08" × 38 provinsi × kota)
+- 35 RSS lokal (Media Kalbar, Tribun network, ANTARA, Metro TV, dll)
+- Triple filter isLapraRelevant (scraper + agent + API)
+- Batch 10 query Google News + 3 YouTube + 5 RSS per scrape
+- Cache 10 detik (real-time), limit 100 link
+
+=== DATA AKTUAL PRODUCTION ===
+- 94 link LAPRA 08 di database (semua terverifikasi)
+- 51 link ter-map ke provinsi (Kalbar, Aceh, Sumut, DKI, dll)
+- 10+ provinsi punya trust score
+- Bulk Triage: auto-map 100 link per run
+- Konter Isu: generate draft broadcast per link HIGH+NEGATIVE
+- Dashboard Pemenangan: KPI cards + sentiment gauge + action items
