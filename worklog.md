@@ -2551,3 +2551,114 @@ Stage Summary:
 - Setelah deploy: hard refresh lapra08.vercel.app
 - Total FAQ sekarang: 20 (12 lama + 8 baru)
 - Semua fitur edit (CRUD) Super Admin dari commit sebelumnya tetap ada
+
+---
+Task ID: LAPRA08-HELP-DESK-AUDIT-FIX
+Agent: Main Agent (Super Z)
+Task: Audit mendalam menu Pusat Bantuan & Panduan + fix bug reply simulasi + tambah cetak PDF + status update
+
+Work Log:
+- User attach screenshot Help Center + request audit kelengkapan:
+  1. Cetak bukti laporan yang bisa di-download
+  2. Menu followup / menjawab atas tiket
+  3. Audit kelengkapan menu Pusat Bantuan & Panduan
+
+AUDIT MENDALAM:
+File: src/components/menus/help-menu.tsx (465 lines)
+API: src/app/api/tickets/route.ts (GET list + POST create)
+
+Temuan:
+1. ✅ Yang sudah ada:
+   - Tab "User Manual" (6 panduan statis)
+   - Tab "Tiket Laporan" + statistik (Total/Terbuka/Selesai)
+   - Form Buat Tiket (Judul, Kategori, Prioritas, Deskripsi)
+   - List tiket dengan filter reporter
+   - Detail dialog tiket
+2. ❌ Yang belum ada:
+   - Cetak/Download Bukti Laporan (PDF) — TIDAK ADA
+   - API Reply/Followup — TIDAK ADA (hanya simulasi di frontend)
+   - Tombol Ubah Status — TIDAK ADA
+   - Filter & Search tiket — TIDAK ADA
+   - Lampiran screenshot di form — TIDAK ADA
+
+3. 🔴 BUG KRITIS Ditemukan (line 402-403):
+   // Note: Tidak ada API reply di server, simpan di state lokal untuk demo
+   addToast('Balasan terkirim (simulasi)', 'success')
+   Konsekuensi: balasan TIDAK tersimpan ke DB, refresh → hilang!
+
+PERBAIKAN & PENAMBAHAN FITUR:
+
+A. Buat 3 API routes baru:
+1. /api/tickets/[id]/reply/route.ts (NEW)
+   - POST: tambah balasan ke DB (SupportTicketReply table)
+   - Validasi: hanya pelapor atau admin (SuperAdmin/DPN) yang bisa reply
+   - Auto-update status ke IN_PROGRESS jika admin yang reply
+   - Include user + territory di response
+2. /api/tickets/[id]/status/route.ts (NEW)
+   - PATCH: ubah status tiket (admin only)
+   - Validasi: status harus OPEN/IN_PROGRESS/RESOLVED/CLOSED
+   - Auto-assign admin yang resolve/close
+3. /api/tickets/[id]/pdf/route.ts (NEW)
+   - GET: generate HTML bukti laporan (response Content-Type: text/html)
+   - HTML bisa di-print via browser (Ctrl+P → Save as PDF)
+   - Konten: logo LAPRA 08, nomor tiket, info grid (judul/status/kategori/prioritas/pelapor/tanggal),
+     deskripsi, riwayat balasan (badge Pelapor/Admin), tanda tangan, footer
+   - Akses: pelapor sendiri atau admin
+
+B. Update help-menu.tsx (+611 lines, -65 lines):
+1. Fix bug reply simulasi (line 402-403 lama):
+   - Sebelum: addToast('Balasan terkirim (simulasi)') — tidak simpan ke DB
+   - Sesudah: panggil /api/tickets/[id]/reply (POST) → simpan ke DB
+
+2. Tambah tombol "Cetak Bukti (PDF)" di:
+   - Kolom "Aksi" di tabel list (ikon printer, kanan tiap row)
+   - Di detail dialog tiket (tombol outline orange)
+   - Handler: fetch HTML → blob → window.open → user Ctrl+P save as PDF
+
+3. Tambah tombol "Ubah Status" (admin only) di detail dialog:
+   - AlertDialog pilih status baru (OPEN/IN_PROGRESS/RESOLVED/CLOSED)
+   - Setiap pilihan ada deskripsi penjelasan
+   - Highlight status terpilih
+
+4. Tambah Filter & Search:
+   - Input search by nomor/judul/pelapor
+   - Select filter by status (Semua/Terbuka/Diproses/Selesai/Ditutup)
+
+5. Tambah StatCard ke-4: "Diproses" (IN_PROGRESS count)
+
+6. Tambah kolom "Aksi" di tabel dengan tombol printer
+
+7. Update ManualTab:
+   - Panduan #6 ditambahkan info cetak PDF
+   - Tips #4 ditambah: "Simpan nomor tiket untuk tracking dan cetak Bukti Laporan PDF sebagai arsip"
+
+8. Update form AddTicketDialog:
+   - Toast sukses: "Tiket berhasil dibuat. Nomor: TK-XXX. Simpan nomor ini untuk tracking."
+
+9. Update TicketDetailDialog:
+   - Reply dengan loading state (Loader2 spinner)
+   - Balasan ditampilkan dengan badge "Pelapor" (biru) atau "Admin" (orange)
+   - border-l-4 untuk visual distinction pelapor vs admin
+   - Placeholder dinamis (admin vs pelapor)
+   - 3 tombol: Kirim Balasan + Cetak Bukti (PDF) + Ubah Status (admin only)
+   - AlertDialog terpisah untuk pilih status
+
+10. Tambah format whitespace-pre-wrap untuk description + reply message (support multiline)
+
+PERUBAHAN FILE:
+- src/app/api/tickets/[id]/reply/route.ts (NEW, 60 lines)
+- src/app/api/tickets/[id]/status/route.ts (NEW, 55 lines)
+- src/app/api/tickets/[id]/pdf/route.ts (NEW, 145 lines)
+- src/components/menus/help-menu.tsx (rewrite, +611/-65 lines)
+- 5 files changed, 611 insertions(+), 65 deletions(-)
+
+Stage Summary:
+- Commit b06cee6 di-push ke origin/main (0a19276..b06cee6)
+- Vercel auto-deploy ~1-2 menit
+- Setelah deploy: hard refresh lapra08.vercel.app
+- Test scenario:
+  1. Buat tiket → toast muncul dengan nomor tiket
+  2. Klik tombol printer di tabel → HTML bukti laporan terbuka di tab baru → Ctrl+P save as PDF
+  3. Klik tiket untuk lihat detail → tulis balasan → kirim → tersimpan ke DB
+  4. Login sebagai admin → klik "Ubah Status" → pilih status baru → tersimpan
+  5. Search/filter berfungsi di list tiket
