@@ -2255,6 +2255,29 @@ function OpinionLinksTab() {
     }
   }
 
+  // === NEW: Bulk Triage — auto-map 50 link ke provinsi via Lexicon Matrix ===
+  const [triageLoading, setTriageLoading] = useState(false)
+  const handleBulkTriage = async () => {
+    setTriageLoading(true)
+    try {
+      const res = await fetch('/api/opinion-links/bulk-triage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': user?.id || '' },
+        body: JSON.stringify({ limit: 50 }),
+      })
+      const data = await res.json()
+      if (!data.success) throw new Error(data.error)
+      const stats = data.data
+      const topProvinsiStr = stats.topProvinsiList?.map((p: any) => `${p.provinsi}(${p.count})`).join(', ') || 'tidak ada'
+      addToast(`Triage: ${stats.mapped}/${stats.total} link di-map. Top: ${topProvinsiStr}`, 'success')
+      loadData() // refresh list
+    } catch (e: any) {
+      addToast(`Gagal bulk triage: ${e.message}`, 'error')
+    } finally {
+      setTriageLoading(false)
+    }
+  }
+
   // === NEW: Bulk Action — Generate Konter untuk semua HIGH+NEGATIVE selected ===
   const handleBulkGenerateKonter = async () => {
     const selected = Array.from(selectedIds)
@@ -2343,7 +2366,28 @@ function OpinionLinksTab() {
 
   return (
     <div className="space-y-4">
-      {/* === AUTO-TRIAGE ALERT BANNER === */}
+      {/* === AUTO-TRIAGE ALERT BANNER + BULK TRIAGE BUTTON === */}
+      {stats.belumDireview > 0 && (
+        <div className="rounded-lg bg-amber-50 border-2 border-amber-300 p-3 flex items-start gap-3">
+          <MapPin className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <div className="font-bold text-amber-800 text-sm">
+              🗺️ {stats.belumDireview} link belum di-map ke wilayah
+            </div>
+            <p className="text-xs text-amber-700 mt-1">
+              Jalankan Bulk Triage untuk auto-detect provinsi/kabupaten dari 50 link menggunakan Lexicon Matrix (kota + kodim + kejati).
+              Data akan langsung mengisi Geospatial Heatmap & Decision Dashboard.
+            </p>
+            <Button size="sm" className="mt-2 bg-amber-600 hover:bg-amber-700 text-white"
+              disabled={triageLoading}
+              onClick={handleBulkTriage}>
+              {triageLoading ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <MapPin className="w-3.5 h-3.5 mr-1" />}
+              {triageLoading ? 'Sedang triage...' : `Bulk Triage ${stats.belumDireview} Link`}
+            </Button>
+          </div>
+        </div>
+      )}
+
       {stats.highNegNew > 0 && (
         <div className="rounded-lg bg-red-50 border-2 border-red-300 p-3 flex items-start gap-3">
           <Zap className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />

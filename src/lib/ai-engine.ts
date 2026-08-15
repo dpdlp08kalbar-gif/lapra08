@@ -406,6 +406,89 @@ export async function detectLocationFromDB(text: string): Promise<{
     'sumbar': { provinceCode: '13', provinceName: 'Sumatera Barat' },
     'sumsel': { provinceCode: '16', provinceName: 'Sumatera Selatan' },
     'babel': { provinceCode: '19', provinceName: 'Bangka Belitung' },
+    'kepri': { provinceCode: '21', provinceName: 'Kepulauan Riau' },
+    'diy': { provinceCode: '34', provinceName: 'DI Yogyakarta' },
+    'papsel': { provinceCode: '93', provinceName: 'Papua Selatan' },
+    'papteng': { provinceCode: '94', provinceName: 'Papua Tengah' },
+    'pappeg': { provinceCode: '95', provinceName: 'Papua Pegunungan' },
+    'papbardaya': { provinceCode: '96', provinceName: 'Papua Barat Daya' },
+    'sulbar': { provinceCode: '76', provinceName: 'Sulawesi Barat' },
+  }
+
+  // === LEXICON MATRIX: kota utama → provinsi mapping (untuk deteksi lokasi lebih akurat) ===
+  const kotaToProvinsi: Record<string, { provinceCode: string; provinceName: string; regencyName?: string }> = {
+    // Kalbar
+    'pontianak': { provinceCode: '61', provinceName: 'Kalimantan Barat', regencyName: 'Kota Pontianak' },
+    'singkawang': { provinceCode: '61', provinceName: 'Kalimantan Barat', regencyName: 'Kota Singkawang' },
+    'sintang': { provinceCode: '61', provinceName: 'Kalimantan Barat', regencyName: 'Kabupaten Sintang' },
+    'ketapang': { provinceCode: '61', provinceName: 'Kalimantan Barat', regencyName: 'Kabupaten Ketapang' },
+    // Jabar
+    'bandung': { provinceCode: '32', provinceName: 'Jawa Barat', regencyName: 'Kota Bandung' },
+    'bekasi': { provinceCode: '32', provinceName: 'Jawa Barat', regencyName: 'Kota Bekasi' },
+    'bogor': { provinceCode: '32', provinceName: 'Jawa Barat', regencyName: 'Kota Bogor' },
+    'depok': { provinceCode: '32', provinceName: 'Jawa Barat', regencyName: 'Kota Depok' },
+    // DKI
+    'jakarta': { provinceCode: '31', provinceName: 'DKI Jakarta' },
+    'jakpus': { provinceCode: '31', provinceName: 'DKI Jakarta' },
+    'jakbar': { provinceCode: '31', provinceName: 'DKI Jakarta' },
+    'jakut': { provinceCode: '31', provinceName: 'DKI Jakarta' },
+    'jaksel': { provinceCode: '31', provinceName: 'DKI Jakarta' },
+    'jaktim': { provinceCode: '31', provinceName: 'DKI Jakarta' },
+    // Jateng
+    'semarang': { provinceCode: '33', provinceName: 'Jawa Tengah', regencyName: 'Kota Semarang' },
+    'surakarta': { provinceCode: '33', provinceName: 'Jawa Tengah', regencyName: 'Kota Surakarta' },
+    'solo': { provinceCode: '33', provinceName: 'Jawa Tengah', regencyName: 'Kota Surakarta' },
+    // Jatim
+    'surabaya': { provinceCode: '35', provinceName: 'Jawa Timur', regencyName: 'Kota Surabaya' },
+    'malang': { provinceCode: '35', provinceName: 'Jawa Timur', regencyName: 'Kota Malang' },
+    'kediri': { provinceCode: '35', provinceName: 'Jawa Timur', regencyName: 'Kota Kediri' },
+    // Sumatera
+    'medan': { provinceCode: '12', provinceName: 'Sumatera Utara', regencyName: 'Kota Medan' },
+    'pekanbaru': { provinceCode: '14', provinceName: 'Riau', regencyName: 'Kota Pekanbaru' },
+    'padang': { provinceCode: '13', provinceName: 'Sumatera Barat', regencyName: 'Kota Padang' },
+    'palembang': { provinceCode: '16', provinceName: 'Sumatera Selatan', regencyName: 'Kota Palembang' },
+    'bandar lampung': { provinceCode: '18', provinceName: 'Lampung', regencyName: 'Kota Bandar Lampung' },
+    // Kalimantan lain
+    'banjarmasin': { provinceCode: '63', provinceName: 'Kalimantan Selatan', regencyName: 'Kota Banjarmasin' },
+    'samarinda': { provinceCode: '64', provinceName: 'Kalimantan Timur', regencyName: 'Kota Samarinda' },
+    'balikpapan': { provinceCode: '64', provinceName: 'Kalimantan Timur', regencyName: 'Kota Balikpapan' },
+    // Sulawesi
+    'makassar': { provinceCode: '73', provinceName: 'Sulawesi Selatan', regencyName: 'Kota Makassar' },
+    'manado': { provinceCode: '71', provinceName: 'Sulawesi Utara', regencyName: 'Kota Manado' },
+    'kendari': { provinceCode: '74', provinceName: 'Sulawesi Tenggara', regencyName: 'Kota Kendari' },
+    'palu': { provinceCode: '72', provinceName: 'Sulawesi Tengah', regencyName: 'Kota Palu' },
+    // Bali & Nusa
+    'denpasar': { provinceCode: '51', provinceName: 'Bali', regencyName: 'Kota Denpasar' },
+    'mataram': { provinceCode: '52', provinceName: 'Nusa Tenggara Barat', regencyName: 'Kota Mataram' },
+    'kupang': { provinceCode: '53', provinceName: 'Nusa Tenggara Timur', regencyName: 'Kota Kupang' },
+    // Maluku & Papua
+    'ambon': { provinceCode: '81', provinceName: 'Maluku', regencyName: 'Kota Ambon' },
+    'ternate': { provinceCode: '82', provinceName: 'Maluku Utara', regencyName: 'Kota Ternate' },
+    'jayapura': { provinceCode: '91', provinceName: 'Papua', regencyName: 'Kota Jayapura' },
+    'manokwari': { provinceCode: '92', provinceName: 'Papua Barat', regencyName: 'Kabupaten Manokwari' },
+    'sorong': { provinceCode: '92', provinceName: 'Papua Barat', regencyName: 'Kota Sorong' },
+    'merauke': { provinceCode: '93', provinceName: 'Papua Selatan', regencyName: 'Kabupaten Merauke' },
+  }
+
+  // === DETEKSI KOTA → PROVINSI (sebelum fallback nickname) ===
+  for (const [kota, loc] of Object.entries(kotaToProvinsi)) {
+    const regex = new RegExp(`\\b${kota.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i')
+    if (regex.test(lower)) {
+      // Cari regencyCode di DB berdasarkan regencyName
+      let regencyCode: string | null = null
+      if (loc.regencyName) {
+        const reg = regencies.find(r =>
+          r.name.toLowerCase() === loc.regencyName!.toLowerCase()
+        )
+        if (reg) regencyCode = reg.code
+      }
+      return {
+        provinceCode: loc.provinceCode,
+        provinceName: loc.provinceName,
+        regencyCode,
+        regencyName: loc.regencyName || null,
+      }
+    }
   }
   for (const [nick, loc] of Object.entries(nicknameMap)) {
     const regex = new RegExp(`\\b${nick}\\b`, 'i')

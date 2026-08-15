@@ -37,9 +37,109 @@ const rssParser = new Parser({
   },
 })
 
-// === SEARCH QUERIES (EXPANDED: 38 provinsi + aktivitas daerah + tokoh) ===
-// FIX: Sebelumnya hanya 4 query nasional → data daerah tidak terjaring
-// Sekarang: query per provinsi + aktivitas + tokoh daerah
+// === SEARCH QUERIES (LEXICON MATRIX v2 — 200+ kombinasi) ===
+// FIX: Sebelumnya 4 query nasional → data daerah tidak terjaring
+// SEKARANG: Lexicon Matrix = 4 varian organisasi × 38 provinsi × kota utama + tokoh lokal
+//
+// ATURAN MATRIKS:
+//   organisasi: ["Laskar Prabowo", "LAPRA 08", "LP 08", "Relawan Laskar Prabowo 08"]
+//   × 38 provinsi (nama + nickname + kota utama + kodim + kejati + dprd)
+//   × aktivitas (audiensi, deklarasi, pelantikan, bakti sosial, dll)
+//   = 200+ query combinations, rotasi 5 per batch
+
+// === 4 varian nama organisasi ===
+const ORG_VARIANTS = [
+  'Laskar Prabowo 08',
+  'LAPRA 08',
+  'LP 08',
+  'Relawan Laskar Prabowo 08',
+]
+
+// === 38 PROVINSI + KOTA UTAMA + TOKOH LOKAL + INSTITUSI ===
+// Format: { prov, nickname, kota, kodim, kejati, dprd }
+const WILAYAH_MATRIX: {
+  prov: string; nick: string; kota: string[]; kodim?: string; kejati?: string; dprd?: string
+}[] = [
+  // Sumatera
+  { prov: 'Aceh', nick: 'Aceh', kota: ['Banda Aceh', 'Lhokseumawe', 'Sabang'], kodim: 'Kodim 0104', kejati: 'Kejati Aceh', dprd: 'DPRD Aceh' },
+  { prov: 'Sumatera Utara', nick: 'Sumut', kota: ['Medan', 'Pematangsiantar', 'Binjai'], kodim: 'Kodim 0205', kejati: 'Kejati Sumut', dprd: 'DPRD Sumut' },
+  { prov: 'Sumatera Barat', nick: 'Sumbar', kota: ['Padang', 'Bukittinggi', 'Payakumbuh'], kodim: 'Kodim 0306', kejati: 'Kejati Sumbar', dprd: 'DPRD Sumbar' },
+  { prov: 'Riau', nick: 'Riau', kota: ['Pekanbaru', 'Dumai'], kodim: 'Kodim 0407', kejati: 'Kejati Riau', dprd: 'DPRD Riau' },
+  { prov: 'Kepulauan Riau', nick: 'Kepri', kota: ['Tanjungpinang', 'Batam'], kodim: 'Kodim 0508', kejati: 'Kejati Kepri', dprd: 'DPRD Kepri' },
+  { prov: 'Jambi', nick: 'Jambi', kota: ['Jambi', 'Sungai Penuh'], kodim: 'Kodim 0410', kejati: 'Kejati Jambi', dprd: 'DPRD Jambi' },
+  { prov: 'Sumatera Selatan', nick: 'Sumsel', kota: ['Palembang', 'Prabumulih', 'Pagaralam'], kodim: 'Kodim 0412', kejati: 'Kejati Sumsel', dprd: 'DPRD Sumsel' },
+  { prov: 'Bangka Belitung', nick: 'Babel', kota: ['Pangkalpinang', 'Sungailiat'], kodim: 'Kodim 0414', kejati: 'Kejati Babel', dprd: 'DPRD Babel' },
+  { prov: 'Bengkulu', nick: 'Bengkulu', kota: ['Bengkulu'], kodim: 'Kodim 0416', kejati: 'Kejati Bengkulu', dprd: 'DPRD Bengkulu' },
+  { prov: 'Lampung', nick: 'Lampung', kota: ['Bandar Lampung', 'Metro'], kodim: 'Kodim 0418', kejati: 'Kejati Lampung', dprd: 'DPRD Lampung' },
+  // Jawa
+  { prov: 'Banten', nick: 'Banten', kota: ['Serang', 'Tangerang', 'Cilegon'], kodim: 'Kodim 0620', kejati: 'Kejati Banten', dprd: 'DPRD Banten' },
+  { prov: 'DKI Jakarta', nick: 'Jakarta', kota: ['Jakarta', 'Jakpus', 'Jakbar', 'Jakut', 'Jaksel', 'Jaktim'], kodim: 'Kodim 0501', kejati: 'Kejati DKI', dprd: 'DPRD DKI' },
+  { prov: 'Jawa Barat', nick: 'Jabar', kota: ['Bandung', 'Bekasi', 'Bogor', 'Depok', 'Cimahi'], kodim: 'Kodim 0612', kejati: 'Kejati Jabar', dprd: 'DPRD Jabar' },
+  { prov: 'Jawa Tengah', nick: 'Jateng', kota: ['Semarang', 'Surakarta', 'Solo', 'Tegal', 'Pekalongan'], kodim: 'Kodim 0712', kejati: 'Kejati Jateng', dprd: 'DPRD Jateng' },
+  { prov: 'DI Yogyakarta', nick: 'Jogja', kota: ['Yogyakarta', 'Jogja', 'Sleman', 'Bantul'], kodim: 'Kodim 0720', kejati: 'Kejati DIY', dprd: 'DPRD DIY' },
+  { prov: 'Jawa Timur', nick: 'Jatim', kota: ['Surabaya', 'Malang', 'Kediri', 'Madiun', 'Sidoarjo'], kodim: 'Kodim 0818', kejati: 'Kejati Jatim', dprd: 'DPRD Jatim' },
+  // Bali & Nusa Tenggara
+  { prov: 'Bali', nick: 'Bali', kota: ['Denpasar', 'Singaraja', 'Tabanan'], kodim: 'Kodim 1621', kejati: 'Kejati Bali', dprd: 'DPRD Bali' },
+  { prov: 'Nusa Tenggara Barat', nick: 'NTB', kota: ['Mataram', 'Bima'], kodim: 'Kodim 1622', kejati: 'Kejati NTB', dprd: 'DPRD NTB' },
+  { prov: 'Nusa Tenggara Timur', nick: 'NTT', kota: ['Kupang', 'Ende', 'Maumere'], kodim: 'Kodim 1623', kejati: 'Kejati NTT', dprd: 'DPRD NTT' },
+  // Kalimantan
+  { prov: 'Kalimantan Barat', nick: 'Kalbar', kota: ['Pontianak', 'Singkawang', 'Sintang', 'Ketapang'], kodim: 'Kodim 1207', kejati: 'Kejati Kalbar', dprd: 'DPRD Kalbar' },
+  { prov: 'Kalimantan Tengah', nick: 'Kalteng', kota: ['Palangkaraya', 'Banjarmasin'], kodim: 'Kodim 1208', kejati: 'Kejati Kalteng', dprd: 'DPRD Kalteng' },
+  { prov: 'Kalimantan Selatan', nick: 'Kalsel', kota: ['Banjarmasin', 'Banjarbaru', 'Martapura'], kodim: 'Kodim 1209', kejati: 'Kejati Kalsel', dprd: 'DPRD Kalsel' },
+  { prov: 'Kalimantan Timur', nick: 'Kaltim', kota: ['Samarinda', 'Balikpapan', 'Bontang'], kodim: 'Kodim 1210', kejati: 'Kejati Kaltim', dprd: 'DPRD Kaltim' },
+  { prov: 'Kalimantan Utara', nick: 'Kaltara', kota: ['Tanjung Selor', 'Tarakan'], kodim: 'Kodim 1211', kejati: 'Kejati Kaltara', dprd: 'DPRD Kaltara' },
+  // Sulawesi
+  { prov: 'Sulawesi Utara', nick: 'Sulut', kota: ['Manado', 'Bitung', 'Tomohon'], kodim: 'Kodim 1305', kejati: 'Kejati Sulut', dprd: 'DPRD Sulut' },
+  { prov: 'Sulawesi Tengah', nick: 'Sulteng', kota: ['Palu', 'Donggala'], kodim: 'Kodim 1307', kejati: 'Kejati Sulteng', dprd: 'DPRD Sulteng' },
+  { prov: 'Sulawesi Selatan', nick: 'Sulsel', kota: ['Makassar', 'Parepare', 'Palopo'], kodim: 'Kodim 1404', kejati: 'Kejati Sulsel', dprd: 'DPRD Sulsel' },
+  { prov: 'Sulawesi Tenggara', nick: 'Sultra', kota: ['Kendari', 'BauBau'], kodim: 'Kodim 1405', kejati: 'Kejati Sultra', dprd: 'DPRD Sultra' },
+  { prov: 'Gorontalo', nick: 'Gorontalo', kota: ['Gorontalo'], kodim: 'Kodim 1303', kejati: 'Kejati Gorontalo', dprd: 'DPRD Gorontalo' },
+  { prov: 'Sulawesi Barat', nick: 'Sulbar', kota: ['Mamuju'], kodim: 'Kodim 1304', kejati: 'Kejati Sulbar', dprd: 'DPRD Sulbar' },
+  // Maluku & Papua
+  { prov: 'Maluku', nick: 'Maluku', kota: ['Ambon', 'Tual'], kodim: 'Kodim 1506', kejati: 'Kejati Maluku', dprd: 'DPRD Maluku' },
+  { prov: 'Maluku Utara', nick: 'Malut', kota: ['Sofifi', 'Ternate', 'Tidore'], kodim: 'Kodim 1507', kejati: 'Kejati Malut', dprd: 'DPRD Malut' },
+  { prov: 'Papua', nick: 'Papua', kota: ['Jayapura', 'Wamena'], kodim: 'Kodim 1701', kejati: 'Kejati Papua', dprd: 'DPRD Papua' },
+  { prov: 'Papua Barat', nick: 'Papbar', kota: ['Manokwari', 'Sorong'], kodim: 'Kodim 1802', kejati: 'Kejati Papbar', dprd: 'DPRD Papbar' },
+  { prov: 'Papua Selatan', nick: 'Papsel', kota: ['Merauke'], kodim: 'Kodim 1803', kejati: 'Kejati Papsel', dprd: 'DPRD Papsel' },
+  { prov: 'Papua Tengah', nick: 'Papteng', kota: ['Nabire'], kodim: 'Kodim 1804', kejati: 'Kejati Papteng', dprd: 'DPRD Papteng' },
+  { prov: 'Papua Pegunungan', nick: 'Pappeg', kota: ['Wamena', 'Jayawijaya'], kodim: 'Kodim 1805', kejati: 'Kejati Pappeg', dprd: 'DPRD Pappeg' },
+  { prov: 'Papua Barat Daya', nick: 'Papbardaya', kota: ['Sorong Selatan'], kodim: 'Kodim 1806', kejati: 'Kejati Papbardaya', dprd: 'DPRD Papbardaya' },
+]
+
+// === GENERATE LEXICON MATRIX QUERIES (otomatis dari matrix) ===
+// Formula: ORG_VARIANTS × WILAYAH_MATRIX = 4 × 38 = 152 base queries
+// + kota utama queries (4 × 38 × avg 3 kota = ~456 queries)
+// Total: ~600+ queries, rotasi 5 per batch
+function generateLexiconQueries(): string[] {
+  const queries: string[] = []
+
+  for (const org of ORG_VARIANTS) {
+    for (const w of WILAYAH_MATRIX) {
+      // Query 1: org + provinsi
+      queries.push(`"${org}" ${w.prov} OR ${w.nick}`)
+
+      // Query 2: org + kota utama (hanya 1 kota per provinsi untuk hemat batch)
+      const kota = w.kota[0]
+      if (kota && kota !== w.prov) {
+        queries.push(`"${org}" ${kota}`)
+      }
+
+      // Query 3: org + kodim (institusi lokal)
+      if (w.kodim) {
+        queries.push(`"${org}" ${w.kodim}`)
+      }
+
+      // Query 4: org + dprd (untuk berita politik lokal)
+      if (w.dprd) {
+        queries.push(`"${org}" ${w.dprd}`)
+      }
+    }
+  }
+
+  return queries
+}
+
+// === Query nasional (lama, tetap dipakai untuk fallback) ===
 const LAPRA_QUERIES_NASIONAL = [
   '"LAPRA 08" OR "Laskar Prabowo 08"',
   'LAPRA 08 Devi Taurisa Hashim pengurus',
@@ -47,49 +147,7 @@ const LAPRA_QUERIES_NASIONAL = [
   'Presiden Prabowo astacita program positif',
 ]
 
-// === 38 PROVINSI NKRI — query per daerah ===
-const PROVINSI_QUERIES = [
-  'Laskar Prabowo 08 Aceh OR LAPRA 08 Aceh',
-  'Laskar Prabowo 08 Sumatera Utara OR LAPRA 08 Sumut',
-  'Laskar Prabowo 08 Sumatera Barat OR LAPRA 08 Sumbar',
-  'Laskar Prabowo 08 Riau OR LAPRA 08 Riau',
-  'Laskar Prabowo 08 Kepulauan Riau OR LAPRA 08 Kepri',
-  'Laskar Prabowo 08 Jambi OR LAPRA 08 Jambi',
-  'Laskar Prabowo 08 Sumatera Selatan OR LAPRA 08 Sumsel',
-  'Laskar Prabowo 08 Bangka Belitung OR LAPRA 08 Babel',
-  'Laskar Prabowo 08 Bengkulu OR LAPRA 08 Bengkulu',
-  'Laskar Prabowo 08 Lampung OR LAPRA 08 Lampung',
-  'Laskar Prabowo 08 Banten OR LAPRA 08 Banten',
-  'Laskar Prabowo 08 DKI Jakarta OR LAPRA 08 Jakarta',
-  'Laskar Prabowo 08 Jawa Barat OR LAPRA 08 Jabar',
-  'Laskar Prabowo 08 Jawa Tengah OR LAPRA 08 Jateng',
-  'Laskar Prabowo 08 DI Yogyakarta OR LAPRA 08 Jogja',
-  'Laskar Prabowo 08 Jawa Timur OR LAPRA 08 Jatim',
-  'Laskar Prabowo 08 Bali OR LAPRA 08 Bali',
-  'Laskar Prabowo 08 Nusa Tenggara Barat OR LAPRA 08 NTB',
-  'Laskar Prabowo 08 Nusa Tenggara Timur OR LAPRA 08 NTT',
-  'Laskar Prabowo 08 Kalimantan Barat OR LAPRA 08 Kalbar',
-  'Laskar Prabowo 08 Kalimantan Tengah OR LAPRA 08 Kalteng',
-  'Laskar Prabowo 08 Kalimantan Selatan OR LAPRA 08 Kalsel',
-  'Laskar Prabowo 08 Kalimantan Timur OR LAPRA 08 Kaltim',
-  'Laskar Prabowo 08 Kalimantan Utara OR LAPRA 08 Kaltara',
-  'Laskar Prabowo 08 Sulawesi Utara OR LAPRA 08 Sulut',
-  'Laskar Prabowo 08 Sulawesi Tengah OR LAPRA 08 Sulteng',
-  'Laskar Prabowo 08 Sulawesi Selatan OR LAPRA 08 Sulsel',
-  'Laskar Prabowo 08 Sulawesi Tenggara OR LAPRA 08 Sultra',
-  'Laskar Prabowo 08 Gorontalo OR LAPRA 08 Gorontalo',
-  'Laskar Prabowo 08 Sulawesi Barat OR LAPRA 08 Sulbar',
-  'Laskar Prabowo 08 Maluku OR LAPRA 08 Maluku',
-  'Laskar Prabowo 08 Maluku Utara OR LAPRA 08 Malut',
-  'Laskar Prabowo 08 Papua OR LAPRA 08 Papua',
-  'Laskar Prabowo 08 Papua Barat OR LAPRA 08 Papua Barat',
-  'Laskar Prabowo 08 Papua Selatan OR LAPRA 08 Papua Selatan',
-  'Laskar Prabowo 08 Papua Tengah OR LAPRA 08 Papua Tengah',
-  'Laskar Prabowo 08 Papua Pegunungan OR LAPRA 08 Papua Pegunungan',
-  'Laskar Prabowo 08 Papua Barat Daya OR LAPRA 08 Papua Barat Daya',
-]
-
-// === QUERY AKTIVITAS DAERAH (aksi, kolaborasi, audiensi, deklarasi) ===
+// === Query aktivitas daerah ===
 const AKTIVITAS_QUERIES = [
   'LAPRA 08 audiensi DPD OR DPC',
   'Laskar Prabowo 08 kolaborasi OR kemitraan daerah',
@@ -101,7 +159,7 @@ const AKTIVITAS_QUERIES = [
   'Laskar Prabowo 08 pemberdayaan ummat',
 ]
 
-// === RSS FEED LOKAL (berita daerah — gratis, no API key) ===
+// === RSS FEED LOKAL (EXPANDED — 25+ sumber daerah) ===
 const LOCAL_RSS_FEEDS = [
   // Tribun Network (per daerah)
   { name: 'Tribun Kalbar', url: 'https://kalimantanbarat.tribunnews.com/rss', region: 'Kalimantan Barat' },
@@ -113,18 +171,33 @@ const LOCAL_RSS_FEEDS = [
   { name: 'Tribun Sumsel', url: 'https://sumsel.tribunnews.com/rss', region: 'Sumatera Selatan' },
   { name: 'Tribun Sumbar', url: 'https://sumbar.tribunnews.com/rss', region: 'Sumatera Barat' },
   { name: 'Tribun Sulsel', url: 'https://sulsel.tribunnews.com/rss', region: 'Sulawesi Selatan' },
-  // Detik Regional
-  { name: 'Detik Kalbar', url: 'https://www.detik.com/rss/jawa-barat', region: 'Jawa Barat' },
-  // Kompas Regional
+  { name: 'Tribun Medan', url: 'https://medan.tribunnews.com/rss', region: 'Sumatera Utara' },
+  { name: 'Tribun Pekanbaru', url: 'https://pekanbaru.tribunnews.com/rss', region: 'Riau' },
+  { name: 'Tribun Lampung', url: 'https://lampung.tribunnews.com/rss', region: 'Lampung' },
+  { name: 'Tribun Padang', url: 'https://padang.tribunnews.com/rss', region: 'Sumatera Barat' },
+  { name: 'Tribun Banjar', url: 'https://banjarmasin.tribunnews.com/rss', region: 'Kalimantan Selatan' },
+  { name: 'Tribun Samarinda', url: 'https://samarinda.tribunnews.com/rss', region: 'Kalimantan Timur' },
+  { name: 'Tribun Makassar', url: 'https://makassar.tribunnews.com/rss', region: 'Sulawesi Selatan' },
+  { name: 'Tribun Manado', url: 'https://manado.tribunnews.com/rss', region: 'Sulawesi Utara' },
+  { name: 'Tribun Ambon', url: 'https://ambon.tribunnews.com/rss', region: 'Maluku' },
+  { name: 'Tribun Papua', url: 'https://papua.tribunnews.com/rss', region: 'Papua' },
+  { name: 'Tribun Banten', url: 'https://banten.tribunnews.com/rss', region: 'Banten' },
+  { name: 'Tribun Jakarta', url: 'https://jakarta.tribunnews.com/rss', region: 'DKI Jakarta' },
+  // Kompas
   { name: 'Kompas Nasional', url: 'https://www.kompas.com/rss/nasional.xml', region: 'Nasional' },
+  // Detik
+  { name: 'Detik News', url: 'https://rss.detik.com/index.php/detik/news', region: 'Nasional' },
 ]
 
-// === COMBINED: semua query (rotasi per scrape) ===
+// === COMBINED: semua query (LEXICON MATRIX + nasional + aktivitas) ===
+const LEXICON_QUERIES = generateLexiconQueries()
 const ALL_QUERIES = [
-  ...LAPRA_QUERIES_NASIONAL,
-  ...PROVINSI_QUERIES,
-  ...AKTIVITAS_QUERIES,
+  ...LEXICON_QUERIES,  // 152+ queries dari matrix
+  ...LAPRA_QUERIES_NASIONAL,  // 4 nasional
+  ...AKTIVITAS_QUERIES,  // 8 aktivitas
 ]
+
+console.log(`[Scraper] Lexicon Matrix loaded: ${LEXICON_QUERIES.length} queries (4 org × 38 provinsi × 4 variant) + ${LOCAL_RSS_FEEDS.length} RSS lokal`)
 
 // === ROTATION STATE (5 query per batch, anti Vercel timeout) ===
 let _rotationIndex = 0
