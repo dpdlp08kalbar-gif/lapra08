@@ -12,6 +12,9 @@ import { Textarea } from '@/components/ui/textarea'
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -118,16 +121,60 @@ function OpinionScannerTab() {
   const [recentLinks, setRecentLinks] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [filterPriority, setFilterPriority] = useState('ALL')
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
+  // === FIX: cache-bust dengan timestamp + limit 50 (dari 15) ===
   const loadRecent = useCallback(() => {
     setLoading(true)
-    api('/api/opinion-links?limit=15').then(res => {
+    const _t = Date.now() // cache-bust: bypass 30s cache di API
+    api(`/api/opinion-links?limit=50&_t=${_t}`).then(res => {
       const data = Array.isArray(res) ? res : (res?.data || [])
       setRecentLinks(data)
     }).catch(() => setRecentLinks([])).finally(() => setLoading(false))
   }, [])
 
   useEffect(() => { loadRecent() }, [loadRecent])
+
+  // === NEW: Handle delete link ===
+  const handleDelete = async (linkId: string) => {
+    setDeletingId(linkId)
+    try {
+      const res = await fetch(`/api/opinion-links/${linkId}`, {
+        method: 'DELETE',
+        headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+      })
+      const data = await res.json()
+      if (!data.success) throw new Error(data.error)
+      addToast('Link dihapus dari hasil scan', 'success')
+      // Remove dari state langsung (instant, tanpa reload)
+      setRecentLinks(prev => prev.filter(l => l.id !== linkId))
+    } catch (e: any) {
+      addToast(`Gagal hapus: ${e.message}`, 'error')
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
+  // === NEW: Handle bulk delete semua yang tampil ===
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
+  const handleBulkDelete = async () => {
+    setBulkDeleteOpen(false)
+    const toDelete = filteredLinks
+    addToast(`Menghapus ${toDelete.length} link...`, 'info')
+    let success = 0, failed = 0
+    for (const link of toDelete) {
+      try {
+        const res = await fetch(`/api/opinion-links/${link.id}`, {
+          method: 'DELETE',
+          headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+        })
+        if (res.ok) success++
+        else failed++
+      } catch { failed++ }
+    }
+    addToast(`Selesai: ${success} dihapus, ${failed} gagal`, 'success')
+    loadRecent()
+  }
 
   const handleScan = async () => {
     setScanning(true); setLastResult(null)
@@ -199,8 +246,8 @@ function OpinionScannerTab() {
         </CardContent>
       </Card>
 
-      {/* Filter */}
-      <div className="flex items-center gap-2">
+      {/* Filter + Bulk Delete */}
+      <div className="flex items-center gap-2 flex-wrap">
         <Filter className="w-4 h-4 text-muted-foreground" />
         <span className="text-xs font-semibold text-muted-foreground">Filter Prioritas:</span>
         {['ALL', 'HIGH', 'MEDIUM', 'LOW'].map(p => (
@@ -210,8 +257,15 @@ function OpinionScannerTab() {
             {p === 'ALL' ? 'Semua' : p}
           </Button>
         ))}
-        <div className="ml-auto text-xs text-muted-foreground">
-          {filteredLinks.length} mention
+        <div className="ml-auto flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">{filteredLinks.length} mention</span>
+          {/* === NEW: Bulk Delete Button === */}
+          {filteredLinks.length > 0 && (
+            <Button size="sm" variant="outline" className="h-7 text-xs text-red-600 hover:bg-red-50 border-red-200"
+              onClick={() => setBulkDeleteOpen(true)}>
+              <Trash2 className="w-3 h-3 mr-1" /> Hapus Semua ({filteredLinks.length})
+            </Button>
+          )}
         </div>
       </div>
 
@@ -263,12 +317,41 @@ function OpinionScannerTab() {
                       <ExternalLink className="w-4 h-4" />
                     </Button>
                   </a>
+                  {/* === NEW: Tombol Hapus per item === */}
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 shrink-0"
+                    disabled={deletingId === link.id}
+                    onClick={() => handleDelete(link.id)}
+                    title="Hapus link ini">
+                    {deletingId === link.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                  </Button>
                 </div>
               </div>
             )
           })}
         </div>
       )}
+
+      {/* === NEW: Konfirmasi Bulk Delete === */}
+      <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+        <AlertDialogContent aria-describedby={undefined}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus {filteredLinks.length} Link?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Yakin ingin menghapus <strong>{filteredLinks.length} link</strong> dari hasil scan?
+              Tindakan ini tidak dapat dibatalkan. Link yang dihapus akan hilang dari Dashboard & Geospatial Mapping.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={handleBulkDelete} className="bg-red-600 hover:bg-red-700 text-white">
+              <Trash2 className="w-4 h-4 mr-2" /> Hapus {filteredLinks.length} Link
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

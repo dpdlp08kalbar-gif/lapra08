@@ -29,11 +29,15 @@ export async function GET(request: NextRequest) {
   const status = searchParams.get('status')
   const provinceCode = searchParams.get('provinceCode')
   const limit = parseInt(searchParams.get('limit') || '50')
+  // === FIX: bypass cache jika ada parameter _t (cache-bust dari frontend) ===
+  const bypassCache = searchParams.get('_t')
 
   const cacheKey = `${user.id}|${user.territoryId}|${platform || ''}|${sentiment || ''}|${priority || ''}|${status || ''}|${provinceCode || ''}|${limit}`
-  const cached = _cache.get(cacheKey)
-  if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
-    return NextResponse.json({ success: true, data: cached.data, cached: true })
+  if (!bypassCache) {
+    const cached = _cache.get(cacheKey)
+    if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
+      return NextResponse.json({ success: true, data: cached.data, cached: true })
+    }
   }
 
   const territory = await db.territory.findUnique({ where: { id: user.territoryId } })
