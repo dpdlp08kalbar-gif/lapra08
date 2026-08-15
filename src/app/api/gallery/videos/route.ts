@@ -83,6 +83,11 @@ export async function POST(request: NextRequest) {
       const title = formData.get('title') as string
       const description = formData.get('description') as string
       const category = formData.get('category') as string || 'KEGIATAN'
+      // === Field baru untuk pengelompokan hierarki (DPN/DPD/DPC + Album) ===
+      const level = formData.get('level') as string || 'DPN'
+      const territoryCode = formData.get('territoryCode') as string || 'ID'
+      const territoryName = formData.get('territoryName') as string || 'DPN (Pusat Nasional)'
+      const albumName = formData.get('albumName') as string || 'Umum'
 
       if (!file) return NextResponse.json({ success: false, error: 'File video wajib' }, { status: 400 })
 
@@ -114,6 +119,11 @@ export async function POST(request: NextRequest) {
         fileSize: fileBuffer.length,
         uploadedBy: user.fullName,
         uploadedAt: new Date().toISOString(),
+        // === Field hierarki untuk pengelompokan folder ===
+        level,
+        territoryCode,
+        territoryName,
+        albumName,
       }
     } else {
       // JSON: YouTube embed link OR sync action
@@ -129,6 +139,11 @@ export async function POST(request: NextRequest) {
 
       // === Manual add video (YouTube URL) ===
       const { title, description, category, youtubeUrl } = body
+      // === Field hierarki dari body JSON ===
+      const level = body.level || 'DPN'
+      const territoryCode = body.territoryCode || 'ID'
+      const territoryName = body.territoryName || 'DPN (Pusat Nasional)'
+      const albumName = body.albumName || 'Umum'
 
       if (!youtubeUrl) return NextResponse.json({ success: false, error: 'URL YouTube wajib' }, { status: 400 })
 
@@ -162,6 +177,11 @@ export async function POST(request: NextRequest) {
         uploadedBy: user.fullName,
         uploadedAt: new Date().toISOString(),
         isActive: true,
+        // === Field hierarki untuk pengelompokan folder ===
+        level,
+        territoryCode,
+        territoryName,
+        albumName,
       }
     }
 

@@ -37,7 +37,7 @@ import {
   RefreshCw,
   Crown, Award, CheckCircle2, Clock, AlertTriangle, Globe, ExternalLink, Lock,
   Video, PlayCircle, BookMarked, FileCheck, UserCheck, XCircle, Camera, IdCard, Zap, Lightbulb, Sparkles,
-  Youtube,
+  Youtube, FolderTree, Folder,
 } from 'lucide-react'
 
 // Reuse existing functional components
@@ -47,6 +47,12 @@ import { HelpMenu } from '@/components/menus/help-menu'
 import { CommunicationMenu } from '@/components/menus/communication-menu'
 import { FinanceMenu } from '@/components/menus/finance-menu'
 import { LogisticsMenu } from '@/components/menus/logistics-menu'
+
+// === Shared interface untuk data Territory (DPN/DPD/DPC) ===
+interface Territory {
+  id: string; code: string; name: string; level: string
+  parentId: string | null
+}
 
 // ============================================================
 // 1. BERANDA — Portal Profesional Level Internasional
@@ -1250,31 +1256,48 @@ function GaleriMediaManager() {
 function GaleriVideoManager() {
   const addToast = useToastStore((s) => s.addToast)
   const [items, setItems] = useState<any[]>([])
+  const [territories, setTerritories] = useState<Territory[]>([])
   const [loading, setLoading] = useState(true)
   const [addOpen, setAddOpen] = useState(false)
   const [deleteItem, setDeleteItem] = useState<any>(null)
-  const [form, setForm] = useState({ title: '', description: '', category: 'KEGIATAN', youtubeUrl: '' })
+  const [form, setForm] = useState({
+    title: '', description: '', category: 'KEGIATAN', youtubeUrl: '',
+    level: 'DPN', territoryCode: 'ID', territoryName: 'DPN (Pusat Nasional)',
+    albumName: '',
+  })
   const [mode, setMode] = useState<'YOUTUBE' | 'UPLOAD'>('YOUTUBE')
   const [file, setFile] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
   const [playingVideo, setPlayingVideo] = useState<any>(null)
+  // === Filter state ===
+  const [filterLevel, setFilterLevel] = useState('ALL')
+  const [filterTerritoryCode, setFilterTerritoryCode] = useState('ALL')
+  const [filterAlbum, setFilterAlbum] = useState('ALL')
 
   const loadData = () => {
     setLoading(true)
-    api('/api/gallery/videos').then(setItems).catch(() => {}).finally(() => setLoading(false))
+    Promise.all([
+      api('/api/gallery/videos'),
+      api('/api/territory'),
+    ]).then(([vids, terr]: any) => {
+      setItems(vids || [])
+      setTerritories(terr || [])
+    }).catch(() => {}).finally(() => setLoading(false))
   }
   useEffect(() => { loadData() }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!form.albumName.trim()) { addToast('Nama Album wajib diisi', 'error'); return }
     setUploading(true)
     try {
+      const albumName = form.albumName.trim() || 'Umum'
       if (mode === 'YOUTUBE') {
         if (!form.youtubeUrl) { addToast('URL YouTube wajib diisi', 'error'); setUploading(false); return }
         const res = await fetch('/api/gallery/videos', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
-          body: JSON.stringify(form),
+          body: JSON.stringify({ ...form, albumName }),
         })
         const data = await res.json()
         if (!res.ok || !data.success) throw new Error(data.error || 'Gagal')
@@ -1286,6 +1309,10 @@ function GaleriVideoManager() {
         formData.append('title', form.title || file.name)
         formData.append('description', form.description)
         formData.append('category', form.category)
+        formData.append('level', form.level)
+        formData.append('territoryCode', form.territoryCode)
+        formData.append('territoryName', form.territoryName)
+        formData.append('albumName', albumName)
         const res = await fetch('/api/gallery/videos', {
           method: 'POST',
           headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
@@ -1295,7 +1322,7 @@ function GaleriVideoManager() {
         if (!res.ok || !data.success) throw new Error(data.error || 'Upload gagal')
         addToast('Video berhasil diupload', 'success')
       }
-      setForm({ title: '', description: '', category: 'KEGIATAN', youtubeUrl: '' })
+      setForm({ title: '', description: '', category: 'KEGIATAN', youtubeUrl: '', level: 'DPN', territoryCode: 'ID', territoryName: 'DPN (Pusat Nasional)', albumName: '' })
       setFile(null); setAddOpen(false)
       loadData()
     } catch (e: any) { addToast(e.message, 'error') }
@@ -1321,12 +1348,65 @@ function GaleriVideoManager() {
     SOSIAL: 'Aksi Sosial', DOKUMENTER: 'Dokumenter', LAINNYA: 'Lainnya',
   }
 
+  // === Filter wilayah berdasarkan level yang dipilih ===
+  const territoriesByLevel = (level: string): Territory[] => {
+    if (level === 'DPN') return [{ id: 'id', name: 'DPN (Pusat Nasional)', code: 'ID', level: 'COUNTRY', parentId: null }]
+    if (level === 'DPD') return territories.filter(t => t.level === 'PROVINCE')
+    if (level === 'DPC') return territories.filter(t => t.level === 'REGENCY')
+    return territories
+  }
+
+  // === Filter items ===
+  const filtered = items.filter(item => {
+    if (filterLevel !== 'ALL' && (item.level || 'DPN') !== filterLevel) return false
+    if (filterTerritoryCode !== 'ALL' && (item.territoryCode || 'ID') !== filterTerritoryCode) return false
+    if (filterAlbum !== 'ALL' && (item.albumName || 'Umum') !== filterAlbum) return false
+    return true
+  })
+
+  // === List album unik ===
+  const availableAlbums = Array.from(new Set(
+    items
+      .filter(item =>
+        (filterLevel === 'ALL' || (item.level || 'DPN') === filterLevel) &&
+        (filterTerritoryCode === 'ALL' || (item.territoryCode || 'ID') === filterTerritoryCode)
+      )
+      .map(item => item.albumName || 'Umum')
+  )).sort()
+
+  // === Group by level + territory + album ===
+  const grouped = filtered.reduce((acc: any, item: any) => {
+    const level = item.level || 'DPN'
+    const terrCode = item.territoryCode || 'ID'
+    const terrName = item.territoryName || 'DPN (Pusat Nasional)'
+    const album = item.albumName || 'Umum'
+    const key = `${level}|${terrCode}|${album}`
+    if (!acc[key]) acc[key] = { level, terrCode, terrName, album, items: [] }
+    acc[key].items.push(item)
+    return acc
+  }, {} as Record<string, any>)
+
+  const groupedArray = Object.values(grouped).sort((a: any, b: any) => {
+    const levelOrder: Record<string, number> = { DPN: 1, DPD: 2, DPC: 3 }
+    const lvlA = levelOrder[a.level] || 4
+    const lvlB = levelOrder[b.level] || 4
+    if (lvlA !== lvlB) return lvlA - lvlB
+    if (a.terrName !== b.terrName) return a.terrName.localeCompare(b.terrName)
+    return a.album.localeCompare(b.album)
+  })
+
+  const levelColors: Record<string, string> = {
+    DPN: 'bg-red-50 text-red-700 border-red-200',
+    DPD: 'bg-blue-50 text-blue-700 border-blue-200',
+    DPC: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  }
+
   return (
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between flex-wrap gap-2">
           <CardTitle className="flex items-center gap-2 text-base">
-            <Video className="w-4 h-4 text-emerald-600" /> Galeri Video ({items.length})
+            <Video className="w-4 h-4 text-emerald-600" /> Galeri Video ({filtered.length})
           </CardTitle>
           <div className="flex gap-2">
             <Button onClick={async () => {
@@ -1358,73 +1438,133 @@ function GaleriVideoManager() {
           <strong>📋 Filter LAPRA 08 Aktif:</strong> Hanya video yang mengandung keyword "Laskar Prabowo 08" / "LAPRA 08" / varian yang diperbolehkan.
           Klik <strong>"Sync YouTube"</strong> untuk auto-cari video LAPRA 08 terbaru dari YouTube.
         </div>
+
+        {/* === Filter Hierarki === */}
+        <div className="mt-3 p-3 rounded-lg bg-slate-50 border">
+          <div className="flex items-center gap-2 mb-2">
+            <FolderTree className="w-4 h-4 text-slate-600" />
+            <span className="text-xs font-semibold text-slate-700">Filter berdasarkan hierarki & folder:</span>
+          </div>
+          <div className="grid gap-2 md:grid-cols-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Level</Label>
+              <Select value={filterLevel} onValueChange={(v) => { setFilterLevel(v); setFilterTerritoryCode('ALL'); setFilterAlbum('ALL') }}>
+                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">📂 Semua Level</SelectItem>
+                  <SelectItem value="DPN">🔴 DPN (Pusat)</SelectItem>
+                  <SelectItem value="DPD">🔵 DPD (Provinsi)</SelectItem>
+                  <SelectItem value="DPC">🟢 DPC (Kab/Kota)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Wilayah</Label>
+              <Select value={filterTerritoryCode} onValueChange={(v) => { setFilterTerritoryCode(v); setFilterAlbum('ALL') }}>
+                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">📍 Semua Wilayah</SelectItem>
+                  {filterLevel === 'ALL'
+                    ? territories.map(t => <SelectItem key={t.code} value={t.code}>{t.name}</SelectItem>)
+                    : territoriesByLevel(filterLevel).map(t => <SelectItem key={t.code} value={t.code}>{t.name}</SelectItem>)
+                  }
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Album/Folder</Label>
+              <Select value={filterAlbum} onValueChange={setFilterAlbum}>
+                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">📁 Semua Album</SelectItem>
+                  {availableAlbums.map(a => <SelectItem key={a} value={a}>📁 {a}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
-        {items.length === 0 ? (
-          <EmptyState icon={Video} title="Galeri video masih kosong" description="Klik 'Sync YouTube' untuk auto-cari video LAPRA 08, atau tambah manual." />
+        {filtered.length === 0 ? (
+          <EmptyState icon={Video} title={items.length === 0 ? "Galeri video masih kosong" : "Tidak ada video cocok"} description={items.length === 0 ? "Klik 'Sync YouTube' untuk auto-cari video LAPRA 08, atau tambah manual." : "Coba ubah filter level/wilayah/album."} />
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {items.map((item) => {
-              // Fallback: generate thumbnail from youtubeId if missing
-              const thumb = item.thumbnail || (item.youtubeId ? `https://img.youtube.com/vi/${item.youtubeId}/hqdefault.jpg` : null)
-              const isYouTube = item.videoType === 'YOUTUBE' || item.youtubeId || item.youtubeUrl || item.embedUrl
-              return (
-                <div key={item.id} className="group relative rounded-xl overflow-hidden border shadow-sm hover:shadow-lg transition-all">
-                  <div className="aspect-video bg-slate-900 relative cursor-pointer" onClick={() => setPlayingVideo(item)}>
-                    {isYouTube && thumb ? (
-                      <img src={thumb} alt={item.title} className="w-full h-full object-cover"
-                        onError={(e) => {
-                          // Fallback: if thumbnail fails to load, show a placeholder
-                          (e.target as HTMLImageElement).style.display = 'none'
-                        }} />
-                    ) : item.videoType === 'UPLOAD' && item.videoUrl ? (
-                      <video src={item.videoUrl} className="w-full h-full object-cover" muted preload="metadata" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-slate-800">
-                        <Video className="w-12 h-12 text-slate-500" />
-                      </div>
-                    )}
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-black/40 transition-colors">
-                      <div className="w-14 h-14 rounded-full bg-white/90 flex items-center justify-center shadow-lg">
-                        <PlayCircle className="w-10 h-10 text-red-600" />
-                      </div>
-                    </div>
-                    {/* Badge: YouTube or Upload */}
-                    <Badge variant="outline" className="absolute top-2 left-2 text-[13px] bg-black/70 text-white border-white/20">
-                      {isYouTube ? '📺 YouTube' : '🎬 MP4'}
-                    </Badge>
-                    {/* View count badge */}
-                    {item.viewCount > 0 && (
-                      <Badge variant="outline" className="absolute top-2 right-2 text-[13px] bg-black/70 text-white border-white/20">
-                        👁 {item.viewCount.toLocaleString('id-ID')}
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="p-3 space-y-1">
-                    <div className="font-medium text-sm line-clamp-2 leading-snug">{item.title}</div>
-                    {item.channel && (
-                      <div className="text-xs text-muted-foreground flex items-center gap-1">
-                        <Youtube className="w-3 h-3 text-red-600" /> {item.channel}
-                      </div>
-                    )}
-                    <div className="flex items-center justify-between">
-                      <Badge variant="outline" className="text-[13px]">{categories[item.category] || item.category}</Badge>
-                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-red-600 hover:bg-red-50"
-                        onClick={(e) => { e.stopPropagation(); setDeleteItem(item) }}>
-                        <Trash2 className="w-3 h-3" />
-                      </Button>
-                    </div>
-                  </div>
+          <div className="space-y-6">
+            {/* === Display grouped by level + territory + album === */}
+            {groupedArray.map((group: any) => (
+              <div key={`vid-${group.level}-${group.terrCode}-${group.album}`} className="space-y-2">
+                <div className="flex items-center gap-2 flex-wrap pb-2 border-b">
+                  <Badge variant="outline" className={`text-[11px] ${levelColors[group.level]}`}>
+                    {group.level}
+                  </Badge>
+                  <span className="text-sm font-semibold">{group.terrName}</span>
+                  <ChevronRight className="w-3 h-3 text-muted-foreground" />
+                  <span className="text-sm flex items-center gap-1">
+                    <Folder className="w-4 h-4 text-amber-500" />
+                    {group.album}
+                  </span>
+                  <Badge variant="outline" className="text-[11px] ml-auto">{group.items.length} video</Badge>
                 </div>
-              )
-            })}
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {group.items.map((item: any) => {
+                    const thumb = item.thumbnail || (item.youtubeId ? `https://img.youtube.com/vi/${item.youtubeId}/hqdefault.jpg` : null)
+                    const isYouTube = item.videoType === 'YOUTUBE' || item.youtubeId || item.youtubeUrl || item.embedUrl
+                    return (
+                      <div key={item.id} className="group relative rounded-xl overflow-hidden border shadow-sm hover:shadow-lg transition-all">
+                        <div className="aspect-video bg-slate-900 relative cursor-pointer" onClick={() => setPlayingVideo(item)}>
+                          {isYouTube && thumb ? (
+                            <img src={thumb} alt={item.title} className="w-full h-full object-cover"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).style.display = 'none'
+                              }} />
+                          ) : item.videoType === 'UPLOAD' && item.videoUrl ? (
+                            <video src={item.videoUrl} className="w-full h-full object-cover" muted preload="metadata" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center bg-slate-800">
+                              <Video className="w-12 h-12 text-slate-500" />
+                            </div>
+                          )}
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-black/40 transition-colors">
+                            <div className="w-14 h-14 rounded-full bg-white/90 flex items-center justify-center shadow-lg">
+                              <PlayCircle className="w-10 h-10 text-red-600" />
+                            </div>
+                          </div>
+                          <Badge variant="outline" className="absolute top-2 left-2 text-[13px] bg-black/70 text-white border-white/20">
+                            {isYouTube ? '📺 YouTube' : '🎬 MP4'}
+                          </Badge>
+                          {item.viewCount > 0 && (
+                            <Badge variant="outline" className="absolute top-2 right-2 text-[13px] bg-black/70 text-white border-white/20">
+                              👁 {item.viewCount.toLocaleString('id-ID')}
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="p-3 space-y-1">
+                          <div className="font-medium text-sm line-clamp-2 leading-snug">{item.title}</div>
+                          {item.channel && (
+                            <div className="text-xs text-muted-foreground flex items-center gap-1">
+                              <Youtube className="w-3 h-3 text-red-600" /> {item.channel}
+                            </div>
+                          )}
+                          <div className="flex items-center justify-between">
+                            <Badge variant="outline" className="text-[13px]">{categories[item.category] || item.category}</Badge>
+                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-red-600 hover:bg-red-50"
+                              onClick={(e) => { e.stopPropagation(); setDeleteItem(item) }}>
+                              <Trash2 className="w-3 h-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </CardContent>
 
       {/* Dialog Tambah Video */}
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle className="flex items-center gap-2"><Video className="w-4 h-4 text-emerald-600" /> Tambah Video</DialogTitle></DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-3">
             <div className="flex gap-2">
@@ -1466,6 +1606,53 @@ function GaleriVideoManager() {
                 )}
               </div>
             )}
+
+            {/* === PILIHAN HIERARKI: Level + Wilayah + Album === */}
+            <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 space-y-3">
+              <div className="flex items-center gap-2 text-xs font-semibold text-emerald-800">
+                <FolderTree className="w-4 h-4" />
+                Pengelompokan Video (Hierarki LAPRA 08)
+              </div>
+              <div className="grid grid-cols-1 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-xs">Level Organisasi *</Label>
+                  <Select value={form.level} onValueChange={(v) => {
+                    const def = v === 'DPN' ? { code: 'ID', name: 'DPN (Pusat Nasional)' }
+                      : v === 'DPD' ? { code: territories.find(t => t.level === 'PROVINCE')?.code || '', name: territories.find(t => t.level === 'PROVINCE')?.name || '' }
+                      : { code: territories.find(t => t.level === 'REGENCY')?.code || '', name: territories.find(t => t.level === 'REGENCY')?.name || '' }
+                    setForm({ ...form, level: v, territoryCode: def.code, territoryName: def.name })
+                  }}>
+                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="DPN">🔴 DPN (Pusat Nasional)</SelectItem>
+                      <SelectItem value="DPD">🔵 DPD (Provinsi)</SelectItem>
+                      <SelectItem value="DPC">🟢 DPC (Kabupaten/Kota)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {form.level !== 'DPN' && (
+                  <div className="space-y-1">
+                    <Label className="text-xs">{form.level === 'DPD' ? 'Pilih DPD (Provinsi)' : 'Pilih DPC (Kab/Kota)'} *</Label>
+                    <Select value={form.territoryCode} onValueChange={(v) => {
+                      const t = territories.find(t => t.code === v)
+                      setForm({ ...form, territoryCode: v, territoryName: t?.name || v })
+                    }}>
+                      <SelectTrigger className="h-9"><SelectValue placeholder="Pilih wilayah..." /></SelectTrigger>
+                      <SelectContent>
+                        {territoriesByLevel(form.level).map(t => <SelectItem key={t.code} value={t.code}>{t.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                <div className="space-y-1">
+                  <Label className="text-xs">Nama Album/Folder *</Label>
+                  <Input value={form.albumName} onChange={(e) => setForm({ ...form, albumName: e.target.value })}
+                    placeholder="cth: Dokumentasi Pelantikan 2026, Bakti Sosial Lebaran..." />
+                  <p className="text-[11px] text-muted-foreground">Video akan dikelompokkan ke folder album ini</p>
+                </div>
+              </div>
+            </div>
+
             <div className="space-y-2"><Label>Judul Video</Label><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="cth: Dokumentasi Pelantikan DPN" /></div>
             <div className="space-y-2"><Label>Deskripsi</Label><Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={2} placeholder="Deskripsi singkat video..." /></div>
             <div className="space-y-2"><Label>Kategori</Label>
@@ -1476,7 +1663,7 @@ function GaleriVideoManager() {
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setAddOpen(false)}>Batal</Button>
-              <Button type="submit" disabled={uploading}>
+              <Button type="submit" disabled={uploading || !form.albumName.trim()}>
                 {uploading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : null} Tambah
               </Button>
             </DialogFooter>
@@ -1547,19 +1734,30 @@ function ArsipBeritaPentingManager() {
   const addToast = useToastStore((s) => s.addToast)
   const [bookmarks, setBookmarks] = useState<any[]>([])
   const [announcements, setAnnouncements] = useState<any[]>([])
+  const [territories, setTerritories] = useState<Territory[]>([])
   const [loading, setLoading] = useState(true)
   const [addOpen, setAddOpen] = useState(false)
   const [deleteItem, setDeleteItem] = useState<any>(null)
-  const [form, setForm] = useState({ announcementId: '', note: '', category: 'PENTING' })
+  const [form, setForm] = useState({
+    announcementId: '', note: '', category: 'PENTING',
+    level: 'DPN', territoryCode: 'ID', territoryName: 'DPN (Pusat Nasional)',
+    albumName: '',
+  })
+  // === Filter state ===
+  const [filterLevel, setFilterLevel] = useState('ALL')
+  const [filterTerritoryCode, setFilterTerritoryCode] = useState('ALL')
+  const [filterAlbum, setFilterAlbum] = useState('ALL')
 
   const loadData = () => {
     setLoading(true)
     Promise.all([
       api('/api/gallery/bookmarks'),
       api('/api/announcements'),
-    ]).then(([bm, ann]) => {
+      api('/api/territory'),
+    ]).then(([bm, ann, terr]: any) => {
       setBookmarks(bm || [])
       setAnnouncements(ann || [])
+      setTerritories(terr || [])
       setLoading(false)
     }).catch(() => setLoading(false))
   }
@@ -1568,16 +1766,17 @@ function ArsipBeritaPentingManager() {
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!form.announcementId) { addToast('Pilih berita dulu', 'error'); return }
+    if (!form.albumName.trim()) { addToast('Nama Album wajib diisi', 'error'); return }
     try {
       const res = await fetch('/api/gallery/bookmarks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, albumName: form.albumName.trim() || 'Umum' }),
       })
       const data = await res.json()
       if (!res.ok || !data.success) throw new Error(data.error || 'Gagal')
       addToast('Berita ditambahkan ke arsip penting', 'success')
-      setForm({ announcementId: '', note: '', category: 'PENTING' })
+      setForm({ announcementId: '', note: '', category: 'PENTING', level: 'DPN', territoryCode: 'ID', territoryName: 'DPN (Pusat Nasional)', albumName: '' })
       setAddOpen(false); loadData()
     } catch (e: any) { addToast(e.message, 'error') }
   }
@@ -1603,6 +1802,59 @@ function ArsipBeritaPentingManager() {
     REFERENSI: { label: 'Referensi', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
   }
 
+  // === Filter wilayah berdasarkan level ===
+  const territoriesByLevel = (level: string): Territory[] => {
+    if (level === 'DPN') return [{ id: 'id', name: 'DPN (Pusat Nasional)', code: 'ID', level: 'COUNTRY', parentId: null }]
+    if (level === 'DPD') return territories.filter(t => t.level === 'PROVINCE')
+    if (level === 'DPC') return territories.filter(t => t.level === 'REGENCY')
+    return territories
+  }
+
+  // === Filter bookmarks ===
+  const filtered = bookmarks.filter(item => {
+    if (filterLevel !== 'ALL' && (item.level || 'DPN') !== filterLevel) return false
+    if (filterTerritoryCode !== 'ALL' && (item.territoryCode || 'ID') !== filterTerritoryCode) return false
+    if (filterAlbum !== 'ALL' && (item.albumName || 'Umum') !== filterAlbum) return false
+    return true
+  })
+
+  // === List album unik ===
+  const availableAlbums = Array.from(new Set(
+    bookmarks
+      .filter(item =>
+        (filterLevel === 'ALL' || (item.level || 'DPN') === filterLevel) &&
+        (filterTerritoryCode === 'ALL' || (item.territoryCode || 'ID') === filterTerritoryCode)
+      )
+      .map(item => item.albumName || 'Umum')
+  )).sort()
+
+  // === Group by level + territory + album ===
+  const grouped = filtered.reduce((acc: any, item: any) => {
+    const level = item.level || 'DPN'
+    const terrCode = item.territoryCode || 'ID'
+    const terrName = item.territoryName || 'DPN (Pusat Nasional)'
+    const album = item.albumName || 'Umum'
+    const key = `${level}|${terrCode}|${album}`
+    if (!acc[key]) acc[key] = { level, terrCode, terrName, album, items: [] }
+    acc[key].items.push(item)
+    return acc
+  }, {} as Record<string, any>)
+
+  const groupedArray = Object.values(grouped).sort((a: any, b: any) => {
+    const levelOrder: Record<string, number> = { DPN: 1, DPD: 2, DPC: 3 }
+    const lvlA = levelOrder[a.level] || 4
+    const lvlB = levelOrder[b.level] || 4
+    if (lvlA !== lvlB) return lvlA - lvlB
+    if (a.terrName !== b.terrName) return a.terrName.localeCompare(b.terrName)
+    return a.album.localeCompare(b.album)
+  })
+
+  const levelColors: Record<string, string> = {
+    DPN: 'bg-red-50 text-red-700 border-red-200',
+    DPD: 'bg-blue-50 text-blue-700 border-blue-200',
+    DPC: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  }
+
   // Available announcements not yet bookmarked
   const bookmarkedIds = new Set(bookmarks.map((b: any) => b.id))
   const availableAnnouncements = announcements.filter((a: any) => !bookmarkedIds.has(a.id))
@@ -1612,70 +1864,134 @@ function ArsipBeritaPentingManager() {
       <CardHeader>
         <div className="flex items-center justify-between flex-wrap gap-2">
           <CardTitle className="flex items-center gap-2 text-base">
-            <BookMarked className="w-4 h-4 text-amber-600" /> Arsip Berita Penting ({bookmarks.length})
+            <BookMarked className="w-4 h-4 text-amber-600" /> Arsip Berita Penting ({filtered.length})
           </CardTitle>
           <Button onClick={() => setAddOpen(true)} size="sm" className="bg-gradient-to-r from-amber-600 to-orange-600 text-white">
             <Plus className="w-4 h-4 mr-1" /> Tambah ke Arsip
           </Button>
         </div>
         <CardDescription>Kumpulan berita penting LAPRA 08 yang diarsipkan untuk referensi & sejarah organisasi</CardDescription>
+
+        {/* === Filter Hierarki === */}
+        <div className="mt-3 p-3 rounded-lg bg-slate-50 border">
+          <div className="flex items-center gap-2 mb-2">
+            <FolderTree className="w-4 h-4 text-slate-600" />
+            <span className="text-xs font-semibold text-slate-700">Filter berdasarkan hierarki & folder:</span>
+          </div>
+          <div className="grid gap-2 md:grid-cols-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Level</Label>
+              <Select value={filterLevel} onValueChange={(v) => { setFilterLevel(v); setFilterTerritoryCode('ALL'); setFilterAlbum('ALL') }}>
+                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">📂 Semua Level</SelectItem>
+                  <SelectItem value="DPN">🔴 DPN (Pusat)</SelectItem>
+                  <SelectItem value="DPD">🔵 DPD (Provinsi)</SelectItem>
+                  <SelectItem value="DPC">🟢 DPC (Kab/Kota)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Wilayah</Label>
+              <Select value={filterTerritoryCode} onValueChange={(v) => { setFilterTerritoryCode(v); setFilterAlbum('ALL') }}>
+                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">📍 Semua Wilayah</SelectItem>
+                  {filterLevel === 'ALL'
+                    ? territories.map(t => <SelectItem key={t.code} value={t.code}>{t.name}</SelectItem>)
+                    : territoriesByLevel(filterLevel).map(t => <SelectItem key={t.code} value={t.code}>{t.name}</SelectItem>)
+                  }
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Album/Folder</Label>
+              <Select value={filterAlbum} onValueChange={setFilterAlbum}>
+                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">📁 Semua Album</SelectItem>
+                  {availableAlbums.map(a => <SelectItem key={a} value={a}>📁 {a}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
-        {bookmarks.length === 0 ? (
-          <EmptyState icon={BookMarked} title="Arsip masih kosong" description="Bookmark berita penting dari Kabar Utama untuk dijadikan arsip permanen." />
+        {filtered.length === 0 ? (
+          <EmptyState icon={BookMarked} title={bookmarks.length === 0 ? "Arsip masih kosong" : "Tidak ada berita cocok"} description={bookmarks.length === 0 ? "Bookmark berita penting dari Kabar Utama untuk dijadikan arsip permanen." : "Coba ubah filter level/wilayah/album."} />
         ) : (
-          <div className="space-y-3">
-            {bookmarks.map((b: any) => {
-              const cc = categoryConfig[b.bookmarkCategory] || categoryConfig.PENTING
-              return (
-                <div key={b.id} className="group relative rounded-xl border p-3 hover:shadow-md transition-all bg-white">
-                  <div className="flex items-start gap-3">
-                    {b.photoUrl ? (
-                      <img src={b.photoUrl} alt={b.title} className="w-16 h-16 rounded-lg object-cover shrink-0" />
-                    ) : (
-                      <div className="w-16 h-16 rounded-lg bg-gradient-to-br from-amber-100 to-orange-200 flex items-center justify-center shrink-0">
-                        <BookMarked className="w-6 h-6 text-amber-600" />
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Badge variant="outline" className={`text-[13px] ${cc.color}`}>{cc.label}</Badge>
-                        {b.source === 'WEB_SYNC' && (
-                          <Badge variant="outline" className="text-[13px] bg-blue-50 text-blue-700 border-blue-200">
-                            <Globe className="w-2.5 h-2.5 mr-0.5" /> {b.sourceName || 'Web'}
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="font-semibold text-sm line-clamp-2">{b.title}</div>
-                      <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{b.content}</p>
-                      {b.bookmarkNote && (
-                        <div className="mt-2 p-2 rounded bg-amber-50 border border-amber-200 text-xs text-amber-800">
-                          <strong>Catatan Arsip:</strong> {b.bookmarkNote}
-                        </div>
-                      )}
-                      <div className="flex items-center gap-2 mt-2 text-[13px] text-muted-foreground">
-                        <span>Diarsipkan: {formatDateTimeID(b.bookmarkedAt)}</span>
-                        {b.sourceUrl && (
-                          <a href={b.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
-                            <ExternalLink className="w-3 h-3 inline mr-0.5" />Sumber
-                          </a>
-                        )}
-                      </div>
-                    </div>
-                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-600 hover:bg-red-50 opacity-0 group-hover:opacity-100"
-                      onClick={() => setDeleteItem(b)}>
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
-                  </div>
+          <div className="space-y-6">
+            {/* === Display grouped by level + territory + album === */}
+            {groupedArray.map((group: any) => (
+              <div key={`bm-${group.level}-${group.terrCode}-${group.album}`} className="space-y-2">
+                <div className="flex items-center gap-2 flex-wrap pb-2 border-b">
+                  <Badge variant="outline" className={`text-[11px] ${levelColors[group.level]}`}>
+                    {group.level}
+                  </Badge>
+                  <span className="text-sm font-semibold">{group.terrName}</span>
+                  <ChevronRight className="w-3 h-3 text-muted-foreground" />
+                  <span className="text-sm flex items-center gap-1">
+                    <Folder className="w-4 h-4 text-amber-500" />
+                    {group.album}
+                  </span>
+                  <Badge variant="outline" className="text-[11px] ml-auto">{group.items.length} berita</Badge>
                 </div>
-              )
-            })}
+                <div className="space-y-3">
+                  {group.items.map((b: any) => {
+                    const cc = categoryConfig[b.bookmarkCategory] || categoryConfig.PENTING
+                    return (
+                      <div key={b.id} className="group relative rounded-xl border p-3 hover:shadow-md transition-all bg-white">
+                        <div className="flex items-start gap-3">
+                          {b.photoUrl ? (
+                            <img src={b.photoUrl} alt={b.title} className="w-16 h-16 rounded-lg object-cover shrink-0" />
+                          ) : (
+                            <div className="w-16 h-16 rounded-lg bg-gradient-to-br from-amber-100 to-orange-200 flex items-center justify-center shrink-0">
+                              <BookMarked className="w-6 h-6 text-amber-600" />
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Badge variant="outline" className={`text-[13px] ${cc.color}`}>{cc.label}</Badge>
+                              {b.source === 'WEB_SYNC' && (
+                                <Badge variant="outline" className="text-[13px] bg-blue-50 text-blue-700 border-blue-200">
+                                  <Globe className="w-2.5 h-2.5 mr-0.5" /> {b.sourceName || 'Web'}
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="font-semibold text-sm line-clamp-2">{b.title}</div>
+                            <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{b.content}</p>
+                            {b.bookmarkNote && (
+                              <div className="mt-2 p-2 rounded bg-amber-50 border border-amber-200 text-xs text-amber-800">
+                                <strong>Catatan Arsip:</strong> {b.bookmarkNote}
+                              </div>
+                            )}
+                            <div className="flex items-center gap-2 mt-2 text-[13px] text-muted-foreground">
+                              <span>Diarsipkan: {formatDateTimeID(b.bookmarkedAt)}</span>
+                              {b.sourceUrl && (
+                                <a href={b.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                                  <ExternalLink className="w-3 h-3 inline mr-0.5" />Sumber
+                                </a>
+                              )}
+                            </div>
+                          </div>
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-600 hover:bg-red-50 opacity-0 group-hover:opacity-100"
+                            onClick={() => setDeleteItem(b)}>
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </CardContent>
 
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><BookMarked className="w-4 h-4 text-amber-600" /> Tambah Berita ke Arsip</DialogTitle>
             <DialogDescription>Pilih berita dari Kabar Utama untuk diarsipkan</DialogDescription>
@@ -1692,6 +2008,53 @@ function ArsipBeritaPentingManager() {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* === PILIHAN HIERARKI: Level + Wilayah + Album === */}
+            <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 space-y-3">
+              <div className="flex items-center gap-2 text-xs font-semibold text-amber-800">
+                <FolderTree className="w-4 h-4" />
+                Pengelompokan Arsip (Hierarki LAPRA 08)
+              </div>
+              <div className="grid grid-cols-1 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-xs">Level Organisasi *</Label>
+                  <Select value={form.level} onValueChange={(v) => {
+                    const def = v === 'DPN' ? { code: 'ID', name: 'DPN (Pusat Nasional)' }
+                      : v === 'DPD' ? { code: territories.find(t => t.level === 'PROVINCE')?.code || '', name: territories.find(t => t.level === 'PROVINCE')?.name || '' }
+                      : { code: territories.find(t => t.level === 'REGENCY')?.code || '', name: territories.find(t => t.level === 'REGENCY')?.name || '' }
+                    setForm({ ...form, level: v, territoryCode: def.code, territoryName: def.name })
+                  }}>
+                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="DPN">🔴 DPN (Pusat Nasional)</SelectItem>
+                      <SelectItem value="DPD">🔵 DPD (Provinsi)</SelectItem>
+                      <SelectItem value="DPC">🟢 DPC (Kabupaten/Kota)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {form.level !== 'DPN' && (
+                  <div className="space-y-1">
+                    <Label className="text-xs">{form.level === 'DPD' ? 'Pilih DPD (Provinsi)' : 'Pilih DPC (Kab/Kota)'} *</Label>
+                    <Select value={form.territoryCode} onValueChange={(v) => {
+                      const t = territories.find(t => t.code === v)
+                      setForm({ ...form, territoryCode: v, territoryName: t?.name || v })
+                    }}>
+                      <SelectTrigger className="h-9"><SelectValue placeholder="Pilih wilayah..." /></SelectTrigger>
+                      <SelectContent>
+                        {territoriesByLevel(form.level).map(t => <SelectItem key={t.code} value={t.code}>{t.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                <div className="space-y-1">
+                  <Label className="text-xs">Nama Album/Folder *</Label>
+                  <Input value={form.albumName} onChange={(e) => setForm({ ...form, albumName: e.target.value })}
+                    placeholder="cth: Arsip Sejarah 2026, Milestone Pelantikan, Referensi Asta Cita..." />
+                  <p className="text-[11px] text-muted-foreground">Berita akan dikelompokkan ke folder album ini</p>
+                </div>
+              </div>
+            </div>
+
             <div className="space-y-2"><Label>Kategori Arsip</Label>
               <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -1706,7 +2069,7 @@ function ArsipBeritaPentingManager() {
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setAddOpen(false)}>Batal</Button>
-              <Button type="submit" className="bg-gradient-to-r from-amber-600 to-orange-600 text-white">Tambah ke Arsip</Button>
+              <Button type="submit" disabled={!form.albumName.trim()} className="bg-gradient-to-r from-amber-600 to-orange-600 text-white">Tambah ke Arsip</Button>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -2049,21 +2412,34 @@ function MajalahManager() {
 // ============================================================
 function GalleryManager() {
   const addToast = useToastStore((s) => s.addToast)
+  const user = useAuthStore((s) => s.user)
   const [items, setItems] = useState<any[]>([])
+  const [territories, setTerritories] = useState<Territory[]>([])
   const [loading, setLoading] = useState(true)
   const [uploadOpen, setUploadOpen] = useState(false)
   const [deleteItem, setDeleteItem] = useState<any>(null)
-  const [form, setForm] = useState({ title: '', description: '', category: 'KEGIATAN' })
+  const [form, setForm] = useState({
+    title: '', description: '', category: 'KEGIATAN',
+    level: 'DPN', territoryCode: 'ID', territoryName: 'DPN (Pusat Nasional)',
+    albumName: '',
+  })
   const [file, setFile] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
   const [syncLoading, setSyncLoading] = useState(false)
+  // === Filter state ===
+  const [filterLevel, setFilterLevel] = useState('ALL')
+  const [filterTerritoryCode, setFilterTerritoryCode] = useState('ALL')
+  const [filterAlbum, setFilterAlbum] = useState('ALL')
 
   const loadData = () => {
     setLoading(true)
-    api('/api/gallery').then((all: any[]) => {
-      // Only show items that have fileUrl (actual gallery photos, not program content)
-      const galleryItems = all.filter((a: any) => a.fileUrl)
+    Promise.all([
+      api('/api/gallery'),
+      api('/api/territory'),
+    ]).then(([all, terr]: any) => {
+      const galleryItems = (all as any[]).filter((a: any) => a.fileUrl)
       setItems(galleryItems)
+      setTerritories(terr as Territory[])
     }).catch(() => {}).finally(() => setLoading(false))
   }
   useEffect(() => { loadData() }, [])
@@ -2078,6 +2454,11 @@ function GalleryManager() {
       formData.append('title', form.title || file.name)
       formData.append('description', form.description)
       formData.append('category', form.category)
+      // === Field baru untuk pengelompokan ===
+      formData.append('level', form.level)
+      formData.append('territoryCode', form.territoryCode)
+      formData.append('territoryName', form.territoryName)
+      formData.append('albumName', form.albumName.trim() || 'Umum')
 
       const res = await fetch('/api/gallery', {
         method: 'POST',
@@ -2088,7 +2469,11 @@ function GalleryManager() {
       if (!res.ok || !data.success) throw new Error(data.error || 'Upload gagal')
 
       addToast('Foto berhasil diupload ke galeri', 'success')
-      setForm({ title: '', description: '', category: 'KEGIATAN' })
+      setForm({
+        title: '', description: '', category: 'KEGIATAN',
+        level: 'DPN', territoryCode: 'ID', territoryName: 'DPN (Pusat Nasional)',
+        albumName: '',
+      })
       setFile(null); setUploadOpen(false)
       loadData()
     } catch (e: any) { addToast(e.message, 'error') }
@@ -2129,19 +2514,81 @@ function GalleryManager() {
     SOSIAL: 'Aksi Sosial', DOKUMENTER: 'Dokumenter', LAINNYA: 'Lainnya',
   }
 
+  // === Filter wilayah berdasarkan level yang dipilih ===
+  const territoriesByLevel = (level: string): Territory[] => {
+    if (level === 'DPN') return [{ id: 'id', name: 'DPN (Pusat Nasional)', code: 'ID', level: 'COUNTRY', parentId: null }]
+    if (level === 'DPD') return territories.filter(t => t.level === 'PROVINCE')
+    if (level === 'DPC') return territories.filter(t => t.level === 'REGENCY')
+    return territories
+  }
+
+  // === Filter items berdasarkan level + territory + album ===
+  const filtered = items.filter(item => {
+    if (filterLevel !== 'ALL' && (item.level || 'DPN') !== filterLevel) return false
+    if (filterTerritoryCode !== 'ALL' && (item.territoryCode || 'ID') !== filterTerritoryCode) return false
+    if (filterAlbum !== 'ALL' && (item.albumName || 'Umum') !== filterAlbum) return false
+    return true
+  })
+
+  // === List album unik (dari items yang sudah filter level+territory) ===
+  const availableAlbums = Array.from(new Set(
+    items
+      .filter(item =>
+        (filterLevel === 'ALL' || (item.level || 'DPN') === filterLevel) &&
+        (filterTerritoryCode === 'ALL' || (item.territoryCode || 'ID') === filterTerritoryCode)
+      )
+      .map(item => item.albumName || 'Umum')
+  )).sort()
+
+  // === Group items by level + territory + album ===
+  const grouped = filtered.reduce((acc: any, item: any) => {
+    const level = item.level || 'DPN'
+    const terrCode = item.territoryCode || 'ID'
+    const terrName = item.territoryName || 'DPN (Pusat Nasional)'
+    const album = item.albumName || 'Umum'
+    const key = `${level}|${terrCode}|${album}`
+    if (!acc[key]) {
+      acc[key] = { level, terrCode, terrName, album, items: [] }
+    }
+    acc[key].items.push(item)
+    return acc
+  }, {} as Record<string, { level: string; terrCode: string; terrName: string; album: string; items: any[] }>)
+
+  const groupedArray = Object.values(grouped).sort((a: any, b: any) => {
+    // Sort: DPN > DPD > DPC, lalu by territoryName, lalu by album
+    const levelOrder: Record<string, number> = { DPN: 1, DPD: 2, DPC: 3 }
+    const lvlA = levelOrder[a.level] || 4
+    const lvlB = levelOrder[b.level] || 4
+    if (lvlA !== lvlB) return lvlA - lvlB
+    if (a.terrName !== b.terrName) return a.terrName.localeCompare(b.terrName)
+    return a.album.localeCompare(b.album)
+  })
+
+  const levelLabels: Record<string, string> = {
+    DPN: 'DPN (Pusat Nasional)',
+    DPD: 'DPD (Provinsi)',
+    DPC: 'DPC (Kabupaten/Kota)',
+  }
+
+  const levelColors: Record<string, string> = {
+    DPN: 'bg-red-50 text-red-700 border-red-200',
+    DPD: 'bg-blue-50 text-blue-700 border-blue-200',
+    DPC: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  }
+
   return (
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between flex-wrap gap-2">
           <CardTitle className="flex items-center gap-2 text-base">
             <ImageIcon className="w-4 h-4 text-emerald-600" />
-            Galeri Media ({items.length} foto)
+            Galeri Media ({filtered.length} foto)
           </CardTitle>
           <div className="flex gap-2">
             <Button onClick={handleSyncFromNews} size="sm" variant="outline" disabled={syncLoading}
               className="border-blue-300 text-blue-600 hover:bg-blue-50">
               {syncLoading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Newspaper className="w-4 h-4 mr-1" />}
-              Sync Berita Terbaru
+              Sync Berita
             </Button>
             <Button onClick={() => setUploadOpen(true)} size="sm"
               className="bg-gradient-to-r from-orange-600 to-red-600 text-white">
@@ -2149,34 +2596,105 @@ function GalleryManager() {
             </Button>
           </div>
         </div>
+
+        {/* === Filter Hierarki: Level + Wilayah + Album === */}
+        <div className="mt-3 p-3 rounded-lg bg-slate-50 border">
+          <div className="flex items-center gap-2 mb-2">
+            <FolderTree className="w-4 h-4 text-slate-600" />
+            <span className="text-xs font-semibold text-slate-700">Filter berdasarkan hierarki & folder:</span>
+          </div>
+          <div className="grid gap-2 md:grid-cols-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Level</Label>
+              <Select value={filterLevel} onValueChange={(v) => { setFilterLevel(v); setFilterTerritoryCode('ALL'); setFilterAlbum('ALL') }}>
+                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">📂 Semua Level</SelectItem>
+                  <SelectItem value="DPN">🔴 DPN (Pusat)</SelectItem>
+                  <SelectItem value="DPD">🔵 DPD (Provinsi)</SelectItem>
+                  <SelectItem value="DPC">🟢 DPC (Kab/Kota)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Wilayah</Label>
+              <Select value={filterTerritoryCode} onValueChange={(v) => { setFilterTerritoryCode(v); setFilterAlbum('ALL') }}>
+                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">📍 Semua Wilayah</SelectItem>
+                  {filterLevel === 'ALL'
+                    ? territories.map(t => <SelectItem key={t.code} value={t.code}>{t.name}</SelectItem>)
+                    : territoriesByLevel(filterLevel).map(t => <SelectItem key={t.code} value={t.code}>{t.name}</SelectItem>)
+                  }
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Album/Folder</Label>
+              <Select value={filterAlbum} onValueChange={setFilterAlbum}>
+                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">📁 Semua Album</SelectItem>
+                  {availableAlbums.map(a => <SelectItem key={a} value={a}>📁 {a}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
-        {items.length === 0 ? (
-          <EmptyState icon={ImageIcon} title="Galeri masih kosong" description="Upload foto kegiatan atau sync dari berita yang sudah ada." />
+        {filtered.length === 0 ? (
+          <EmptyState icon={ImageIcon} title={items.length === 0 ? "Galeri masih kosong" : "Tidak ada foto cocok"} description={items.length === 0 ? "Upload foto kegiatan atau sync dari berita yang sudah ada." : "Coba ubah filter level/wilayah/album."} />
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-            {items.map((item) => (
-              <div key={item.id} className="group relative rounded-xl overflow-hidden border shadow-sm hover:shadow-lg transition-all">
-                <img src={item.fileUrl} alt={item.title} className="w-full h-40 object-cover" />
-                <div className="p-2">
-                  <div className="font-medium text-xs truncate">{item.title}</div>
-                  <Badge variant="outline" className="text-[13px] mt-1">{categories[item.category] || item.category}</Badge>
+          <div className="space-y-6">
+            {/* === Display grouped by level + territory + album === */}
+            {groupedArray.map((group: any) => (
+              <div key={`${group.level}-${group.terrCode}-${group.album}`} className="space-y-2">
+                {/* === Group header: Level badge + Territory + Album === */}
+                <div className="flex items-center gap-2 flex-wrap pb-2 border-b">
+                  <Badge variant="outline" className={`text-[11px] ${levelColors[group.level]}`}>
+                    {group.level}
+                  </Badge>
+                  <span className="text-sm font-semibold">{group.terrName}</span>
+                  <ChevronRight className="w-3 h-3 text-muted-foreground" />
+                  <span className="text-sm flex items-center gap-1">
+                    <Folder className="w-4 h-4 text-amber-500" />
+                    {group.album}
+                  </span>
+                  <Badge variant="outline" className="text-[11px] ml-auto">{group.items.length} foto</Badge>
                 </div>
-                <Button variant="destructive" size="sm"
-                  className="absolute top-2 right-2 h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                  onClick={() => setDeleteItem(item)}>
-                  <Trash2 className="w-3.5 h-3.5" />
-                </Button>
+                {/* === Photo grid === */}
+                <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                  {group.items.map((item: any) => (
+                    <div key={item.id} className="group relative rounded-xl overflow-hidden border shadow-sm hover:shadow-lg transition-all">
+                      <img src={item.fileUrl} alt={item.title} className="w-full h-40 object-cover" />
+                      <div className="p-2">
+                        <div className="font-medium text-xs truncate">{item.title}</div>
+                        <div className="flex items-center gap-1 mt-1 flex-wrap">
+                          <Badge variant="outline" className="text-[11px]">{categories[item.category] || item.category}</Badge>
+                        </div>
+                      </div>
+                      <Button variant="destructive" size="sm"
+                        className="absolute top-2 right-2 h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => setDeleteItem(item)}>
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
               </div>
             ))}
           </div>
         )}
       </CardContent>
 
-      {/* Upload Dialog */}
+      {/* Upload Dialog — dengan pilihan level + wilayah + album */}
       <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader><DialogTitle>Upload Foto ke Galeri</DialogTitle></DialogHeader>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Upload Foto ke Galeri</DialogTitle>
+            <DialogDescription>Pilih wilayah & album/folder untuk pengelompokan foto</DialogDescription>
+          </DialogHeader>
           <form onSubmit={handleUpload} className="space-y-3">
             <div className="space-y-2">
               <Label>Pilih File Gambar *</Label>
@@ -2199,6 +2717,53 @@ function GalleryManager() {
                 </div>
               )}
             </div>
+
+            {/* === PILIHAN HIERARKI: Level + Wilayah + Album === */}
+            <div className="p-3 rounded-lg bg-blue-50 border border-blue-200 space-y-3">
+              <div className="flex items-center gap-2 text-xs font-semibold text-blue-800">
+                <FolderTree className="w-4 h-4" />
+                Pengelompokan Foto (Hierarki LAPRA 08)
+              </div>
+              <div className="grid grid-cols-1 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-xs">Level Organisasi *</Label>
+                  <Select value={form.level} onValueChange={(v) => {
+                    const def = v === 'DPN' ? { code: 'ID', name: 'DPN (Pusat Nasional)' }
+                      : v === 'DPD' ? { code: territories.find(t => t.level === 'PROVINCE')?.code || '', name: territories.find(t => t.level === 'PROVINCE')?.name || '' }
+                      : { code: territories.find(t => t.level === 'REGENCY')?.code || '', name: territories.find(t => t.level === 'REGENCY')?.name || '' }
+                    setForm({ ...form, level: v, territoryCode: def.code, territoryName: def.name })
+                  }}>
+                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="DPN">🔴 DPN (Pusat Nasional)</SelectItem>
+                      <SelectItem value="DPD">🔵 DPD (Provinsi)</SelectItem>
+                      <SelectItem value="DPC">🟢 DPC (Kabupaten/Kota)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {form.level !== 'DPN' && (
+                  <div className="space-y-1">
+                    <Label className="text-xs">{form.level === 'DPD' ? 'Pilih DPD (Provinsi)' : 'Pilih DPC (Kab/Kota)'} *</Label>
+                    <Select value={form.territoryCode} onValueChange={(v) => {
+                      const t = territories.find(t => t.code === v)
+                      setForm({ ...form, territoryCode: v, territoryName: t?.name || v })
+                    }}>
+                      <SelectTrigger className="h-9"><SelectValue placeholder="Pilih wilayah..." /></SelectTrigger>
+                      <SelectContent>
+                        {territoriesByLevel(form.level).map(t => <SelectItem key={t.code} value={t.code}>{t.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                <div className="space-y-1">
+                  <Label className="text-xs">Nama Album/Folder *</Label>
+                  <Input value={form.albumName} onChange={(e) => setForm({ ...form, albumName: e.target.value })}
+                    placeholder="cth: Kegiatan Pelantikan 2026, Bakti Sosial Lebaran, Rapat Koordinasi..." />
+                  <p className="text-[11px] text-muted-foreground">Foto akan dikelompokkan ke folder album ini</p>
+                </div>
+              </div>
+            </div>
+
             <div className="space-y-2"><Label>Judul Foto</Label><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="cth: Pelantikan DPC Pontianak" /></div>
             <div className="space-y-2"><Label>Deskripsi</Label><Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={2} placeholder="Deskripsi singkat foto..." /></div>
             <div className="space-y-2"><Label>Kategori</Label>
@@ -2211,7 +2776,7 @@ function GalleryManager() {
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setUploadOpen(false)}>Batal</Button>
-              <Button type="submit" disabled={uploading || !file}>{uploading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : null} Upload</Button>
+              <Button type="submit" disabled={uploading || !file || !form.albumName.trim()}>{uploading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : null} Upload</Button>
             </DialogFooter>
           </form>
         </DialogContent>

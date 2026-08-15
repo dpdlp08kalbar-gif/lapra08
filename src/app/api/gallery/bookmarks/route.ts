@@ -58,6 +58,11 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const { announcementId, note, category } = body
+    // === Field baru untuk pengelompokan hierarki (DPN/DPD/DPC + Album) ===
+    const level = body.level || 'DPN'
+    const territoryCode = body.territoryCode || 'ID'
+    const territoryName = body.territoryName || 'DPN (Pusat Nasional)'
+    const albumName = body.albumName || 'Umum'
 
     if (!announcementId) {
       return NextResponse.json({ success: false, error: 'ID berita wajib' }, { status: 400 })
@@ -75,6 +80,18 @@ export async function POST(request: NextRequest) {
       category: category || 'PENTING', // PENTING | SEJARAH | MILESTONE | REFERENSI
       bookmarkedBy: user.fullName,
       bookmarkedAt: new Date().toISOString(),
+      // === Field hierarki untuk pengelompokan folder ===
+      level,
+      territoryCode,
+      territoryName,
+      albumName,
+      // Salin data berita agar arsip tetap punya konten walau berita asli dihapus
+      title: ann.title,
+      content: ann.content,
+      photoUrl: ann.photoUrl,
+      sourceUrl: ann.sourceUrl,
+      sourceName: ann.sourceName,
+      source: ann.source,
     }
 
     await db.systemSetting.upsert({

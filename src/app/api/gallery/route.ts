@@ -83,6 +83,11 @@ export async function POST(request: NextRequest) {
     const description = formData.get('description') as string
     const category = formData.get('category') as string || 'KEGIATAN'
     const linkedAnnouncementId = formData.get('linkedAnnouncementId') as string || null
+    // === Field baru untuk pengelompokan hierarki (DPN/DPD/DPC + Album) ===
+    const level = formData.get('level') as string || 'DPN'
+    const territoryCode = formData.get('territoryCode') as string || 'ID'
+    const territoryName = formData.get('territoryName') as string || 'DPN (Pusat Nasional)'
+    const albumName = formData.get('albumName') as string || 'Umum'
 
     if (!file || !file.type.startsWith('image/')) {
       return NextResponse.json(
@@ -107,7 +112,7 @@ export async function POST(request: NextRequest) {
                    : 'image/jpeg'
     const base64DataUrl = `data:${mimeType};base64,${fileBuffer.toString('base64')}`
 
-    // Store gallery item in SystemSetting (with embedded base64 fileData)
+    // Store gallery item in SystemSetting (with embedded base64 fileData + hierarki fields)
     const galleryItem = {
       id: `gallery_${Date.now()}`,
       title: title || file.name,
@@ -120,6 +125,11 @@ export async function POST(request: NextRequest) {
       uploadedBy: user.fullName,
       uploadedAt: new Date().toISOString(),
       linkedAnnouncementId,
+      // === Field hierarki untuk pengelompokan folder ===
+      level,
+      territoryCode,
+      territoryName,
+      albumName,
     }
 
     await db.systemSetting.create({
