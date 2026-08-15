@@ -27,7 +27,7 @@ import {
   RefreshCw, Plus, Eye, Edit, Trash2, FileText, Users, TrendingUp,
   Calendar, Globe, Youtube, Newspaper, Twitter, Instagram, Facebook, Filter,
   ChevronRight, Home, Activity, BarChart3, PieChart as PieIcon, Award,
-  Share2, Copy, MessageCircle, Mail, Linkedin, Shield,
+  Share2, Copy, MessageCircle, Mail, Linkedin, Shield, Folder,
 } from 'lucide-react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -2765,7 +2765,7 @@ function ReviewDialog({ link, onClose, onSubmit }: { link: any, onClose: () => v
 }
 
 // ============================================================
-// TAB 6: DECISION DASHBOARD
+// TAB: DASHBOARD PEMENANGAN
 // ============================================================
 function DecisionDashboardTab() {
   const [loading, setLoading] = useState(true)
@@ -2783,129 +2783,176 @@ function DecisionDashboardTab() {
   if (loading) return <LoadingState />
   if (!data) return <ErrorState message="Gagal memuat dashboard. Coba refresh halaman." />
 
-  const sentimentPct = data.sentimentTrend.total > 0 ? {
+  const sentimentPct = data.sentimentTrend?.total > 0 ? {
     pos: Math.round((data.sentimentTrend.positive / data.sentimentTrend.total) * 100),
     neu: Math.round((data.sentimentTrend.neutral / data.sentimentTrend.total) * 100),
     neg: Math.round((data.sentimentTrend.negative / data.sentimentTrend.total) * 100),
   } : { pos: 0, neu: 0, neg: 0 }
 
+  const totalLinks = data.stats?.totalOpinionLinks || 0
+  const negCount = data.sentimentTrend?.negative || 0
+  const posCount = data.sentimentTrend?.positive || 0
+  const sentimentIdx = data.sentimentIndex || 0
+
+  const electoralStatus = sentimentIdx >= 50 ? { label: 'SANGAT BAIK', color: 'text-emerald-600', bg: 'bg-emerald-50', icon: '🟢' } :
+    sentimentIdx >= 20 ? { label: 'BAIK', color: 'text-emerald-600', bg: 'bg-emerald-50', icon: '🟢' } :
+    sentimentIdx >= 0 ? { label: 'NETRAL', color: 'text-amber-600', bg: 'bg-amber-50', icon: '🟡' } :
+    sentimentIdx >= -20 ? { label: 'WASPADA', color: 'text-orange-600', bg: 'bg-orange-50', icon: '🟠' } :
+    { label: 'KRITIS', color: 'text-red-600', bg: 'bg-red-50', icon: '🔴' }
+
   return (
     <div className="space-y-4">
-      {/* Executive Summary */}
+      {/* === KPI CARDS: Status Elektoral + Total Berita + Positif + Negatif === */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+        <Card className={`border-2 ${electoralStatus.bg}`}>
+          <CardContent className="p-4 text-center">
+            <div className="text-3xl mb-1">{electoralStatus.icon}</div>
+            <div className={`text-lg font-bold ${electoralStatus.color}`}>{electoralStatus.label}</div>
+            <div className="text-xs text-muted-foreground mt-1">Status Elektoral LAPRA 08</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 text-center">
+            <Newspaper className="w-6 h-6 text-blue-600 mx-auto mb-1" />
+            <div className="text-2xl font-bold text-blue-600">{totalLinks}</div>
+            <div className="text-xs text-muted-foreground">Total Berita LAPRA 08</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 text-center">
+            <CheckCircle2 className="w-6 h-6 text-emerald-600 mx-auto mb-1" />
+            <div className="text-2xl font-bold text-emerald-600">{posCount}</div>
+            <div className="text-xs text-muted-foreground">Berita Positif</div>
+          </CardContent>
+        </Card>
+        <Card className={negCount > 0 ? 'border-2 border-red-300 bg-red-50' : ''}>
+          <CardContent className="p-4 text-center">
+            <AlertTriangle className={`w-6 h-6 mx-auto mb-1 ${negCount > 0 ? 'text-red-600' : 'text-slate-400'}`} />
+            <div className={`text-2xl font-bold ${negCount > 0 ? 'text-red-600' : 'text-slate-400'}`}>{negCount}</div>
+            <div className="text-xs text-muted-foreground">Berita Negatif</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* === EXECUTIVE SUMMARY + Sentiment Gauge === */}
       <Card className="border-orange-200 bg-gradient-to-br from-orange-50 to-red-50">
         <CardContent className="p-5">
           <div className="flex items-start gap-4">
-            <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-orange-600 to-red-600 flex items-center justify-center shadow-lg shrink-0">
-              <Target className="w-7 h-7 text-white" />
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-600 to-red-600 flex items-center justify-center shadow-lg shrink-0">
+              <Target className="w-6 h-6 text-white" />
             </div>
             <div className="flex-1">
-              <h3 className="font-bold text-lg mb-2">Executive Summary — Sintesis AI untuk Pengambil Keputusan</h3>
+              <h3 className="font-bold text-base mb-2">Executive Summary — Sintesis untuk Pengambil Keputusan</h3>
               <p className="text-sm text-muted-foreground leading-relaxed">{data.executiveSummary}</p>
-              <div className="mt-3 grid grid-cols-3 gap-3 text-center">
-                <div>
-                  <div className={`text-3xl font-bold ${data.sentimentIndex >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                    {data.sentimentIndex > 0 ? '+' : ''}{data.sentimentIndex}
+              <div className="mt-3 flex items-center gap-3">
+                <div className="flex-1">
+                  <div className="text-xs text-muted-foreground mb-1">Sentiment Index: {sentimentIdx > 0 ? '+' : ''}{sentimentIdx} / 100</div>
+                  <div className="w-full h-3 rounded-full bg-slate-200 overflow-hidden relative">
+                    <div className="absolute top-0 left-1/2 w-0.5 h-full bg-slate-400" />
+                    <div className={`h-full rounded-full transition-all ${sentimentIdx >= 0 ? 'bg-emerald-500' : 'bg-red-500'}`}
+                      style={{ width: `${Math.abs(sentimentIdx) / 2}%`, marginLeft: sentimentIdx >= 0 ? '50%' : `${50 + sentimentIdx / 2}%` }} />
                   </div>
-                  <div className="text-[13px] text-muted-foreground">Sentiment Index (-100 s/d +100)</div>
+                  <div className="flex justify-between text-[10px] text-muted-foreground mt-0.5">
+                    <span>-100</span><span>0</span><span>+100</span>
+                  </div>
                 </div>
-                <div>
-                  <div className="text-3xl font-bold text-orange-600">{data.stats.totalOpinionLinks}</div>
-                  <div className="text-[13px] text-muted-foreground">Total Mention Dianalisis</div>
-                </div>
-                <div>
-                  <div className="text-3xl font-bold text-red-600">{data.stats.needsAction}</div>
-                  <div className="text-[13px] text-muted-foreground">Perlu Tindakan</div>
-                </div>
+                <Badge className={`text-xs ${electoralStatus.color.replace('text-', 'bg-').replace('-600', '-100')} ${electoralStatus.color}`}>
+                  {electoralStatus.label}
+                </Badge>
               </div>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Sentiment Distribution */}
-      <Card>
-        <CardHeader><CardTitle className="text-base">Distribusi Sentimen Publik</CardTitle></CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <div className="w-20 text-xs">Positif</div>
-              <div className="flex-1 bg-slate-100 rounded h-6 overflow-hidden">
-                <div className="bg-emerald-500 h-full flex items-center px-2 text-white text-xs"
-                  style={{ width: `${sentimentPct.pos}%` }}>{sentimentPct.pos}% ({data.sentimentTrend.positive})</div>
+      {/* === DISTRIBUSI SENTIMEN + TOP KATEGORI === */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card>
+          <CardHeader><CardTitle className="text-base flex items-center gap-2"><Activity className="w-4 h-4 text-purple-600" /> Distribusi Sentimen Publik</CardTitle></CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              <div>
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <span className="text-emerald-700 font-semibold">🟢 Positif</span>
+                  <span className="font-bold">{posCount} berita ({sentimentPct.pos}%)</span>
+                </div>
+                <div className="w-full bg-slate-100 rounded h-4 overflow-hidden">
+                  <div className="bg-emerald-500 h-full rounded transition-all" style={{ width: `${sentimentPct.pos}%` }} />
+                </div>
+              </div>
+              <div>
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <span className="text-slate-600 font-semibold">⚪ Netral</span>
+                  <span className="font-bold">{data.sentimentTrend?.neutral || 0} berita ({sentimentPct.neu}%)</span>
+                </div>
+                <div className="w-full bg-slate-100 rounded h-4 overflow-hidden">
+                  <div className="bg-slate-400 h-full rounded transition-all" style={{ width: `${sentimentPct.neu}%` }} />
+                </div>
+              </div>
+              <div>
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <span className="text-red-700 font-semibold">🔴 Negatif</span>
+                  <span className="font-bold">{negCount} berita ({sentimentPct.neg}%)</span>
+                </div>
+                <div className="w-full bg-slate-100 rounded h-4 overflow-hidden">
+                  <div className="bg-red-500 h-full rounded transition-all" style={{ width: `${sentimentPct.neg}%` }} />
+                </div>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="w-20 text-xs">Netral</div>
-              <div className="flex-1 bg-slate-100 rounded h-6 overflow-hidden">
-                <div className="bg-slate-500 h-full flex items-center px-2 text-white text-xs"
-                  style={{ width: `${sentimentPct.neu}%` }}>{sentimentPct.neu}% ({data.sentimentTrend.neutral})</div>
+            {negCount > 0 && (
+              <div className="mt-3 p-2 rounded bg-red-50 border border-red-200 text-xs text-red-800">
+                <AlertTriangle className="w-3 h-3 inline mr-1" />
+                <strong>Perhatian:</strong> {negCount} berita negatif terdeteksi. Generate konter isu di tab "Monitoring Berita".
               </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-20 text-xs">Negatif</div>
-              <div className="flex-1 bg-slate-100 rounded h-6 overflow-hidden">
-                <div className="bg-red-500 h-full flex items-center px-2 text-white text-xs"
-                  style={{ width: `${sentimentPct.neg}%` }}>{sentimentPct.neg}% ({data.sentimentTrend.negative})</div>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Top Wilayah Urgent */}
-      <Card>
-        <CardHeader><CardTitle className="text-base flex items-center gap-2"><MapPin className="w-5 h-5 text-red-600" /> 5 Wilayah Paling Urgent</CardTitle></CardHeader>
-        <CardContent>
-          {data.topWilayahUrgent.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">Belum ada data wilayah. Jalankan Opinion Scanner.</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Wilayah</TableHead>
-                  <TableHead className="text-center">Total</TableHead>
-                  <TableHead className="text-center text-red-600">Negatif</TableHead>
-                  <TableHead className="text-center text-red-600">HIGH</TableHead>
-                  <TableHead className="text-center">Engagement</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data.topWilayahUrgent.map((w: any, i: number) => (
-                  <TableRow key={i} className={w.high > 0 ? 'bg-red-50/50' : ''}>
-                    <TableCell className="font-semibold text-sm">{w.name}</TableCell>
-                    <TableCell className="text-center">{w.total}</TableCell>
-                    <TableCell className="text-center text-red-700 font-semibold">{w.negative}</TableCell>
-                    <TableCell className="text-center text-red-700 font-bold">{w.high}</TableCell>
-                    <TableCell className="text-center">{w.engagement}</TableCell>
-                  </TableRow>
+            )}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader><CardTitle className="text-base flex items-center gap-2"><Folder className="w-4 h-4 text-purple-600" /> Top Kategori Isu</CardTitle></CardHeader>
+          <CardContent>
+            {data.topKategori?.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">Belum ada data. Jalankan scan berita.</p>
+            ) : (
+              <div className="space-y-2">
+                {data.topKategori?.map((k: any, i: number) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 shrink-0">{k.category}</Badge>
+                    <div className="flex-1 bg-slate-100 rounded h-4 overflow-hidden">
+                      <div className="bg-purple-500 h-full rounded" style={{ width: `${Math.min(100, (k.count / Math.max(1, totalLinks)) * 100)}%` }} />
+                    </div>
+                    <span className="text-xs font-bold w-12 text-right">{k.count}</span>
+                  </div>
                 ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
-      {/* Action Items */}
+      {/* === 5 WILAYAH PALING URGENT === */}
       <Card>
-        <CardHeader><CardTitle className="text-base flex items-center gap-2"><Zap className="w-5 h-5 text-orange-600" /> Action Items untuk DPN/DPD/DPC</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base flex items-center gap-2"><MapPin className="w-5 h-5 text-red-600" /> 5 Wilayah Paling Urgent — Perlu Perhatian DPD/DPC</CardTitle></CardHeader>
         <CardContent>
-          {data.actionItems.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">Belum ada action items.</p>
+          {data.topWilayahUrgent?.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">Belum ada data wilayah. Jalankan scan + bulk triage.</p>
           ) : (
             <div className="space-y-2">
-              {data.actionItems.map((a: any, i: number) => (
-                <div key={i} className="rounded border p-3">
-                  <div className="flex items-center gap-2 mb-1 flex-wrap">
-                    <Badge className={`text-[13px] ${a.prioritas === 'TINGGI' ? 'bg-red-100 text-red-800' : a.prioritas === 'SEDANG' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>
-                      {a.prioritas}
-                    </Badge>
-                    <Badge variant="outline" className="text-[13px]"><MapPin className="w-2.5 h-2.5 mr-0.5" />{a.wilayah}</Badge>
-                    <Badge variant="outline" className="text-[13px]"><Calendar className="w-2.5 h-2.5 mr-0.5" />{a.deadline}</Badge>
+              {data.topWilayahUrgent?.map((w: any, i: number) => (
+                <div key={i} className={`rounded-lg border p-3 ${w.high > 0 ? 'border-l-4 border-l-red-500 bg-red-50/30' : 'border-l-4 border-l-amber-500 bg-amber-50/30'}`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold ${i < 3 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                        {i + 1}
+                      </div>
+                      <span className="font-semibold text-sm">{w.name}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs">
+                      <Badge variant="outline" className="text-[11px]">{w.total} berita</Badge>
+                      {w.negative > 0 && <Badge variant="outline" className="text-[11px] bg-red-50 text-red-700">🔴 {w.negative} negatif</Badge>}
+                      {w.high > 0 && <Badge variant="outline" className="text-[11px] bg-red-100 text-red-800 font-bold">⚠️ {w.high} HIGH</Badge>}
+                      {w.engagement > 0 && <Badge variant="outline" className="text-[11px]">💬 {w.engagement}</Badge>}
+                    </div>
                   </div>
-                  <p className="text-sm font-medium">{a.aksi}</p>
-                  {a.alasan && (
-                    <p className="text-[13px] text-muted-foreground mt-1 italic">Alasan: {a.alasan}</p>
-                  )}
                 </div>
               ))}
             </div>
@@ -2913,29 +2960,42 @@ function DecisionDashboardTab() {
         </CardContent>
       </Card>
 
-      {/* Top Kategori & Platform */}
+      {/* === ACTION ITEMS === */}
+      <Card>
+        <CardHeader><CardTitle className="text-base flex items-center gap-2"><Zap className="w-5 h-5 text-orange-600" /> Action Items untuk DPN/DPD/DPC</CardTitle></CardHeader>
+        <CardContent>
+          {data.actionItems?.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">Belum ada action items. Jalankan scan berita untuk generate rekomendasi.</p>
+          ) : (
+            <div className="space-y-2">
+              {data.actionItems?.map((a: any, i: number) => (
+                <div key={i} className={`rounded-lg border p-3 ${a.prioritas === 'TINGGI' ? 'border-red-300 bg-red-50' : a.prioritas === 'SEDANG' ? 'border-amber-300 bg-amber-50' : 'border-blue-200 bg-blue-50'}`}>
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <Badge className={`text-[11px] ${a.prioritas === 'TINGGI' ? 'bg-red-600 text-white' : a.prioritas === 'SEDANG' ? 'bg-amber-500 text-white' : 'bg-blue-500 text-white'}`}>
+                      {a.prioritas}
+                    </Badge>
+                    {a.wilayah && <Badge variant="outline" className="text-[11px]"><MapPin className="w-2.5 h-2.5 mr-0.5" />{a.wilayah}</Badge>}
+                    {a.deadline && <Badge variant="outline" className="text-[11px]"><Calendar className="w-2.5 h-2.5 mr-0.5" />{a.deadline}</Badge>}
+                  </div>
+                  <p className="text-sm font-medium">{a.aksi}</p>
+                  {a.alasan && <p className="text-[12px] text-muted-foreground mt-1 italic">Alasan: {a.alasan}</p>}
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* === TOP PLATFORM + SURVEI AKTIF === */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card>
-          <CardHeader><CardTitle className="text-base">Top Kategori Isu</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-base flex items-center gap-2"><Globe className="w-4 h-4 text-blue-600" /> Top Platform (Engagement)</CardTitle></CardHeader>
           <CardContent>
-            {data.topKategori.length === 0 ? <p className="text-sm text-muted-foreground">Belum ada data.</p> : (
+            {data.topPlatform?.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Belum ada data.</p>
+            ) : (
               <div className="space-y-2">
-                {data.topKategori.map((k: any, i: number) => (
-                  <div key={i} className="flex items-center justify-between">
-                    <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700">{k.category}</Badge>
-                    <span className="text-sm font-semibold">{k.count} mention</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader><CardTitle className="text-base">Top Platform (Engagement)</CardTitle></CardHeader>
-          <CardContent>
-            {data.topPlatform.length === 0 ? <p className="text-sm text-muted-foreground">Belum ada data.</p> : (
-              <div className="space-y-2">
-                {data.topPlatform.map((p: any, i: number) => (
+                {data.topPlatform?.map((p: any, i: number) => (
                   <div key={i} className="flex items-center justify-between">
                     <Badge variant="outline" className="text-xs">{p.platform}</Badge>
                     <span className="text-sm font-semibold">{p.engagement} engagement</span>
@@ -2945,26 +3005,30 @@ function DecisionDashboardTab() {
             )}
           </CardContent>
         </Card>
-      </div>
-
-      {/* Active Essay Polls */}
-      {data.activePolls.length > 0 && (
         <Card>
-          <CardHeader><CardTitle className="text-base flex items-center gap-2"><Brain className="w-5 h-5 text-purple-600" /> Essay Polls Aktif</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-base flex items-center gap-2"><Brain className="w-4 h-4 text-purple-600" /> Survei/Polling Aktif</CardTitle></CardHeader>
           <CardContent>
-            <div className="space-y-2">
-              {data.activePolls.map((p: any) => (
-                <div key={p.id} className="rounded border p-2">
-                  <div className="text-sm font-semibold">{p.title}</div>
-                  <div className="text-xs text-muted-foreground mt-1">
-                    {p.totalResponses} respon • {p.positiveResponses} positif • {p.negativeResponses} negatif
+            {data.activePolls?.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Belum ada survei aktif.</p>
+            ) : (
+              <div className="space-y-2">
+                {data.activePolls?.map((p: any) => (
+                  <div key={p.id} className="rounded border p-2">
+                    <div className="text-sm font-semibold">{p.title}</div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      {p.totalResponses} respon • {p.positiveResponses} positif • {p.negativeResponses} negatif
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
-      )}
+      </div>
+
+      <Button variant="outline" onClick={loadData} className="w-full">
+        <RefreshCw className="w-4 h-4 mr-2" /> Refresh Dashboard
+      </Button>
     </div>
   )
 }
