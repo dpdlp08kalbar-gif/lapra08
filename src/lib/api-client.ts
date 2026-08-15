@@ -52,7 +52,16 @@ export async function apiFetch(path: string, options: RequestInit = {}) {
   }
 
   if (!res.ok || (data && data.success === false)) {
-    throw new Error(data?.error || `HTTP ${res.status}`)
+    const errMsg = data?.error || `HTTP ${res.status}`
+    // Prefix dengan path + method biar gampang tracking endpoint mana yang bermasalah
+    const method = (options.method as string) || 'GET'
+    const enrichedErr = new Error(`[${method} ${path}] ${errMsg}`)
+    console.error(`[API ${res.status}] ${method} ${path}`, {
+      status: res.status,
+      serverError: data?.error,
+      fullResponse: data,
+    })
+    throw enrichedErr
   }
   // Kalau response berupa { success: true, data: ... } → return data.data
   // Kalau response langsung objek tanpa wrapper → return objek itu sendiri
