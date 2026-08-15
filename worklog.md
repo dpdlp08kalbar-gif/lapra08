@@ -3566,3 +3566,40 @@ Stage Summary:
   2. Trigger Scraper Agent → scrape dengan Lexicon Matrix (152+ query)
   3. Lihat Geospatial Heatmap → provinsi mulai terisi trust score
   4. Lihat Decision Dashboard → top wilayah urgent muncul dari data daerah
+
+---
+Task ID: LAPRA08-SCRAPER-BROADEN-FIX-V3
+Agent: Main Agent (Senior Electoral Strategist + Principal Software Architect)
+Task: FIX v3 — broaden query matrix karena "LAPRA 08" terlalu niche untuk Google News
+
+AUDIT ROOT CAUSE (TEST LANGSUNG):
+- Test 1: curl Google News RSS "LAPRA 08 Kalimantan Barat" → 0 hasil ❌
+- Test 2: curl Google News RSS "Prabowo relawan Kalimantan Barat" → 8+ hasil ✅
+  Termasuk: "Prabowo hadiri konsolidasi relawan di Pontianak" (ANTARA Foto)
+  "Pendukung Capres Cawapres 02 Relawan Kalimantan Maju, Minta Prabowo Hadir di Kalbar" (Radar Kalbar)
+  "Datangkan Prabowo Ke Kalimantan Barat Repro Pusat Sampaikan Hal Ini" (Kalbar News)
+
+PENYEBAB:
+- LAPRA 08 / Laskar Prabowo 08 adalah organisasi terlalu niche
+- Google News tidak mengindex berita dengan keyword "LAPRA 08" + daerah
+- Tapi "Prabowo" + "relawan" + daerah = banyak hasil
+
+FIX:
+1. Tambah BROAD_KEYWORDS: ["Prabowo relawan", "Prabowo pendukung", "Prabowo konsolidasi", "Prabowo pemenangan", "Gerindra", "Prabowo Gibran"]
+2. generateLexiconQueries():
+   - TIER 1 (prioritas): BROAD_KEYWORDS × 38 provinsi = 6 × 38 × 2 = 456 query
+   - TIER 2 (backup): ORG_VARIANTS × 38 provinsi = 4 × 38 × 2 = 304 query
+   - Total: 760+ query, rotasi 5 per batch
+3. RSS lokal filter broadened:
+   - Tambah: 'relawan', 'gerindra', 'prabowo gibran', 'pemenangan'
+   - Sebelum: hanya 'laskar prabowo', 'lapra', 'prabowo', 'asta cita', 'pemilu', 'pilkada'
+
+PERUBAHAN:
+- src/lib/auto-scraper.ts (+33 lines, -18 lines)
+- Commit 2ca0056 di-push ke origin/main
+
+Stage Summary:
+- Setelah deploy: trigger Scraper Agent di AI Agent Monitor
+- Sekarang scraper akan cari "Prabowo relawan Kalimantan Barat" dll → banyak hasil
+- detectLocationFromDB akan detect "Kalimantan Barat", "Pontianak" dari text berita
+- Data akan otomatis terisi di Geospatial Heatmap + Decision Dashboard
