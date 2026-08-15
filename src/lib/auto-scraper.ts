@@ -160,7 +160,7 @@ const LAPRA_QUERIES_NASIONAL = [
   'Presiden Prabowo astacita program positif',
 ]
 
-// === Query aktivitas daerah ===
+// === Query aktivitas daerah + sumber yang user temukan ===
 const AKTIVITAS_QUERIES = [
   'LAPRA 08 audiensi DPD OR DPC',
   'Laskar Prabowo 08 kolaborasi OR kemitraan daerah',
@@ -170,10 +170,28 @@ const AKTIVITAS_QUERIES = [
   'Laskar Prabowo 08 rapat koordinasi daerah',
   'LAPRA 08 kegiatan keorganisasian DPD',
   'Laskar Prabowo 08 pemberdayaan ummat',
+  // Query yang user temukan (spesifik Kalbar)
+  'Laskar Prabowo 08 Kalbar',
+  'LP 08 Kalbar',
+  'Laskar Prabowo Kalbar sambangi',
+  'Laskar Prabowo 08 Kayong Utara',
+  'Laskar Prabowo 08 Kabupaten Pontianak',
+  'Laskar Prabowo 08 Mempawah',
+  'Laskar Prabowo 08 Sambas',
+  'Laskar Prabowo 08 Singkawang',
+  // Query yang user temukan (spesifik Jabar)
+  'Laskar Prabowo 08 Jabar',
+  'Laskar Prabowo 08 Bandung',
+  'Laskar Prabowo 08 Bekasi',
+  'Laskar Prabowo 08 Bogor',
+  'Laskar Prabowo 08 Depok',
+  'Laskar Prabowo 08 Koppeta HAM',
 ]
 
-// === RSS FEED LOKAL (EXPANDED — 25+ sumber daerah) ===
+// === RSS FEED LOKAL (EXPANDED v2 — 35+ sumber daerah + pers lokal) ===
 const LOCAL_RSS_FEEDS = [
+  // Media Kalbar (sumber yang user temukan!)
+  { name: 'Media Kalbar News', url: 'https://mediakalbarnews.com/feed/', region: 'Kalimantan Barat' },
   // Tribun Network (per daerah)
   { name: 'Tribun Kalbar', url: 'https://kalimantanbarat.tribunnews.com/rss', region: 'Kalimantan Barat' },
   { name: 'Tribun Pontianak', url: 'https://pontianak.tribunnews.com/rss', region: 'Kalimantan Barat' },
@@ -196,10 +214,26 @@ const LOCAL_RSS_FEEDS = [
   { name: 'Tribun Papua', url: 'https://papua.tribunnews.com/rss', region: 'Papua' },
   { name: 'Tribun Banten', url: 'https://banten.tribunnews.com/rss', region: 'Banten' },
   { name: 'Tribun Jakarta', url: 'https://jakarta.tribunnews.com/rss', region: 'DKI Jakarta' },
+  // Pers lokal yang user temukan (bukan Tribun)
+  { name: 'Radar Jabar', url: 'https://www.radarjabar.com/feed/', region: 'Jawa Barat' },
+  { name: 'AT News', url: 'https://www.atnews.id/feed/', region: 'Nasional' },
+  { name: 'Intipos', url: 'https://intipos.com/feed/', region: 'Nasional' },
+  { name: 'Seru.co.id', url: 'https://seru.co.id/feed/', region: 'Nasional' },
+  { name: 'Koran Sinar Pagionline', url: 'https://koransinarpagionline.com/feed/', region: 'Nasional' },
+  { name: 'Beranta Jejak Digital', url: 'https://berantasjejakdigital.com/feed/', region: 'Nasional' },
+  { name: 'Nusantara TV', url: 'https://nusantaratv.com/feed/', region: 'Nasional' },
   // Kompas
   { name: 'Kompas Nasional', url: 'https://www.kompas.com/rss/nasional.xml', region: 'Nasional' },
   // Detik
   { name: 'Detik News', url: 'https://rss.detik.com/index.php/detik/news', region: 'Nasional' },
+  // ANTARA (sumber user temukan)
+  { name: 'ANTARA News', url: 'https://www.antaranews.com/rss/terkini.xml', region: 'Nasional' },
+  // Metro TV (sumber user temukan)
+  { name: 'Metro TV News', url: 'https://www.metrotvnews.com/rss', region: 'Nasional' },
+  // RRI (sumber user temukan)
+  { name: 'RRI News', url: 'https://rri.co.id/index.php/rss', region: 'Nasional' },
+  // Koppeta HAM (sumber user temukan — Jawa Barat)
+  { name: 'Koppeta HAM', url: 'https://koppeta.or.id/feed/', region: 'Jawa Barat' },
 ]
 
 // === COMBINED: semua query (LEXICON MATRIX + nasional + aktivitas) ===
