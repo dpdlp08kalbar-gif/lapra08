@@ -1,0 +1,28 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "Based on the screenshot of the **'Pusat Bantuan & Panduan'** (Help Center & Guide) page, here is a detailed description:\n\n### 1. Sections/Tabs Visible\nThere are **two main tabs** located below the page title:\n*   **User Manual** (with a book icon)\n*   **Tiket Laporan** (Report Ticket) - *This tab is currently active/selected, indicated by the orange underline and icon.*\n\n### 2. Forms/Fields Shown\nThe current view displays a **data table/list view**, not an input form. The table contains the following columns (fields):\n*   **Nomor** (Number/Ticket ID): e.g., `TK-20260815-001`\n*   **Judul** (Title): e.g., `memohon bantuan hukum`\n*   **Kategori** (Category): e.g., `Pertanyaan` (displayed as a badge)\n*   **Prioritas** (Priority): e.g., `Tinggi` (High - displayed as a light orange/yellow badge)\n*   **Status**: e.g., `Terbuka` (Open - displayed as a yellow badge)\n*   **Pelapor** (Reporter): e.g., `Super Administrator Sistem Indonesia`\n*   **Dibuat** (Created): Date and time, e.g., `15 Agu 2026, 09:23`\n\nAbove the table, there are **summary cards** displaying statistics:\n*   **Total Tiket** (Total Tickets): 1\n*   **Terbuka** (Open): 1\n*   **Selesai** (Completed/Done): 0\n\n### 3. Ticket Submission Form\nThere is **no submission form currently visible on this screen**. However, there is a prominent button to access it:\n*   A red/orange button labeled **\"+ Buat Tiket\"** (Create Ticket) is located in the upper right area of the content section, above the ticket list table.\n\n### 4. Ticket List/History\n**Yes**, there is a ticket list/history table visible at the bottom of the content area. It currently shows **one entry** with the details mentioned in point #2.\n\n### 5. Buttons for Print/Download/Export\n**No**, there are no visible buttons for printing, downloading, or exporting the ticket list in this specific view.\n\n### 6. Reply/Follow-up/Status Buttons\n**No**, there are no visible action buttons for replying, following up, or changing status directly within the list view shown. These actions would likely be available after clicking on a specific ticket row to open its details.\n\n### 7. Categories of Tickets Available\nBased on the single visible entry, the category shown is:\n*   **Pertanyaan** (Question/Inquiry)\n*(Note: Other categories may exist but are not visible in this static list view).*\n\n### 8. Overall Layout and UI Components\nThe interface follows a standard dashboard layout:\n\n*   **Sidebar (Left):** Dark-themed navigation menu containing items like \"Pusat Media\", \"Program & Kegiatan\", \"Layanan & Advokasi\" (currently selected), \"Kontak & Sekretariat\", and administrative sections like \"Dashboard Admin\", \"Logistik\", etc. At the bottom, there's a yellow \"Pendaftaran KTA\" button and user profile info (\"Super Administrator Sistem\").\n*   **Header (Top):** Contains breadcrumbs (`PORTAL LAPRA 08 > Layanan & Advokasi`), the page title with an orange life-ring icon, and a scrolling orange \"INFO TERKINI\" (Latest News) banner.\n*   **Main Content Area (Center/Right):**\n    *   White background card containing the tabs.\n    *   **Statistics Row:** Three white cards showing ticket counts with colored icons (orange for total/open, green for completed).\n    *   **Data Table:** A clean, white table with gray headers listing ticket information using badges/tags for categorical data.\n    *   **Action Button:** Floating/fixed position \"+ Buat Tiket\" button in red.\n*   **Footer:** Copyright text \"© 2026 LAPRA 08 — Perkumpulan Laskar Prabowo 08\".\n*   **Top Bar (Browser level):** Shows multiple tabs open including \"LAPRA 08 - Sistem Informasi...\" and system tray info (time: 09:24, date: 15/08/2026).",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1786761059,
+  "id": "202608151030489e441c639174485b",
+  "model": "glm-5v-turbo",
+  "object": "chat.completion",
+  "request_id": "202608151030489e441c639174485b",
+  "usage": {
+    "completion_tokens": 950,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "prompt_tokens": 1468,
+    "prompt_tokens_details": {
+      "cached_tokens": 2
+    },
+    "total_tokens": 2418
+  }
+}
