@@ -11,64 +11,77 @@ import {
 
 // GET /api/members - List members (with filters, scoped to VIEW)
 export async function GET(request: NextRequest) {
-  const user = await getUserFromRequest(request)
-  if (!user) {
-    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
-  }
+  try {
+    const user = await getUserFromRequest(request)
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+    }
 
-  const { searchParams } = new URL(request.url)
-  const status = searchParams.get('status')
-  const territoryId = searchParams.get('territoryId')
-  const search = searchParams.get('search')
-  const limit = parseInt(searchParams.get('limit') || '100')
-  const offset = parseInt(searchParams.get('offset') || '0')
+    const { searchParams } = new URL(request.url)
+    const status = searchParams.get('status')
+    const territoryId = searchParams.get('territoryId')
+    const search = searchParams.get('search')
+    const limit = parseInt(searchParams.get('limit') || '100')
+    const offset = parseInt(searchParams.get('offset') || '0')
 
-  const viewScope = await getViewableTerritoryIds(user)
-  const editScope = await getEditableTerritoryIds(user)
+    let viewScope, editScope
+    try {
+      viewScope = await getViewableTerritoryIds(user)
+      editScope = await getEditableTerritoryIds(user)
+    } catch (scopeErr: any) {
+      console.error('[Members GET] scope failed:', scopeErr.message)
+      if (!user.territoryId) return NextResponse.json({ success: true, data: [], total: 0 })
+      viewScope = { isGlobalView: false, territoryIds: [user.territoryId], primaryTerritoryId: user.territoryId }
+      editScope = { isGlobalEdit: false, territoryIds: [user.territoryId], primaryTerritoryId: user.territoryId }
+    }
 
-  const where: any = {}
-  if (status) where.status = status
-  if (search) {
-    where.OR = [
-      { fullName: { contains: search } },
-      { memberNumber: { contains: search } },
-      { nik: { contains: search } },
-      { phone: { contains: search } },
-    ]
-  }
-  // Isolasi territory (VIEW)
-  if (!viewScope.isGlobalView) {
-    where.territoryId = { in: viewScope.territoryIds }
-  }
-  if (territoryId) {
-    if (viewScope.isGlobalView) {
-      where.territoryId = territoryId
-    } else {
-      // Pastikan territoryId ada dalam scope view
-      if (viewScope.territoryIds.includes(territoryId)) {
+    const where: any = {}
+    if (status) where.status = status
+    if (search) {
+      where.OR = [
+        { fullName: { contains: search } },
+        { memberNumber: { contains: search } },
+        { nik: { contains: search } },
+        { phone: { contains: search } },
+      ]
+    }
+    // Isolasi territory (VIEW)
+    if (!viewScope.isGlobalView) {
+      where.territoryId = { in: viewScope.territoryIds }
+    }
+    if (territoryId) {
+      if (viewScope.isGlobalView) {
         where.territoryId = territoryId
+      } else {
+        // Pastikan territoryId ada dalam scope view
+        if (viewScope.territoryIds.includes(territoryId)) {
+          where.territoryId = territoryId
+        }
       }
     }
+
+    const [members, total] = await Promise.all([
+      db.member.findMany({
+        where,
+        include: { territory: true },
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip: offset,
+      }),
+      db.member.count({ where }),
+    ])
+
+    // Tambahkan flag canEdit untuk setiap member
+    const membersWithPermissions = members.map((m) => ({
+      ...m,
+      canEdit: editScope.isGlobalEdit || editScope.territoryIds.includes(m.territoryId),
+    }))
+
+    return NextResponse.json({ success: true, data: membersWithPermissions, total })
+  } catch (e: any) {
+    console.error('[Members GET] Error:', e)
+    return NextResponse.json({ success: false, error: `Gagal memuat anggota: ${e.message}` }, { status: 500 })
   }
-
-  const [members, total] = await Promise.all([
-    db.member.findMany({
-      where,
-      include: { territory: true },
-      orderBy: { createdAt: 'desc' },
-      take: limit,
-      skip: offset,
-    }),
-    db.member.count({ where }),
-  ])
-
-  // Tambahkan flag canEdit untuk setiap member
-  const membersWithPermissions = members.map((m) => ({
-    ...m,
-    canEdit: editScope.isGlobalEdit || editScope.territoryIds.includes(m.territoryId),
-  }))
-
-  return NextResponse.json({ success: true, data: membersWithPermissions, total })
 }
 
 // POST /api/members - Tambah anggota baru (auto-generate KTA number)

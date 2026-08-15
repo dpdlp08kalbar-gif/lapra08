@@ -5,39 +5,61 @@ import { getUserFromRequest, getViewableTerritoryIds } from '@/lib/server-helper
 
 // GET /api/contacts - List contacts with filters
 export async function GET(request: NextRequest) {
-  const user = await getUserFromRequest(request)
-  if (!user) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+  try {
+    const user = await getUserFromRequest(request)
+    if (!user) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
 
-  const { searchParams } = new URL(request.url)
-  const search = searchParams.get('search')
-  const provinceCode = searchParams.get('provinceCode')
-  const optInOnly = searchParams.get('optInOnly') === 'true'
-  const limit = parseInt(searchParams.get('limit') || '100')
+    const { searchParams } = new URL(request.url)
+    const search = searchParams.get('search')
+    const provinceCode = searchParams.get('provinceCode')
+    const optInOnly = searchParams.get('optInOnly') === 'true'
+    const limit = parseInt(searchParams.get('limit') || '100')
 
-  const scope = await getViewableTerritoryIds(user)
-  const where: any = {}
-  if (!scope.isGlobalView) where.territoryId = { in: scope.territoryIds }
-  if (optInOnly) { where.whatsappOptIn = true; where.isActive = true }
-  if (provinceCode) where.provinceCode = provinceCode
-  if (search) {
-    where.OR = [
-      { name: { contains: search } },
-      { phone: { contains: search } },
-      { email: { contains: search } },
-    ]
+    let scope
+    try {
+      scope = await getViewableTerritoryIds(user)
+    } catch (scopeErr: any) {
+      console.error('[Contacts GET] getViewableTerritoryIds failed:', scopeErr.message)
+      if (!user.territoryId) return NextResponse.json({ success: true, data: [], total: 0, stats: { totalContacts: 0, optInCount: 0, verifiedCount: 0 } })
+      scope = { isGlobalView: false, territoryIds: [user.territoryId], primaryTerritoryId: user.territoryId }
+    }
+
+    const where: any = {}
+    if (!scope.isGlobalView) where.territoryId = { in: scope.territoryIds }
+    if (optInOnly) { where.whatsappOptIn = true; where.isActive = true }
+    if (provinceCode) where.provinceCode = provinceCode
+    if (search) {
+      where.OR = [
+        { name: { contains: search } },
+        { phone: { contains: search } },
+        { email: { contains: search } },
+      ]
+    }
+
+    const [contacts, total] = await Promise.all([
+      db.contact.findMany({ where, include: { territory: true }, orderBy: { registeredAt: 'desc' }, take: limit }),
+      db.contact.count({ where }),
+    ])
+
+    // Stats — defensive (jangan crash kalau salah satu count gagal)
+    let stats = { totalContacts: 0, optInCount: 0, verifiedCount: 0 }
+    try {
+      const totalContacts = await db.contact.count({ where: scope.isGlobalView ? {} : { territoryId: { in: scope.territoryIds } } })
+      const optInCount = await db.contact.count({ where: { ...where, whatsappOptIn: true, isActive: true } })
+      const verifiedCount = await db.contact.count({ where: { ...where, isVerified: true } })
+      stats = { totalContacts, optInCount, verifiedCount }
+    } catch (statErr: any) {
+      console.error('[Contacts GET] stats query failed:', statErr.message)
+    }
+
+    return NextResponse.json({ success: true, data: contacts, total, stats })
+  } catch (e: any) {
+    console.error('[Contacts GET] Error:', e)
+    return NextResponse.json(
+      { success: false, error: `Gagal memuat kontak: ${e.message}` },
+      { status: 500 }
+    )
   }
-
-  const [contacts, total] = await Promise.all([
-    db.contact.findMany({ where, include: { territory: true }, orderBy: { registeredAt: 'desc' }, take: limit }),
-    db.contact.count({ where }),
-  ])
-
-  // Stats
-  const totalContacts = await db.contact.count({ where: scope.isGlobalView ? {} : { territoryId: { in: scope.territoryIds } } })
-  const optInCount = await db.contact.count({ where: { ...where, whatsappOptIn: true, isActive: true } })
-  const verifiedCount = await db.contact.count({ where: { ...where, isVerified: true } })
-
-  return NextResponse.json({ success: true, data: contacts, total, stats: { totalContacts, optInCount, verifiedCount } })
 }
 
 // POST /api/contacts - Add single contact
