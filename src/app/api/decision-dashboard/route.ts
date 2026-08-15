@@ -47,13 +47,13 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // Fetch all data sources in parallel
-  const [opinionLinks, essayPolls, auditScans] = await Promise.all([
+  // Fetch all data sources in parallel — TERMASUK broadcast + konter isu draft
+  const [opinionLinks, essayPolls, auditScans, broadcasts, counterDrafts, recentLinks] = await Promise.all([
     db.publicOpinionLink.findMany({
       where: linkWhere,
-      orderBy: [{ priority: 'asc' }, { createdAt: 'desc' }],
+      orderBy: [{ publishedAt: 'desc' }, { createdAt: 'desc' }],
       take: 50,
-      select: { id: true, url: true, title: true, platform: true, sentiment: true, priority: true, urgencyScore: true, category: true, provinceName: true, regencyName: true, engagementCount: true, createdAt: true, status: true, aiSummary: true }
+      select: { id: true, url: true, title: true, platform: true, sentiment: true, priority: true, urgencyScore: true, category: true, provinceName: true, regencyName: true, engagementCount: true, publishedAt: true, createdAt: true, status: true, aiSummary: true }
     }),
     db.essayPoll.findMany({
       where: linkWhere.targetScope ? undefined : undefined,
@@ -72,6 +72,31 @@ export async function GET(request: NextRequest) {
       orderBy: { createdAt: 'desc' },
       take: 5,
       select: { id: true, totalMentions: true, totalComplaints: true, needsResponse: true, ignoredCount: true, status: true, createdAt: true, scope: true }
+    }),
+    // === NEW: Broadcast data dari SystemSetting ===
+    db.systemSetting.findMany({
+      where: { category: 'GALLERY' },
+      orderBy: { updatedAt: 'desc' },
+      take: 10,
+      select: { key: true, value: true, updatedAt: true }
+    }).then(items => items.map(item => {
+      try { return JSON.parse(item.value) } catch { return null }
+    }).filter(Boolean).filter(v => v.videoType || v.broadcastType)),
+    // === NEW: Counter Issue Drafts ===
+    db.systemSetting.findMany({
+      where: { category: 'COUNTER_ISSUE_DRAFT' },
+      orderBy: { updatedAt: 'desc' },
+      take: 10,
+      select: { key: true, value: true, updatedAt: true }
+    }).then(items => items.map(item => {
+      try { return JSON.parse(item.value) } catch { return null }
+    }).filter(Boolean)),
+    // === NEW: 5 berita terbaru untuk ditampilkan di dashboard ===
+    db.publicOpinionLink.findMany({
+      where: linkWhere,
+      orderBy: [{ publishedAt: 'desc' }, { createdAt: 'desc' }],
+      take: 5,
+      select: { id: true, title: true, url: true, platform: true, sentiment: true, priority: true, provinceName: true, regencyName: true, publishedAt: true, aiSummary: true, status: true }
     }),
   ])
 
@@ -186,10 +211,41 @@ export async function GET(request: NextRequest) {
     actionItems,
     activePolls,
     auditHistory: auditScans,
+    // === NEW: Data dari semua menu ===
+    recentNews: recentLinks,        // 5 berita terbaru
+    broadcastStats: {               // Statistik siaran
+      total: broadcasts.length,
+      youtube: broadcasts.filter((b: any) => b.videoType === 'YOUTUBE').length,
+      mp4: broadcasts.filter((b: any) => b.videoType === 'UPLOAD').length,
+    },
+    counterDrafts: counterDrafts.slice(0, 5).map((d: any) => ({
+      id: d.id,
+      title: d.title?.substring(0, 60),
+      wilayah: d.targetWilayah || d.territoryName,
+      status: d.status,
+      generatedAt: d.generatedAt,
+    })),
+    pollStats: {                    // Statistik survei
+      total: essayPolls.length,
+      active: essayPolls.filter(p => p.status === 'ACTIVE').length,
+      totalResponses: essayPolls.reduce((sum, p) => sum + (p._count?.responses || 0), 0),
+    },
+    newsStats: {                    // Statistik monitoring berita
+      total: opinionLinks.length,
+      new: opinionLinks.filter(l => l.status === 'NEW').length,
+      reviewed: opinionLinks.filter(l => l.status === 'REVIEWED').length,
+      addressed: opinionLinks.filter(l => l.status === 'ADDRESSED').length,
+      highPriority: opinionLinks.filter(l => l.priority === 'HIGH').length,
+      negative: opinionLinks.filter(l => l.sentiment === 'NEGATIVE').length,
+      positive: opinionLinks.filter(l => l.sentiment === 'POSITIVE').length,
+      mapped: opinionLinks.filter(l => l.provinceName).length,
+    },
     stats: {
       totalOpinionLinks: opinionLinks.length,
       totalEssayPolls: essayPolls.length,
       totalAuditScans: auditScans.length,
+      totalBroadcasts: broadcasts.length,
+      totalCounterDrafts: counterDrafts.length,
       needsAction: opinionLinks.filter(l => l.status === 'NEW' && (l.priority === 'HIGH' || l.priority === 'MEDIUM')).length,
     },
   }

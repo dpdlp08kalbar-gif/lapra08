@@ -3026,6 +3026,125 @@ function DecisionDashboardTab() {
         </Card>
       </div>
 
+      {/* === NEW: RINGKASAN DARI SEMUA MENU === */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Siaran & Broadcast */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Send className="w-4 h-4 text-orange-600" />
+              Ringkasan Siaran
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Total Video</span>
+                <span className="font-bold">{data.broadcastStats?.total || 0}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">YouTube</span>
+                <span className="font-bold text-red-600">{data.broadcastStats?.youtube || 0}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Upload MP4</span>
+                <span className="font-bold text-blue-600">{data.broadcastStats?.mp4 || 0}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Draft Konter Isu</span>
+                <span className="font-bold text-amber-600">{data.counterDrafts?.length || 0}</span>
+              </div>
+              {(data.counterDrafts || []).length > 0 && (
+                <div className="mt-2 pt-2 border-t space-y-1">
+                  <div className="text-xs font-semibold text-muted-foreground">Draft Terbaru:</div>
+                  {(data.counterDrafts || []).slice(0, 3).map((d: any, i: number) => (
+                    <div key={i} className="text-xs truncate">
+                      📄 {d.title} <span className="text-muted-foreground">({d.wilayah})</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Survei & Polling */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Brain className="w-4 h-4 text-purple-600" />
+              Ringkasan Survei
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Total Survei</span>
+                <span className="font-bold">{data.pollStats?.total || 0}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Survei Aktif</span>
+                <span className="font-bold text-emerald-600">{data.pollStats?.active || 0}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Total Respon</span>
+                <span className="font-bold text-blue-600">{data.pollStats?.totalResponses || 0}</span>
+              </div>
+              {(data.activePolls || []).length > 0 && (
+                <div className="mt-2 pt-2 border-t space-y-1">
+                  <div className="text-xs font-semibold text-muted-foreground">Survei Aktif:</div>
+                  {(data.activePolls || []).slice(0, 3).map((p: any, i: number) => (
+                    <div key={i} className="text-xs truncate">
+                      📊 {p.title?.substring(0, 40)} <span className="text-muted-foreground">({p.totalResponses} respon)</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Monitoring Berita */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Newspaper className="w-4 h-4 text-blue-600" />
+              Ringkasan Monitoring
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Total Berita</span>
+                <span className="font-bold">{data.newsStats?.total || 0}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Belum Direview</span>
+                <span className="font-bold text-amber-600">{data.newsStats?.new || 0}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Sudah Ditangani</span>
+                <span className="font-bold text-emerald-600">{data.newsStats?.addressed || 0}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Ter-map ke Wilayah</span>
+                <span className="font-bold text-blue-600">{data.newsStats?.mapped || 0}</span>
+              </div>
+              {(data.recentNews || []).length > 0 && (
+                <div className="mt-2 pt-2 border-t space-y-1">
+                  <div className="text-xs font-semibold text-muted-foreground">Berita Terbaru:</div>
+                  {(data.recentNews || []).slice(0, 3).map((n: any, i: number) => (
+                    <div key={i} className="text-xs truncate">
+                      {n.sentiment === 'NEGATIVE' ? '🔴' : n.sentiment === 'POSITIVE' ? '🟢' : '⚪'} {n.title?.substring(0, 40)}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       <Button variant="outline" onClick={loadData} className="w-full">
         <RefreshCw className="w-4 h-4 mr-2" /> Refresh Dashboard
       </Button>
