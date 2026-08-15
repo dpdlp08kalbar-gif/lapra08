@@ -54,15 +54,11 @@ export function CommunicationMenu() {
     const headers = { 'x-user-id': userId }
     const endpoints = [
       '/api/opinion-links?limit=100',
-      '/api/geospatial-voice?code=ID',
-      '/api/demographics-analytics?code=ID',
       '/api/broadcast-composer?type=templates',
       '/api/broadcast-composer?type=broadcasts',
       '/api/broadcast-composer?type=contacts_count',
       '/api/essay-polls',
-      '/api/opinion-links?limit=100',
       '/api/decision-dashboard',
-      '/api/agents/status',
     ]
 
     // Fire all requests in parallel — results go to server cache, not UI state
@@ -72,25 +68,22 @@ export function CommunicationMenu() {
   }, [])
 
   const tabs = [
-    { key: 'opinion-scanner', label: 'Opini Publik Auto-Scanner', icon: Sparkles, desc: 'Scan otomatis YouTube + Google News, AI analisis sentimen + lokasi + kategori' },
-    { key: 'opinion-map', label: 'Geospatial Voice Mapping', icon: MapPin, desc: 'Heatmap + drill-down 7 level + trust index per demografi' },
-    { key: 'broadcast', label: 'Broadcast Composer', icon: Send, desc: 'Multi-channel: WA, FB, IG, Email + attach essay poll' },
-    { key: 'essay-polls', label: 'Essay Polling & AI Auto-Pertanyaan', icon: Brain, desc: 'AI generate pertanyaan essay otomatis + analisis jawaban' },
-    { key: 'opinion-links', label: 'Link Analisis Publik', icon: ExternalLink, desc: 'Dashboard semua link medsos yang sudah dianalisis' },
-    { key: 'decision', label: 'Decision Dashboard', icon: Target, desc: 'Sintesis AI untuk pengambil keputusan politik' },
-    { key: 'agents', label: 'AI Agent Monitor', icon: Activity, desc: 'Multi-Agent System status + background jobs + sync events' },
+    { key: 'broadcast', label: 'Siaran & Broadcast', icon: Send, desc: 'Multi-channel: WA, FB, IG, Email + konter isu + template siap pakai' },
+    { key: 'essay-polls', label: 'Survei & Polling', icon: Brain, desc: 'Survei cepat + input manual lapangan + WhatsApp + analisis' },
+    { key: 'decision', label: 'Dashboard Pemenangan', icon: Target, desc: 'Sintesis data untuk pengambil keputusan politik' },
+    { key: 'opinion-scanner', label: 'Monitoring Berita', icon: Sparkles, desc: 'Scan berita LAPRA 08 + triage + konter isu otomatis' },
   ]
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Komunikasi & Command Center"
-        description="Sistem cerdas audit opini publik + broadcast + polling essay + decision dashboard. 100% otomatis, terhubung langsung ke YouTube (yt-dlp) + Google News RSS."
+        description="Sistem siaran, survei, dan monitoring berita LAPRA 08. Fokus pemenangan pemilu."
         icon={Megaphone}
       />
 
-      {/* Tab navigation */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
+      {/* Tab navigation — 4 menu fokus elektoral */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
         {tabs.map((t) => (
           <button key={t.key} onClick={() => setTab(t.key)}
             className={`flex flex-col items-start gap-1 p-3 rounded-lg text-left transition-all ${tab === t.key ? 'bg-gradient-to-br from-orange-600 to-red-600 text-white shadow-md' : 'border hover:bg-accent'}`}>
@@ -100,19 +93,17 @@ export function CommunicationMenu() {
         ))}
       </div>
 
-      {tab === 'opinion-scanner' && <OpinionScannerTab />}
-      {tab === 'opinion-map' && <GeospatialVoiceTab />}
       {tab === 'broadcast' && <BroadcastComposerTab />}
       {tab === 'essay-polls' && <EssayPollsTab />}
-      {tab === 'opinion-links' && <OpinionLinksTab />}
       {tab === 'decision' && <DecisionDashboardTab />}
-      {tab === 'agents' && <AgentsMonitorTab />}
+      {tab === 'opinion-scanner' && <OpinionScannerTab />}
     </div>
   )
 }
 
 // ============================================================
-// TAB 1: OPINI PUBLIK AUTO-SCANNER
+// TAB: MONITORING BERITA (gabungan Scanner + Link Analisis + Triage + Konter Isu)
+// Dipindahkan dari Opini Publik Auto-Scanner + Link Analisis Publik
 // ============================================================
 function OpinionScannerTab() {
   const addToast = useToastStore((s) => s.addToast)
@@ -122,6 +113,49 @@ function OpinionScannerTab() {
   const [loading, setLoading] = useState(true)
   const [filterPriority, setFilterPriority] = useState('ALL')
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [generatingKonter, setGeneratingKonter] = useState<string | null>(null)
+  const [triageLoading, setTriageLoading] = useState(false)
+
+  // === Handle Generate Konter Isu (dari OpinionLinksTab) ===
+  const handleGenerateKonter = async (linkId: string) => {
+    setGeneratingKonter(linkId)
+    try {
+      const res = await fetch(`/api/opinion-links/${linkId}/counter-issue`, {
+        method: 'POST',
+        headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+      })
+      const data = await res.json()
+      if (!data.success) throw new Error(data.error)
+      addToast(`Draft konter isu dibuat (${data.data.aiProvider}). Lihat di Siaran & Broadcast.`, 'success')
+      loadRecent()
+    } catch (e: any) {
+      addToast(`Gagal generate konter: ${e.message}`, 'error')
+    } finally {
+      setGeneratingKonter(null)
+    }
+  }
+
+  // === Handle Bulk Triage (dari OpinionLinksTab) ===
+  const handleBulkTriage = async () => {
+    setTriageLoading(true)
+    try {
+      const res = await fetch('/api/opinion-links/bulk-triage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+        body: JSON.stringify({ limit: 100 })
+      })
+      const data = await res.json()
+      if (!data.success) throw new Error(data.error)
+      const stats = data.data
+      const topProvinsiStr = stats.topProvinsiList?.map((p: any) => `${p.provinsi}(${p.count})`).join(', ') || 'tidak ada'
+      addToast(`Triage: ${stats.mapped}/${stats.total} link di-map. Top: ${topProvinsiStr}`, 'success')
+      loadRecent()
+    } catch (e: any) {
+      addToast(`Gagal bulk triage: ${e.message}`, 'error')
+    } finally {
+      setTriageLoading(false)
+    }
+  }
 
   // === FIX: cache-bust dengan timestamp + limit 50 (dari 15) ===
   const loadRecent = useCallback(() => {
@@ -254,10 +288,10 @@ function OpinionScannerTab() {
         </CardContent>
       </Card>
 
-      {/* Filter + Bulk Delete */}
+      {/* Filter + Bulk Triage + Bulk Delete */}
       <div className="flex items-center gap-2 flex-wrap">
         <Filter className="w-4 h-4 text-muted-foreground" />
-        <span className="text-xs font-semibold text-muted-foreground">Filter Prioritas:</span>
+        <span className="text-xs font-semibold text-muted-foreground">Filter:</span>
         {['ALL', 'HIGH', 'MEDIUM', 'LOW'].map(p => (
           <Button key={p} size="sm" variant={filterPriority === p ? 'default' : 'outline'}
             className={`h-7 text-xs ${filterPriority === p ? 'bg-orange-600 hover:bg-orange-700 text-white' : ''}`}
@@ -266,8 +300,15 @@ function OpinionScannerTab() {
           </Button>
         ))}
         <div className="ml-auto flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">{filteredLinks.length} mention</span>
-          {/* === NEW: Bulk Delete Button === */}
+          <span className="text-xs text-muted-foreground">{filteredLinks.length} berita</span>
+          {/* === Bulk Triage Button === */}
+          <Button size="sm" variant="outline" className="h-7 text-xs text-amber-700 hover:bg-amber-50 border-amber-200"
+            disabled={triageLoading}
+            onClick={handleBulkTriage}>
+            {triageLoading ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <MapPin className="w-3 h-3 mr-1" />}
+            {triageLoading ? 'Triage...' : 'Bulk Triage'}
+          </Button>
+          {/* === Bulk Delete Button === */}
           {filteredLinks.length > 0 && (
             <Button size="sm" variant="outline" className="h-7 text-xs text-red-600 hover:bg-red-50 border-red-200"
               onClick={() => setBulkDeleteOpen(true)}>
@@ -319,22 +360,36 @@ function OpinionScannerTab() {
                       {link.author && <span>✍️ {link.author}</span>}
                     </div>
                   </div>
-                  <a href={link.url} target="_blank" rel="noopener noreferrer"
-                    className="text-blue-600 hover:underline shrink-0">
-                    <Button size="sm" variant="ghost" className="h-8 w-8 p-0">
-                      <ExternalLink className="w-4 h-4" />
+                  <div className="flex flex-col gap-1 shrink-0">
+                    <a href={link.url} target="_blank" rel="noopener noreferrer"
+                      className="text-blue-600 hover:underline">
+                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0">
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </Button>
+                    </a>
+                    {/* === Konter Isu Button (untuk NEGATIVE/HIGH) === */}
+                    {(link.sentiment === 'NEGATIVE' || link.priority === 'HIGH') && link.status !== 'ADDRESSED' && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 w-7 p-0 text-red-600 hover:bg-red-50"
+                        disabled={generatingKonter === link.id}
+                        onClick={() => handleGenerateKonter(link.id)}
+                        title="Generate draft konter isu">
+                        {generatingKonter === link.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
+                      </Button>
+                    )}
+                    {/* === Hapus per item === */}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 w-7 p-0 text-red-500 hover:text-red-600 hover:bg-red-50"
+                      disabled={deletingId === link.id}
+                      onClick={() => handleDelete(link.id)}
+                      title="Hapus link ini">
+                      {deletingId === link.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
                     </Button>
-                  </a>
-                  {/* === NEW: Tombol Hapus per item === */}
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 shrink-0"
-                    disabled={deletingId === link.id}
-                    onClick={() => handleDelete(link.id)}
-                    title="Hapus link ini">
-                    {deletingId === link.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                  </Button>
+                  </div>
                 </div>
               </div>
             )
