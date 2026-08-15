@@ -53,14 +53,14 @@ export function CommunicationMenu() {
 
     const headers = { 'x-user-id': userId }
     const endpoints = [
-      '/api/opinion-links?limit=15',
+      '/api/opinion-links?limit=100',
       '/api/geospatial-voice?code=ID',
       '/api/demographics-analytics?code=ID',
       '/api/broadcast-composer?type=templates',
       '/api/broadcast-composer?type=broadcasts',
       '/api/broadcast-composer?type=contacts_count',
       '/api/essay-polls',
-      '/api/opinion-links?limit=50',
+      '/api/opinion-links?limit=100',
       '/api/decision-dashboard',
       '/api/agents/status',
     ]
@@ -127,7 +127,7 @@ function OpinionScannerTab() {
   const loadRecent = useCallback(() => {
     setLoading(true)
     const _t = Date.now() // cache-bust: bypass 30s cache di API
-    api(`/api/opinion-links?limit=50&_t=${_t}`).then(res => {
+    api(`/api/opinion-links?limit=100&_t=${_t}`).then(res => {
       const data = Array.isArray(res) ? res : (res?.data || [])
       setRecentLinks(data)
     }).catch(() => setRecentLinks([])).finally(() => setLoading(false))

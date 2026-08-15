@@ -13,9 +13,9 @@ import {
 } from '@/lib/ai-engine'
 import { OrchestratorAgent } from '@/lib/agent-orchestrator'
 
-// 30-second cache (key: userId+query) — OpinionScannerTab & OpinionLinksTab both call this
+// TINGKATKAN: 10 detik cache (dari 30) — lebih real-time
 const _cache = new Map<string, { ts: number; data: any }>()
-const CACHE_TTL_MS = 30 * 1000
+const CACHE_TTL_MS = 10 * 1000
 
 // GET - List opinion links
 export async function GET(request: NextRequest) {
@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
   const priority = searchParams.get('priority')
   const status = searchParams.get('status')
   const provinceCode = searchParams.get('provinceCode')
-  const limit = parseInt(searchParams.get('limit') || '50')
+  const limit = parseInt(searchParams.get('limit') || '100') // TINGKATKAN: dari 50 ke 100
   // === FIX: bypass cache jika ada parameter _t (cache-bust dari frontend) ===
   const bypassCache = searchParams.get('_t')
 

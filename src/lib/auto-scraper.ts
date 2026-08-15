@@ -286,9 +286,9 @@ function isLapraRelevant(title: string, content: string): boolean {
 // Invidious API docs: https://docs.invidious.io/api/
 // GET /api/v1/search?q=...&type=video&sort_by=relevance
 // Returns: [{ videoId, title, author, authorUrl, description, published, viewCount, likeCount }]
-async function scrapeYouTube(maxResults = 5): Promise<{ posts: ScrapedPost[]; instance: string | null }> {
-  // === ENHANCED: pakai rotasi query (bukan hanya query pertama) ===
-  const queryBatch = getNextQueryBatch(2) // 2 query YouTube per batch (anti timeout)
+async function scrapeYouTube(maxResults = 8): Promise<{ posts: ScrapedPost[]; instance: string | null }> {
+  // === TINGKATKAN: 3 query YouTube per batch (dari 2) ===
+  const queryBatch = getNextQueryBatch(3)
   const allPosts: ScrapedPost[] = []
   let usedInstance: string | null = null
 
@@ -355,11 +355,11 @@ async function scrapeYouTube(maxResults = 5): Promise<{ posts: ScrapedPost[]; in
 // === GOOGLE NEWS SCRAPER (via RSS) — ENHANCED: rotasi query daerah ===
 // FIX: Sebelumnya hanya 2 query nasional → data daerah tidak terjaring
 // Sekarang: rotasi 5 query per batch (nasional + provinsi + aktivitas)
-async function scrapeGoogleNews(maxResults = 5): Promise<ScrapedPost[]> {
+async function scrapeGoogleNews(maxResults = 8): Promise<ScrapedPost[]> {
   const allPosts: ScrapedPost[] = []
 
-  // === ROTATION: ambil 8 query per batch (Google News RSS cepat, aman di Vercel 10s) ===
-  const queryBatch = getNextQueryBatch(8)
+  // === TINGKATKAN: 10 query per batch (Google News RSS cepat ~0.5s per query, total 5s aman) ===
+  const queryBatch = getNextQueryBatch(10)
   console.log(`[Google News RSS] Scraping ${queryBatch.length} queries (rotation batch)...`)
 
   for (const query of queryBatch) {
@@ -401,11 +401,11 @@ async function scrapeGoogleNews(maxResults = 5): Promise<ScrapedPost[]> {
     }
   }
 
-  // === NEW: Scrape juga dari RSS lokal (Tribun, Detik, Kompas) ===
-  for (const feed of LOCAL_RSS_FEEDS.slice(0, 3)) { // 3 feed per batch (anti timeout)
+  // === TINGKATKAN: 5 RSS lokal per batch (dari 3) + 5 item per feed (dari 3) ===
+  for (const feed of LOCAL_RSS_FEEDS.slice(0, 5)) {
     try {
       const parsed = await rssParser.parseURL(feed.url)
-      const items = parsed.items?.slice(0, 3) || [] // 3 item per feed
+      const items = parsed.items?.slice(0, 5) || []
 
       for (const item of items) {
         // === STRICT FILTER: pakai fungsi isLapraRelevant (konsisten dengan Google News & YouTube) ===
@@ -447,8 +447,8 @@ async function scrapeGoogleNews(maxResults = 5): Promise<ScrapedPost[]> {
     return true
   })
 
-  console.log(`[Google News RSS + Local RSS] ✅ ${unique.length} articles (batch: ${queryBatch.length} queries + ${Math.min(3, LOCAL_RSS_FEEDS.length)} local feeds)`)
-  return unique.slice(0, maxResults * 3) // tingkatkan limit karena query lebih banyak
+  console.log(`[Google News RSS + Local RSS] ✅ ${unique.length} articles (batch: ${queryBatch.length} queries + ${Math.min(5, LOCAL_RSS_FEEDS.length)} local feeds)`)
+  return unique.slice(0, maxResults * 5) // TINGKATKAN: dari *3 ke *5
 }
 
 // === MAIN AUTO SCRAPER (called by worker) ===
