@@ -3386,3 +3386,103 @@ Stage Summary:
   7. Toast: "Draft konter isu dibuat (rule-based/gemini-free)"
   8. Link status berubah → ADDRESSED
   9. Switch ke Decision Dashboard → auto-refresh real-time (5s cache)
+
+---
+Task ID: LAPRA08-SCRAPER-EXPAND-DAERAH
+Agent: Main Agent (Senior Electoral Strategist + Principal Software Architect)
+Task: FIX AKAR MASALAH — scraper tidak menjangkau data daerah (Kalbar, dll)
+
+AUDIT ROOT CAUSE:
+- File: src/lib/auto-scraper.ts
+- LAPRA_QUERIES hanya 4 query (semua nasional):
+  1. "LAPRA 08" OR "Laskar Prabowo 08"
+  2. LAPRA 08 Devi Taurisa Hashim pengurus
+  3. Laskar Prabowo 08 aksi sosial kegiatan
+  4. Presiden Prabowo astacita program positif
+- Google News RSS hanya pakai 2 query pertama (line 127: slice(0,2))
+- YouTube hanya pakai query pertama (line 77: LAPRA_QUERIES[0])
+- Tidak ada query per provinsi → Kalbar dll tidak terjaring
+- Tidak ada RSS lokal (Tribun, Detik, Kompas regional)
+- detectLocationFromDB tidak bisa deteksi lokasi karena text tidak mengandung nama daerah
+
+FIX YANG DITERAPKAN:
+
+1. EXPAND QUERIES (4 → 50 query):
+   a. LAPRA_QUERIES_NASIONAL (4) — query nasional lama
+   b. PROVINSI_QUERIES (38) — query per provinsi NKRI:
+      "Laskar Prabowo 08 [provinsi] OR LAPRA 08 [provinsi]"
+      Aceh, Sumut, Sumbar, Riau, Kepri, Jambi, Sumsel, Babel, Bengkulu,
+      Lampung, Banten, DKI Jakarta, Jabar, Jateng, Jogja, Jatim, Bali,
+      NTB, NTT, Kalbar, Kalteng, Kalsel, Kaltim, Kaltara, Sulut, Sulteng,
+      Sulsel, Sultra, Gorontalo, Sulbar, Maluku, Malut, Papua, Papua Barat,
+      Papua Selatan, Papua Tengah, Papua Pegunungan, Papua Barat Daya
+   c. AKTIVITAS_QUERIES (8) — query aktivitas daerah:
+      - audiensi DPD/DPC
+      - kolaborasi/kemitraan daerah
+      - deklarasi pengurus DPC/DPD
+      - bakti sosial/aksi sosial
+      - pelantikan pengurus cabang
+      - rapat koordinasi daerah
+      - kegiatan keorganisasian DPD
+      - pemberdayaan ummat
+
+2. RSS FEED LOKAL (11 sumber):
+   - Tribun Kalbar, Tribun Pontianak (Kalbar)
+   - Tribun Jabar, Jateng, Jatim, Bali, Sumsel, Sumbar, Sulsel
+   - Detik regional
+   - Kompas Nasional
+   Filter: hanya simpan yang mengandung keyword LAPRA/Prabowo/asta cita/pemilu/pilkada
+
+3. ROTATION MECHANISM (anti Vercel 10s timeout):
+   - ALL_QUERIES = 50 query total
+   - getNextQueryBatch(5) → ambil 5 query per batch
+   - _rotationIndex increment tiap scrape
+   - Setiap scrape: 5 query Google News + 2 query YouTube + 3 RSS lokal
+   - 50 query / 5 per batch = 10 scrape untuk cycle penuh
+   - Kalau scraper jalan tiap 30 menit → cycle penuh 5 jam → semua provinsi terjaring
+
+4. ENHANCED scrapeYouTube:
+   - Sebelum: 1 query only (LAPRA_QUERIES[0])
+   - Sesudah: 2 query per batch (rotasi) + dedupe by videoId
+   - Traceability: simpan query di rawPayload
+
+5. ENHANCED scrapeGoogleNews:
+   - Sebelum: 2 query only (slice(0,2))
+   - Sesudah: 5 query per batch (rotasi) + 3 RSS lokal
+   - Limit naik dari 5 → 15 (maxResults * 3)
+   - Traceability: simpan query di rawPayload
+
+DATA FLOW (FIXED):
+```
+[Scrape batch 1] → 5 query (misal: Aceh, Sumut, Sumbar, Riau, Kepri)
+  → Google News RSS per query → 5-25 articles
+  → 3 RSS lokal (Tribun Kalbar, Pontianak, Jabar)
+  → YouTube 2 query → 2-10 videos
+  → Total: 10-35 link per batch
+  → detectLocationFromDB → detect "Aceh", "Sumut", dll dari title/content
+  → Simpan ke DB dengan provinceCode + regencyCode
+
+[Scrape batch 2] → 5 query berikutnya (misal: Jambi, Sumsel, Babel, Bengkulu, Lampung)
+  → cycle terus sampai semua 50 query di-scrape
+  → 10 batch × 5 = 50 query → semua provinsi terjaring
+```
+
+PERUBAHAN FILE:
+- src/lib/auto-scraper.ts (+206 lines, -44 lines)
+- 1 file changed, 206 insertions(+), 44 deletions(-)
+
+IMPACT:
+- Scraper sekarang menjangkau 38 provinsi NKRI (sebelumnya hanya nasional)
+- RSS lokal (Tribun network) → berita daerah langsung dari sumber
+- Rotasi anti timeout → tidak crash di Vercel 10s
+- detectLocationFromDB bisa detect lokasi karena query specifik daerah
+- Trust Index per provinsi akan terisi (sebelumnya 0.0 di 41/44)
+- Geospatial Heatmap akan punya data visual per daerah
+- Decision Dashboard akan punya top wilayah urgent per daerah
+
+Stage Summary:
+- Commit 6d5d7c7 di-push ke origin/main (46a66e0..6d5d7c7)
+- Vercel auto-deploy ~1-2 menit
+- Setelah deploy: trigger Scraper Agent di AI Agent Monitor
+- Dalam 5 jam (10 batch × 30 menit), semua 50 query akan di-scrape
+- Data daerah (Kalbar, dll) akan mulai terjaring
