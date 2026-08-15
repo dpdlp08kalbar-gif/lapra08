@@ -295,7 +295,7 @@ function HierarchyItem({ level, desc, count, color }: any) {
 // ============================================================
 
 // --- Hook: cek apakah user adalah SUPERADMIN (reactive) ---
-function useIsSuperAdmin() {
+export function useIsSuperAdmin() {
   const [isSuperAdmin, setIsSuperAdmin] = useState(false)
   useEffect(() => {
     const check = () => setIsSuperAdmin(useAuthStore.getState().user?.role === 'SUPERADMIN')
@@ -1172,21 +1172,66 @@ export function PusatMediaMenu() {
 // GALERI MEDIA — 3 Sub-Tab: Foto, Video, Arsip Berita Penting
 // ============================================================
 function GaleriMediaManager() {
+  const addToast = useToastStore((s) => s.addToast)
+  const isSuperAdmin = useIsSuperAdmin()
   const [subTab, setSubTab] = useState('foto')
+  const [seedLoading, setSeedLoading] = useState(false)
   const subTabs = [
     { key: 'foto', label: 'Galeri Foto', icon: ImageIcon },
     { key: 'video', label: 'Galeri Video', icon: Video },
     { key: 'arsip', label: 'Arsip Berita Penting', icon: BookMarked },
   ]
+
+  // === Handler: Generate Data Demo via Z.AI image API ===
+  const handleSeedDemo = async () => {
+    setSeedLoading(true)
+    try {
+      const userId = useAuthStore.getState().user?.id || ''
+      const res = await fetch('/api/gallery/seed-demo', {
+        method: 'POST',
+        headers: { 'x-user-id': userId },
+      })
+      const data = await res.json()
+      if (!data.success) throw new Error(data.error || 'Gagal generate data demo')
+      addToast(
+        `Berhasil generate: ${data.data.photosGenerated} foto, ${data.data.videosGenerated} video, ${data.data.bookmarksGenerated} berita arsip. Refresh halaman.`,
+        'success'
+      )
+      // Auto-refresh halaman setelah 2 detik
+      setTimeout(() => window.location.reload(), 2000)
+    } catch (e: any) {
+      addToast(`Gagal generate demo: ${e.message}`, 'error')
+    } finally {
+      setSeedLoading(false)
+    }
+  }
+
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-2">
-        {subTabs.map((t) => (
-          <button key={t.key} onClick={() => setSubTab(t.key)}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${subTab === t.key ? 'bg-emerald-600 text-white shadow-sm' : 'border hover:bg-accent'}`}>
-            <t.icon className="w-3.5 h-3.5" /> {t.label}
-          </button>
-        ))}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap gap-2">
+          {subTabs.map((t) => (
+            <button key={t.key} onClick={() => setSubTab(t.key)}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${subTab === t.key ? 'bg-emerald-600 text-white shadow-sm' : 'border hover:bg-accent'}`}>
+              <t.icon className="w-3.5 h-3.5" /> {t.label}
+            </button>
+          ))}
+        </div>
+        {/* === Tombol "Generate Data Demo" — SuperAdmin only === */}
+        {isSuperAdmin && (
+          <Button
+            size="sm"
+            onClick={handleSeedDemo}
+            disabled={seedLoading}
+            className="bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:opacity-90"
+            title="Generate data dummy untuk demo Galeri Foto, Video, dan Arsip Berita menggunakan Z.AI image generation (API gratis)">
+            {seedLoading ? (
+              <><Loader2 className="w-4 h-4 mr-1 animate-spin" /> Generating...</>
+            ) : (
+              <><Sparkles className="w-4 h-4 mr-1" /> Generate Data Demo</>
+            )}
+          </Button>
+        )}
       </div>
       {subTab === 'foto' ? (
         <GalleryManager />
