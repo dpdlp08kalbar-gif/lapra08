@@ -2838,3 +2838,144 @@ Stage Summary:
 - Test Generate Data Demo: foto dari Picsum.photos (bukan AI lagi)
 - Test News Search: pakai DuckDuckGo (bukan Z.AI)
 - Test News Fetch Content: pakai fetch + HTML parser (bukan Z.AI page_reader)
+
+---
+Task ID: LAPRA08-GALERI-HIERARKI-FOLDER
+Agent: Main Agent (Super Z)
+Task: Galeri Foto/Video/Arsip Berita — tambah pengelompokan folder berdasarkan hierarki DPN→DPD→DPC + Album
+
+Work Log:
+- User request: "upload foto hrs ada pilihan buat folder agar foto foto bisa di kelompokkan berdasarkan kelompoknya, atau jika tdk menambah beban boleh juga dibuat pilihan upload foto dilakukan secara terstruktur mulai dr DPN - dpd dpd seluruh laskar prabowo 08 dan pengelompokkan dpc dpc berdasarkan dpd masing masing, utk format pengelompokan dpn dpd dan dpc bisa mengikuti format penyusunan struktur, di dalam dpn - dpd dpd dan dpc dpc itulah nanti akan di buat pengelompokan folder folder foto demikian juga di galeri : Galeri Video dan Arsip Berita Penting"
+
+AUDIT:
+- 3 manager galeri: GalleryManager (foto), GaleriVideoManager (video), ArsipBeritaPentingManager (arsip berita)
+- 3 API routes: /api/gallery (foto), /api/gallery/videos (video), /api/gallery/bookmarks (arsip)
+- Saat ini: semua item flat (tanpa pengelompokan)
+- User mau: tiap item punya level (DPN/DPD/DPC) + territoryCode + albumName
+- Format hierarki mengikuti struktur organisasi yang sudah ada di /api/territory
+
+IMPLEMENTASI:
+
+1. Update 3 Manager (portal-menus.tsx):
+   a. GalleryManager (foto, line 2050+):
+      - Tambah state: level, territoryCode, territoryName, albumName di form
+      - Tambah filter state: filterLevel, filterTerritoryCode, filterAlbum
+      - Load territories dari /api/territory
+      - Filter wilayah berdasarkan level (DPN=COUNTRY, DPD=PROVINCE, DPC=REGENCY)
+      - Filter items by level + territory + album
+      - Group items by level+territory+album → groupedArray
+      - Display grouped: header dengan badge Level + Territory + Folder icon + Album name + count
+      - Photo grid per group
+      - Filter UI: 3 Select (Level, Wilayah, Album) di CardHeader
+      - Upload Dialog: tambah section "Pengelompokan Foto" dengan pilihan Level + Wilayah + Album
+
+   b. GaleriVideoManager (video, line 1256+):
+      - Sama dengan GalleryManager: state + filter + grouping
+      - Display grouped: video grid per group
+      - Tambah section "Pengelompokan Video" di Tambah Video Dialog
+
+   c. ArsipBeritaPentingManager (arsip, line 1733+):
+      - Sama dengan GalleryManager: state + filter + grouping
+      - Display grouped: list berita per group
+      - Tambah section "Pengelompokan Arsip" di Tambah ke Arsip Dialog
+      - Bonus: simpan snapshot data berita (title, content, photoUrl, sourceUrl) ke bookmark
+        agar arsip tetap punya konten walau berita asli dihapus
+
+2. Update 3 API routes:
+   a. /api/gallery/route.ts (foto):
+      - Tambah formData.get untuk: level, territoryCode, territoryName, albumName
+      - Default: level=DPN, territoryCode=ID, territoryName="DPN (Pusat Nasional)", albumName="Umum"
+      - Simpan ke galleryItem object
+
+   b. /api/gallery/videos/route.ts (video):
+      - Tambah formData.get untuk MP4 upload path
+      - Tambah body.field untuk YouTube JSON path
+      - Simpan ke videoData object
+
+   c. /api/gallery/bookmarks/route.ts (arsip berita):
+      - Tambah body.level, body.territoryCode, body.territoryName, body.albumName
+      - Salin data berita ke bookmark (title, content, photoUrl, sourceUrl, sourceName, source)
+      - Simpan ke bookmarkData object
+
+3. Tambah import:
+   - FolderTree, Folder dari lucide-react
+   - Interface Territory (id, code, name, level, parentId)
+
+4. Helper function territoriesByLevel(level):
+   - DPN → return [{ code: 'ID', name: 'DPN (Pusat Nasional)' }]
+   - DPD → return territories.filter(t => t.level === 'PROVINCE')
+   - DPC → return territories.filter(t => t.level === 'REGENCY')
+
+5. Grouping logic (sama untuk 3 manager):
+   const grouped = filtered.reduce((acc, item) => {
+     const key = `${item.level}|${item.territoryCode}|${item.albumName}`
+     if (!acc[key]) acc[key] = { level, terrCode, terrName, album, items: [] }
+     acc[key].items.push(item)
+     return acc
+   }, {})
+   - Sort: DPN(1) > DPD(2) > DPC(3), lalu by territoryName, lalu by album
+
+PERUBAHAN FILE:
+- src/components/menus/portal-menus.tsx (+753 lines, -141 lines)
+  - GalleryManager: +200 lines (filter + grouping + upload form)
+  - GaleriVideoManager: +250 lines (filter + grouping + upload form)
+  - ArsipBeritaPentingManager: +250 lines (filter + grouping + upload form)
+  - Import: FolderTree, Folder, Territory interface
+- src/app/api/gallery/route.ts (+10 lines: field hierarki)
+- src/app/api/gallery/videos/route.ts (+25 lines: field hierarki untuk MP4 + YouTube path)
+- src/app/api/gallery/bookmarks/route.ts (+20 lines: field hierarki + snapshot data berita)
+- 6 files changed, 753 insertions(+), 141 deletions(-)
+
+UI/UX:
+
+Filter UI (di CardHeader, ketiga manager sama):
+┌──────────────────────────────────────────────────┐
+│ 📁 Filter berdasarkan hierarki & folder:           │
+│ ┌─────────┐ ┌─────────┐ ┌─────────┐              │
+│ │ Level   │ │ Wilayah │ │ Album   │              │
+│ │ ▼ Semua │ │ ▼ Semua │ │ ▼ Semua │              │
+│ └─────────┘ └─────────┘ └─────────┘              │
+└──────────────────────────────────────────────────┘
+
+Display Grouped (example):
+┌──────────────────────────────────────────────────┐
+│ [🔴 DPN] DPN (Pusat Nasional) > 📁 Pelantikan 2026  [3 foto] │
+│ ┌─────┐ ┌─────┐ ┌─────┐                          │
+│ │foto1│ │foto2│ │foto3│                          │
+│ └─────┘ └─────┘ └─────┘                          │
+├──────────────────────────────────────────────────┤
+│ [🔵 DPD] DPD Kalimantan Barat > 📁 Bakti Sosial    [5 foto] │
+│ ┌─────┐ ┌─────┐ ┌─────┐ ┌─────┐ ┌─────┐           │
+│ │foto1│ │foto2│ │foto3│ │foto4│ │foto5│           │
+│ └─────┘ └─────┘ └─────┘ └─────┘ └─────┘           │
+├──────────────────────────────────────────────────┤
+│ [🟢 DPC] DPC Pontianak > 📁 Rapat Koordinasi     [2 foto] │
+│ ┌─────┐ ┌─────┐                                   │
+│ │foto1│ │foto2│                                   │
+│ └─────┘ └─────┘                                   │
+└──────────────────────────────────────────────────┘
+
+Upload Form (di Dialog, ketiga manager sama):
+┌──────────────────────────────────────────────────┐
+│ 📁 Pengelompokan Foto (Hierarki LAPRA 08)         │
+│ Level Organisasi *: [🔴 DPN / 🔵 DPD / 🟢 DPC]    │
+│ Pilih DPD/DPC *: [pilih wilayah...]               │
+│ Nama Album/Folder *: [input text...]              │
+└──────────────────────────────────────────────────┘
+
+Level Badge Colors:
+- DPN: red (bg-red-50 text-red-700)
+- DPD: blue (bg-blue-50 text-blue-700)
+- DPC: emerald (bg-emerald-50 text-emerald-700)
+
+Stage Summary:
+- Commit daf245d di-push ke origin/main (2067a30..daf245d)
+- Vercel auto-deploy ~1-2 menit
+- Setelah deploy: hard refresh lapra08.vercel.app
+- Test scenario:
+  1. Buka Pusat Media → Galeri Media → tab Galeri Foto
+  2. Klik "Upload Foto" → pilih file → pilih Level (DPN/DPD/DPC)
+  3. Pilih wilayah → isi Nama Album (cth: "Pelantikan 2026")
+  4. Upload → foto muncul dengan header group [Level] Wilayah > 📁 Album
+  5. Filter by Level/Wilayah/Album → hanya tampil yang cocok
+  6. Repeat untuk Galeri Video + Arsip Berita Penting
