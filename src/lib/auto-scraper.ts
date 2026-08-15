@@ -264,6 +264,19 @@ async function fetchWithTimeout(url: string, opts: RequestInit = {}): Promise<Re
   }
 }
 
+// === STRICT FILTER: HANYA simpan yang mengandung Laskar Prabowo 08 / LAPRA 08 ===
+// User instruction: "jgn memuat selain laskar prabowo 08 / lapra 08"
+// Fungsi ini dipanggil untuk SEMUA hasil (YouTube, Google News, RSS lokal)
+function isLapraRelevant(title: string, content: string): boolean {
+  const text = `${title} ${content}`.toLowerCase()
+  return text.includes('laskar prabowo 08') ||
+         text.includes('lapra 08') ||
+         text.includes('lapra08') ||
+         text.includes('relawan laskar prabowo 08') ||
+         text.includes('laskar prabowo delapan')
+  // CATATAN: "lp 08" TIDAK dipakai karena terlalu pendek → false positive
+}
+
 // === YOUTUBE SCRAPER (via Invidious API) ===
 // Invidious API docs: https://docs.invidious.io/api/
 // GET /api/v1/search?q=...&type=video&sort_by=relevance
@@ -291,7 +304,9 @@ async function scrapeYouTube(maxResults = 5): Promise<{ posts: ScrapedPost[]; in
           continue
         }
 
-        const posts: ScrapedPost[] = data.slice(0, maxResults).map((v: any) => ({
+        const posts: ScrapedPost[] = data.slice(0, maxResults)
+          .filter((v: any) => isLapraRelevant(v.title || '', v.description || ''))
+          .map((v: any) => ({
           platform: 'YOUTUBE' as const,
           postId: v.videoId,
           author: v.author || 'Unknown',
@@ -302,7 +317,7 @@ async function scrapeYouTube(maxResults = 5): Promise<{ posts: ScrapedPost[]; in
           publishedAt: v.published ? new Date(v.published * 1000) : new Date(),
           engagementCount: (v.viewCount || 0) + (v.likeCount || 0),
           source: 'invidious' as const,
-          rawPayload: { ...v, query }, // simpan query untuk traceability
+          rawPayload: { ...v, query },
         }))
 
         allPosts.push(...posts)
@@ -349,13 +364,18 @@ async function scrapeGoogleNews(maxResults = 5): Promise<ScrapedPost[]> {
       const items = feed.items?.slice(0, maxResults) || []
 
       for (const item of items) {
+        // === STRICT FILTER: HANYA simpan yang mengandung Laskar Prabowo 08 ===
+        const itemTitle = item.title || ''
+        const itemContent = item.contentSnippet || item.content || ''
+        if (!isLapraRelevant(itemTitle, itemContent)) continue
+
         allPosts.push({
           platform: 'GOOGLE',
           postId: item.guid || item.link || `${Date.now()}-${Math.random()}`,
           author: item.creator || item.author || feed.title || 'Google News',
           authorHandle: null,
-          title: item.title || '',
-          content: (item.contentSnippet || item.content || '').substring(0, 1000),
+          title: itemTitle,
+          content: itemContent.substring(0, 1000),
           url: item.link || '',
           publishedAt: item.isoDate ? new Date(item.isoDate) : new Date(),
           engagementCount: 0,
@@ -367,7 +387,7 @@ async function scrapeGoogleNews(maxResults = 5): Promise<ScrapedPost[]> {
             content: item.content,
             categories: item.categories,
             creator: item.creator,
-            query, // simpan query untuk traceability
+            query,
           },
         })
       }
@@ -383,16 +403,8 @@ async function scrapeGoogleNews(maxResults = 5): Promise<ScrapedPost[]> {
       const items = parsed.items?.slice(0, 3) || [] // 3 item per feed
 
       for (const item of items) {
-        // Filter: HANYA Laskar Prabowo 08 / LAPRA 08 — tidak boleh organisasi lain
-        const text = `${item.title || ''} ${item.contentSnippet || ''}`.toLowerCase()
-        const isRelevant = text.includes('laskar prabowo 08') ||
-                           text.includes('laskar prabowo 08') ||
-                           text.includes('lapra 08') ||
-                           text.includes('lapra08') ||
-                           text.includes('lp 08') ||
-                           text.includes('relawan laskar prabowo 08')
-
-        if (!isRelevant) continue
+        // === STRICT FILTER: pakai fungsi isLapraRelevant (konsisten dengan Google News & YouTube) ===
+        if (!isLapraRelevant(item.title || '', item.contentSnippet || '')) continue
 
         allPosts.push({
           platform: 'GOOGLE', // tag sebagai GOOGLE karena dari RSS news
