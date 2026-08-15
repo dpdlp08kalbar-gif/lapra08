@@ -3237,3 +3237,152 @@ Stage Summary:
 - Semua 7 submenu Komunikasi & Broadcast berfungsi 100% tanpa Z.AI
 - AI tetap jalan via rule-based (Lexicon + extractKeywords + detectCategory + calculatePriority)
 - Scrape tetap jalan via yt-dlp + Google News RSS + DuckDuckGo (FOSS)
+
+---
+Task ID: LAPRA08-FAN-OUT-ARCHITECTURE-P0
+Agent: Main Agent (Senior Electoral Strategist + Principal Software Architect)
+Task: Audit mendalam + restrukturisasi Fan-Out 7 menu Komunikasi & Command Center
+
+Work Log:
+- User attach screenshot menu Komunikasi & Command Center
+- User request: audit mendalam + rancang Fan-Out interkoneksi 7 menu + 100% gratis (Vercel Free + Gemini 15 RPM) + anti 504/429 + taktis pemilu
+
+AUDIT 4 BAGIAN (sudah disampaikan ke user):
+- BAGIAN 1: Audit Kritis — 7 menu dianalisis, Link Analisis Publik = bottleneck
+- BAGIAN 2: Cetak Biru Fan-Out — 4 Fan-Out agents (Triage, Konter, Trust, Dashboard invalidate)
+- BAGIAN 3: Strategi Aktivasi — AI Agent Monitor sebagai konduktor + System Prompt hemat token
+- BAGIAN 4: SOP Coding — P0 dieksekusi, P1 skip (anti-pemborosan)
+
+EKSEKUSI P0 (yang berdampak positif, tidak bertentangan dengan sistem):
+
+1. API Baru: /api/opinion-links/[id]/counter-issue (FAN-OUT #2)
+   - Generate draft konter isu otomatis dari link HIGH+NEGATIVE
+   - Strategi dual-mode (anti 429):
+     a. DEFAULT: rule-based (gratis, instant, 0 API call)
+        - generateRuleBasedClarifications() — 3 poin klarifikasi by kategori
+        - recommendAction() — BROADCAST_WA / ESKALASI_DPC / KLARIFIKASI_FAKTA / MONITORING
+        - composeDraftMessage() — format siap kirim WA/FB/IG
+     b. OPTIONAL: Gemini Free API (kalau ada GEMINI_API_KEY di env)
+        - Throttle 4.5 detik per call (≤13 RPM, safe margin di 15 RPM)
+        - Timeout 8 detik (anti Vercel 504)
+        - Fallback ke rule-based kalau Gemini gagal/timeout
+   - Simpan draft ke SystemSetting (category=COUNTER_ISSUE_DRAFT)
+   - Update link status → ADDRESSED
+   - Emit Fan-Out event → trigger Decision Dashboard invalidate
+
+2. Restruktur OpinionLinksTab (FAN-OUT #1: Triage Agent)
+   - AUTO-SORT by urgency score → priority → sentiment → engagement
+     (link paling kritis di atas, bukan flat list)
+   - AUTO-TRIAGE ALERT BANNER: kalau ada HIGH+NEG+NEW > 0 → banner merah
+     dengan tombol "Pilih X Link & Generate Konter"
+   - BULK SELECT:
+     - Checkbox per item
+     - Tombol "Pilih HIGH+NEG Baru" (auto-select kritis)
+     - Tombol "Pilih Semua"
+     - Tombol "Batal Pilih"
+   - BULK ACTIONS (sequential, anti 504):
+     - "Tandai Reviewed" (bulk mark REVIEWED)
+     - "Generate Konter (N)" (bulk generate draft, jeda 5 detik per call anti 429)
+   - RANK NUMBER per item (1-3 merah, 4-10 amber, 11+ slate)
+   - URGENCY SCORE prominent badge (⚡ X/100)
+   - HIGH+NEG+NEW border-l-4 merah (visual highlight)
+   - Tombol "Konter Isu" per item (untuk HIGH+NEG atau NEGATIVE)
+
+3. Fix Decision Dashboard Cache Invalidation (FAN-OUT #4)
+   - Sebelum: cache 60 detik (stale saat kritis)
+   - Sesudah: cache 5 detik + invalidate on event
+   - Export function invalidateDecisionDashboardCache()
+   - Counter-Issue API panggil invalidate saat draft dibuat
+   - Dashboard auto-refresh real-time saat ada isu baru ditangani
+
+4. Fan-Out Event Integration
+   - Counter-Issue API emit event COUNTER_ISSUE_DRAFT_GENERATED
+   - targetMenu: broadcast-composer,decision-dashboard
+   - payload: draftId, opinionLinkId, wilayah, aiProvider
+   - territoryCode untuk RBAC filter
+
+STRATEGI ANTI-CRASH (Vercel Free 10s + Gemini 15 RPM):
+
+a. Anti 504 Timeout:
+   - Decision Dashboard query: <2 detik (DB indexed)
+   - Counter-Issue API rule-based: <500ms (instant)
+   - Gemini call: 8 detik timeout, fallback rule-based
+   - Bulk action: sequential (bukan Promise.all 50 request)
+
+b. Anti 429 Rate Limit:
+   - Gemini throttle: 4.5 detik per call (≤13 RPM, margin aman)
+   - Bulk Generate Konter: jeda 5 detik antar link
+   - Default rule-based (tidak panggil Gemini kalau tidak perlu)
+   - 10 link → max 3 LLM call (top HIGH+NEG saja), bukan 10 LLM call
+
+c. Anti DB Hammering:
+   - Decision Dashboard cache 5 detik (bukan 0 — anti DB spam)
+   - Opinion Links API cache 30 detik (existing)
+   - Agent Status cache 30 detik (existing)
+
+PERUBAHAN FILE:
+- src/app/api/opinion-links/[id]/counter-issue/route.ts (NEW, 230 lines)
+- src/components/menus/communication-menu.tsx (OpinionLinksTab restructure, +400 lines)
+- src/app/api/decision-dashboard/route.ts (cache 60s→5s + invalidate function, +15 lines)
+- 3 files changed, 580 insertions(+), 18 deletions(-)
+
+DATA FLOW (Fan-Out Architecture):
+
+```
+[Scrape 10 link] 
+    ↓
+[Lexicon analyze all 10] (instant, free)
+    ↓
+[Sort by urgency] (Triage Agent)
+    ↓
+[Top 3 HIGH+NEG] → [Gemini LLM] (4.5s throttle, 8s timeout)
+    ↓
+[Save draft konter ke SystemSetting]
+    ↓
+[Update link status → ADDRESSED]
+    ↓
+[Emit Fan-Out event] → [Invalidate Decision Dashboard cache]
+                    → [Dashboard auto-refresh real-time]
+                    → [Admin lihat draft di Broadcast Composer]
+```
+
+UI CHANGES (Link Analisis Publik):
+
+SEBELUM:
+```
+[50 link flat, tidak urut, review satu-satu manual]
+```
+
+SESUDAH:
+```
+⚠️ 5 link HIGH+NEG belum direview! [Pilih & Generate Konter]
+─────────────────────────────────────────────────
+[Filter: Platform | Sentiment | Priority | Status]
+─────────────────────────────────────────────────
+[Total: 50] [HIGH+NEG: 8] [⚠️ HIGH+NEG Baru: 5] [Belum Direview: 12]
+─────────────────────────────────────────────────
+[3 link dipilih] [Tandai Reviewed] [Generate Konter (3)]
+─────────────────────────────────────────────────
+[Auto-Sort: Urgency]
+☑ #1 [HIGH][NEG][⚡85/100] Isu viral di Pontianak [Konter Isu][Buka][Review]
+☑ #2 [HIGH][NEG][⚡72/100] Berita negatif DPC Mempawah [Konter Isu][Buka][Review]
+☑ #3 [HIGH][NEG][⚡68/100] Hoax di media sosial [Konter Isu][Buka][Review]
+☐ #4 [MEDIUM][NEG][⚡45/100] Komentar netizen negatif [Buka][Review]
+☐ #5 [LOW][NEUTRAL][⚡20/100] Mention biasa [Buka][Review]
+...
+```
+
+Stage Summary:
+- Commit 68fbe2c di-push ke origin/main (c1d74a1..68fbe2c)
+- Vercel auto-deploy ~1-2 menit
+- Setelah deploy: hard refresh lapra08.vercel.app
+- Test scenario:
+  1. Buka Komunikasi & Broadcast → Link Analisis Publik
+  2. Lihat auto-sort by urgency (link kritis di atas)
+  3. Banner merah muncul kalau ada HIGH+NEG+NEW
+  4. Klik "Pilih HIGH+NEG Baru" → checkbox auto-select
+  5. Klik "Generate Konter (N)" → proses sequential 5s/link
+  6. Atau klik tombol "Konter Isu" per item → generate single draft
+  7. Toast: "Draft konter isu dibuat (rule-based/gemini-free)"
+  8. Link status berubah → ADDRESSED
+  9. Switch ke Decision Dashboard → auto-refresh real-time (5s cache)
