@@ -1,0 +1,28 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "Based on the screenshot of **LAPRA 08 'Komunikasi & Command Center'**, here is the detailed breakdown:\n\n### 1. Active Submenu\nThe currently active submenu is **\"Opini Publik Auto-Scanner\"**. \n*   It is highlighted with a solid **red/orange background** and white text, distinguishing it from the other inactive submenus which have white backgrounds.\n\n### 2. Data Shown\nThe view is currently showing a **Dashboard/Control Panel** for the \"Audit Opini Publik Otomatis\" (Automatic Public Opinion Audit) module.\n*   **Content:** A description card explaining that the system automatically captures REAL mentions of LAPRA 08 from YouTube (via yt-dlp) and Google News RSS, analyzes sentiment, priority, location, and category using AI, and saves results to a database for tracking.\n*   **Status Indicator:** Below the filters, it shows **\"0 mention\"** on the right side, indicating no data has been captured or displayed in the list area yet (the list area below appears empty/white).\n\n### 3. Visible Filters and Buttons\n**Primary Action Buttons (inside the main card):**\n*   **\"Mulai Scan Sekarang\"**: A prominent red button with a lightning bolt icon to initiate the scanning process immediately.\n*   **\"Refresh Hasil\"**: A secondary white/grey button with a refresh icon to reload/update the results.\n\n**Filter Options (below the main card):**\n*   **Label:** \"Filter Prioritas:\" (Priority Filter)\n*   **Options available as toggle chips:**\n    *   `Semua` (All) - Currently selected (highlighted red).\n    *   `HIGH`\n    *   `MEDIUM`\n    *   `LOW`\n\n### 4. Queue/Antrean Status\nThere is **no explicit queue or antrean system visible** in this specific view. This screen functions as an audit/scanner dashboard rather than a ticketing queue. The only status metric shown is the mention count: **\"0 mention\"**.\n\n### 5. Action Buttons Per Item\nThere are **no action buttons per item visible** because the data list is currently empty (showing 0 mentions). If there were data, this area would likely contain individual entries with their own actions, but none are rendered here.\n\n### 6. Overall Layout Structure\nThe interface follows a structured dashboard layout:\n\n*   **Top Navigation Bar:** Dark header containing the portal title (\"PORTAL LAPRA 08\"), breadcrumb (\"Komunikasi & Broadcast\"), user role (\"Super Admin\"), and environment mode (\"Dev Mode\"). Below this is an orange info banner with scrolling text about \"Laskar Prabowo 08\".\n*   **Left Sidebar (Dark):** Vertical navigation menu with icons and labels including Beranda, Profil, Pusat Media, Program & Kegiatan, Layanan & Advokasi, Kontak & Sekretariat, and under \"SISTEM ADMINISTRASI\": Dashboard Admin, Logistik & Atribut, **Komunikasi & Broadcast (Active)**, Kas & Keuangan, Pengaturan User.\n*   **Main Content Area (Light):**\n    *   **Header:** Title \"Komunikasi & Command Center\" with a megaphone icon and subtitle describing the system's capabilities (audit, broadcast, polling, decision dashboard).\n    *   **Submenu Grid:** A row of 7 cards representing different modules:\n        1.  Opini Publik Auto-Scanner (**Active/Red**)\n        2.  Geospatial Voice Mapping\n        3.  Broadcast Composer\n        4.  Essay Polling & AI Auto-Pertanyaan\n        5.  Link Analisis Publik\n        6.  Decision Dashboard\n        7.  AI Agent Monitor (positioned below the first item)\n    *   **Active Module Panel:** A large rounded container holding the specific controls and description for the active \"Opini Publik Auto-Scanner\" module.\n    *   **Data Table/List Area:** Located at the bottom, currently empty except for the filter bar and the \"0 mention\" count.",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1786769080,
+  "id": "20260815124432e51befaa53a3404a",
+  "model": "glm-5v-turbo",
+  "object": "chat.completion",
+  "request_id": "20260815124432e51befaa53a3404a",
+  "usage": {
+    "completion_tokens": 868,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "prompt_tokens": 1260,
+    "prompt_tokens_details": {
+      "cached_tokens": 2
+    },
+    "total_tokens": 2128
+  }
+}
