@@ -14,23 +14,52 @@ export async function apiFetch(path: string, options: RequestInit = {}) {
     ...options,
     headers,
   })
-  const data = await res.json()
 
   // Handle 401 Unauthorized: auto-logout dan reload ke login page
   if (res.status === 401) {
     console.warn('[API] Session invalid or expired, logging out...')
     useAuthStore.getState().logout()
-    // Hanya reload jika bukan di halaman login
     if (typeof window !== 'undefined') {
       window.location.reload()
     }
     throw new Error('Session tidak valid. Silakan login kembali.')
   }
 
-  if (!res.ok || !data.success) {
-    throw new Error(data.error || `HTTP ${res.status}`)
+  // Ambil text dulu, lalu parse kalau non-empty (hindari "Unexpected end of JSON input")
+  const text = await res.text()
+  let data: any = null
+  if (text.trim().length > 0) {
+    const contentType = res.headers.get('content-type') || ''
+    if (contentType.includes('application/json') || text.trim().startsWith('{') || text.trim().startsWith('[')) {
+      try {
+        data = JSON.parse(text)
+      } catch (parseErr) {
+        console.error('[API] Failed to parse JSON response from', path, parseErr)
+        console.error('[API] Raw response (first 500 chars):', text.slice(0, 500))
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: response bukan JSON valid`)
+        }
+        // Kalau OK tapi bukan JSON, anggap empty success
+        return null
+      }
+    } else {
+      // Response bukan JSON (kemungkinan file/stream/text). Kalau OK, return raw text
+      if (res.ok) {
+        return text
+      }
+      throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`)
+    }
   }
-  return data.data
+
+  if (!res.ok || (data && data.success === false)) {
+    throw new Error(data?.error || `HTTP ${res.status}`)
+  }
+  // Kalau response berupa { success: true, data: ... } → return data.data
+  // Kalau response langsung objek tanpa wrapper → return objek itu sendiri
+  if (data && typeof data === 'object' && 'success' in data && 'data' in data) {
+    return data.data
+  }
+  return data
 }
 
 export { apiFetch as api }
