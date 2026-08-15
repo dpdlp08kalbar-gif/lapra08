@@ -477,47 +477,127 @@ function GeospatialVoiceTab() {
 
       {/* Two-column: Heatmap list + Trust gauge */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Heatmap list (left, 2 cols) */}
+        {/* Heatmap list (left, 2 cols) — ENHANCED: auto-sort + visual bar + alert badge */}
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <MapPin className="w-5 h-5 text-orange-600" />
-              Heatmap Trust Index per {nextLevel ? levelLabels[nextLevel] : 'Wilayah'}
-              {nextLevel && <span className="text-xs text-muted-foreground ml-2">({heatmap.length} wilayah — klik untuk drill-down)</span>}
-            </CardTitle>
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <MapPin className="w-5 h-5 text-orange-600" />
+                Heatmap Trust Index per {nextLevel ? levelLabels[nextLevel] : 'Wilayah'}
+                {nextLevel && <span className="text-xs text-muted-foreground ml-2">({heatmap.length} wilayah — klik untuk drill-down)</span>}
+              </CardTitle>
+              {/* === NEW: Auto-sort toggle === */}
+              <div className="flex items-center gap-1 text-xs">
+                <span className="text-muted-foreground">Sort:</span>
+                <Badge variant="outline" className="text-[10px] bg-orange-50 text-orange-700 border-orange-200">Urgency</Badge>
+                <span className="text-muted-foreground opacity-50">(isu kritis di atas)</span>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             {heatmap.length === 0 ? (
               <EmptyState icon={MapPin} title={`Belum ada ${nextLevel || 'wilayah'}`} description="Tidak ada data populasi untuk level ini." />
             ) : (
-              <div className="space-y-1.5 max-h-[500px] overflow-y-auto">
-                {heatmap.slice(0, 50).map((loc: any) => {
-                  const color = getTrustColor(loc.trustScore)
+              <div className="space-y-3">
+                {/* === NEW: Mini Heatmap Bar Chart (top 10 wilayah with issues) === */}
+                {(() => {
+                  const topIssues = [...heatmap]
+                    .filter(loc => (loc.totalMentions || 0) > 0)
+                    .sort((a, b) => (b.totalMentions || 0) - (a.totalMentions || 0))
+                    .slice(0, 10)
+                  if (topIssues.length === 0) return null
                   return (
-                    <button key={loc.code} onClick={() => loc.canDrillDown && handleDrillDown(loc.code)}
-                      disabled={!loc.canDrillDown}
-                      className={`w-full flex items-center gap-3 p-2.5 rounded border text-left transition-all ${loc.canDrillDown ? 'hover:bg-accent hover:border-orange-300 cursor-pointer' : 'cursor-default opacity-80'}`}>
-                      <div className={`w-2 h-12 rounded-full ${color.bg}`} />
-                      <div className="flex-1 min-w-0">
-                        <div className="font-semibold text-sm truncate">{loc.name}</div>
-                        <div className="text-[13px] text-muted-foreground">
-                          {loc.totalPopulation.toLocaleString('id-ID')} pop • {loc.totalVoters.toLocaleString('id-ID')} voters • {loc.totalMentions} mentions
-                        </div>
-                        {loc.totalMentions > 0 && (
-                          <div className="text-[13px] text-muted-foreground mt-0.5">
-                            <span className="text-emerald-600">+{loc.sentimentPositive}</span> {' '}
-                            <span className="text-red-600">-{loc.sentimentNegative}</span>
-                          </div>
-                        )}
+                    <div className="p-3 rounded-lg bg-gradient-to-br from-red-50 to-orange-50 border border-red-200">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Zap className="w-4 h-4 text-red-600" />
+                        <span className="text-xs font-bold text-red-800">⚠️ Top {topIssues.length} Wilayah dengan Isu Aktif</span>
                       </div>
-                      <div className="text-right">
-                        <div className={`text-xl font-bold ${color.text}`}>{loc.trustScore.toFixed(1)}</div>
-                        <div className="text-[13px] text-muted-foreground">trust</div>
+                      <div className="space-y-1">
+                        {topIssues.map(loc => {
+                          const trustPct = Math.max(0, Math.min(100, loc.trustScore || 0))
+                          const barColor = trustPct >= 70 ? '#10b981' : trustPct >= 55 ? '#84cc16' : trustPct >= 45 ? '#f59e0b' : trustPct >= 30 ? '#f97316' : '#ef4444'
+                          return (
+                            <div key={loc.code} className="flex items-center gap-2">
+                              <span className="text-xs font-medium w-24 truncate">{loc.name}</span>
+                              <div className="flex-1 h-3 rounded-full bg-slate-200 overflow-hidden relative">
+                                <div className="h-full rounded-full transition-all" style={{ width: `${trustPct}%`, background: barColor }} />
+                                <span className="absolute inset-0 flex items-center justify-end pr-1 text-[10px] font-bold text-white">
+                                  {loc.totalMentions}m
+                                </span>
+                              </div>
+                              <span className="text-xs font-bold w-10 text-right" style={{ color: barColor }}>
+                                {trustPct.toFixed(0)}
+                              </span>
+                            </div>
+                          )
+                        })}
                       </div>
-                      {loc.canDrillDown && <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />}
-                    </button>
+                    </div>
                   )
-                })}
+                })()}
+
+                {/* === Heatmap list with auto-sort === */}
+                <div className="space-y-1.5 max-h-[400px] overflow-y-auto">
+                  {/* === NEW: Auto-sort by urgency (mentions + negative sentiment + trust score) === */}
+                  {[...heatmap].sort((a, b) => {
+                    // 1. Total mentions descending (lebih banyak mention = lebih urgent)
+                    const mentionsA = (a.totalMentions || 0) + (a.sentimentNegative || 0) * 2
+                    const mentionsB = (b.totalMentions || 0) + (b.sentimentNegative || 0) * 2
+                    if (mentionsB !== mentionsA) return mentionsB - mentionsA
+                    // 2. Trust score ascending (lebih rendah = lebih bermasalah)
+                    return (a.trustScore || 0) - (b.trustScore || 0)
+                  }).slice(0, 50).map((loc: any) => {
+                    const color = getTrustColor(loc.trustScore)
+                    const trustPct = Math.max(0, Math.min(100, loc.trustScore || 0))
+                    const hasIssue = (loc.totalMentions || 0) > 0 || (loc.sentimentNegative || 0) > 0
+                    return (
+                      <button key={loc.code} onClick={() => loc.canDrillDown && handleDrillDown(loc.code)}
+                        disabled={!loc.canDrillDown}
+                        className={`w-full flex items-center gap-3 p-2.5 rounded border text-left transition-all ${loc.canDrillDown ? 'hover:bg-accent hover:border-orange-300 cursor-pointer' : 'cursor-default opacity-80'} ${hasIssue ? 'border-l-4 border-l-red-500 bg-red-50/30' : ''}`}>
+                        <div className={`w-2 h-12 rounded-full ${color.bg}`} />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-semibold text-sm truncate">{loc.name}</span>
+                            {/* === NEW: Alert badge for urgent wilayah === */}
+                            {hasIssue && (
+                              <Badge variant="outline" className="text-[10px] bg-red-100 text-red-700 border-red-300">
+                                ⚠️ {loc.totalMentions} mention
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="text-[13px] text-muted-foreground">
+                            {loc.totalPopulation?.toLocaleString('id-ID') || 0} pop • {loc.totalVoters?.toLocaleString('id-ID') || 0} voters • {loc.totalMentions || 0} mentions
+                          </div>
+                          {loc.totalMentions > 0 && (
+                            <div className="text-[13px] text-muted-foreground mt-0.5 flex items-center gap-2">
+                              <span className="text-emerald-600">+{loc.sentimentPositive || 0}</span>
+                              <span className="text-red-600">-{loc.sentimentNegative || 0}</span>
+                            </div>
+                          )}
+                          {/* === NEW: Visual trust bar (gradient) === */}
+                          <div className="mt-1.5 w-full h-1.5 rounded-full bg-slate-200 overflow-hidden">
+                            <div
+                              className="h-full rounded-full transition-all"
+                              style={{
+                                width: `${trustPct}%`,
+                                background: trustPct >= 70 ? '#10b981' : trustPct >= 55 ? '#84cc16' : trustPct >= 45 ? '#f59e0b' : trustPct >= 30 ? '#f97316' : '#ef4444'
+                              }}
+                            />
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <div className={`text-xl font-bold ${color.text}`}>{(loc.trustScore || 0).toFixed(1)}</div>
+                          <div className="text-[13px] text-muted-foreground">trust</div>
+                          {/* === NEW: Status badge === */}
+                          {(loc.trustScore || 0) === 0 && (loc.totalMentions || 0) === 0 && (
+                            <div className="text-[10px] text-slate-400 mt-0.5">No data</div>
+                          )}
+                        </div>
+                        {loc.canDrillDown && <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />}
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
             )}
           </CardContent>
