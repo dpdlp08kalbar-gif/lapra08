@@ -2504,3 +2504,50 @@ Stage Summary:
 - Vercel auto-deploy ~1-2 menit
 - Setelah deploy: hard refresh lapra08.vercel.app
 - Test: masuk menu Program & Kegiatan → pilih DPN/DPD/DPC → klik "Unggah File" → bisa pilih PDF/gambar/video
+
+---
+Task ID: LAPRA08-FAQ-ADD-8-NEW
+Agent: Main Agent (Super Z)
+Task: Tambah 8 FAQ baru (total 20) + audit ulang (edit sebelumnya tertimpa)
+
+Work Log:
+- User attach screenshot FAQ page + request "tambahkan lagi beberapa FAQ"
+- AUDIT: temukan commit 97c14b1 (FAQ edit sebelumnya) ADA di remote
+- TAPI: ada commit setelahnya (9e87359 "UI: Pindah Nomor KTA") yang MENIMPA file portal-menus.tsx
+- Akibatnya: FaqManager kembali ke versi lama (hardcoded 12 FAQ, tanpa edit UI)
+- SOLUSI: rewrite FaqManager lagi dengan 20 FAQ + handle konflik git rebase
+
+8 FAQ BARU yang ditambahkan:
+| # | Kategori | Pertanyaan |
+|---|----------|-----------|
+| 13 | KEANGGOTAAN | Bagaimana cara memperbarui data anggota jika ada perubahan (nama, alamat, no HP)? |
+| 14 | KEANGGOTAAN | Apa yang harus dilakukan jika KTA digital hilang atau tidak bisa diakses? |
+| 15 | STRUKTUR | Bagaimana cara menjadi pengurus di DPC atau DPD? |
+| 16 | PROGRAM | Bagaimana mekanisme pelaporan kegiatan (LPJ) setelah event selesai? |
+| 17 | LAYANAN | Bagaimana cara mengajukan proposal bantuan dana kegiatan? |
+| 18 | LAINNYA | Bagaimana cara mengajukan izin kegiatan yang melibatkan massa besar (>100 orang)? |
+| 19 | LAINNYA | Apakah ada aplikasi mobile LAPRA 08 untuk Android/iOS? |
+| 20 | LAINNYA | Bagaimana kebijakan privasi dan keamanan data anggota di portal LAPRA 08? |
+
+Distribusi 20 FAQ per kategori:
+- KEANGGOTAAN: 4 (1, 2, 3, 13, 14)
+- STRUKTUR: 3 (4, 5, 15)
+- PROGRAM: 3 (6, 7, 16)
+- LAYANAN: 3 (8, 9, 17)
+- LAINNYA: 5 (10, 11, 12, 18, 19, 20)
+
+PERUBAHAN FILE:
+- src/app/api/faq/route.ts (NEW, 119 lines)
+- src/components/menus/portal-menus.tsx (FaqManager function, +658 lines, -10 lines)
+
+RESOLUSI KONFLIK GIT:
+- git pull --rebase origin main → conflict di faq/route.ts + portal-menus.tsx
+- git checkout --theirs (pakai versi kita yang lebih baru dengan 20 FAQ)
+- git add + git rebase --continue
+
+Stage Summary:
+- Commit 0a19276 di-push ke origin/main (97c14b1..0a19276)
+- Vercel auto-deploy ~1-2 menit
+- Setelah deploy: hard refresh lapra08.vercel.app
+- Total FAQ sekarang: 20 (12 lama + 8 baru)
+- Semua fitur edit (CRUD) Super Admin dari commit sebelumnya tetap ada
