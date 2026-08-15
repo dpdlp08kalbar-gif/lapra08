@@ -47,18 +47,17 @@ const rssParser = new Parser({
 //   × aktivitas (audiensi, deklarasi, pelantikan, bakti sosial, dll)
 //   = 200+ query combinations, rotasi 5 per batch
 
-// === 4 varian nama organisasi ===
+// === Varian nama LAPRA 08 (EXACT MATCH dengan tanda kutip untuk Google) ===
+// Google search: "Laskar Prabowo 08" → return 8+ berita (test konfirmasi)
+// Tidak perlu broad keywords — Google sudah mampu menemukan dengan exact match
 const ORG_VARIANTS = [
-  'Laskar Prabowo 08',
-  'LAPRA 08',
-  'LP 08',
-  'Relawan Laskar Prabowo 08',
+  '"Laskar Prabowo 08"',         // exact match — paling banyak hasil
+  '"LAPRA 08"',                  // exact match varian
+  '"Relawan Laskar Prabowo 08"', // exact match varian
+  '"Laskar Prabowo Delapan"',    // varian tulisan
 ]
 
-// === HANYA LAPRA 08 / Laskar Prabowo 08 — tidak boleh menangkap organisasi lain ===
-// User instruction: "ingat jgn memuat selain laskar prabowo 08"
-// Tidak pakai broad keywords seperti "Prabowo relawan" / "Gerindra" / "Prabowo Gibran"
-// Hanya varian nama LAPRA 08 yang resmi
+// HANYA LAPRA 08 — tidak ada keyword lain
 
 // === 38 PROVINSI + KOTA UTAMA + TOKOH LOKAL + INSTITUSI ===
 // Format: { prov, nickname, kota, kodim, kejati, dprd }
@@ -112,19 +111,25 @@ const WILAYAH_MATRIX: {
 ]
 
 // === GENERATE LEXICON MATRIX QUERIES (otomatis dari matrix) ===
-// HANYA LAPRA 08 / Laskar Prabowo 08 — tidak boleh menangkap organisasi lain
+// HANYA LAPRA 08 — Google exact match sudah cukup menjangkau semua berita
 function generateLexiconQueries(): string[] {
   const queries: string[] = []
 
-  // ORG_VARIANTS × WILAYAH_MATRIX = 4 × 38 = 152+ query
+  // TIER 1: Query nasional TANPA daerah (paling banyak hasil)
+  // Google akan return semua berita "Laskar Prabowo 08" dari seluruh Indonesia
+  for (const org of ORG_VARIANTS) {
+    queries.push(org)  // contoh: "Laskar Prabowo 08" (tanpa daerah)
+  }
+
+  // TIER 2: org + nama provinsi (untuk target spesifik daerah)
   for (const org of ORG_VARIANTS) {
     for (const w of WILAYAH_MATRIX) {
-      // org + provinsi
-      queries.push(`"${org}" ${w.prov} OR ${w.nick}`)
-      // org + kota utama
+      queries.push(`${org} ${w.prov}`)      // "Laskar Prabowo 08" Kalimantan Barat
+      queries.push(`${org} ${w.nick}`)      // "Laskar Prabowo 08" Kalbar
+      // kota utama
       const kota = w.kota[0]
       if (kota && kota !== w.prov) {
-        queries.push(`"${org}" ${kota}`)
+        queries.push(`${org} ${kota}`)      // "Laskar Prabowo 08" Pontianak
       }
     }
   }
@@ -353,8 +358,8 @@ async function scrapeYouTube(maxResults = 5): Promise<{ posts: ScrapedPost[]; in
 async function scrapeGoogleNews(maxResults = 5): Promise<ScrapedPost[]> {
   const allPosts: ScrapedPost[] = []
 
-  // === ROTATION: ambil 5 query per batch (anti Vercel timeout 10s) ===
-  const queryBatch = getNextQueryBatch(5)
+  // === ROTATION: ambil 8 query per batch (Google News RSS cepat, aman di Vercel 10s) ===
+  const queryBatch = getNextQueryBatch(8)
   console.log(`[Google News RSS] Scraping ${queryBatch.length} queries (rotation batch)...`)
 
   for (const query of queryBatch) {
