@@ -37,7 +37,7 @@ import {
   RefreshCw,
   Crown, Award, CheckCircle2, Clock, AlertTriangle, Globe, ExternalLink, Lock,
   Video, PlayCircle, BookMarked, FileCheck, UserCheck, XCircle, Camera, IdCard, Zap, Lightbulb, Sparkles,
-  Youtube, FolderTree, Folder,
+  Youtube, FolderTree, Folder, Download,
 } from 'lucide-react'
 
 // Reuse existing functional components
@@ -830,14 +830,23 @@ function VisiMisiEditDialog({
 }
 
 // --- Section: Document upload & list (AD/ART & LEGALITAS) ---
+// FIX: Sebelumnya tombol "Buka" pakai <a href={data:base64}> → browser blank page
+// Sekarang: pakai fetch + blob URL (kirim x-user-id header untuk auth)
+// FITUR TAMBAHAN: search, filter format, statistik, dialog preview PDF inline, tombol Download
 function ProfileDocumentSection({ type }: { type: 'AD_ART' | 'LEGALITAS' }) {
   const isSuperAdmin = useIsSuperAdmin()
   const addToast = useToastStore((s) => s.addToast)
+  const user = useAuthStore((s) => s.user)
   const [docs, setDocs] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [uploadOpen, setUploadOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<any | null>(null)
+  // === State baru untuk fitur enhanced ===
+  const [search, setSearch] = useState('')
+  const [filterFormat, setFilterFormat] = useState('ALL') // ALL | PDF | IMAGE | DOC
+  const [viewLoading, setViewLoading] = useState<string | null>(null) // docId yang sedang di-fetch
+  const [previewDoc, setPreviewDoc] = useState<any | null>(null) // dialog preview
 
   const meta = type === 'AD_ART'
     ? {
@@ -888,16 +897,135 @@ function ProfileDocumentSection({ type }: { type: 'AD_ART' | 'LEGALITAS' }) {
     return `${(bytes / 1024 / 1024).toFixed(2)} MB`
   }
 
+  // === Helper: deteksi kategori format file ===
+  const getFileCategory = (fileType: string): 'PDF' | 'IMAGE' | 'DOC' | 'FILE' => {
+    const ft = (fileType || '').toLowerCase()
+    if (ft === 'pdf') return 'PDF'
+    if (['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ft)) return 'IMAGE'
+    if (['doc', 'docx'].includes(ft)) return 'DOC'
+    return 'FILE'
+  }
+
+  const formatIcons: Record<string, any> = {
+    PDF: FileText,
+    IMAGE: ImageIcon,
+    DOC: FileText,
+    FILE: FileText,
+  }
+
+  const formatColors: Record<string, string> = {
+    PDF: 'bg-red-50 text-red-700 border-red-200',
+    IMAGE: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    DOC: 'bg-blue-50 text-blue-700 border-blue-200',
+    FILE: 'bg-slate-50 text-slate-700 border-slate-200',
+  }
+
+  // === Filter + search ===
+  const filtered = docs.filter(doc => {
+    const matchSearch = !search ||
+      doc.title?.toLowerCase().includes(search.toLowerCase()) ||
+      doc.description?.toLowerCase().includes(search.toLowerCase()) ||
+      doc.uploadedBy?.toLowerCase().includes(search.toLowerCase())
+    const matchFormat = filterFormat === 'ALL' || getFileCategory(doc.fileType) === filterFormat
+    return matchSearch && matchFormat
+  })
+
+  // === Statistik ===
+  const stats = {
+    total: docs.length,
+    pdf: docs.filter(d => getFileCategory(d.fileType) === 'PDF').length,
+    image: docs.filter(d => getFileCategory(d.fileType) === 'IMAGE').length,
+    doc: docs.filter(d => getFileCategory(d.fileType) === 'DOC').length,
+    totalSize: docs.reduce((sum, d) => sum + (d.fileSize || 0), 0),
+  }
+
+  // === Handler: Buka dokumen via authenticated fetch + blob URL ===
+  // FIX BUG: sebelumnya pakai <a href={data:base64}> → browser blank page
+  // Sekarang: fetch /api/profile-documents/[id]/view → blob → window.open
+  const handleViewDoc = async (doc: any) => {
+    setViewLoading(doc.id)
+    try {
+      const userId = user?.id || ''
+      const res = await fetch(`/api/profile-documents/${doc.id}/view`, {
+        headers: { 'x-user-id': userId },
+      })
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null)
+        throw new Error(errData?.error || `HTTP ${res.status}`)
+      }
+      const blob = await res.blob()
+      const blobUrl = URL.createObjectURL(blob)
+      window.open(blobUrl, '_blank')
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60000)
+    } catch (e: any) {
+      addToast(`Gagal membuka dokumen: ${e.message}`, 'error')
+    } finally {
+      setViewLoading(null)
+    }
+  }
+
+  // === Handler: Preview PDF inline di dialog ===
+  const handlePreviewDoc = async (doc: any) => {
+    setViewLoading(doc.id)
+    try {
+      const userId = user?.id || ''
+      const res = await fetch(`/api/profile-documents/${doc.id}/view`, {
+        headers: { 'x-user-id': userId },
+      })
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null)
+        throw new Error(errData?.error || `HTTP ${res.status}`)
+      }
+      const blob = await res.blob()
+      const blobUrl = URL.createObjectURL(blob)
+      setPreviewDoc({ ...doc, blobUrl })
+    } catch (e: any) {
+      addToast(`Gagal preview dokumen: ${e.message}`, 'error')
+    } finally {
+      setViewLoading(null)
+    }
+  }
+
+  // === Handler: Download dokumen ===
+  const handleDownloadDoc = async (doc: any) => {
+    setViewLoading(doc.id)
+    try {
+      const userId = user?.id || ''
+      const res = await fetch(`/api/profile-documents/${doc.id}/view`, {
+        headers: { 'x-user-id': userId },
+      })
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null)
+        throw new Error(errData?.error || `HTTP ${res.status}`)
+      }
+      const blob = await res.blob()
+      const blobUrl = URL.createObjectURL(blob)
+      // Trigger download dengan anchor + download attribute
+      const a = document.createElement('a')
+      a.href = blobUrl
+      a.download = doc.fileName || `${doc.title}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 30000)
+    } catch (e: any) {
+      addToast(`Gagal download dokumen: ${e.message}`, 'error')
+    } finally {
+      setViewLoading(null)
+    }
+  }
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      {/* === Header + tombol Upload === */}
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2">
           <div className={`w-9 h-9 rounded-lg bg-gradient-to-br ${meta.grad} flex items-center justify-center`}>
             <meta.icon className="w-5 h-5 text-white" />
           </div>
           <div>
             <h3 className="text-base font-bold">{meta.title}</h3>
-            <p className="text-sm text-muted-foreground">{docs.length} dokumen</p>
+            <p className="text-sm text-muted-foreground">{stats.total} dokumen • {formatSize(stats.totalSize)}</p>
           </div>
         </div>
         {isSuperAdmin && (
@@ -907,55 +1035,137 @@ function ProfileDocumentSection({ type }: { type: 'AD_ART' | 'LEGALITAS' }) {
         )}
       </div>
 
+      {/* === Statistik cards === */}
+      {docs.length > 0 && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          <div className="rounded-lg border bg-white p-2 text-center">
+            <div className="text-lg font-bold text-slate-700">{stats.total}</div>
+            <div className="text-[11px] text-muted-foreground">Total Dokumen</div>
+          </div>
+          <div className="rounded-lg border bg-red-50 p-2 text-center">
+            <div className="text-lg font-bold text-red-700">{stats.pdf}</div>
+            <div className="text-[11px] text-red-700/70">PDF</div>
+          </div>
+          <div className="rounded-lg border bg-emerald-50 p-2 text-center">
+            <div className="text-lg font-bold text-emerald-700">{stats.image}</div>
+            <div className="text-[11px] text-emerald-700/70">Gambar</div>
+          </div>
+          <div className="rounded-lg border bg-blue-50 p-2 text-center">
+            <div className="text-lg font-bold text-blue-700">{stats.doc}</div>
+            <div className="text-[11px] text-blue-700/70">DOC/DOCX</div>
+          </div>
+        </div>
+      )}
+
+      {/* === Search + filter format === */}
+      {docs.length > 0 && (
+        <div className="flex gap-2 flex-wrap">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input placeholder="Cari judul/deskripsi/uploader..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />
+          </div>
+          <Select value={filterFormat} onValueChange={setFilterFormat}>
+            <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">Semua Format</SelectItem>
+              <SelectItem value="PDF">PDF</SelectItem>
+              <SelectItem value="IMAGE">Gambar</SelectItem>
+              <SelectItem value="DOC">DOC/DOCX</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
       {loading ? (
         <LoadingState message="Memuat dokumen..." />
       ) : error ? (
         <ErrorState message={error} />
       ) : docs.length === 0 ? (
         <EmptyState icon={meta.icon} title={meta.emptyTitle} description={meta.emptyDesc} />
+      ) : filtered.length === 0 ? (
+        <EmptyState icon={meta.icon} title="Tidak ada dokumen cocok" description="Coba ubah kata kunci atau filter format." />
       ) : (
-        <div className="grid gap-3 max-h-[32rem] overflow-y-auto pr-1">
-          {docs.map((doc) => (
-            <Card key={doc.id} className="hover:shadow-md transition-shadow">
-              <CardContent className="p-4">
-                <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-slate-100 to-slate-200 border border-slate-200 flex items-center justify-center shrink-0">
-                    <FileText className="w-6 h-6 text-slate-600" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h4 className="font-semibold text-sm truncate">{doc.title}</h4>
-                      <Badge variant="secondary" className="uppercase text-[13px]">{doc.fileType || 'file'}</Badge>
-                      <Badge variant="outline" className="text-[13px]">{formatSize(doc.fileSize)}</Badge>
+        <div className="grid gap-3 max-h-[40rem] overflow-y-auto pr-1">
+          {filtered.map((doc) => {
+            const fileCat = getFileCategory(doc.fileType)
+            const FileIcon = formatIcons[fileCat]
+            const fileColor = formatColors[fileCat]
+            const isLoading = viewLoading === doc.id
+            return (
+              <Card key={doc.id} className="hover:shadow-md transition-shadow">
+                <CardContent className="p-4">
+                  <div className="flex items-start gap-4">
+                    {/* Icon berdasarkan format file */}
+                    <div className={`w-12 h-12 rounded-lg border flex items-center justify-center shrink-0 ${fileColor}`}>
+                      <FileIcon className="w-6 h-6" />
                     </div>
-                    {doc.description && (
-                      <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{doc.description}</p>
-                    )}
-                    <div className="text-[13px] text-muted-foreground mt-2">
-                      Diunggah oleh {doc.uploadedBy || '-'} • {formatDateTimeID(doc.uploadedAt || doc.updatedAt)}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h4 className="font-semibold text-sm truncate">{doc.title}</h4>
+                        <Badge variant="secondary" className="uppercase text-[11px]">{doc.fileType || 'file'}</Badge>
+                        <Badge variant="outline" className="text-[11px]">{formatSize(doc.fileSize)}</Badge>
+                        {doc.description && doc.description.startsWith('AD_ART:') && (
+                          <Badge variant="outline" className="text-[11px] bg-blue-50 text-blue-700 border-blue-200">AD/ART</Badge>
+                        )}
+                      </div>
+                      {doc.description && (
+                        <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{doc.description.replace(/^(AD_ART|LEGALITAS):\s*/, '')}</p>
+                      )}
+                      <div className="text-[12px] text-muted-foreground mt-2 flex items-center gap-2 flex-wrap">
+                        <span>📤 Diunggah oleh {doc.uploadedBy || '-'}</span>
+                        <span className="opacity-50">•</span>
+                        <span>📅 {formatDateTimeID(doc.uploadedAt || doc.updatedAt)}</span>
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <Button size="sm" variant="outline" asChild>
-                      <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer" className="gap-1">
-                        <ExternalLink className="w-3.5 h-3.5" /> Buka
-                      </a>
-                    </Button>
-                    {isSuperAdmin && (
+                    {/* === Tombol Aksi === */}
+                    <div className="flex items-center gap-1 shrink-0 flex-wrap">
+                      {/* Tombol Preview (ikon mata) — buka dialog inline */}
                       <Button
-                        size="icon"
+                        size="sm"
                         variant="ghost"
-                        className="text-red-500 hover:text-red-600 h-8 w-8"
-                        onClick={() => setDeleteTarget(doc)}
-                      >
-                        <Trash2 className="w-4 h-4" />
+                        className="h-8 w-8 p-0 text-emerald-600 hover:bg-emerald-50"
+                        disabled={isLoading}
+                        onClick={() => handlePreviewDoc(doc)}
+                        title="Preview dokumen inline">
+                        {isLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Eye className="w-3.5 h-3.5" />}
                       </Button>
-                    )}
+                      {/* Tombol Buka di tab baru */}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 gap-1"
+                        disabled={isLoading}
+                        onClick={() => handleViewDoc(doc)}
+                        title="Buka dokumen di tab baru">
+                        <ExternalLink className="w-3.5 h-3.5" /> Buka
+                      </Button>
+                      {/* Tombol Download */}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 w-8 p-0 text-blue-600 hover:bg-blue-50"
+                        disabled={isLoading}
+                        onClick={() => handleDownloadDoc(doc)}
+                        title="Download dokumen">
+                        <Download className="w-3.5 h-3.5" />
+                      </Button>
+                      {/* Tombol Hapus (admin only) */}
+                      {isSuperAdmin && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="text-red-500 hover:text-red-600 h-8 w-8"
+                          onClick={() => setDeleteTarget(doc)}
+                          title="Hapus dokumen">
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            )
+          })}
         </div>
       )}
 
@@ -966,6 +1176,52 @@ function ProfileDocumentSection({ type }: { type: 'AD_ART' | 'LEGALITAS' }) {
         onUploaded={() => { setUploadOpen(false); load() }}
         addToast={addToast}
       />
+
+      {/* === Dialog Preview PDF/Image inline === */}
+      <Dialog open={!!previewDoc} onOpenChange={(o) => {
+        if (!o && previewDoc?.blobUrl) {
+          URL.revokeObjectURL(previewDoc.blobUrl)
+        }
+        setPreviewDoc(null)
+      }}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 flex-wrap">
+              <FileText className="w-4 h-4 text-blue-600" />
+              <span className="truncate">{previewDoc?.title}</span>
+            </DialogTitle>
+            <DialogDescription className="flex items-center gap-2 flex-wrap">
+              <Badge variant="outline" className="text-[11px] uppercase">{previewDoc?.fileType}</Badge>
+              <Badge variant="outline" className="text-[11px]">{previewDoc ? formatSize(previewDoc.fileSize) : ''}</Badge>
+              {previewDoc?.uploadedBy && <span className="text-xs">oleh {previewDoc.uploadedBy}</span>}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-hidden rounded-lg border bg-slate-100">
+            {previewDoc?.fileType === 'pdf' ? (
+              <iframe src={previewDoc.blobUrl} className="w-full h-[70vh] rounded-lg" title="Preview PDF" />
+            ) : ['jpg', 'jpeg', 'png', 'webp', 'gif'].includes((previewDoc?.fileType || '').toLowerCase()) ? (
+              <img src={previewDoc?.blobUrl} alt={previewDoc?.title} className="w-full max-h-[70vh] object-contain" />
+            ) : (
+              <div className="flex flex-col items-center justify-center h-[70vh] text-center p-8">
+                <FileText className="w-16 h-16 text-slate-400 mb-3" />
+                <div className="font-semibold mb-1">Preview tidak tersedia untuk format ini</div>
+                <p className="text-sm text-muted-foreground mb-4">Format {previewDoc?.fileType?.toUpperCase()} tidak bisa di-preview di browser. Silakan download untuk membuka.</p>
+                <Button onClick={() => previewDoc && handleDownloadDoc(previewDoc)} className="gap-2">
+                  <Download className="w-4 h-4" /> Download File
+                </Button>
+              </div>
+            )}
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => previewDoc && handleViewDoc(previewDoc)} className="gap-2">
+              <ExternalLink className="w-4 h-4" /> Buka di Tab Baru
+            </Button>
+            <Button onClick={() => previewDoc && handleDownloadDoc(previewDoc)} className="gap-2">
+              <Download className="w-4 h-4" /> Download
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(v) => !v && setDeleteTarget(null)}>
         <AlertDialogContent aria-describedby={undefined}>
