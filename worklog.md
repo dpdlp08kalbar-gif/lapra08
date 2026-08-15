@@ -3486,3 +3486,83 @@ Stage Summary:
 - Setelah deploy: trigger Scraper Agent di AI Agent Monitor
 - Dalam 5 jam (10 batch × 30 menit), semua 50 query akan di-scrape
 - Data daerah (Kalbar, dll) akan mulai terjaring
+
+---
+Task ID: LAPRA08-LEXICON-MATRIX-V2
+Agent: Main Agent (Senior Electoral Strategist + Principal Software Architect)
+Task: 4 aksi lanjutan — Lexicon Matrix + Bulk Triage + enhanced location detection + RSS lokal expansion
+
+Work Log:
+- User report: "hasil penjaringan data saat ini masih belum akurat, data kegiatan DPD/DPC se-Indonesia (Kalbar, Jabar, dll) masih belum muncul"
+- User request 4 aksi: Lexicon Matrix, Bulk Triage 50 link, Sinkronisasi medsos/pers lokal, Revisi SOP programmer
+
+AKSI 1: REKAYASA LEXICON MATRIX (152+ query)
+- 4 varian organisasi: ["Laskar Prabowo 08", "LAPRA 08", "LP 08", "Relawan Laskar Prabowo 08"]
+- 38 provinsi × matrix: { prov, nick, kota[3+], kodim, kejati, dprd }
+  Contoh Kalbar: { prov: 'Kalimantan Barat', nick: 'Kalbar', kota: ['Pontianak', 'Singkawang', 'Sintang', 'Ketapang'], kodim: 'Kodim 1207', kejati: 'Kejati Kalbar', dprd: 'DPRD Kalbar' }
+  Contoh Jabar: { prov: 'Jawa Barat', nick: 'Jabar', kota: ['Bandung', 'Bekasi', 'Bogor', 'Depok', 'Cimahi'], kodim: 'Kodim 0612', kejati: 'Kejati Jabar', dprd: 'DPRD Jabar' }
+- generateLexiconQueries(): 4 org × 38 provinsi × 4 variant (provinsi + kota + kodim + dprd) = 152+ query
+- ALL_QUERIES: 152 lexicon + 4 nasional + 8 aktivitas = 164 total query
+- Rotasi 5 per batch, anti Vercel timeout
+
+AKSI 2: BULK TRIAGE API (/api/opinion-links/bulk-triage)
+- POST: ambil 50 link dengan status NEW atau provinceCode null
+- Re-analyze location pakai detectLocationFromDB yang ENHANCED (kota + kodim + kejati)
+- Update provinceCode/provinceName/regencyCode/regencyName di DB
+- Emit Fan-Out event → invalidate Decision Dashboard cache
+- Return summary: top provinsi + top kota
+- Anti 504: sequential (bukan Promise.all), max 50 link, instant (rule-based)
+- Anti 429: tidak panggil Gemini sama sekali
+- UI: banner amber "🗺️ X link belum di-map" + tombol "Bulk Triage X Link"
+
+AKSI 3: ENHANCED detectLocationFromDB (50+ kota utama)
+- Tambah kotaToProvinsi map: 50+ kota → provinsi + regencyName
+  Contoh: 'pontianak' → { provinceCode: '61', provinceName: 'Kalimantan Barat', regencyName: 'Kota Pontianak' }
+  'bandung' → { provinceCode: '32', provinceName: 'Jawa Barat', regencyName: 'Kota Bandung' }
+- Logic: cek kota dulu (lebih spesifik) → fallback ke nickname → fallback ke DB regencies
+- Auto-cari regencyCode di DB berdasarkan regencyName
+
+AKSI 4: RSS LOKAL EXPANDED (23 sumber)
+- 21 Tribun Network (per daerah: Kalbar, Pontianak, Jabar, Jateng, Jatim, Bali, Sumsel, Sumbar, Sulsel, Medan, Pekanbaru, Lampung, Padang, Banjar, Samarinda, Makassar, Manado, Ambon, Papua, Banten, Jakarta)
+- Kompas Nasional + Detik News
+- Rotasi 3 feed per batch (anti timeout)
+
+PERUBAHAN FILE:
+- src/lib/auto-scraper.ts (+200 lines: Lexicon Matrix + WILAYAH_MATRIX + generateLexiconQueries + RSS expansion)
+- src/lib/ai-engine.ts (+90 lines: kotaToProvinsi map + enhanced detection logic)
+- src/app/api/opinion-links/bulk-triage/route.ts (NEW, 120 lines)
+- src/components/menus/communication-menu.tsx (+30 lines: Bulk Triage button + handler)
+- 4 files changed, 397 insertions(+), 55 deletions(-)
+
+DATA FLOW (FIXED):
+```
+[Scraper batch] → 5 query dari Lexicon Matrix (misal: "LAPRA 08" Kalimantan Barat OR Kalbar)
+  → Google News RSS → 5-25 articles (berita Kalbar)
+  → 3 RSS lokal (Tribun Kalbar, Pontianak, Jabar)
+  → YouTube 2 query → 2-10 videos
+  → detectLocationFromDB → detect "Pontianak" / "Kalbar" / "Kodim 1207" dari text
+  → Map ke provinceCode: '61', provinceName: 'Kalimantan Barat', regencyCode: '6171'
+  → Simpan ke DB dengan lokasi yang AKURAT
+  → Geospatial Heatmap → Kalbar muncul dengan trust score
+  → Decision Dashboard → Kalbar muncul di top wilayah
+```
+
+BULK TRIAGE FLOW:
+```
+[Admin klik "Bulk Triage 50 Link"]
+  → API ambil 50 link dengan status NEW atau provinceCode null
+  → Re-analyze setiap link pakai detectLocationFromDB yang ENHANCED
+  → Update DB: provinceCode, provinceName, regencyCode, regencyName
+  → Emit Fan-Out event → invalidate Decision Dashboard
+  → Return: "Triage: 35/50 link di-map. Top: Kalbar(8), Jabar(6), Jatim(5)"
+  → Dashboard & Geospatial otomatis refresh
+```
+
+Stage Summary:
+- Commit 0abed3b di-push ke origin/main (6d5d7c7..0abed3b)
+- Vercel auto-deploy ~1-2 menit
+- Setelah deploy:
+  1. Klik "Bulk Triage 50 Link" di Link Analisis Publik → auto-map 50 link ke provinsi
+  2. Trigger Scraper Agent → scrape dengan Lexicon Matrix (152+ query)
+  3. Lihat Geospatial Heatmap → provinsi mulai terisi trust score
+  4. Lihat Decision Dashboard → top wilayah urgent muncul dari data daerah
