@@ -2739,3 +2739,102 @@ Stage Summary:
   6. Galeri Foto: 6 foto AI-generated muncul
   7. Klik tab Galeri Video: 4 video YouTube muncul
   8. Klik tab Arsip Berita Penting: 3 berita arsip muncul
+
+---
+Task ID: LAPRA08-AUDIT-FAQ-FIX-HAPUS-ZAI
+Agent: Main Agent (Super Z)
+Task: Audit FAQ (hanya 1 tampil padahal saya tambah 8) + hapus semua Z.AI SDK dari sistem
+
+Work Log:
+- User attach screenshot FAQ page + request audit kelengkapan + hapus Z.AI SDK
+
+AUDIT 1: FAQ HANYA TAMPIL 1
+- Root cause: logika fallback salah di reload()
+- Kode lama:
+    if (data && data.length > 0) {
+      setFaqs(parsed)  // ← hanya data DB (1 item)
+    } else {
+      setFaqs(DEFAULT_FAQS)  // ← 20 FAQ hanya tampil kalau DB kosong
+    }
+- User sudah buat 1 FAQ manual → DB punya 1 item → kondisi true → hanya 1 FAQ tampil
+- DEFAULT_FAQS (20 FAQ) tidak pernah tampil kalau DB sudah ada data
+
+FIX 1: Gabungkan DEFAULT + DB (deduplikasi by ID)
+- Pakai Map untuk deduplikasi: default + DB items (DB override DEFAULT by ID sama)
+- Logic:
+    const defaultMap = new Map(DEFAULT_FAQS.map(f => [f.id, f]))
+    const dbMap = new Map(dbFaqs.map((f: any) => [f.id, f]))
+    const merged = [
+      ...DEFAULT_FAQS.map(f => dbMap.get(f.id) || f),
+      ...dbFaqs.filter((f: any) => !defaultMap.has(f.id)),
+    ]
+- Sekarang: kalau DB ada 1 FAQ buatan user → total = 20 (default) + 1 (user) = 21 FAQ
+
+AUDIT 2: Z.AI SDK DIPAKAI DI 4 FILE
+- User melarang Z.AI, harus ganti API Vercel (gratis) atau alternatif FOSS
+
+FILE 1: src/app/api/gallery/seed-demo/route.ts
+- Sebelum: zai.images.generations.create() — generate foto AI
+- Sesudah: Picsum.photos (Lorem Picsum — gratis, no API key)
+  - URL: https://picsum.photos/seed/{seed}/1344/768
+  - Fetch gambar → convert ke base64 → simpan ke DB
+  - Fallback: kalau fetch gagal, pakai URL langsung
+
+FILE 2: src/lib/ai-engine.ts (4 lokasi Z.AI usage)
+- Function 1: aiGenerateMultipleEssayQuestionsLLM
+  - Sebelum: zai.chat.completions.create() — generate pertanyaan essay
+  - Sesudah: panggil generateMultipleEssayQuestionsTemplate (rule-based, sudah ada di file)
+- Function 2: aiGenerateEssayQuestionLLM
+  - Sebelum: zai.chat.completions.create()
+  - Sesudah: panggil generateMultipleEssayQuestionsTemplate[0] (ambil pertanyaan pertama)
+- Function 3: aiAnalyzeEssayResponseLLM
+  - Sebelum: zai.chat.completions.create() — analisis sentimen
+  - Sesudah: panggil analyzeSentiment + extractKeywords + detectCategory (rule-based lokal)
+- Function 4: aiGenerateOpinionSummaryLLM
+  - Sebelum: zai.chat.completions.create()
+  - Sesudah: panggil analyzeSentiment + extractKeywords + detectCategory + calculatePriority
+
+FILE 3: src/app/api/news/fetch-content/route.ts
+- Sebelum: zai.functions.invoke('page_reader', { url })
+- Sesudah: fetch() standar + regex HTML parser
+  - fetch URL dengan User-Agent browser
+  - parseMetaTags(html) — extract og:title, og:image, article:published_time, dll
+  - extractTitleTag(html) — extract <title>...</title>
+  - htmlToPlainText(html) — strip HTML tags → plain text
+  - Timeout 15 detik via AbortSignal.timeout()
+
+FILE 4: src/app/api/news/search/route.ts
+- Sebelum: zai.functions.invoke('web_search', { query, num })
+- Sesudah: searchViaDDG() (function baru di ddg-scraper.ts)
+  - Pakai DuckDuckGo HTML search (html.duckduckgo.com/html/?q=QUERY)
+  - 100% gratis, no API key, no auth
+  - Parse HTML: extract <a class="result__a"> untuk link, <a class="result__snippet"> untuk snippet
+  - Decode redirect URL (uddg=ENCODED_URL)
+
+BONUS: Fix bug pre-existing di ddg-scraper.ts (line 156)
+- Type error: 'string' not assignable to '"FACEBOOK"|"INSTAGRAM"|"TIKTOK"|"TWITTER_X"|"GOOGLE"'
+- Fix: ganti variable `platform` jadi `pf`, pakai cfg.platform (yang sudah typed)
+
+PERUBAHAN FILE:
+- src/components/menus/portal-menus.tsx (+10 lines: fix FAQ reload logic)
+- src/app/api/gallery/seed-demo/route.ts (rewrite Z.AI → Picsum.photos, +20 lines)
+- src/lib/ai-engine.ts (4 functions rewrite Z.AI → rule-based, -200 lines, +60 lines)
+- src/app/api/news/fetch-content/route.ts (rewrite Z.AI → fetch + regex, +30 lines)
+- src/app/api/news/search/route.ts (rewrite Z.AI → searchViaDDG, +5 lines)
+- src/lib/ddg-scraper.ts (+95 lines: tambah searchViaDDG function + parseDDGHtmlForWebSearch)
+- 8 files changed, 341 insertions(+), 337 deletions(-)
+
+VERIFIKASI:
+- Build OK (npx tsc --noEmit: hanya 1 error pre-existing line 220 program-kerja-menu, unrelated)
+- Tidak ada lagi import z-ai-web-dev-sdk di kode aplikasi (cuma komentar dokumen)
+- Z.AI usage sebelum: 4 file, 5 lokasi
+- Z.AI usage sesudah: 0 file
+
+Stage Summary:
+- Commit 2067a30 di-push ke origin/main (5148cab..2067a30)
+- Vercel auto-deploy ~1-2 menit
+- Setelah deploy: hard refresh lapra08.vercel.app
+- Test FAQ: akan tampil 21 FAQ (20 default + 1 buatan user)
+- Test Generate Data Demo: foto dari Picsum.photos (bukan AI lagi)
+- Test News Search: pakai DuckDuckGo (bukan Z.AI)
+- Test News Fetch Content: pakai fetch + HTML parser (bukan Z.AI page_reader)
