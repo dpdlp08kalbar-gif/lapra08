@@ -52,7 +52,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const lexiconPriority = calculatePriority(answer, wordCount, lexiconSentiment.sentiment)
     const loc = await detectLocationFromDB(answer)
 
-    let finalSentiment = lexiconSentiment.sentiment
+    let finalSentiment: 'POSITIVE' | 'NEUTRAL' | 'NEGATIVE' = lexiconSentiment.sentiment
     let finalScore = lexiconPriority.urgencyScore
     let finalCategory = lexiconPriority.category
     let finalSummary = `Sentimen: ${lexiconSentiment.sentiment}. Kategori: ${lexiconPriority.category}. ${wordCount} kata. Urgency: ${lexiconPriority.urgencyScore}/100.`
@@ -62,7 +62,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // Try LLM for deeper analysis (fallback ke lexicon jika gagal)
     try {
       const llmResult = await aiAnalyzeEssayResponseLLM(answer, poll.question)
-      finalSentiment = llmResult.sentiment
+      finalSentiment = llmResult.sentiment as 'POSITIVE' | 'NEUTRAL' | 'NEGATIVE'
       finalScore = llmResult.score
       finalCategory = llmResult.category
       finalSummary = llmResult.summary

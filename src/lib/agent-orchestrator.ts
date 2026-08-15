@@ -138,19 +138,19 @@ export class ScraperAgent extends BaseAgent {
         const priorityResult = calculatePriority(text, post.engagementCount, sentimentResult.sentiment)
         const loc = await detectLocationFromDB(text)
 
-        // Deep reasoning via LLM
+        // Deep reasoning via LLM (rule-based, Z.AI removed)
         let aiSummary = `Sentimen: ${sentimentResult.sentiment}. Kategori: ${priorityResult.category}. Urgency: ${priorityResult.urgencyScore}/100.`
-        let finalSentiment = sentimentResult.sentiment
-        let finalPriority = priorityResult.priority
+        let finalSentiment: 'POSITIVE' | 'NEUTRAL' | 'NEGATIVE' = sentimentResult.sentiment
+        let finalPriority: 'HIGH' | 'MEDIUM' | 'LOW' = priorityResult.priority
         let finalCategory = priorityResult.category
 
         try {
           const llmResult = await aiGenerateOpinionSummaryLLM(post.title, post.content || '')
           aiSummary = llmResult.summary
-          if (llmResult.sentiment !== 'NEUTRAL') finalSentiment = llmResult.sentiment
+          if (llmResult.sentiment !== 'NEUTRAL') finalSentiment = llmResult.sentiment as 'POSITIVE' | 'NEUTRAL' | 'NEGATIVE'
           const order = { HIGH: 3, MEDIUM: 2, LOW: 1 }
           if (llmResult.priority && order[llmResult.priority as keyof typeof order] > order[finalPriority as keyof typeof order]) {
-            finalPriority = llmResult.priority
+            finalPriority = llmResult.priority as 'HIGH' | 'MEDIUM' | 'LOW'
           }
           if (llmResult.category !== 'LAINNYA') finalCategory = llmResult.category
           aiProcessed++
@@ -431,7 +431,7 @@ export class EssayResponseAgent extends BaseAgent {
       const loc = await detectLocationFromDB(input.answer)
       const lexiconKeywords = extractKeywords(input.answer)
 
-      let finalSentiment = lexiconSentiment.sentiment
+      let finalSentiment: 'POSITIVE' | 'NEUTRAL' | 'NEGATIVE' = lexiconSentiment.sentiment
       let finalScore = lexiconPriority.urgencyScore
       let finalCategory = lexiconPriority.category
       let finalSummary = `Sentimen: ${lexiconSentiment.sentiment}. Kategori: ${lexiconPriority.category}.`
@@ -439,10 +439,10 @@ export class EssayResponseAgent extends BaseAgent {
       let aiProvider = 'lexicon'
       let tokensUsed = 0
 
-      // Step 2: LLM deep reasoning
+      // Step 2: LLM deep reasoning (rule-based, Z.AI removed)
       try {
         const llmResult = await aiAnalyzeEssayResponseLLM(input.answer, input.question)
-        finalSentiment = llmResult.sentiment
+        finalSentiment = llmResult.sentiment as 'POSITIVE' | 'NEUTRAL' | 'NEGATIVE'
         finalScore = llmResult.score
         finalCategory = llmResult.category
         finalSummary = llmResult.summary
@@ -673,7 +673,7 @@ export async function runScheduledJobs(): Promise<{ jobsRun: number; results: an
     take: 5,
   })
 
-  const results = []
+  const results: Array<{ jobId: string; status: string; result?: any; error?: string }> = []
   for (const job of dueJobs) {
     const startedAt = new Date()
     try {

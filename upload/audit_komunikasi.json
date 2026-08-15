@@ -1,0 +1,28 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "Based on the screenshot provided, here is an extremely detailed breakdown of the **'Komunikasi & Broadcast'** page:\n\n### 1. Page/Section Shown\nThe page is the **\"Komunikasi & Command Center\"** dashboard within a web application called **\"LAPRA 08\"** (Portal Sistem Informasi). This specific section is designed for automated public opinion auditing, broadcasting, and decision-making. The current view is focused on the **\"Opini Publik Auto-Scanner\"** (Public Opinion Auto-Scanner) submodule.\n\n### 2. Visible Navigation Elements\n\n**Left Sidebar (Main Menu):**\n*   **Logo Area:** \"LAPRA 08\" with the subtitle \"PORTAL SISTEM INFORMASI\".\n*   **Beranda** (Home) - Icon: House\n*   **Profil** - Icon: User ID card\n*   **Pustaka Media** (Media Library) - Icon: Newspaper/Book\n*   **Program & Kegiatan** (Programs & Activities) - Icon: Calendar\n*   **Layanan & Advokasi** (Services & Advocacy) - Icon: Shield/Handshake\n*   **Kontak & Sekretariat** (Contact & Secretariat) - Icon: Grid/Layout\n*   **Header:** *SISTEM ADMINISTRASI*\n*   **Dashboard Admin** - Icon: Dashboard grid\n*   **Logistik & Atribut** (Logistics & Attributes) - Icon: Box/Cube\n*   **Komunikasi & Broadcast** (Currently Active) - Icon: Megaphone/Bullhorn (Highlighted in Red)\n*   **Kas & Keuangan** (Cash & Finance) - Icon: Wallet/Money\n*   **Pengaturan User** (User Settings) - Icon: People/Users\n\n**Top Header Bar:**\n*   **Back Arrow Button**\n*   **Page Title:** PORTAL LAPRA 08 > Komunikasi & Broadcast\n*   **User Role Badge:** \"Super Admin\" (Pink/Red pill shape)\n*   **Mode Toggle:** \"Dev Mode\" (Yellow/Gold pill shape with a bug icon)\n\n### 3. Currently Active/Selected Submenu\nThe primary active menu in the sidebar is **\"Komunikasi & Broadcast\"**, which is highlighted with a solid red background and white text.\n\nWithin the main content area, the active functional tab is **\"Opini Publik Auto-Scanner\"**. This button is also highlighted in solid red, while the other function tabs are white with red text/borders.\n\n### 4. Error Messages, Broken Elements, or Loading States\n*   **No critical errors or broken images are visible.**\n*   There is a prominent **orange/red alert banner** at the top of the content area. It is labeled **\"INFO TERKINI!\"** (Latest Info!) and contains a message about supporting a prayer event on August 15th. This is an informational banner, not a system error.\n*   The interface appears fully loaded and interactive.\n\n### 5. Overall Layout Structure\nThe layout follows a standard **Admin Dashboard pattern**:\n*   **Left Column (Fixed):** A dark navy blue sidebar containing the main navigation menu.\n*   **Right Column (Scrollable):** The main content area with a white/light gray background.\n    *   **Top Section:** Contains the page header (\"Komunikasi & Command Center\"), a descriptive subtitle about the system's capabilities (YouTube, Google News RSS integration), and a row of functional navigation buttons.\n    *   **Middle Section:** A large, light peach/orange tinted container titled **\"Audit Opini Publik Otomatis\"**. This contains the description of the scanning process and two primary action buttons.\n    *   **Bottom Section:** A filtering toolbar for prioritization levels and a data list/table area showing actual scanned mentions.\n\n### 6. Placeholder Texts, 'Coming Soon', or Empty States\n*   **Functional Buttons (Some appear to be placeholders or inactive states):**\n    *   *Geospatial Voice Mapping*\n    *   *Broadcast Composer*\n    *   *Essay Polling & AI Auto-Pertanyaan*\n    *   *Link Analisis Publik*\n    *   *Decision Dashboard*\n    *   *AI Agent Monitor*\n    *(Note: While these have icons and titles, only the first one is currently selected, suggesting the others might be modules under development or simply not the current focus).*\n\n*   **Data List Content:**\n    *   The bottom area is **not empty**. It shows at least one entry:\n        *   **Tags:** LOW, GOOGLE, POSITIVE, ORGANISASI, Aceh, REAL\n        *   **Content Snippet:** \"Laskar Prabowo 08 Aech Dukung Doa Bersama 15 Agustus, Serukan Persatuan dan Masa Depan Aceh yang Damai - Atjeh Watch\"\n        *   **Metadata:** \"15 mention\" (top right of filter bar).\n    *   There is a **Filter Prioritas** (Priority Filter) bar with options: **Semua** (All - Active/Red), HIGH, MEDIUM, LOW.\n\n*   **Action Buttons inside the Audit Box:**\n    *   **\"Mulai Scan Sekarang\"** (Start Scan Now) - Solid red button with a lightning bolt icon.\n    *   **\"Refresh Hasil\"** (Refresh Results) - White outlined button with a refresh icon.",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1786767764,
+  "id": "20260815122230543d199bb91344da",
+  "model": "glm-5v-turbo",
+  "object": "chat.completion",
+  "request_id": "20260815122230543d199bb91344da",
+  "usage": {
+    "completion_tokens": 1159,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "prompt_tokens": 1278,
+    "prompt_tokens_details": {
+      "cached_tokens": 2
+    },
+    "total_tokens": 2437
+  }
+}

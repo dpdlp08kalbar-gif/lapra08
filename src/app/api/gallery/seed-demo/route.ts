@@ -1,6 +1,6 @@
 // LAPRA 08 - API: Seed Demo Gallery (Foto + Video + Arsip Berita)
 // POST /api/gallery/seed-demo — generate sample data dummy untuk Galeri Media
-// Menggunakan Z.AI image generation (API Vercel gratis via z-ai-web-dev-sdk)
+// Menggunakan Picsum.photos (Lorem Picsum — gratis, no API key, no auth) — bukan Z.AI
 //
 // Akses: SuperAdmin only (security)
 import { NextRequest, NextResponse } from 'next/server'

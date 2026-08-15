@@ -519,8 +519,7 @@ export function generateMultipleEssayQuestionsTemplate(params: {
 
 // === LLM-BASED AI: ESSAY QUESTION GENERATOR (single, for backward compat) ===
 // Pakai rule-based template untuk generate pertanyaan essay yang adaptif & berkualitas
-import { requireZaiConfig } from './zai-init'
-// ZAI is lazy-imported inside functions after config is verified (Vercel serverless compat)
+// Z.AI SDK telah dihapus dari sistem ini — sekarang 100% pakai rule-based (gratis, no API key)
 
 export async function aiGenerateEssayQuestionLLM(params: {
   sourceTopic: string
@@ -570,7 +569,7 @@ export async function aiGenerateEssayQuestionLLM(params: {
 
 // === LLM-BASED AI: ESSAY RESPONSE ANALYZER ===
 export async function aiAnalyzeEssayResponseLLM(answer: string, question: string): Promise<{
-  sentiment: string
+  sentiment: 'POSITIVE' | 'NEUTRAL' | 'NEGATIVE' | string
   score: number
   category: string
   summary: string
@@ -609,9 +608,9 @@ export async function aiAnalyzeEssayResponseLLM(answer: string, question: string
 // === LLM-BASED AI: OPINION LINK AI SUMMARY ===
 export async function aiGenerateOpinionSummaryLLM(title: string, content: string): Promise<{
   summary: string
-  sentiment: string
+  sentiment: 'POSITIVE' | 'NEUTRAL' | 'NEGATIVE' | string
   category: string
-  priority: string
+  priority: 'HIGH' | 'MEDIUM' | 'LOW' | string
   keywords: string[]
 }> {
   // ============================================================

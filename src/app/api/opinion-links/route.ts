@@ -146,10 +146,10 @@ export async function POST(request: NextRequest) {
         // Step 2: Location detection from DB (comprehensive 515 DPC)
         const loc = await detectLocationFromDB(text)
 
-        // Step 3: Try LLM for AI summary (more contextual, may fail gracefully)
+        // Step 3: Try LLM for AI summary (rule-based, Z.AI removed)
         let aiSummary = `Sentimen: ${sentimentResult.sentiment}. Kategori: ${priorityResult.category}. Urgency: ${priorityResult.urgencyScore}/100. Lokasi: ${loc.regencyName || loc.provinceName || 'Nasional'}.`
-        let finalSentiment = sentimentResult.sentiment
-        let finalPriority = priorityResult.priority
+        let finalSentiment: 'POSITIVE' | 'NEUTRAL' | 'NEGATIVE' = sentimentResult.sentiment
+        let finalPriority: 'HIGH' | 'MEDIUM' | 'LOW' = priorityResult.priority
         let finalCategory = priorityResult.category
         let finalKeywords: string[] = []
 
@@ -157,12 +157,12 @@ export async function POST(request: NextRequest) {
           const llmResult = await aiGenerateOpinionSummaryLLM(post.title, post.content || '')
           aiSummary = llmResult.summary
           if (llmResult.sentiment && llmResult.sentiment !== 'NEUTRAL') {
-            finalSentiment = llmResult.sentiment
+            finalSentiment = llmResult.sentiment as 'POSITIVE' | 'NEUTRAL' | 'NEGATIVE'
           }
           if (llmResult.priority) {
             const order = { HIGH: 3, MEDIUM: 2, LOW: 1 }
             if (order[llmResult.priority as keyof typeof order] > order[finalPriority as keyof typeof order]) {
-              finalPriority = llmResult.priority
+              finalPriority = llmResult.priority as 'HIGH' | 'MEDIUM' | 'LOW'
             }
           }
           if (llmResult.category && llmResult.category !== 'LAINNYA') {

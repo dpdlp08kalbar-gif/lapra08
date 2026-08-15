@@ -2322,7 +2322,7 @@ function DecisionDashboardTab() {
   useEffect(() => { loadData() }, [loadData])
 
   if (loading) return <LoadingState />
-  if (!data) return <ErrorState title="Gagal memuat dashboard" onRetry={loadData} />
+  if (!data) return <ErrorState message="Gagal memuat dashboard. Coba refresh halaman." />
 
   const sentimentPct = data.sentimentTrend.total > 0 ? {
     pos: Math.round((data.sentimentTrend.positive / data.sentimentTrend.total) * 100),
@@ -2584,7 +2584,7 @@ function AgentsMonitorTab() {
   }
 
   if (loading) return <LoadingState />
-  if (!data) return <ErrorState title="Gagal memuat agent status" onRetry={loadData} />
+  if (!data) return <ErrorState message="Gagal memuat agent status. Coba refresh halaman." />
 
   return (
     <div className="space-y-4">
