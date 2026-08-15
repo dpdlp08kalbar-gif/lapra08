@@ -130,6 +130,15 @@ export class ScraperAgent extends BaseAgent {
       let aiFailed = 0
 
       for (const post of posts) {
+        // === DOUBLE FILTER: pastikan HANYA Laskar Prabowo 08 / LAPRA 08 ===
+        const postText = `${post.title} ${post.content}`.toLowerCase()
+        const isLapra = postText.includes('laskar prabowo 08') ||
+                        postText.includes('lapra 08') ||
+                        postText.includes('lapra08') ||
+                        postText.includes('relawan laskar prabowo 08') ||
+                        postText.includes('laskar prabowo delapan')
+        if (!isLapra) { continue } // skip non-LAPRA
+
         const existing = await db.publicOpinionLink.findUnique({ where: { url: post.url } })
         if (existing) { duplicates++; continue }
 

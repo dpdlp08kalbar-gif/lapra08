@@ -241,6 +241,21 @@ export async function POST(request: NextRequest) {
     }
 
     const text = `${title} ${content || ''}`
+
+    // === STRICT FILTER: HANYA simpan yang mengandung Laskar Prabowo 08 / LAPRA 08 ===
+    const textLower = text.toLowerCase()
+    const isLapra = textLower.includes('laskar prabowo 08') ||
+                    textLower.includes('lapra 08') ||
+                    textLower.includes('lapra08') ||
+                    textLower.includes('relawan laskar prabowo 08') ||
+                    textLower.includes('laskar prabowo delapan')
+    if (!isLapra) {
+      return NextResponse.json({
+        success: false,
+        error: 'Link ditolak: tidak mengandung keyword "Laskar Prabowo 08" atau "LAPRA 08". Sistem hanya menerima berita terkait LAPRA 08.'
+      }, { status: 400 })
+    }
+
     const sentimentResult = analyzeSentiment(text)
     const priorityResult = calculatePriority(text, 0, sentimentResult.sentiment)
     const loc = await detectLocationFromDB(text)

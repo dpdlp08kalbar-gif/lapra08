@@ -272,14 +272,19 @@ async function fetchWithTimeout(url: string, opts: RequestInit = {}): Promise<Re
 // === STRICT FILTER: HANYA simpan yang mengandung Laskar Prabowo 08 / LAPRA 08 ===
 // User instruction: "jgn memuat selain laskar prabowo 08 / lapra 08"
 // Fungsi ini dipanggil untuk SEMUA hasil (YouTube, Google News, RSS lokal)
+//
+// PERHATIAN: "laskar" saja TIDAK CUKUP — bisa match "Laskar Merah Putih" dll
+// WAJIB: "laskar prabowo 08" (frase lengkap)
 function isLapraRelevant(title: string, content: string): boolean {
   const text = `${title} ${content}`.toLowerCase()
+  // HANYA frase eksak yang diterima — tidak boleh partial match
   return text.includes('laskar prabowo 08') ||
          text.includes('lapra 08') ||
          text.includes('lapra08') ||
          text.includes('relawan laskar prabowo 08') ||
          text.includes('laskar prabowo delapan')
-  // CATATAN: "lp 08" TIDAK dipakai karena terlalu pendek → false positive
+  // DITOLAK: "laskar" (tanpa prabowo 08), "prabowo" (tanpa laskar 08),
+  // "lp 08" (terlalu pendek), "relawan" (tanpa laskar prabowo 08)
 }
 
 // === YOUTUBE SCRAPER (via Invidious API) ===
