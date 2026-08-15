@@ -9,6 +9,10 @@ import {
   isDPNLevel,
 } from '@/lib/server-helpers'
 
+// Pastikan route berjalan di Node.js runtime (bukan Edge), selalu dynamic
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
 // GET /api/members - List members (with filters, scoped to VIEW)
 export async function GET(request: NextRequest) {
   try {
