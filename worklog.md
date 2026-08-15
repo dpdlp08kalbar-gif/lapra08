@@ -2662,3 +2662,80 @@ Stage Summary:
   3. Klik tiket untuk lihat detail → tulis balasan → kirim → tersimpan ke DB
   4. Login sebagai admin → klik "Ubah Status" → pilih status baru → tersimpan
   5. Search/filter berfungsi di list tiket
+
+---
+Task ID: LAPRA08-GALERI-MEDIA-SEED-DEMO
+Agent: Main Agent (Super Z)
+Task: Aktifkan mode ahli + API Vercel gratis untuk auto-populate Galeri Foto/Video/Arsip Berita
+
+Work Log:
+- User report: "Pusat Media - galeri media blm bisa mengakses Galeri Foto, Galeri Video, Arsip Berita Penting. Coba aktifkan mode ahli dan api verser gratisnya disini"
+- User attach screenshot (pasted_image_1786761557419.png)
+
+AUDIT MENDALAM via VLM:
+- Tab Galeri Foto, Galeri Video, Arsip Berita Penting: SUDAH BISA DIKLIK (active state hijau)
+- MASALAH: Galeri Foto menampilkan "(0 foto)" — kosong, tidak ada isinya
+- User bilang "belum bisa mengakses" karena tidak ada data, bukan karena tab tidak berfungsi
+
+PENYEBAB:
+- Tabel database kosong, belum ada data gallery/video/bookmark
+- User perlu upload manual satu per satu → tidak praktis untuk demo/testing
+
+SOLUSI: Aktifkan mode ahli + Z.AI image generation API
+1. Buat API route: /api/gallery/seed-demo/route.ts
+   - Akses: SuperAdmin only (security)
+   - Generate 6 foto via Z.AI image generation (API gratis, tidak butuh API key)
+   - Setiap foto pakai prompt spesifik untuk simulasi kegiatan LAPRA 08:
+     a. Rapat Koordinasi DPN
+     b. Pelantikan Pengurus DPD Kalbar
+     c. Aksi Sosial Bakti Darah
+     d. Sosialisasi Asta Cita
+     e. Pemberdayaan Ummat
+     f. Deklarasi Kader Baru
+   - Generate 4 video YouTube embed (metadata saja, link YouTube dummy)
+   - Generate 3 arsip berita penting (dummy content relevan dengan LAPRA 08)
+   - Simpan semua ke SystemSetting dengan kategori berbeda:
+     - GALLERY (untuk foto)
+     - GALLERY_VIDEO (untuk video)
+     - NEWS_BOOKMARK (untuk arsip berita)
+
+2. Update GaleriMediaManager (portal-menus.tsx):
+   - Tambah state seedLoading + handler handleSeedDemo
+   - Tambah tombol "Generate Data Demo" (ikon Sparkles, ungu-pink gradient)
+   - Visible hanya untuk SuperAdmin (useIsSuperAdmin)
+   - Klik tombol → POST /api/gallery/seed-demo → toast sukses → auto-refresh 2 detik
+   - Loading state: spinner Loader2 + teks "Generating..."
+
+3. Fix bug export useIsSuperAdmin:
+   - Sebelumnya: function useIsSuperAdmin() — tidak di-export
+   - Sesudah: export function useIsSuperAdmin() — fix error TS2459
+
+TEKNOLOGI YANG DIGUNAKAN:
+- z-ai-web-dev-sdk (Z.AI image generation API) — gratis, tidak butuh API key
+- Import dynamic: const ZAI = (await import('z-ai-web-dev-sdk')).default
+- Image size: 1344x768 (landscape) untuk foto galeri
+- Response: base64 → simpan sebagai data URL di SystemSetting
+
+PERUBAHAN FILE:
+- src/app/api/gallery/seed-demo/route.ts (NEW, 169 lines)
+- src/components/menus/portal-menus.tsx (+71 lines: tombol Generate Data Demo, fix export useIsSuperAdmin)
+- 5 files changed, 309 insertions(+), 8 deletions(-)
+
+DATA YANG DI-GENERATE (total 13 item):
+- 6 foto dengan kategori: KEGIATAN, PELANTIKAN (x2), SOSIAL (x2), SOSIALISASI
+- 4 video dengan kategori: DOKUMENTER, PELANTIKAN, SOSIAL, SOSIALISASI
+- 3 arsip berita dengan kategori: SEJARAH, MILESTONE, REFERENSI
+
+Stage Summary:
+- Commit 5148cab di-push ke origin/main (b06cee6..5148cab)
+- Vercel auto-deploy ~1-2 menit
+- Setelah deploy: hard refresh lapra08.vercel.app
+- Test scenario:
+  1. Login sebagai Super Admin
+  2. Buka Pusat Media → Galeri Media
+  3. Klik tombol "Generate Data Demo" (ungu, kanan atas)
+  4. Tunggu ~30-60 detik (generate 6 foto via AI butuh waktu)
+  5. Toast sukses muncul → halaman auto-refresh
+  6. Galeri Foto: 6 foto AI-generated muncul
+  7. Klik tab Galeri Video: 4 video YouTube muncul
+  8. Klik tab Arsip Berita Penting: 3 berita arsip muncul
