@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
 
     const value = JSON.stringify({ id, category, q, a })
 
-    // Upsert: jika key sudah ada → update, jika belum → create
+    // Upsert: jika key sudah ada -> update, jika belum -> create
     const result = await db.systemSetting.upsert({
       where: { key: id },
       update: {

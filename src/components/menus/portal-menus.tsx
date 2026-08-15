@@ -47,7 +47,6 @@ import { HelpMenu } from '@/components/menus/help-menu'
 import { CommunicationMenu } from '@/components/menus/communication-menu'
 import { FinanceMenu } from '@/components/menus/finance-menu'
 import { LogisticsMenu } from '@/components/menus/logistics-menu'
-import { ProgramContentManager } from '@/components/menus/program-kerja-menu'
 
 // ============================================================
 // 1. BERANDA — Portal Profesional Level Internasional
@@ -296,7 +295,7 @@ function HierarchyItem({ level, desc, count, color }: any) {
 // ============================================================
 
 // --- Hook: cek apakah user adalah SUPERADMIN (reactive) ---
-export function useIsSuperAdmin() {
+function useIsSuperAdmin() {
   const [isSuperAdmin, setIsSuperAdmin] = useState(false)
   useEffect(() => {
     const check = () => setIsSuperAdmin(useAuthStore.getState().user?.role === 'SUPERADMIN')
@@ -2818,6 +2817,613 @@ function KemitraanManager() {
 }
 
 // ============================================================
+// PROGRAM CONTENT MANAGER — Reusable CRUD untuk semua tab
+// Store di SystemSetting dengan category = PROGRAM_*
+// ============================================================
+function ProgramContentManager({ title, description, icon: Icon, category, accentColor }: {
+  title: string; description: string; icon: any; category: string; accentColor: string
+}) {
+  const addToast = useToastStore((s) => s.addToast)
+  const [items, setItems] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+  const [addOpen, setAddOpen] = useState(false)
+  const [editItem, setEditItem] = useState<any>(null)
+  const [deleteItem, setDeleteItem] = useState<any>(null)
+  const [form, setForm] = useState({ title: '', description: '', location: '', date: '', status: 'DIRENCANAKAN' })
+  const [saving, setSaving] = useState(false)
+  // === State untuk PDF Upload + OCR ===
+  const [pdfUploadOpen, setPdfUploadOpen] = useState(false)
+  const [pdfFile, setPdfFile] = useState<File | null>(null)
+  const [ocrLoading, setOcrLoading] = useState(false)
+  const [ocrResult, setOcrResult] = useState<any>(null)
+  const [pdfLevel, setPdfLevel] = useState('DPN')
+  // === State untuk dynamic territory selection (dari DB Struktur Organisasi) ===
+  const [territories, setTerritories] = useState<any[]>([])
+  const [selectedProvCode, setSelectedProvCode] = useState('')
+  const [selectedRegencyCode, setSelectedRegencyCode] = useState('')
+  const [regencies, setRegencies] = useState<any[]>([])
+
+  const loadData = () => {
+    setLoading(true)
+    api('/api/gallery').then((all: any[]) => {
+      const filtered = all.filter((a: any) => a.category === category)
+      setItems(filtered)
+    }).catch(() => {}).finally(() => setLoading(false))
+  }
+  useEffect(() => { loadData() }, [])
+
+  // === Load territories dari DB saat dialog PDF dibuka ===
+  useEffect(() => {
+    if (pdfUploadOpen && territories.length === 0) {
+      api('/api/territory').then((all: any[]) => {
+        const provs = all.filter(t => t.level === 'PROVINCE')
+        const regs = all.filter(t => t.level === 'REGENCY')
+        setTerritories(provs)
+        setRegencies(regs)
+      }).catch(() => {})
+    }
+  }, [pdfUploadOpen, territories.length])
+
+  // === Update regencies saat provinsi dipilih ===
+  const filteredRegencies = selectedProvCode
+    ? regencies.filter(r => {
+        // Find province territory by code to get its ID
+        const prov = territories.find(p => p.code === selectedProvCode)
+        return prov && r.parentId === prov.id
+      })
+    : []
+
+  // === Get territory name dari code ===
+  const getTerritoryName = () => {
+    if (pdfLevel === 'DPN') return 'Pusat Nasional (DPN)'
+    if (pdfLevel === 'DPD' && selectedProvCode) {
+      const prov = territories.find(p => p.code === selectedProvCode)
+      return prov?.name || selectedProvCode
+    }
+    if (pdfLevel === 'DPC' && selectedRegencyCode) {
+      const reg = regencies.find(r => r.code === selectedRegencyCode)
+      return reg?.name || selectedRegencyCode
+    }
+    return ''
+  }
+
+  // === Get territory code untuk kirim ke API ===
+  const getTerritoryCode = () => {
+    if (pdfLevel === 'DPN') return 'ID'
+    if (pdfLevel === 'DPD') return selectedProvCode
+    if (pdfLevel === 'DPC') return selectedRegencyCode
+    return ''
+  }
+
+  // === Handle PDF Upload + OCR ===
+  const handlePdfUpload = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!pdfFile) { addToast('Pilih file PDF dulu', 'error'); return }
+    
+    // Validate territory selection
+    if (pdfLevel === 'DPD' && !selectedProvCode) { addToast('Pilih provinsi (DPD) dulu', 'error'); return }
+    if (pdfLevel === 'DPC' && !selectedRegencyCode) { addToast('Pilih kabupaten/kota (DPC) dulu', 'error'); return }
+    
+    setOcrLoading(true)
+    setOcrResult(null)
+    try {
+      const formData = new FormData()
+      formData.append('file', pdfFile)
+      formData.append('level', pdfLevel)
+      formData.append('territoryCode', getTerritoryCode())
+      formData.append('territoryName', getTerritoryName())
+      const res = await fetch('/api/program-kerja/upload-pdf', {
+        method: 'POST',
+        headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+        body: formData,
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) throw new Error(data.error)
+      setOcrResult(data.data)
+      addToast(data.message, 'success')
+    } catch (e: any) { addToast(e.message, 'error') }
+    finally { setOcrLoading(false) }
+  }
+
+  // === Save OCR result as program items ===
+  const handleSaveOcrResult = async () => {
+    if (!ocrResult) return
+    setSaving(true)
+    const territoryName = getTerritoryName() || ocrResult.territoryName || pdfLevel
+    const territoryCode = getTerritoryCode()
+    try {
+      // Save each program as separate item
+      const programs = ocrResult.programs || []
+      if (programs.length === 0) {
+        // Save as single item with summary
+        const itemData = {
+          id: `prog_${Date.now()}`,
+          title: ocrResult.title || 'Program Kerja',
+          description: ocrResult.aiSummary || ocrResult.rawOcrText || '',
+          location: territoryName,
+          date: ocrResult.period || '',
+          status: 'DIRENCANAKAN',
+          category,
+          uploadedBy: useAuthStore.getState().user?.fullName || 'Admin',
+          uploadedAt: new Date().toISOString(),
+          pdfUrl: ocrResult.fileUrl,
+          ocrResult: true,
+          level: pdfLevel,
+          territoryCode,
+        }
+        await fetch('/api/gallery', {
+          method: 'POST',
+          headers: { 'x-user-id': useAuthStore.getState().user?.id || '', 'Content-Type': 'application/json' },
+          body: JSON.stringify(itemData),
+        })
+      } else {
+        // Save each program as separate item
+        for (const prog of programs) {
+          const itemData = {
+            id: `prog_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+            title: prog.name || 'Program',
+            description: prog.description || '',
+            location: `${territoryName} | Timeline: ${prog.timeline || '-'} | Target: ${prog.target || '-'} | Anggaran: ${prog.budget || '-'}`,
+            date: ocrResult.period || '',
+            status: 'DIRENCANAKAN',
+            category,
+            uploadedBy: useAuthStore.getState().user?.fullName || 'Admin',
+            uploadedAt: new Date().toISOString(),
+            pdfUrl: ocrResult.fileUrl,
+            ocrResult: true,
+            level: pdfLevel,
+            territoryCode,
+            priority: prog.priority || 99,
+          }
+          await fetch('/api/gallery', {
+            method: 'POST',
+            headers: { 'x-user-id': useAuthStore.getState().user?.id || '', 'Content-Type': 'application/json' },
+            body: JSON.stringify(itemData),
+          })
+        }
+      }
+      addToast(`${programs.length || 1} program kerja berhasil disimpan dari PDF (${territoryName})`, 'success')
+      setPdfUploadOpen(false); setPdfFile(null); setOcrResult(null)
+      setSelectedProvCode(''); setSelectedRegencyCode('')
+      loadData()
+    } catch (e: any) { addToast(e.message, 'error') }
+    finally { setSaving(false) }
+  }
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSaving(true)
+    try {
+      const itemData = {
+        id: editItem?.id || `prog_${Date.now()}`,
+        title: form.title,
+        description: form.description,
+        location: form.location,
+        date: form.date,
+        status: form.status,
+        category,
+        uploadedBy: useAuthStore.getState().user?.fullName || 'Admin',
+        uploadedAt: new Date().toISOString(),
+      }
+
+      // Save via gallery API (JSON mode) — handles both create and update
+      const res = await fetch('/api/gallery', {
+        method: 'POST',
+        headers: { 'x-user-id': useAuthStore.getState().user?.id || '', 'Content-Type': 'application/json' },
+        body: JSON.stringify(itemData),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) throw new Error(data.error || 'Gagal menyimpan')
+
+      addToast(editItem ? 'Program diperbarui' : 'Program baru ditambahkan', 'success')
+      setForm({ title: '', description: '', location: '', date: '', status: 'DIRENCANAKAN' })
+      setAddOpen(false); setEditItem(null)
+      loadData()
+    } catch (e: any) { addToast(e.message, 'error') }
+    finally { setSaving(false) }
+  }
+
+  const handleDelete = async () => {
+    if (!deleteItem) return
+    try {
+      await fetch(`/api/gallery/${deleteItem.id}?id=${deleteItem.id}`, {
+        method: 'DELETE',
+        headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+      })
+      addToast('Program dihapus', 'success')
+      setDeleteItem(null); loadData()
+    } catch (e: any) { addToast(e.message, 'error') }
+  }
+
+  const openEditor = (item?: any) => {
+    if (item) {
+      setEditItem(item)
+      setForm({ title: item.title || '', description: item.description || '', location: item.location || '', date: item.date || '', status: item.status || 'DIRENCANAKAN' })
+    } else {
+      setEditItem(null)
+      setForm({ title: '', description: '', location: '', date: '', status: 'DIRENCANAKAN' })
+    }
+    setAddOpen(true)
+  }
+
+  if (loading) return <LoadingState />
+
+  const filtered = items.filter((a) => !search || a.title?.toLowerCase().includes(search.toLowerCase()) || a.description?.toLowerCase().includes(search.toLowerCase()))
+
+  const statusConfig: Record<string, { label: string; color: string }> = {
+    DIRENCANAKAN: { label: 'Direncanakan', color: 'bg-amber-50 text-amber-700 border-amber-200' },
+    BERJALAN: { label: 'Berjalan', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+    SELESAI: { label: 'Selesai', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+    DITUNDA: { label: 'Ditunda', color: 'bg-red-50 text-red-700 border-red-200' },
+  }
+
+  // Check if this is PROGRAM_KERJA category (supports PDF upload)
+  const supportsPdfUpload = category === 'PROGRAM_KERJA'
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${accentColor} flex items-center justify-center`}>
+              <Icon className="w-4 h-4 text-white" />
+            </div>
+            {title} ({items.length})
+          </CardTitle>
+          <div className="flex gap-2">
+            {supportsPdfUpload && (
+              <Button onClick={() => { setPdfUploadOpen(true); setOcrResult(null); setPdfFile(null) }} size="sm" variant="outline" className="bg-blue-50 border-blue-300 text-blue-700 hover:bg-blue-100">
+                <Upload className="w-4 h-4 mr-1" /> Upload PDF + OCR
+              </Button>
+            )}
+            <Button onClick={() => openEditor()} size="sm" className="bg-gradient-to-r from-orange-600 to-red-600 text-white">
+              <Plus className="w-4 h-4 mr-1" /> Tambah
+            </Button>
+          </div>
+        </div>
+        <CardDescription className="text-sm">{description}</CardDescription>
+        {supportsPdfUpload && (
+          <div className="rounded-lg bg-blue-50 border border-blue-200 p-2 text-xs text-blue-800 mt-2">
+            <strong>📋 Upload PDF Program Kerja:</strong> DPN/DPD/DPC dapat upload dokumen Program Kerja format PDF.
+            Sistem akan <strong>OCR otomatis</strong> + <strong>AI analisis</strong> untuk extract: program utama, timeline, target, anggaran, prioritas.
+          </div>
+        )}
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="relative max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input placeholder={`Cari ${title.toLowerCase()}...`} value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />
+        </div>
+        {filtered.length === 0 ? (
+          <EmptyState icon={Icon} title={`Belum ada ${title.toLowerCase()}`} description={supportsPdfUpload ? `Klik 'Upload PDF + OCR' untuk upload dokumen Program Kerja, atau 'Tambah' untuk input manual.` : `Klik 'Tambah' untuk mempublikasikan ${title.toLowerCase()}.`} />
+        ) : (
+          <div className="space-y-2">
+            {filtered.map((item) => {
+              const sc = statusConfig[item.status] || statusConfig.DIRENCANAKAN
+              return (
+                <div key={item.id} className="group relative rounded-xl border p-4 hover:shadow-md transition-all bg-white">
+                  <div className="flex items-start gap-3">
+                    <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${accentColor} flex items-center justify-center shrink-0`}>
+                      <Icon className="w-5 h-5 text-white" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-bold text-sm">{item.title}</div>
+                      {item.description && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{item.description}</p>}
+                      <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                        <Badge variant="outline" className={`text-[13px] ${sc.color}`}>{sc.label}</Badge>
+                        {item.ocrResult && <Badge variant="outline" className="text-[13px] bg-purple-50 text-purple-700">🤖 OCR</Badge>}
+                        {item.level && <Badge variant="outline" className="text-[13px] bg-blue-50 text-blue-700">{item.level}</Badge>}
+                        {item.location && <span className="text-[13px] text-muted-foreground">📍 {item.location}</span>}
+                        {item.date && <span className="text-[13px] text-muted-foreground">📅 {formatDateID(item.date)}</span>}
+                        {item.priority && <Badge variant="outline" className="text-[13px]">Prioritas #{item.priority}</Badge>}
+                      </div>
+                      {item.pdfUrl && (
+                        <a href={item.pdfUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline mt-1">
+                          <FileText className="w-3 h-3" /> Lihat PDF asli
+                        </a>
+                      )}
+                    </div>
+                    <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-blue-600 hover:bg-blue-50" onClick={() => openEditor(item)}>
+                        <Edit className="w-3.5 h-3.5" />
+                      </Button>
+                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-600 hover:bg-red-50" onClick={() => setDeleteItem(item)}>
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </CardContent>
+
+      {/* Dialog Tambah/Edit */}
+      <Dialog open={addOpen} onOpenChange={(o) => { setAddOpen(o); if (!o) setEditItem(null) }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${accentColor} flex items-center justify-center`}>
+                <Icon className="w-4 h-4 text-white" />
+              </div>
+              {editItem ? 'Edit' : 'Tambah'} {title}
+            </DialogTitle>
+            <DialogDescription>{description}</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSave} className="space-y-4">
+            <div className="space-y-2">
+              <Label>Judul *</Label>
+              <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })}
+                placeholder="cth: Program Sosialisasi MBG ke DPC" required />
+            </div>
+            <div className="space-y-2">
+              <Label>Deskripsi</Label>
+              <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
+                rows={4} placeholder="Jelaskan program/kegiatan secara detail..." />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Lokasi</Label>
+                <Input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })}
+                  placeholder="cth: Jakarta, Pontianak, dll" />
+              </div>
+              <div className="space-y-2">
+                <Label>Tanggal</Label>
+                <Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Status</Label>
+              <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="DIRENCANAKAN">Direncanakan</SelectItem>
+                  <SelectItem value="BERJALAN">Berjalan</SelectItem>
+                  <SelectItem value="SELESAI">Selesai</SelectItem>
+                  <SelectItem value="DITUNDA">Ditunda</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setAddOpen(false)}>Batal</Button>
+              <Button type="submit" disabled={saving}>
+                {saving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : null}
+                {editItem ? 'Simpan Perubahan' : 'Publikasikan'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!deleteItem} onOpenChange={(o) => !o && setDeleteItem(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus?</AlertDialogTitle>
+            <AlertDialogDescription>Yakin hapus <strong>{deleteItem?.title}</strong>?</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">Hapus</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* === Dialog Upload PDF + OCR + AI Analisis === */}
+      {supportsPdfUpload && (
+        <Dialog open={pdfUploadOpen} onOpenChange={(o) => { setPdfUploadOpen(o); if (!o) { setOcrResult(null); setPdfFile(null) } }}>
+          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Upload className="w-5 h-5 text-blue-600" /> Upload PDF Program Kerja + OCR + AI Analisis
+              </DialogTitle>
+              <DialogDescription>
+                Upload dokumen Program Kerja format PDF. Sistem akan OCR otomatis + AI analisis untuk extract program, timeline, target, anggaran, prioritas.
+              </DialogDescription>
+            </DialogHeader>
+
+            {!ocrResult && (
+              <form onSubmit={handlePdfUpload} className="space-y-3">
+                {/* Pilih Tingkat Kepengurusan (dari Struktur Organisasi) */}
+                <div className="space-y-2">
+                  <Label>Tingkat Kepengurusan *</Label>
+                  <div className="flex gap-2">
+                    {[
+                      { lvl: 'DPN', label: '🏛️ DPN', desc: 'Pusat Nasional' },
+                      { lvl: 'DPD', label: '🗺️ DPD', desc: 'Provinsi' },
+                      { lvl: 'DPC', label: '🏙️ DPC', desc: 'Kabupaten/Kota' },
+                    ].map(opt => (
+                      <button key={opt.lvl} type="button"
+                        onClick={() => { setPdfLevel(opt.lvl); setSelectedProvCode(''); setSelectedRegencyCode('') }}
+                        className={`flex-1 px-3 py-2.5 rounded-lg text-sm font-medium border transition-all ${pdfLevel === opt.lvl ? 'bg-blue-600 text-white border-blue-600' : 'border hover:bg-accent'}`}>
+                        <div className="font-semibold">{opt.label}</div>
+                        <div className={`text-[13px] ${pdfLevel === opt.lvl ? 'text-blue-100' : 'text-muted-foreground'}`}>{opt.desc}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* DPN: show static info */}
+                {pdfLevel === 'DPN' && (
+                  <div className="rounded-lg bg-blue-50 border border-blue-200 p-2 text-sm text-blue-800">
+                    🏛️ <strong>Pusat Nasional (DPN)</strong> — Program Kerja Nasional LAPRA 08
+                  </div>
+                )}
+
+                {/* DPD: dropdown provinsi dari DB Struktur Organisasi */}
+                {pdfLevel === 'DPD' && (
+                  <div className="space-y-2">
+                    <Label>Pilih DPD (Provinsi) *</Label>
+                    <Select value={selectedProvCode} onValueChange={(v) => { setSelectedProvCode(v); setSelectedRegencyCode('') }}>
+                      <SelectTrigger><SelectValue placeholder="Pilih provinsi..." /></SelectTrigger>
+                      <SelectContent>
+                        {territories.map(t => (
+                          <SelectItem key={t.code} value={t.code}>{t.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <div className="text-[13px] text-muted-foreground">
+                      {territories.length} DPD tersedia dari database Struktur Organisasi
+                    </div>
+                  </div>
+                )}
+
+                {/* DPC: dropdown provinsi → lalu dropdown kab/kota */}
+                {pdfLevel === 'DPC' && (
+                  <div className="space-y-2">
+                    <div className="space-y-1">
+                      <Label>Pilih DPD (Provinsi) *</Label>
+                      <Select value={selectedProvCode} onValueChange={(v) => { setSelectedProvCode(v); setSelectedRegencyCode('') }}>
+                        <SelectTrigger><SelectValue placeholder="Pilih provinsi dulu..." /></SelectTrigger>
+                        <SelectContent>
+                          {territories.map(t => (
+                            <SelectItem key={t.code} value={t.code}>{t.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {selectedProvCode && (
+                      <div className="space-y-1">
+                        <Label>Pilih DPC (Kabupaten/Kota) *</Label>
+                        <Select value={selectedRegencyCode} onValueChange={setSelectedRegencyCode}>
+                          <SelectTrigger><SelectValue placeholder="Pilih kabupaten/kota..." /></SelectTrigger>
+                          <SelectContent>
+                            {filteredRegencies.map(r => (
+                              <SelectItem key={r.code} value={r.code}>{r.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <div className="text-[13px] text-muted-foreground">
+                          {filteredRegencies.length} DPC tersedia di provinsi ini
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Upload file PDF */}
+                <div className="space-y-2">
+                  <Label>File PDF Program Kerja *</Label>
+                  {pdfFile ? (
+                    <div className="flex items-center gap-2 p-3 rounded-lg border bg-blue-50">
+                      <FileText className="w-5 h-5 text-blue-600" />
+                      <span className="text-sm font-medium flex-1">{pdfFile.name}</span>
+                      <span className="text-xs text-muted-foreground">{(pdfFile.size / 1024 / 1024).toFixed(1)} MB</span>
+                      <Button type="button" variant="ghost" size="sm" className="h-7 text-red-600" onClick={() => setPdfFile(null)}>
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="border-2 border-dashed rounded-xl p-8 text-center hover:border-blue-400 transition-colors cursor-pointer"
+                      onClick={() => document.getElementById('pdf-upload-input')?.click()}>
+                      <input type="file" id="pdf-upload-input" className="hidden" accept="application/pdf"
+                        onChange={(e) => setPdfFile(e.target.files?.[0] || null)} />
+                      <Upload className="w-10 h-10 text-blue-400 mx-auto mb-2" />
+                      <div className="text-sm font-medium">Klik untuk pilih file PDF</div>
+                      <div className="text-xs text-muted-foreground mt-1">Maksimal 20MB • Format PDF</div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Info cara kerja */}
+                <div className="rounded-lg bg-blue-50 border border-blue-200 p-2 text-xs text-blue-800">
+                  <strong>📋 Cara kerja:</strong>
+                  <ol className="list-decimal ml-4 mt-1 space-y-0.5">
+                    <li>Pilih tingkat: DPN / DPD / DPC (terhubung ke database Struktur Organisasi)</li>
+                    <li>Pilih wilayah spesifik (provinsi/kab-kota dari DB)</li>
+                    <li>Upload PDF Program Kerja</li>
+                    <li>Sistem OCR otomatis baca isi PDF via VLM (Vision Language Model)</li>
+                    <li>AI analisis: extract program, timeline, target, anggaran, prioritas</li>
+                    <li>Preview hasil → konfirmasi → simpan</li>
+                  </ol>
+                </div>
+
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => setPdfUploadOpen(false)}>Batal</Button>
+                  <Button type="submit" disabled={!pdfFile || ocrLoading || (pdfLevel === 'DPD' && !selectedProvCode) || (pdfLevel === 'DPC' && !selectedRegencyCode)} className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
+                    {ocrLoading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Sparkles className="w-4 h-4 mr-1" />}
+                    {ocrLoading ? 'OCR + AI menganalisis...' : 'Upload & OCR'}
+                  </Button>
+                </DialogFooter>
+              </form>
+            )}
+
+            {/* OCR Result Preview */}
+            {ocrResult && (
+              <div className="space-y-3">
+                <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-sm text-emerald-800">
+                  <CheckCircle2 className="w-4 h-4 inline mr-1" />
+                  <strong>OCR + AI Analisis berhasil!</strong> Berikut hasil extract dari PDF:
+                </div>
+
+                {/* Document info */}
+                <div className="rounded-lg border p-3 space-y-2">
+                  <div className="font-bold text-sm">{ocrResult.title || '(No title extracted)'}</div>
+                  <div className="flex items-center gap-2 flex-wrap text-xs">
+                    <Badge variant="outline" className="bg-blue-50 text-blue-700">{ocrResult.level || pdfLevel}</Badge>
+                    {ocrResult.territoryName && <Badge variant="outline">{ocrResult.territoryName}</Badge>}
+                    {ocrResult.period && <Badge variant="outline">{ocrResult.period}</Badge>}
+                  </div>
+                  {ocrResult.aiSummary && (
+                    <p className="text-sm text-muted-foreground italic mt-2">{ocrResult.aiSummary}</p>
+                  )}
+                </div>
+
+                {/* Extracted programs */}
+                {ocrResult.programs && ocrResult.programs.length > 0 ? (
+                  <div>
+                    <div className="text-sm font-semibold mb-2">📋 Program Terdeteksi ({ocrResult.programs.length}):</div>
+                    <div className="space-y-2 max-h-60 overflow-y-auto">
+                      {ocrResult.programs.map((prog: any, i: number) => (
+                        <div key={i} className="rounded border p-2 text-xs">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="font-semibold">{i + 1}. {prog.name}</span>
+                            {prog.priority && <Badge variant="outline" className="text-[13px]">Prioritas #{prog.priority}</Badge>}
+                          </div>
+                          {prog.description && <p className="text-muted-foreground">{prog.description}</p>}
+                          <div className="flex items-center gap-2 mt-1 text-[13px] text-muted-foreground">
+                            {prog.timeline && <span>📅 {prog.timeline}</span>}
+                            {prog.target && <span>👥 {prog.target}</span>}
+                            {prog.budget && <span>💰 {prog.budget}</span>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-sm text-muted-foreground italic">Tidak ada program terdeteksi dalam struktur. AI summary akan disimpan sebagai deskripsi.</div>
+                )}
+
+                {/* Top priorities */}
+                {ocrResult.topPriorities && ocrResult.topPriorities.length > 0 && (
+                  <div>
+                    <div className="text-sm font-semibold mb-1">⚡ Prioritas Utama:</div>
+                    <div className="flex flex-wrap gap-1">
+                      {ocrResult.topPriorities.map((p: string, i: number) => (
+                        <Badge key={i} variant="outline" className="text-[13px] bg-amber-50 text-amber-700">{i + 1}. {p}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => { setOcrResult(null); setPdfFile(null) }}>Upload Ulang</Button>
+                  <Button type="button" onClick={handleSaveOcrResult} disabled={saving} className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
+                    {saving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-1" />}
+                    {saving ? 'Menyimpan...' : `Simpan ${ocrResult.programs?.length || 1} Program`}
+                  </Button>
+                </DialogFooter>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+      )}
+    </Card>
+  )
+}
+
+// ============================================================
 // 5. LAYANAN & ADVOKASI — KTA, Pengaduan, Bantuan Hukum, Help
 // ============================================================
 export function LayananAdvokasiMenu() {
@@ -4349,7 +4955,7 @@ function HubungiKamiManager() {
 
 // ----- FAQ -----
 // FAQ dapat diedit (CRUD) hanya oleh Super Admin. User lain hanya lihat (read-only).
-// FAQ disimpan ke database via /api/faq. Jika database kosong, fallback ke 12 FAQ default hardcoded.
+// FAQ disimpan ke database via /api/faq. Jika database kosong, fallback ke 20 FAQ default hardcoded.
 function FaqManager() {
   const addToast = useToastStore((s) => s.addToast)
   const isSuperAdmin = useIsSuperAdmin()
@@ -4363,19 +4969,33 @@ function FaqManager() {
   const [deleteConfirm, setDeleteConfirm] = useState<any>(null) // null | faq
   const [form, setForm] = useState({ id: '', category: 'KEANGGOTAAN', q: '', a: '' })
 
+  // === 20 FAQ default (12 lama + 8 baru) ===
   const DEFAULT_FAQS = [
+    // ===== KEANGGOTAAN (4) =====
     { id: 'faq_1', category: 'KEANGGOTAAN', q: 'Bagaimana cara mendaftar menjadi anggota LAPRA 08?', a: 'Pendaftaran anggota LAPRA 08 dilakukan melalui DPC setempat (Kabupaten/Kota). Anda dapat mengunjungi sekretariat DPC di wilayah Anda, mengisi formulir pendaftaran, melampirkan fotokopi KTP dan pas foto, serta membayar iuran pendaftaran. Setelah diverifikasi, Anda akan menerima KTA (Kartu Tanda Anggota) digital dengan format unik LAPRA08.[NEGARA].[PROVINSI].[KAB/KOTA].[TAHUN].[URUT].' },
     { id: 'faq_2', category: 'KEANGGOTAAN', q: 'Apakah anggota luar negeri bisa mendaftar?', a: 'Ya. LAPRA 08 memiliki DPD di 5 negara (Amerika Serikat, Cina, Malaysia, Arab Saudi, dan Australia). Warga Indonesia yang berdomisili di negara tersebut dapat mendaftar melalui DPD setempat. Format KTA internasional menggunakan kode negara setempat, misalnya LAPRA08.US.00.LAX.26.00001 untuk anggota di Los Angeles.' },
     { id: 'faq_3', category: 'KEANGGOTAAN', q: 'Berapa iuran anggota LAPRA 08?', a: 'Iuran anggota dibagi menjadi beberapa kategori: (1) Iuran bulanan anggota biasa Rp 25.000/bulan; (2) Iuran bulanan pengurus Rp 50.000/bulan; (3) Iuran tahunan dapat dibayar di muka dengan diskon. Iuran dapat dibayarkan melalui transfer ke rekening resmi DPC atau via QRIS. Khusus anggota luar negeri, iuran setara USD 5/bulan.' },
+    { id: 'faq_13', category: 'KEANGGOTAAN', q: 'Bagaimana cara memperbarui data anggota jika ada perubahan (nama, alamat, no HP)?', a: 'Perubahan data anggota dapat dilakukan melalui DPC setempat dengan mengisi formulir "Permohonan Update Data Anggota" dan melampirkan dokumen pendukung (KTP baru, bukti domisili, dll). Update data diproses maksimal 3 hari kerja. Jika anggota berdomisili di luar negeri, permohonan dapat dikirim via email ke DPD setempat dengan scan dokumen yang telah dilegalisasi oleh KBRI.' },
+    { id: 'faq_14', category: 'KEANGGOTAAN', q: 'Apa yang harus dilakukan jika KTA digital hilang atau tidak bisa diakses?', a: 'Jika KTA digital hilang/tidak bisa diakses, laporkan ke DPC setempat atau gunakan menu "Layanan KTA" > "Lapor KTA Bermasalah". Sistem akan memverifikasi identitas Anda dan menerbitkan ulang KTA digital dalam 1x24 jam. Untuk KTA fisik yang hilang, biaya cetak ulang Rp 25.000. Pastikan data kontak (HP/email) selalu aktif agar proses verifikasi cepat.' },
+    // ===== STRUKTUR (3) =====
     { id: 'faq_4', category: 'STRUKTUR', q: 'Apa saja tingkatan struktur pengurus LAPRA 08?', a: 'Struktur LAPRA 08 terdiri dari 5 tingkat: (1) DPN (Dewan Pimpinan Pusat) di tingkat nasional; (2) Koorwil (Koordinator Wilayah) yang membawahi 7 wilayah Indonesia + 1 LN; (3) DPD (Dewan Pimpinan Daerah) di tingkat provinsi/negara LN; (4) Koor DPD (Koordinator Region) yang membawahi kelompok DPC; (5) DPC (Dewan Pimpinan Cabang) di tingkat kabupaten/kota. Total ada 38 provinsi + IKN + 5 negara LN.' },
     { id: 'faq_5', category: 'STRUKTUR', q: 'Siapa Ketua Umum DPN LAPRA 08 periode 2024-2029?', a: 'Pengurus DPN LAPRA 08 periode 2024-2029 dipimpin oleh Dr. (HC) Hashim S. Djojohadikusumo sebagai Ketua Dewan Pembina, dan Devi Taurisa, S.H., M.H., C.L.D. sebagai Ketua Umum DPN. Sekretaris Jenderal dijabat oleh Brigjen. Pol. (Purn) Dr. R. Nurhadi, S.I.K., M.Si., CHRMP, dan Bendahara Umum adalah Timmy Rorimpandey, S.E., M.M. Pembaruan pengurus inti dilakukan pada Maret 2026.' },
+    { id: 'faq_15', category: 'STRUKTUR', q: 'Bagaimana cara menjadi pengurus di DPC atau DPD?', a: 'Untuk menjadi pengurus, anggota harus: (1) Telah bergabung minimal 6 bulan; (2) Aktif mengikuti kegiatan organisasi; (3) Bersedia menjabat minimal 1 periode (2 tahun). Pemilihan pengurus dilakukan melalui Musyawarah Cabang/Daerah. Calon dapat diajukan oleh anggota lain atau mengajukan diri sendiri melalui formulir "Lamaran Pengurus" di DPC/DPD setempat. Keputusan final melalui voting pengurus inti.' },
+    // ===== PROGRAM & KEGIATAN (3) =====
     { id: 'faq_6', category: 'PROGRAM', q: 'Apa program unggulan LAPRA 08?', a: 'Program unggulan LAPRA 08 meliputi: (1) Sosialisasi Asta Cita Presiden Prabowo ke seluruh DPD di 38 provinsi; (2) Penguatan kader DPC se-Indonesia melalui pelatihan rutin; (3) Aksi sosial seperti bakti sosial, donor darah, dan distribusi sembako; (4) Kemitraan dengan ummat, ormas Islam, kementerian, dan BUMN untuk program CSR; (5) Digitalisasi sistem informasi internal untuk efisiensi administrasi.' },
     { id: 'faq_7', category: 'PROGRAM', q: 'Bagaimana cara mengajukan proposal kemitraan dengan LAPRA 08?', a: 'Proposal kemitraan dapat diajukan melalui email resmi sekretariat@lapra08.id dengan subject "Proposal Kemitraan - [Nama Institusi]". Lampirkan profil institusi, latar belakang kemitraan, lingkup kerja sama, dan expected outcomes. Tim Sekretariat DPN akan melakukan review dalam 14 hari kerja dan menghubungi Anda untuk diskusi lebih lanjut jika proposal memenuhi kriteria.' },
+    { id: 'faq_16', category: 'PROGRAM', q: 'Bagaimana mekanisme pelaporan kegiatan (LPJ) setelah event selesai?', a: 'Setiap kegiatan yang dibiayai organisasi wajib membuat Laporan Pertanggungjawaban (LPJ) maksimal 7 hari setelah event selesai. LPJ berisi: (1) Laporan pelaksanaan (foto/video bukti); (2) Laporan keuangan (kuitansi, nota, bukti transfer); (3) Daftar hadir peserta; (4) Evaluasi dan rekomendasi. Upload melalui menu "Program & Kegiatan" > pilih program > "Upload Bukti Pelaksanaan". LPJ yang tidak disampaikan akan menghambat pencairan dana kegiatan berikutnya.' },
+    // ===== LAYANAN & ADVOKASI (3) =====
     { id: 'faq_8', category: 'LAYANAN', q: 'Bagaimana cara mengajukan pengaduan atau aspirasi?', a: 'Pengaduan dan aspirasi dapat disampaikan melalui: (1) Formulir "Hubungi Kami" di menu Kontak & Sekretariat; (2) Pusat Pengaduan & Aspirasi di menu Layanan & Advokasi; (3) WhatsApp resmi DPC setempat; (4) Surat resmi ke sekretariat DPN. Setiap pengaduan akan ditindaklanjuti dalam 1x24 jam (kasus normal) atau 2 jam (kasus urgent). Identitas pelapor dilindungi sesuai kebijakan privasi.' },
     { id: 'faq_9', category: 'LAYANAN', q: 'Apakah LAPRA 08 menyediakan bantuan hukum untuk anggota?', a: 'Ya, LAPRA 08 menyediakan layanan bantuan hukum untuk anggota yang menghadapi kasus hukum terkait aktivitas keorganisasian. Layanan ini diakses melalui menu "Bantuan Hukum" di Layanan & Advokasi. Tim advokasi DPN akan melakukan assessment kasus, memberikan konsultasi awal gratis, dan jika diperlukan, merujuk ke pengacara mitra dengan tarif khusus untuk anggota.' },
+    { id: 'faq_17', category: 'LAYANAN', q: 'Bagaimana cara mengajukan proposal bantuan dana kegiatan?', a: 'Proposal bantuan dana dapat diajukan melalui menu "Layanan & Advokasi" > "Pengajuan Proposal". Setiap proposal harus berisi: (1) Latar belakang kegiatan; (2) Tujuan dan target peserta; (3) Rincian anggaran (maksimal Rp 50 juta untuk DPC, Rp 200 juta untuk DPD); (4) Jadwal pelaksanaan; (5) Komitmen LPJ. Proposal dievaluasi tim Sekretariat DPN dalam 14 hari kerja. Dana dicairkan 50% di awal, 50% setelah LPJ disetujui.' },
+    // ===== LAINNYA (4) =====
     { id: 'faq_10', category: 'LAINNYA', q: 'Bagaimana cara mendapatkan KTA digital?', a: 'KTA digital diterbitkan secara otomatis setelah pendaftaran anggota diverifikasi oleh pengurus DPC. KTA dapat diakses melalui menu "Layanan KTA" di portal LAPRA 08. Format KTA: LAPRA08.[NEGARA].[PROVINSI].[KAB/KOTA].[TAHUN].[URUT]. KTA digital berisi QR code untuk verifikasi keaslian, foto anggota, dan data keanggotaan. KTA fisik dapat dicetak di DPC dengan biaya Rp 25.000.' },
     { id: 'faq_11', category: 'LAINNYA', q: 'Apakah portal LAPRA 08 bisa diakses publik?', a: 'Portal LAPRA 08 bersifat semi-publik. Beranda, Profil, Pusat Media (berita & galeri), dan Program & Kegiatan dapat diakses publik. Sedangkan menu operasional seperti Dashboard, Pusat Data Organisasi, Logistik, Komunikasi, Keuangan, dan User hanya dapat diakses oleh pengurus yang telah login dengan role yang sesuai (SUPERADMIN, ADMIN_DPN, ADMIN_KOORWIL, ADMIN_DPD, ADMIN_KOOR_DPD, ADMIN_DPC). Isolasi data otomatis diterapkan sesuai hierarki wilayah.' },
     { id: 'faq_12', category: 'LAINNYA', q: 'Bagaimana cara melaporkan kendala teknis portal?', a: 'Kendala teknis dapat dilaporkan melalui menu "Pusat Bantuan & Tiket" di Layanan & Advokasi. Pilih kategori "Bug/Error Sistem" atau "Permintaan Fitur", sertakan tangkapan layar dan langkah reproduksi jika memungkinkan. Tim IT DPN akan merespons dalam 4 jam kerja. Untuk kendala kritis (sistem tidak bisa diakses), hubungi hotline IT DPN di +62 811-9090-08 (24/7).' },
+    { id: 'faq_18', category: 'LAINNYA', q: 'Bagaimana cara mengajukan izin kegiatan yang melibatkan massa besar (>100 orang)?', a: 'Kegiatan dengan peserta >100 orang wajib: (1) Mengajukan permohonan izin ke DPC setempat minimal 14 hari sebelum event; (2) Mendapatkan rekomendasi dari DPD; (3) Berkoordinasi dengan kepolisian dan Pemda setempat; (4) Menyiapkan tim keamanan (minimal 1 petugas per 50 peserta); (5) Membuat protokol K3 dan jalur evakuasi. Formulir permohonan tersedia di menu "Layanan & Advokasi" > "Permohonan Izin Kegiatan".' },
+    { id: 'faq_19', category: 'LAINNYA', q: 'Apakah ada aplikasi mobile LAPRA 08 untuk Android/iOS?', a: 'Saat ini portal LAPRA 08 dioptimalkan untuk akses mobile melalui browser (responsive web design). Aplikasi mobile native (Android/iOS) sedang dalam tahap pengembangan dan rencananya akan dirilis Q1 2027. Fitur yang akan tersedia di app mobile: login biometrik, push notification, KTA digital dengan QR code, check-in event via QR scanner, dan offline mode untuk akses data dasar. Update akan diumumkan melalui portal dan grup WhatsApp resmi.' },
+    { id: 'faq_20', category: 'LAINNYA', q: 'Bagaimana kebijakan privasi dan keamanan data anggota di portal LAPRA 08?', a: 'Data anggota dilindungi sesuai UU PDP No. 27 Tahun 2022. Kebijakan: (1) Data anggota hanya dapat diakses oleh pengurus dengan otorisasi sesuai hierarki wilayah; (2) Data sensitif (no KTP, alamat lengkap) dienkripsi di database; (3) Setiap akses dicatat dalam audit log; (4) Anggota dapat request akses/hapus data (GDPR-style) melalui menu "Pengaturan" > "Privasi Data"; (5) Tidak ada data yang dibagikan ke pihak ketiga tanpa persetujuan tertulis anggota.' },
   ]
 
   // === Load FAQ from API. Jika database kosong, gunakan DEFAULT_FAQS ===
@@ -4388,7 +5008,7 @@ function FaqManager() {
           const parsed = data.map((item: any) => item.value || item).filter(Boolean)
           setFaqs(parsed)
         } else {
-          // Database kosong → pakai default (Super Admin bisa edit, nanti disimpan ke DB)
+          // Database kosong -> pakai default (Super Admin bisa edit, nanti disimpan ke DB)
           setFaqs(DEFAULT_FAQS)
         }
       })
@@ -4401,7 +5021,7 @@ function FaqManager() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // === Handler: Simpan FAQ (create or update) — Super Admin only ===
+  // === Handler: Simpan FAQ (create or update) - Super Admin only ===
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!form.q.trim() || !form.a.trim()) {
@@ -4426,7 +5046,7 @@ function FaqManager() {
     }
   }
 
-  // === Handler: Hapus FAQ — Super Admin only ===
+  // === Handler: Hapus FAQ - Super Admin only ===
   const handleDelete = async () => {
     if (!deleteConfirm) return
     try {
@@ -4456,7 +5076,7 @@ function FaqManager() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <HelpCircle className="w-4 h-4 text-emerald-600" /> FAQ - Pertanyaan yang Sering Diajukan ({filtered.length})
-          {/* === Tombol "Tambah FAQ" — Super Admin only === */}
+          {/* === Tombol "Tambah FAQ" - Super Admin only === */}
           {isSuperAdmin && (
             <Button size="sm" className="ml-auto bg-emerald-600 hover:bg-emerald-700 text-white"
               onClick={() => { setEditDialog({ isNew: true }); setForm({ id: '', category: 'KEANGGOTAAN', q: '', a: '' }) }}>
@@ -4506,7 +5126,7 @@ function FaqManager() {
                     </div>
                     <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform shrink-0 mt-1 ${isOpen ? 'rotate-90' : ''}`} />
                   </button>
-                  {/* === Tombol Edit/Hapus — Super Admin only === */}
+                  {/* === Tombol Edit/Hapus - Super Admin only === */}
                   {isSuperAdmin && (
                     <div className="flex flex-col gap-1 p-2 border-l bg-slate-50/50 justify-center">
                       <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-blue-600 hover:bg-blue-50"
@@ -4538,7 +5158,7 @@ function FaqManager() {
         {filtered.length === 0 && <EmptyState icon={HelpCircle} title="Tidak ada FAQ cocok" description="Coba kata kunci lain atau hubungi sekretariat langsung." />}
       </CardContent>
 
-      {/* === Dialog Tambah/Edit FAQ — Super Admin only === */}
+      {/* === Dialog Tambah/Edit FAQ - Super Admin only === */}
       <Dialog open={!!editDialog} onOpenChange={(o) => { if (!o) { setEditDialog(null); setForm({ id: '', category: 'KEANGGOTAAN', q: '', a: '' }) } }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
