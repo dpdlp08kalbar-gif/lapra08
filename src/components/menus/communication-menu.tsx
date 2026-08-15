@@ -1539,6 +1539,23 @@ function EssayPollsTab() {
   const [loadingManualSuggestions, setLoadingManualSuggestions] = useState(false)
   // === State untuk topic suggestions (auto-fill inspirasi) ===
   const [topicSuggestions, setTopicSuggestions] = useState<any>(null)
+
+  // === BANNER: Pengingat survei harus netral ===
+  const neutralityBanner = (
+    <div className="rounded-lg bg-amber-50 border-2 border-amber-300 p-3 flex items-start gap-3">
+      <Shield className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+      <div className="flex-1">
+        <div className="font-bold text-amber-800 text-sm">
+          🔒 Survei Opini Publik — Netral & Anonim
+        </div>
+        <p className="text-xs text-amber-700 mt-1">
+          Pertanyaan survei <strong>TIDAK boleh menyebut</strong> "Laskar Prabowo 08" atau "LAPRA 08". 
+          Responden harus merasa bebas menjawab jujur tanpa tekanan. 
+          Sistem AI sudah otomatis menghapus nama organisasi dari pertanyaan yang di-generate.
+        </p>
+      </div>
+    </div>
+  )
   const [showTopicSuggestions, setShowTopicSuggestions] = useState(false)
   const [activeCategory, setActiveCategory] = useState<string | null>(null)
 
@@ -1622,7 +1639,7 @@ function EssayPollsTab() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
         body: JSON.stringify({
-          sourceTopic: 'Survei opini publik umum LAPRA 08',
+          sourceTopic: 'Survei opini publik umum',
           count: 5,
         }),
       })
@@ -1707,6 +1724,8 @@ function EssayPollsTab() {
 
   return (
     <div className="space-y-4">
+      {neutralityBanner}
+
       {/* Header */}
       <Card className="border-purple-200 bg-gradient-to-br from-purple-50 to-pink-50">
         <CardContent className="p-5">

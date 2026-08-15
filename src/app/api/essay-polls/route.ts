@@ -106,6 +106,9 @@ export async function POST(request: NextRequest) {
         targetOccupation = selectedSuggestion.targetOccupation || detectedOccupation
         approachLabel = selectedSuggestion.approach || 'direct'
         llmSuccess = true
+        // === NEUTRALITY FILTER: hapus nama organisasi dari pertanyaan yang dilihat publik ===
+        aiTitle = aiTitle.replace(/LAPRA\s*08/gi, '').replace(/Laskar\s*Prabowo\s*08/gi, '').replace(/\s+/g, ' ').trim()
+        aiQuestion = aiQuestion.replace(/LAPRA\s*08/gi, 'pemerintah dan pemimpin daerah').replace(/Laskar\s*Prabowo\s*08/gi, 'pemerintah dan pemimpin daerah').replace(/\s+/g, ' ').trim()
       } else {
         // Fallback: try LLM single generation (lama)
         try {
@@ -128,12 +131,16 @@ export async function POST(request: NextRequest) {
           const sentimentLabel = sentimentResult.sentiment === 'NEGATIVE' ? 'keprihatinan' :
                                 sentimentResult.sentiment === 'POSITIVE' ? 'apresiasi' : 'pandangan netral'
           aiTitle = `Survei Opini ${targetOccupation !== 'UMUM' ? targetOccupation.charAt(0) + targetOccupation.slice(1).toLowerCase() : 'Publik'}: ${sourceTopic || 'Isu Terkini'} di ${locName}`
-          aiQuestion = `Sebagai ${targetOccupation !== 'UMUM' ? targetOccupation.toLowerCase() : 'warga'} di ${locName}, apa ${sentimentLabel} Anda tentang "${sourceTopic || 'isu terkini'}"? Jelaskan dampaknya pada kehidupan sehari-hari Anda, serta solusi konkret yang Anda harapkan dari pemerintah dan LAPRA 08.`
+          aiQuestion = `Sebagai ${targetOccupation !== 'UMUM' ? targetOccupation.toLowerCase() : 'warga'} di ${locName}, apa ${sentimentLabel} Anda tentang "${sourceTopic || 'isu terkini'}"? Jelaskan dampaknya pada kehidupan sehari-hari Anda, serta solusi konkret yang Anda harapkan dari pemerintah dan pemimpin daerah.`
           aiDescription = `Survei otomatis (fallback template). Sentimen: ${sentimentResult.sentiment}. Target: ${targetOccupation} di ${locName}. Sumber: ${sourceUrl || 'topik manual'}.`
         }
       }
 
       const targetScope = loc.regencyCode ? 'REGENCY' : loc.provinceCode ? 'PROVINCE' : 'NATIONAL'
+
+      // === FINAL NEUTRALITY CHECK: hapus semua nama organisasi sebelum simpan ke DB ===
+      aiTitle = aiTitle.replace(/LAPRA\s*08/gi, '').replace(/Laskar\s*Prabowo\s*08/gi, '').replace(/\s+/g, ' ').trim()
+      aiQuestion = aiQuestion.replace(/LAPRA\s*08/gi, 'pemerintah dan pemimpin daerah').replace(/Laskar\s*Prabowo\s*08/gi, 'pemerintah dan pemimpin daerah').replace(/\s+/g, ' ').trim()
 
       const poll = await db.essayPoll.create({
         data: {

@@ -578,7 +578,7 @@ export function generateMultipleEssayQuestionsTemplate(params: {
     },
     {
       title: `Survei Solusi: ${sourceTopic.substring(0, 50)}`,
-      question: `Terhadap isu "${sourceTopic}" di ${locName}, solusi konkret apa yang Anda harapkan dari pemerintah dan LAPRA 08? Apa peran yang bisa Anda mainkan?`,
+      question: `Terhadap isu "${sourceTopic}" di ${locName}, solusi konkret apa yang Anda harapkan dari pemerintah dan pemimpin daerah? Apa peran yang bisa Anda mainkan sebagai warga?`,
       description: `Pendekatan solution-oriented. Minta usulan solusi konkret.`,
       targetOccupation: detectedOccupation,
       approach: 'solution-oriented',
