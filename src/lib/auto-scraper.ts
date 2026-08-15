@@ -55,17 +55,10 @@ const ORG_VARIANTS = [
   'Relawan Laskar Prabowo 08',
 ]
 
-// === BROADENED: tambah keyword terkait Prabowo untuk menjangkau berita lebih luas ===
-// FIX: "LAPRA 08 Kalimantan Barat" → 0 hasil di Google News
-// Tapi "Prabowo relawan Kalimantan Barat" → 8+ hasil
-const BROAD_KEYWORDS = [
-  'Prabowo relawan',
-  'Prabowo pendukung',
-  'Prabowo konsolidasi',
-  'Prabowo pemenangan',
-  'Gerindra',
-  'Prabowo Gibran',
-]
+// === HANYA LAPRA 08 / Laskar Prabowo 08 — tidak boleh menangkap organisasi lain ===
+// User instruction: "ingat jgn memuat selain laskar prabowo 08"
+// Tidak pakai broad keywords seperti "Prabowo relawan" / "Gerindra" / "Prabowo Gibran"
+// Hanya varian nama LAPRA 08 yang resmi
 
 // === 38 PROVINSI + KOTA UTAMA + TOKOH LOKAL + INSTITUSI ===
 // Format: { prov, nickname, kota, kodim, kejati, dprd }
