@@ -2098,10 +2098,15 @@ function ShareToSocialMediaDialog({ poll, onClose }: { poll: any; onClose: () =>
 // ============================================================
 function OpinionLinksTab() {
   const addToast = useToastStore((s) => s.addToast)
+  const user = useAuthStore((s) => s.user)
   const [links, setLinks] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [filters, setFilters] = useState({ platform: '', sentiment: '', priority: '', status: '' })
   const [reviewOpen, setReviewOpen] = useState<any>(null)
+  const [generatingKonter, setGeneratingKonter] = useState<string | null>(null)
+  // === NEW: Bulk select state ===
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkActionOpen, setBulkActionOpen] = useState(false)
 
   const loadData = useCallback(() => {
     setLoading(true)
@@ -2130,6 +2135,116 @@ function OpinionLinksTab() {
     } catch (e: any) { addToast(e.message, 'error') }
   }
 
+  // === NEW: Auto-Triage Sort (by urgency, then by priority, then by sentiment) ===
+  // FAN-OUT #1: Triage Agent — sort otomatis, link paling kritis di atas
+  const sortedLinks = [...links].sort((a, b) => {
+    // 1. Urgency score descending (paling kritis di atas)
+    const urgencyA = a.urgencyScore || 0
+    const urgencyB = b.urgencyScore || 0
+    if (urgencyB !== urgencyA) return urgencyB - urgencyA
+    // 2. Priority HIGH > MEDIUM > LOW
+    const prioOrder: Record<string, number> = { HIGH: 3, MEDIUM: 2, LOW: 1 }
+    if ((prioOrder[b.priority] || 0) !== (prioOrder[a.priority] || 0)) {
+      return (prioOrder[b.priority] || 0) - (prioOrder[a.priority] || 0)
+    }
+    // 3. Sentiment NEGATIVE > NEUTRAL > POSITIVE (negatif lebih urgent)
+    const sentOrder: Record<string, number> = { NEGATIVE: 3, NEUTRAL: 2, POSITIVE: 1 }
+    if ((sentOrder[b.sentiment] || 0) !== (sentOrder[a.sentiment] || 0)) {
+      return (sentOrder[b.sentiment] || 0) - (sentOrder[a.sentiment] || 0)
+    }
+    // 4. Engagement count descending (lebih viral lebih urgent)
+    return (b.engagementCount || 0) - (a.engagementCount || 0)
+  })
+
+  // === NEW: Generate Konter Isu per link (Fan-Out #2 trigger) ===
+  const handleGenerateKonter = async (linkId: string) => {
+    setGeneratingKonter(linkId)
+    try {
+      const res = await fetch(`/api/opinion-links/${linkId}/counter-issue`, {
+        method: 'POST',
+        headers: { 'x-user-id': user?.id || '' },
+      })
+      const data = await res.json()
+      if (!data.success) throw new Error(data.error)
+      addToast(`Draft konter isu dibuat (${data.data.aiProvider}). Lihat di Broadcast Composer.`, 'success')
+      loadData() // refresh list (status berubah ke ADDRESSED)
+    } catch (e: any) {
+      addToast(`Gagal generate konter: ${e.message}`, 'error')
+    } finally {
+      setGeneratingKonter(null)
+    }
+  }
+
+  // === NEW: Bulk Action — Generate Konter untuk semua HIGH+NEGATIVE selected ===
+  const handleBulkGenerateKonter = async () => {
+    const selected = Array.from(selectedIds)
+    if (selected.length === 0) {
+      addToast('Pilih minimal 1 link dulu', 'warning')
+      return
+    }
+    setBulkActionOpen(false)
+    addToast(`Memproses ${selected.length} link. Mohon tunggu...`, 'info')
+    // Process sequential (anti 429) — jeda 5 detik per LLM call
+    let success = 0, failed = 0
+    for (const linkId of selected) {
+      try {
+        const res = await fetch(`/api/opinion-links/${linkId}/counter-issue`, {
+          method: 'POST',
+          headers: { 'x-user-id': user?.id || '' },
+        })
+        if (res.ok) success++
+        else failed++
+        // Jeda 5 detik antar call (anti 429 Gemini Free 15 RPM)
+        if (selected.length > 1) await new Promise(r => setTimeout(r, 5000))
+      } catch {
+        failed++
+      }
+    }
+    addToast(`Selesai: ${success} draft dibuat, ${failed} gagal`, success > 0 ? 'success' : 'error')
+    setSelectedIds(new Set())
+    loadData()
+  }
+
+  // === NEW: Bulk mark all selected as REVIEWED ===
+  const handleBulkMarkReviewed = async () => {
+    const selected = Array.from(selectedIds)
+    if (selected.length === 0) return
+    setBulkActionOpen(false)
+    try {
+      // Sequential update (anti 504 — jangan Promise.all 50 request)
+      for (const linkId of selected) {
+        await fetch(`/api/opinion-links/${linkId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'x-user-id': user?.id || '' },
+          body: JSON.stringify({ status: 'REVIEWED', reviewNotes: 'Bulk marked as reviewed' }),
+        })
+      }
+      addToast(`${selected.length} link ditandai REVIEWED`, 'success')
+      setSelectedIds(new Set())
+      loadData()
+    } catch (e: any) {
+      addToast(`Gagal bulk review: ${e.message}`, 'error')
+    }
+  }
+
+  // === NEW: Quick select helpers ===
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+  const selectAllHighNeg = () => {
+    const highNeg = sortedLinks
+      .filter(l => l.priority === 'HIGH' && l.sentiment === 'NEGATIVE' && l.status === 'NEW')
+      .map(l => l.id)
+    setSelectedIds(new Set(highNeg))
+  }
+  const selectAll = () => setSelectedIds(new Set(sortedLinks.map(l => l.id)))
+  const clearSelection = () => setSelectedIds(new Set())
+
   if (loading) return <LoadingState />
 
   const platformIcon = (p: string) => {
@@ -2138,8 +2253,35 @@ function OpinionLinksTab() {
     return <Globe className="w-3.5 h-3.5" />
   }
 
+  // === NEW: Auto-Triage stats ===
+  const stats = {
+    total: links.length,
+    highNeg: links.filter(l => l.priority === 'HIGH' && l.sentiment === 'NEGATIVE').length,
+    highNegNew: links.filter(l => l.priority === 'HIGH' && l.sentiment === 'NEGATIVE' && l.status === 'NEW').length,
+    belumDireview: links.filter(l => l.status === 'NEW').length,
+  }
+
   return (
     <div className="space-y-4">
+      {/* === AUTO-TRIAGE ALERT BANNER === */}
+      {stats.highNegNew > 0 && (
+        <div className="rounded-lg bg-red-50 border-2 border-red-300 p-3 flex items-start gap-3">
+          <Zap className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <div className="font-bold text-red-800 text-sm">
+              ⚠️ {stats.highNegNew} link HIGH+NEGATIVE belum direview!
+            </div>
+            <p className="text-xs text-red-700 mt-1">
+              Link ini berpotensi viral/membahayakan elektoral. Generate draft konter isu sekarang untuk golden window 2-4 jam.
+            </p>
+            <Button size="sm" className="mt-2 bg-red-600 hover:bg-red-700 text-white"
+              onClick={() => { selectAllHighNeg(); setBulkActionOpen(true) }}>
+              <Zap className="w-3.5 h-3.5 mr-1" /> Pilih {stats.highNegNew} Link & Generate Konter
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Filters */}
       <Card>
         <CardContent className="p-3">
@@ -2188,34 +2330,79 @@ function OpinionLinksTab() {
         </CardContent>
       </Card>
 
-      {/* Stats */}
+      {/* Stats — Auto-Triage Highlight */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard label="Total Link" value={links.length} icon={ExternalLink} color="blue" />
-        <StatCard label="HIGH Priority" value={links.filter(l => l.priority === 'HIGH').length} icon={AlertTriangle} color="red" />
-        <StatCard label="Negatif" value={links.filter(l => l.sentiment === 'NEGATIVE').length} icon={AlertTriangle} color="amber" />
-        <StatCard label="Belum Direview" value={links.filter(l => l.status === 'NEW').length} icon={Eye} color="purple" />
+        <StatCard label="Total Link" value={stats.total} icon={ExternalLink} color="blue" />
+        <StatCard label="HIGH + NEG" value={stats.highNeg} icon={AlertTriangle} color="red" />
+        <StatCard label="⚠️ HIGH+NEG Baru" value={stats.highNegNew} icon={Zap} color="red" />
+        <StatCard label="Belum Direview" value={stats.belumDireview} icon={Eye} color="amber" />
       </div>
 
-      {/* Links table */}
+      {/* === NEW: Bulk Action Toolbar === */}
+      {selectedIds.size > 0 && (
+        <div className="rounded-lg bg-blue-50 border-2 border-blue-300 p-3 flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2 text-sm">
+            <span className="font-semibold text-blue-800">{selectedIds.size} link dipilih</span>
+            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={clearSelection}>Batal Pilih</Button>
+          </div>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" className="h-8" onClick={handleBulkMarkReviewed}>
+              <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Tandai Reviewed
+            </Button>
+            <Button size="sm" className="h-8 bg-red-600 hover:bg-red-700 text-white" onClick={handleBulkGenerateKonter}>
+              <Zap className="w-3.5 h-3.5 mr-1" /> Generate Konter ({selectedIds.size})
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Links table — Auto-Sorted by Urgency */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <ExternalLink className="w-5 h-5 text-orange-600" />
-            Daftar Link Sudah Dianalisis ({links.length})
-          </CardTitle>
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <ExternalLink className="w-5 h-5 text-orange-600" />
+              Daftar Link (Auto-Sort: Urgency)
+              <Badge variant="outline" className="text-[11px] bg-slate-50">{sortedLinks.length}</Badge>
+            </CardTitle>
+            {selectedIds.size === 0 && sortedLinks.length > 0 && (
+              <div className="flex gap-2">
+                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={selectAllHighNeg}>
+                  Pilih HIGH+NEG Baru
+                </Button>
+                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={selectAll}>Pilih Semua</Button>
+              </div>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
-          {links.length === 0 ? (
+          {sortedLinks.length === 0 ? (
             <EmptyState icon={ExternalLink} title="Belum ada link"
               description="Jalankan Opinion Scanner di tab pertama untuk mengumpulkan link otomatis." />
           ) : (
             <div className="space-y-2">
-              {links.map(link => {
+              {sortedLinks.map((link, idx) => {
                 const priBadge = link.priority === 'HIGH' ? 'bg-red-100 text-red-800 border-red-300' :
                   link.priority === 'MEDIUM' ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-blue-100 text-blue-800 border-blue-300'
+                const isSelected = selectedIds.has(link.id)
+                const isHighNeg = link.priority === 'HIGH' && link.sentiment === 'NEGATIVE'
+                const isGeneratingKonter = generatingKonter === link.id
                 return (
-                  <div key={link.id} className="rounded border p-3 hover:bg-accent/30">
+                  <div key={link.id} className={`rounded border p-3 transition-all ${isSelected ? 'border-blue-400 bg-blue-50' : 'hover:bg-accent/30'} ${isHighNeg && link.status === 'NEW' ? 'border-l-4 border-l-red-500' : ''}`}>
                     <div className="flex items-start gap-3">
+                      {/* === NEW: Checkbox bulk select === */}
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleSelect(link.id)}
+                        className="mt-1 w-4 h-4 rounded cursor-pointer"
+                      />
+                      {/* === NEW: Rank number (auto-triage position) === */}
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 ${
+                        idx < 3 ? 'bg-red-100 text-red-700' : idx < 10 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'
+                      }`}>
+                        {idx + 1}
+                      </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1 flex-wrap">
                           <Badge className={`text-[13px] ${priBadge}`}>{link.priority}</Badge>
@@ -2224,6 +2411,10 @@ function OpinionLinksTab() {
                           <Badge variant="outline" className="text-[13px] bg-purple-50 text-purple-700">{link.category}</Badge>
                           {link.regencyName && <Badge variant="outline" className="text-[13px] bg-blue-50 text-blue-700"><MapPin className="w-2.5 h-2.5 mr-0.5" />{link.regencyName}</Badge>}
                           <Badge variant="outline" className={`text-[13px] ${link.status === 'NEW' ? 'bg-amber-50 text-amber-700' : link.status === 'ADDRESSED' ? 'bg-emerald-50 text-emerald-700' : ''}`}>{link.status}</Badge>
+                          {/* Urgency score prominent */}
+                          <Badge variant="outline" className={`text-[13px] font-bold ${link.urgencyScore >= 70 ? 'bg-red-100 text-red-800 border-red-300' : link.urgencyScore >= 40 ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-slate-50 text-slate-700'}`}>
+                            ⚡ {link.urgencyScore || 0}/100
+                          </Badge>
                         </div>
                         <a href={link.url} target="_blank" rel="noopener noreferrer"
                           className="text-sm font-semibold text-blue-600 hover:underline line-clamp-1">
@@ -2233,12 +2424,23 @@ function OpinionLinksTab() {
                         <div className="flex items-center gap-3 mt-2 text-[13px] text-muted-foreground">
                           <span>📅 {formatDateTimeID(link.publishedAt || link.createdAt)}</span>
                           {link.engagementCount > 0 && <span>💬 {link.engagementCount}</span>}
-                          <span>⚡ {link.urgencyScore}/100</span>
                           {link.author && <span>✍️ {link.author}</span>}
                           {link.reviewedBy && <span>👁️ {link.reviewedBy.fullName}</span>}
                         </div>
                       </div>
                       <div className="flex flex-col gap-1 shrink-0">
+                        {/* === NEW: Generate Konter button (priority for HIGH+NEG) === */}
+                        {(isHighNeg || link.sentiment === 'NEGATIVE') && link.status !== 'ADDRESSED' && (
+                          <Button
+                            size="sm"
+                            className="h-7 text-xs bg-red-600 hover:bg-red-700 text-white"
+                            disabled={isGeneratingKonter}
+                            onClick={() => handleGenerateKonter(link.id)}
+                            title="Generate draft konter isu otomatis">
+                            {isGeneratingKonter ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Zap className="w-3 h-3 mr-1" />}
+                            Konter Isu
+                          </Button>
+                        )}
                         <a href={link.url} target="_blank" rel="noopener noreferrer">
                           <Button size="sm" variant="ghost" className="h-7 text-xs w-full"><ExternalLink className="w-3 h-3 mr-1" /> Buka</Button>
                         </a>

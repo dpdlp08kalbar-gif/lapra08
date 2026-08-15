@@ -1,12 +1,24 @@
 // LAPRA 08 - API: Decision Dashboard - sintesis AI untuk pengambil keputusan
 // GET - Returns aggregated decision-ready insights from all sources
+//
+// FAN-OUT #4: Real-time cache invalidation
+// Cache hanya 5 detik (bukan 60 detik) + invalidate saat event COUNTER_ISSUE_DRAFT_GENERATED masuk
+// Saat opinion-link baru di-scrape → cache otomatis expired → dashboard auto-refresh
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getUserFromRequest } from '@/lib/server-helpers'
 
-// 60-second in-memory cache — dashboard data rarely changes within a minute
+// === REDUCED: 5 detik cache (dari 60 detik) — anti stale data saat kritis ===
+// Vercel Free 10s timeout aman karena query DB cepat (<2s)
 let _cache: { ts: number; data: any; territoryCode: string | null } | null = null
-const CACHE_TTL_MS = 60 * 1000
+const CACHE_TTL_MS = 5 * 1000 // 5 detik (real-time enough, anti DB hammering)
+
+// === NEW: Cache invalidation timestamp — set saat ada event masuk ===
+let _invalidateAt = 0
+export function invalidateDecisionDashboardCache() {
+  _invalidateAt = Date.now()
+  _cache = null // immediate flush
+}
 
 export async function GET(request: NextRequest) {
   const user = await getUserFromRequest(request)
@@ -15,8 +27,13 @@ export async function GET(request: NextRequest) {
   const territory = await db.territory.findUnique({ where: { id: user.territoryId } })
   const territoryCode = territory?.code ?? null
 
-  // Use cache if (a) fresh and (b) same territory scope
-  if (_cache && Date.now() - _cache.ts < CACHE_TTL_MS && _cache.territoryCode === territoryCode) {
+  // Use cache if (a) fresh and (b) same territory scope and (c) not invalidated
+  if (
+    _cache &&
+    Date.now() - _cache.ts < CACHE_TTL_MS &&
+    _cache.territoryCode === territoryCode &&
+    _cache.ts > _invalidateAt
+  ) {
     return NextResponse.json({ success: true, data: _cache.data, cached: true })
   }
 
