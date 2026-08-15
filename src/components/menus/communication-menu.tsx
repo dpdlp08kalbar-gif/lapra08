@@ -3164,200 +3164,222 @@ function DecisionDashboardTab() {
         </Card>
       </div>
 
-      {/* === BAR CHART: Sentimen Berita per Wilayah (Top 10) === */}
-      {data.topWilayahUrgent && data.topWilayahUrgent.length > 0 && (
-        <Card>
+      {/* === BAR CHART + TABEL RINGKASAN BERDAMPINGAN (2 kolom) === */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* KIRI: TABEL RINGKASAN */}
+        <Card className="border-2 border-blue-300">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
-              <BarChart3 className="w-5 h-5 text-blue-600" />
-              Diagram Batang — Sentimen Berita per Wilayah (Top 10)
+              <PieIcon className="w-5 h-5 text-purple-600" />
+              Tabel Ringkasan — Data Lengkap
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={350}>
-              <BarChart data={data.topWilayahUrgent.map((w: any) => ({
-                name: w.name?.length > 12 ? w.name.substring(0, 12) + '...' : w.name,
-                Positif: w.total - (w.negative || 0),
-                Negatif: w.negative || 0,
-                Total: w.total,
-              }))} margin={{ top: 10, right: 10, bottom: 30, left: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-                <XAxis dataKey="name" angle={-35} textAnchor="end" height={70} tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} />
-                <Tooltip
-                  contentStyle={{ fontSize: '12px', borderRadius: '8px' }}
-                  formatter={(value: any, name: any) => [`${value} berita`, name]}
-                />
-                <Legend wrapperStyle={{ fontSize: '12px' }} />
-                <Bar dataKey="Positif" stackId="a" fill="#10b981" name="Positif/Netral" radius={[0, 0, 0, 0]} />
-                <Bar dataKey="Negatif" stackId="a" fill="#ef4444" name="Negatif" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-slate-100">
+                  <TableHead className="text-xs">Kategori</TableHead>
+                  <TableHead className="text-xs text-right">Jumlah</TableHead>
+                  <TableHead className="text-xs text-right">Persentase</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {/* Monitoring Berita */}
+                <TableRow className="bg-blue-50/50">
+                  <TableCell className="text-xs font-bold" colSpan={3}>📰 MONITORING BERITA</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell className="text-xs">Total Berita LAPRA 08</TableCell>
+                  <TableCell className="text-xs text-right font-bold">{data.newsStats?.total || 0}</TableCell>
+                  <TableCell className="text-xs text-right">100%</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell className="text-xs">🟢 Sentimen Positif</TableCell>
+                  <TableCell className="text-xs text-right font-bold text-emerald-600">{data.newsStats?.positive || 0}</TableCell>
+                  <TableCell className="text-xs text-right text-emerald-600">{data.newsStats?.total ? Math.round((data.newsStats.positive / data.newsStats.total) * 100) : 0}%</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell className="text-xs">🔴 Sentimen Negatif</TableCell>
+                  <TableCell className="text-xs text-right font-bold text-red-600">{data.newsStats?.negative || 0}</TableCell>
+                  <TableCell className="text-xs text-right text-red-600">{data.newsStats?.total ? Math.round((data.newsStats.negative / data.newsStats.total) * 100) : 0}%</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell className="text-xs">📍 Ter-map ke Wilayah</TableCell>
+                  <TableCell className="text-xs text-right font-bold text-blue-600">{data.newsStats?.mapped || 0}</TableCell>
+                  <TableCell className="text-xs text-right text-blue-600">{data.newsStats?.total ? Math.round((data.newsStats.mapped / data.newsStats.total) * 100) : 0}%</TableCell>
+                </TableRow>
+                {/* Siaran */}
+                <TableRow className="bg-orange-50/50">
+                  <TableCell className="text-xs font-bold" colSpan={3}>📤 SIARAN & BROADCAST</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell className="text-xs">Total Video</TableCell>
+                  <TableCell className="text-xs text-right font-bold">{data.broadcastStats?.total || 0}</TableCell>
+                  <TableCell className="text-xs text-right">100%</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell className="text-xs">📺 YouTube</TableCell>
+                  <TableCell className="text-xs text-right font-bold text-red-600">{data.broadcastStats?.youtube || 0}</TableCell>
+                  <TableCell className="text-xs text-right">{data.broadcastStats?.total ? Math.round((data.broadcastStats.youtube / data.broadcastStats.total) * 100) : 0}%</TableCell>
+                </TableRow>
+                {/* Survei */}
+                <TableRow className="bg-purple-50/50">
+                  <TableCell className="text-xs font-bold" colSpan={3}>🧠 SURVEI & POLLING</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell className="text-xs">Total Survei</TableCell>
+                  <TableCell className="text-xs text-right font-bold">{data.pollStats?.total || 0}</TableCell>
+                  <TableCell className="text-xs text-right">100%</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell className="text-xs">📝 Total Respon</TableCell>
+                  <TableCell className="text-xs text-right font-bold text-blue-600">{data.pollStats?.totalResponses || 0}</TableCell>
+                  <TableCell className="text-xs text-right">—</TableCell>
+                </TableRow>
+                {/* Sentiment Index */}
+                <TableRow className="bg-emerald-50/50">
+                  <TableCell className="text-xs font-bold" colSpan={3}>📊 SENTIMENT INDEX</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell className="text-xs font-bold">Skala -100 s/d +100</TableCell>
+                  <TableCell className="text-xs text-right font-bold text-2xl text-emerald-600">{sentimentIdx > 0 ? '+' : ''}{sentimentIdx}</TableCell>
+                  <TableCell className="text-xs text-right">
+                    <Badge className={electoralStatus.color.replace('text-', 'bg-').replace('-600', '-100') + ' ' + electoralStatus.color}>
+                      {electoralStatus.label}
+                    </Badge>
+                  </TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
           </CardContent>
         </Card>
-      )}
 
-      {/* === BAR CHART: Status Review Berita === */}
-      {data.newsStats && (
-        <Card>
+        {/* KANAN: BAR CHART — Sentimen per Wilayah */}
+        <Card className="border-2 border-emerald-300">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <BarChart3 className="w-5 h-5 text-emerald-600" />
+              Diagram Batang — Sentimen Berita per Wilayah
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {data.topWilayahUrgent && data.topWilayahUrgent.length > 0 ? (
+              <ResponsiveContainer width="100%" height={400}>
+                <BarChart
+                  data={data.topWilayahUrgent.map((w: any) => ({
+                    name: w.name?.length > 15 ? w.name.substring(0, 15) + '...' : w.name,
+                    Positif: w.total - (w.negative || 0),
+                    Negatif: w.negative || 0,
+                  }))}
+                  margin={{ top: 20, right: 20, bottom: 40, left: 10 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                  <XAxis dataKey="name" angle={-30} textAnchor="end" height={70} tick={{ fontSize: 11 }} />
+                  <YAxis label={{ value: 'Jumlah Berita', angle: -90, position: 'insideLeft', style: { fontSize: 11 } }} tick={{ fontSize: 11 }} />
+                  <Tooltip
+                    contentStyle={{ fontSize: '12px', borderRadius: '8px', border: '1px solid #ccc' }}
+                    formatter={(value: any, name: any) => [`${value} berita`, name]}
+                  />
+                  <Legend wrapperStyle={{ fontSize: '12px' }} />
+                  <Bar dataKey="Positif" stackId="a" fill="#10b981" name="🟢 Positif/Netral" />
+                  <Bar dataKey="Negatif" stackId="a" fill="#ef4444" name="🔴 Negatif" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-64 text-sm text-muted-foreground">
+                Belum ada data wilayah. Jalankan scan + bulk triage.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* === BAR CHART + TABEL STATUS REVIEW (berdampingan) === */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* KIRI: Tabel Status Review */}
+        <Card className="border-2 border-amber-300">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Newspaper className="w-5 h-5 text-amber-600" />
+              Tabel Status Review Berita
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-slate-100">
+                  <TableHead className="text-xs">Status</TableHead>
+                  <TableHead className="text-xs text-right">Jumlah</TableHead>
+                  <TableHead className="text-xs text-right">Persentase</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                <TableRow>
+                  <TableCell className="text-xs">⚠️ Belum Direview</TableCell>
+                  <TableCell className="text-xs text-right font-bold text-amber-600">{data.newsStats?.new || 0}</TableCell>
+                  <TableCell className="text-xs text-right text-amber-600">{data.newsStats?.total ? Math.round((data.newsStats.new / data.newsStats.total) * 100) : 0}%</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell className="text-xs">✅ Sudah Direview</TableCell>
+                  <TableCell className="text-xs text-right font-bold text-blue-600">{data.newsStats?.reviewed || 0}</TableCell>
+                  <TableCell className="text-xs text-right text-blue-600">{data.newsStats?.total ? Math.round((data.newsStats.reviewed / data.newsStats.total) * 100) : 0}%</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell className="text-xs">✅ Sudah Ditangani</TableCell>
+                  <TableCell className="text-xs text-right font-bold text-emerald-600">{data.newsStats?.addressed || 0}</TableCell>
+                  <TableCell className="text-xs text-right text-emerald-600">{data.newsStats?.total ? Math.round((data.newsStats.addressed / data.newsStats.total) * 100) : 0}%</TableCell>
+                </TableRow>
+                <TableRow className="bg-slate-50">
+                  <TableCell className="text-xs font-bold">TOTAL</TableCell>
+                  <TableCell className="text-xs text-right font-bold">{data.newsStats?.total || 0}</TableCell>
+                  <TableCell className="text-xs text-right font-bold">100%</TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+
+        {/* KANAN: Bar Chart Status Review */}
+        <Card className="border-2 border-orange-300">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <BarChart3 className="w-5 h-5 text-orange-600" />
-              Diagram Batang — Status Review Berita LAPRA 08
+              Diagram Batang — Status Review
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={250}>
-              <BarChart
-                data={[
-                  { name: 'Belum Direview', value: data.newsStats.new || 0, fill: '#f59e0b' },
-                  { name: 'Sudah Direview', value: data.newsStats.reviewed || 0, fill: '#3b82f6' },
-                  { name: 'Sudah Ditangani', value: data.newsStats.addressed || 0, fill: '#10b981' },
-                ]}
-                margin={{ top: 10, right: 10, bottom: 10, left: 0 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-                <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-                <YAxis tick={{ fontSize: 11 }} />
-                <Tooltip
-                  contentStyle={{ fontSize: '12px', borderRadius: '8px' }}
-                  formatter={(value: any) => [`${value} berita`, 'Jumlah']}
-                />
-                <Bar dataKey="value" radius={[8, 8, 0, 0]}>
-                  {[
-                    { fill: '#f59e0b' },
-                    { fill: '#3b82f6' },
-                    { fill: '#10b981' },
-                  ].map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.fill} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            {data.newsStats && (data.newsStats.total || 0) > 0 ? (
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart
+                  data={[
+                    { name: 'Belum\nDireview', value: data.newsStats.new || 0, fill: '#f59e0b' },
+                    { name: 'Sudah\nDireview', value: data.newsStats.reviewed || 0, fill: '#3b82f6' },
+                    { name: 'Sudah\nDitangani', value: data.newsStats.addressed || 0, fill: '#10b981' },
+                  ]}
+                  margin={{ top: 20, right: 20, bottom: 20, left: 10 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                  <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                  <YAxis label={{ value: 'Jumlah', angle: -90, position: 'insideLeft', style: { fontSize: 11 } }} tick={{ fontSize: 11 }} />
+                  <Tooltip
+                    contentStyle={{ fontSize: '12px', borderRadius: '8px', border: '1px solid #ccc' }}
+                    formatter={(value: any) => [`${value} berita`, 'Jumlah']}
+                  />
+                  <Bar dataKey="value" radius={[8, 8, 0, 0]}>
+                    <Cell fill="#f59e0b" />
+                    <Cell fill="#3b82f6" />
+                    <Cell fill="#10b981" />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-40 text-sm text-muted-foreground">
+                Belum ada data berita.
+              </div>
+            )}
           </CardContent>
         </Card>
-      )}
-
-      {/* === TABEL RINGKASAN: Angka Mutlak + Persentase === */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <PieIcon className="w-5 h-5 text-purple-600" />
-            Tabel Ringkasan — Data Lengkap Sistem
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="text-xs">Kategori</TableHead>
-                <TableHead className="text-xs">Sub-Kategori</TableHead>
-                <TableHead className="text-xs text-right">Jumlah</TableHead>
-                <TableHead className="text-xs text-right">Persentase</TableHead>
-                <TableHead className="text-xs text-right">Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {/* Monitoring Berita */}
-              <TableRow className="bg-blue-50/30">
-                <TableCell className="font-semibold text-xs" rowSpan={5}>📰 Monitoring Berita</TableCell>
-                <TableCell className="text-xs">Total Berita LAPRA 08</TableCell>
-                <TableCell className="text-xs text-right font-bold">{data.newsStats?.total || 0}</TableCell>
-                <TableCell className="text-xs text-right">100%</TableCell>
-                <TableCell className="text-xs text-right">—</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell className="text-xs">🟢 Sentimen Positif</TableCell>
-                <TableCell className="text-xs text-right font-bold text-emerald-600">{data.newsStats?.positive || 0}</TableCell>
-                <TableCell className="text-xs text-right text-emerald-600">{data.newsStats?.total ? Math.round((data.newsStats.positive / data.newsStats.total) * 100) : 0}%</TableCell>
-                <TableCell className="text-xs text-right text-emerald-600">Baik</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell className="text-xs">🔴 Sentimen Negatif</TableCell>
-                <TableCell className="text-xs text-right font-bold text-red-600">{data.newsStats?.negative || 0}</TableCell>
-                <TableCell className="text-xs text-right text-red-600">{data.newsStats?.total ? Math.round((data.newsStats.negative / data.newsStats.total) * 100) : 0}%</TableCell>
-                <TableCell className="text-xs text-right text-red-600">{(data.newsStats?.negative || 0) > 0 ? '⚠️ Perlu Konter' : 'Aman'}</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell className="text-xs">📍 Ter-map ke Wilayah</TableCell>
-                <TableCell className="text-xs text-right font-bold text-blue-600">{data.newsStats?.mapped || 0}</TableCell>
-                <TableCell className="text-xs text-right text-blue-600">{data.newsStats?.total ? Math.round((data.newsStats.mapped / data.newsStats.total) * 100) : 0}%</TableCell>
-                <TableCell className="text-xs text-right">{data.newsStats?.mapped && data.newsStats?.total ? (data.newsStats.mapped / data.newsStats.total >= 0.5 ? '✅ Cukup' : '⚠️ Kurang') : '—'}</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell className="text-xs">⚠️ HIGH Priority</TableCell>
-                <TableCell className="text-xs text-right font-bold text-red-700">{data.newsStats?.highPriority || 0}</TableCell>
-                <TableCell className="text-xs text-right text-red-700">{data.newsStats?.total ? Math.round((data.newsStats.highPriority / data.newsStats.total) * 100) : 0}%</TableCell>
-                <TableCell className="text-xs text-right">{(data.newsStats?.highPriority || 0) > 0 ? '🔥 Urgent' : 'Aman'}</TableCell>
-              </TableRow>
-
-              {/* Siaran & Broadcast */}
-              <TableRow className="bg-orange-50/30">
-                <TableCell className="font-semibold text-xs" rowSpan={3}>📤 Siaran & Broadcast</TableCell>
-                <TableCell className="text-xs">Total Video/Galeri</TableCell>
-                <TableCell className="text-xs text-right font-bold">{data.broadcastStats?.total || 0}</TableCell>
-                <TableCell className="text-xs text-right">100%</TableCell>
-                <TableCell className="text-xs text-right">—</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell className="text-xs">📺 YouTube</TableCell>
-                <TableCell className="text-xs text-right font-bold text-red-600">{data.broadcastStats?.youtube || 0}</TableCell>
-                <TableCell className="text-xs text-right">{data.broadcastStats?.total ? Math.round((data.broadcastStats.youtube / data.broadcastStats.total) * 100) : 0}%</TableCell>
-                <TableCell className="text-xs text-right">—</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell className="text-xs">🎬 Upload MP4</TableCell>
-                <TableCell className="text-xs text-right font-bold text-blue-600">{data.broadcastStats?.mp4 || 0}</TableCell>
-                <TableCell className="text-xs text-right">{data.broadcastStats?.total ? Math.round((data.broadcastStats.mp4 / data.broadcastStats.total) * 100) : 0}%</TableCell>
-                <TableCell className="text-xs text-right">—</TableCell>
-              </TableRow>
-
-              {/* Draft Konter Isu */}
-              <TableRow className="bg-red-50/30">
-                <TableCell className="font-semibold text-xs">⚡ Konter Isu</TableCell>
-                <TableCell className="text-xs">Draft Tersimpan</TableCell>
-                <TableCell className="text-xs text-right font-bold text-amber-600">{data.counterDrafts?.length || 0}</TableCell>
-                <TableCell className="text-xs text-right">—</TableCell>
-                <TableCell className="text-xs text-right">{(data.counterDrafts?.length || 0) > 0 ? '✅ Ada Draft' : '⚠️ Belum Ada'}</TableCell>
-              </TableRow>
-
-              {/* Survei & Polling */}
-              <TableRow className="bg-purple-50/30">
-                <TableCell className="font-semibold text-xs" rowSpan={3}>🧠 Survei & Polling</TableCell>
-                <TableCell className="text-xs">Total Survei</TableCell>
-                <TableCell className="text-xs text-right font-bold">{data.pollStats?.total || 0}</TableCell>
-                <TableCell className="text-xs text-right">100%</TableCell>
-                <TableCell className="text-xs text-right">—</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell className="text-xs">✅ Survei Aktif</TableCell>
-                <TableCell className="text-xs text-right font-bold text-emerald-600">{data.pollStats?.active || 0}</TableCell>
-                <TableCell className="text-xs text-right">{data.pollStats?.total ? Math.round((data.pollStats.active / data.pollStats.total) * 100) : 0}%</TableCell>
-                <TableCell className="text-xs text-right text-emerald-600">{(data.pollStats?.active || 0) > 0 ? 'Berjalan' : 'Tidak Aktif'}</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell className="text-xs">📝 Total Respon Masuk</TableCell>
-                <TableCell className="text-xs text-right font-bold text-blue-600">{data.pollStats?.totalResponses || 0}</TableCell>
-                <TableCell className="text-xs text-right">—</TableCell>
-                <TableCell className="text-xs text-right">{(data.pollStats?.totalResponses || 0) > 0 ? '✅ Ada Respon' : '⚠️ Belum Ada'}</TableCell>
-              </TableRow>
-
-              {/* Sentiment Index */}
-              <TableRow className="bg-emerald-50/30">
-                <TableCell className="font-semibold text-xs">📊 Sentiment Index</TableCell>
-                <TableCell className="text-xs">Skala -100 s/d +100</TableCell>
-                <TableCell className="text-xs text-right font-bold text-2xl">{sentimentIdx > 0 ? '+' : ''}{sentimentIdx}</TableCell>
-                <TableCell className="text-xs text-right">—</TableCell>
-                <TableCell className="text-xs text-right font-bold">
-                  <Badge className={electoralStatus.color.replace('text-', 'bg-').replace('-600', '-100') + ' ' + electoralStatus.color}>
-                    {electoralStatus.label}
-                  </Badge>
-                </TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      </div>
 
       <Button variant="outline" onClick={loadData} className="w-full">
         <RefreshCw className="w-4 h-4 mr-2" /> Refresh Dashboard

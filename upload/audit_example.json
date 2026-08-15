@@ -1,0 +1,28 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "Berikut adalah analisis **EKSTREM DETAIL** dari template yang ditampilkan pada gambar, yang akan menjadi acuan untuk Dashboard Pemenangan:\n\n## 1. STRUKTUR LAYOUT KESELURUHAN (Overall Layout)\n\n**Tampilan Visual Dasar:**\n- **Background**: Papan tulis hijau tua (chalkboard style) dengan bingkai kayu coklat di keempat sisi\n- **Layout Utama**: **2 Kolom Side-by-Side** (Kiri-Kanan) dengan jarak antar kolom yang seimbang\n- **Header**: Terletak di bagian atas tengah, mencakup judul utama dan subjudul\n- **Footer**: Terletat di bagian bawah, berisi branding/logo dalam bentuk badge berwarna\n\n## 2. KOMPONEN HEADER (Bagian Atas)\n\n**Struktur Teks:**\n- **Baris 1**: Teks putih \"Cara Menyajikan Data\" (font standar)\n- **Baris 2**: Teks putih \"Dengan\" (font lebih kecil, centered)\n- **Baris 3 (Judul Utama)**: **\"Diagram Batang\"** dalam font **BESAR, TEBAL (Bold), dan warna KUNING** (highlight utama)\n- **Badge/Label**: Di pojok kanan atas, kotak biru dengan border tebal bertuliskan \"**Part 2**\" (hitam tebal)\n\n**Garis Pembatas:**\n- Garis horizontal **PINK/MAGENTA** tebal di bawah judul, memisahkan header dari konten\n\n## 3. KOLOM KIRI: TABEL DATA (Summary Table)\n\n**Container:**\n- Kotak dengan **border MERAH tebal** (red outline box)\n- Background transparan (menunjukkan background hijau papan tulis)\n\n**Isi Konten:**\n- **Judul Tabel**: \n  - Baris 1: \"Data Hasil Produksi Tepung PT PRO,\"\n  - Baris 2: \"dalam 5 bulan\"\n  - Font: Putih, bold, sedikit lebih besar dari isi\n\n**Struktur Data (5 Baris):**\nFormat konsisten untuk setiap baris:\n```\n[Bulan] sebanyak    [Nilai] [Satuan]\n```\n\n**Data Spesifik:**\n1. Bulan Januari sebanyak → **15 ton**\n2. Bulan Februari sebanyak → **25 ton**\n3. Bulan Maret sebanyak → **20 ton**\n4. Bulan April sebanyak → **30 ton**\n5. Bulan Mei sebanyak → **25 ton**\n\n**Karakteristik Tabel:**\n- **Tanpa garis grid** (borderless internal cells)\n- **Alignment**: Label kiri rata kiri, nilai rata kanan\n- **Font**: Sans-serif putih, ukuran mudah dibaca\n- **Spacing**: Line height cukup longgar antar baris\n\n## 4. KOLOM KANAN: BAR CHART (Diagram Batang)\n\n**Container:**\n- Kotak dengan **border HIJAU tebal** (green outline box) - *berbeda dengan kolom kiri yang merah*\n\n**Komponen Chart:**\n\n### A. Judul Chart\n- Teks kuning: \"Diagram batang produksi tepung PT PRO\"\n- Teks kuning baris 2: \"Dalam 5 bulan\"\n- Posisi: Atas dalam container, center-aligned\n\n### B. Sumbu Y (Vertikal/Kiri)\n- **Label Sumbu**: \"Banyak Produksi(ton)\" - ditulis VERTIKAL (rotasi 90 derajat), membaca dari bawah ke atas\n- **Skala Numerik**: 15, 20, 25, 30 (interval 5 satuan)\n- **Garis Grid**: Garis putus-putus (dotted line) horizontal setiap interval skala, membentang dari sumbu Y ke kanan\n- **Panah**: Ada panah di ujung atas sumbu Y menunjukkan arah naik\n- **Simbol Break**: Ada simbol \"gelombang/zigzag\" di dasar sumbu Y (menunjukkan sumbu tidak dimulai dari nol, atau ada pemotongan skala)\n\n### C. Sumbu X (Horizontal/Bawah)\n- **Label Sumbu**: \"Bulan\" - centered di bawah sumbu X\n- **Kategori/Data Labels**: Singkatan bulan - **Jan, Feb, Mar, Apr, Mei**\n- **Posisi**: Centered di bawah masing-masing batang\n- **Panah**: Panah di ujung kanan menunjukkan arah lanjut\n\n### D. Batang Grafik (Bars)\n- **Jumlah**: 5 batang (sesuai jumlah data)\n- **Warna**: **MAGENTA/PINK terang** (sangat kontras dengan background hijau)\n- **Style**: Batang solid (tidak ada pattern), tanpa outline/border hitam\n- **Lebar**: Sedang, ada jarak antar batang (gap)\n- **Tinggi** (sesuai data):\n  - Jan: ~setengah (15)\n  - Feb: tinggi (25)\n  - Mar: sedang (20)\n  - Apr: tertinggi (30)\n  - Mei: tinggi (25)\n\n## 5. FOOTER (Bagian Bawah)\n\n**Tiga Badge/Logo Berjejer:**\n1. **Kiri**: Background biru, teks putih \"FB Matematika Spekta Net\"\n2. **Tengah**: Background merah, ikon play putih (▶), teks kuning \"**Bimbel SPEKTA**\"\n3. **Kanan**: Background merah, ikon play putih (▶), teks kuning \"**Matematika SPEKTA**\"\n\n**Style Footer**: Rounded corners (sedikit melengkung), shadow effect, posisi bottom-left aligned dengan spacing merata.\n\n---\n\n## RINGKASAN TEMPLATE UNTUK DASHBOARD PEMENANGAN:\n\n| Elemen | Spesifikasi | Catatan Penting |\n|--------|-------------|-----------------|\n| **Layout** | 2 Kolom (50%-50%) | Kiri: Tabel Data, Kanan: Visualisasi |\n| **Tabel** | Border box merah, list vertikal | Format: [Label] sebanyak [Nilai] [Unit] |\n| **Chart** | Border box hijau, Bar Chart vertikal | Warna batang: Magenta/Pink cerah |\n| **Warna Tema** | Background hijau tua, aksen merah/hijau/kuning | High contrast untuk keterbacaan |\n| **Tipografi** | Judul besar kuning, isi putih | Hierarki visual yang jelas |\n| **Sistem Koordinat** | Sumbu Y dengan label vertikal, grid putus-putus | Skala numerik di kiri, kategori di bawah |\n\n**Inti Template Ini**: Menampilkan **data mentah** (tabel) di samping **representasi visual** (grafik) secara berdampingan untuk memudahkan perbandingan dan pembacaan data.",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1786785403,
+  "id": "20260815171625c5586c777dee4cf8",
+  "model": "glm-5v-turbo",
+  "object": "chat.completion",
+  "request_id": "20260815171625c5586c777dee4cf8",
+  "usage": {
+    "completion_tokens": 1613,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "prompt_tokens": 1155,
+    "prompt_tokens_details": {
+      "cached_tokens": 2
+    },
+    "total_tokens": 2768
+  }
+}
