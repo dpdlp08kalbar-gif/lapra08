@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
   const links = await db.publicOpinionLink.findMany({
     where,
     include: { reviewedBy: { select: { fullName: true } } },
-    orderBy: [{ priority: 'asc' }, { createdAt: 'desc' }],
+    orderBy: [{ publishedAt: 'desc' }, { createdAt: 'desc' }],
     take: limit,
   })
 

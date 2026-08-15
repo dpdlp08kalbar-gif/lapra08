@@ -202,7 +202,15 @@ function OpinionScannerTab() {
     return <Globe className="w-3.5 h-3.5" />
   }
 
-  const filteredLinks = recentLinks.filter(l => filterPriority === 'ALL' || l.priority === filterPriority)
+  // === SORT: tanggal terbaru di atas (bukan by priority) ===
+  const filteredLinks = recentLinks
+    .filter(l => filterPriority === 'ALL' || l.priority === filterPriority)
+    .sort((a, b) => {
+      // publishedAt descending (terbaru di atas)
+      const dateA = a.publishedAt ? new Date(a.publishedAt).getTime() : new Date(a.createdAt || 0).getTime()
+      const dateB = b.publishedAt ? new Date(b.publishedAt).getTime() : new Date(b.createdAt || 0).getTime()
+      return dateB - dateA
+    })
 
   return (
     <div className="space-y-4">
@@ -572,8 +580,8 @@ function GeospatialVoiceTab() {
               {/* === NEW: Auto-sort toggle === */}
               <div className="flex items-center gap-1 text-xs">
                 <span className="text-muted-foreground">Sort:</span>
-                <Badge variant="outline" className="text-[10px] bg-orange-50 text-orange-700 border-orange-200">Urgency</Badge>
-                <span className="text-muted-foreground opacity-50">(isu kritis di atas)</span>
+                <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700 border-blue-200">Tanggal Terbaru</Badge>
+                <span className="text-muted-foreground opacity-50">(berita terbaru di atas)</span>
               </div>
             </div>
           </CardHeader>
@@ -2298,25 +2306,12 @@ function OpinionLinksTab() {
     } catch (e: any) { addToast(e.message, 'error') }
   }
 
-  // === NEW: Auto-Triage Sort (by urgency, then by priority, then by sentiment) ===
-  // FAN-OUT #1: Triage Agent — sort otomatis, link paling kritis di atas
+  // === SORT: tanggal terbaru di atas (bukan by urgency) — user request ===
   const sortedLinks = [...links].sort((a, b) => {
-    // 1. Urgency score descending (paling kritis di atas)
-    const urgencyA = a.urgencyScore || 0
-    const urgencyB = b.urgencyScore || 0
-    if (urgencyB !== urgencyA) return urgencyB - urgencyA
-    // 2. Priority HIGH > MEDIUM > LOW
-    const prioOrder: Record<string, number> = { HIGH: 3, MEDIUM: 2, LOW: 1 }
-    if ((prioOrder[b.priority] || 0) !== (prioOrder[a.priority] || 0)) {
-      return (prioOrder[b.priority] || 0) - (prioOrder[a.priority] || 0)
-    }
-    // 3. Sentiment NEGATIVE > NEUTRAL > POSITIVE (negatif lebih urgent)
-    const sentOrder: Record<string, number> = { NEGATIVE: 3, NEUTRAL: 2, POSITIVE: 1 }
-    if ((sentOrder[b.sentiment] || 0) !== (sentOrder[a.sentiment] || 0)) {
-      return (sentOrder[b.sentiment] || 0) - (sentOrder[a.sentiment] || 0)
-    }
-    // 4. Engagement count descending (lebih viral lebih urgent)
-    return (b.engagementCount || 0) - (a.engagementCount || 0)
+    // publishedAt descending (berita terbaru paling atas)
+    const dateA = a.publishedAt ? new Date(a.publishedAt).getTime() : new Date(a.createdAt || 0).getTime()
+    const dateB = b.publishedAt ? new Date(b.publishedAt).getTime() : new Date(b.createdAt || 0).getTime()
+    return dateB - dateA
   })
 
   // === NEW: Generate Konter Isu per link (Fan-Out #2 trigger) ===
@@ -2569,7 +2564,7 @@ function OpinionLinksTab() {
           <div className="flex items-center justify-between flex-wrap gap-2">
             <CardTitle className="text-base flex items-center gap-2">
               <ExternalLink className="w-5 h-5 text-orange-600" />
-              Daftar Link (Auto-Sort: Urgency)
+              Daftar Link (Auto-Sort: Tanggal Terbaru)
               <Badge variant="outline" className="text-[11px] bg-slate-50">{sortedLinks.length}</Badge>
             </CardTitle>
             {selectedIds.size === 0 && sortedLinks.length > 0 && (
