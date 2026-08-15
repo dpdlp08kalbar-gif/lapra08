@@ -2979,3 +2979,95 @@ Stage Summary:
   4. Upload → foto muncul dengan header group [Level] Wilayah > 📁 Album
   5. Filter by Level/Wilayah/Album → hanya tampil yang cocok
   6. Repeat untuk Galeri Video + Arsip Berita Penting
+
+---
+Task ID: LAPRA08-ADART-FIX-ENHANCE
+Agent: Main Agent (Super Z)
+Task: Fix bug AD/ART tidak bisa dibuka + kembangkan menu agar lebih baik
+
+Work Log:
+- User attach 2 screenshot:
+  - SS1: list AD/ART document dengan tombol "Buka"
+  - SS2: blank white page setelah klik "Buka"
+- User request: "saya mencoba membuka file ad/art yg sdh saya upload di menu ini tdk bisa, apakah anda bisa audit sesuaikan saja dgn cara membuka pada menu program kerja, coba lakukan audit anda kembangkan menu ad/art ini agar bisa lbh baik"
+
+AUDIT:
+- File: src/components/menus/portal-menus.tsx (ProfileDocumentSection, line 832+)
+- API: src/app/api/profile-documents/route.ts (line 130: fileUrl = data:application/pdf;base64,...)
+- UI button (line 940): <a href={doc.fileUrl} target="_blank">
+- ROOT CAUSE: sama persis dengan bug Program Kerja sebelumnya
+  - Browser buka data URL panjang → blank page
+  - Chrome 60+ batasi navigasi data URL di top-level window
+- FIX: pakai pendekatan yang sama dengan Program Kerja (commit b06cee6):
+  - Buat API route /api/profile-documents/[id]/view yang stream PDF dengan Content-Type header
+  - UI pakai fetch + blob URL (window.open) bukan <a href>
+
+IMPLEMENTASI:
+
+1. Buat API route baru: /api/profile-documents/[id]/view/route.ts
+   - GET: stream file dari SystemSetting base64 dengan header Content-Type yang benar
+   - Content-Disposition: inline (render di browser, bukan download)
+   - Akses: pelapor/admin yang sudah login
+
+2. Rewrite ProfileDocumentSection (line 832-1248, +380 lines):
+   FIX BUG:
+   - Hapus <a href={doc.fileUrl}> (data URL → blank page)
+   - Tambah handler handleViewDoc: fetch + blob + window.open (buka di tab baru)
+   - Tambah handler handleDownloadDoc: fetch + blob + anchor download (download file)
+   - Tambah handler handlePreviewDoc: fetch + blob + iframe inline (preview di dialog)
+
+   FITUR ENHANCED:
+   a. Statistik cards (4 kartu):
+      - Total Dokumen
+      - PDF count (merah)
+      - Gambar count (hijau)
+      - DOC/DOCX count (biru)
+      - Total size semua dokumen
+
+   b. Search + filter format:
+      - Input search by judul/deskripsi/uploader
+      - Select filter format: Semua/PDF/Gambar/DOC
+
+   c. Icon berdasarkan format file:
+      - PDF: FileText (merah bg)
+      - IMAGE: ImageIcon (hijau bg)
+      - DOC: FileText (biru bg)
+      - FILE: FileText (slate bg)
+
+   d. 4 Tombol Aksi per dokumen:
+      - 👁 Preview (ikon mata) — buka dialog inline dengan iframe PDF / img
+      - 📤 Buka di Tab Baru — window.open blob URL
+      - ⬇ Download — trigger download dengan nama file asli
+      - 🗑 Hapus (admin only)
+
+   e. Dialog Preview inline:
+      - PDF: <iframe src={blobUrl}> h-70vh
+      - Gambar: <img src={blobUrl}> object-contain
+      - DOC/other: empty state "Preview tidak tersedia, silakan download"
+      - Footer: Buka di Tab Baru + Download
+      - Auto-cleanup blob URL saat dialog ditutup
+
+   f. Metadata lengkap per dokumen:
+      - Judul + badge format + badge size
+      - Deskripsi (strip prefix AD_ART:/LEGALITAS:)
+      - "📤 Diunggah oleh X • 📅 Tanggal"
+      - Badge kategori (AD/ART jika description starts with AD_ART:)
+
+3. Tambah import: Download dari lucide-react
+
+PERUBAHAN FILE:
+- src/app/api/profile-documents/[id]/view/route.ts (NEW, 54 lines)
+- src/components/menus/portal-menus.tsx (line 832-1248, +380 lines, -38 lines)
+- 3 files changed, 380 insertions(+), 38 deletions(-)
+
+Stage Summary:
+- Commit d3be043 di-push ke origin/main (daf245d..d3be043)
+- Vercel auto-deploy ~1-2 menit
+- Setelah deploy: hard refresh lapra08.vercel.app
+- Test scenario:
+  1. Buka Profil → AD/ART → klik tombol "Buka" → PDF terbuka di tab baru (tidak blank lagi)
+  2. Klik ikon mata → preview PDF inline di dialog
+  3. Klik ikon download → file terdownload dengan nama asli
+  4. Cari dokumen via search box
+  5. Filter by format (PDF/Gambar/DOC)
+  6. Lihat statistik di atas (Total, PDF, Gambar, DOC)
