@@ -2,12 +2,74 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getUserFromRequest } from '@/lib/server-helpers'
-import { canAccess } from '@/lib/types'
+import { canAccess, DEFAULT_MENUS } from '@/lib/types'
 
 // Pastikan route berjalan di Node.js runtime (bukan Edge)
 export const runtime = 'nodejs'
 // Hindari cache statis — selalu fresh
 export const dynamic = 'force-dynamic'
+
+// === AUTO-MIGRATE: kalau menu lama (dashboard/users) masih ada di DB, ganti ke pusat-admin ===
+// Idempotent: cek dulu apakah 'pusat-admin' sudah ada; kalau belum, jalankan migrasi
+// Cache in-memory 5 menit supaya tidak query terus setiap GET
+let _migrationCache: { ts: number; migrated: boolean } | null = null
+const MIGRATION_CACHE_TTL = 5 * 60 * 1000
+
+async function autoMigrateMenus(): Promise<void> {
+  // Cek cache — kalau sudah di-migrate dalam 5 menit, skip
+  if (_migrationCache && Date.now() - _migrationCache.ts < MIGRATION_CACHE_TTL) {
+    return
+  }
+
+  try {
+    // Cek apakah 'pusat-admin' sudah ada di DB
+    const hasPusatAdmin = await db.menuItem.findUnique({
+      where: { key: 'pusat-admin' },
+      select: { key: true },
+    })
+    if (hasPusatAdmin) {
+      _migrationCache = { ts: Date.now(), migrated: false }
+      return
+    }
+
+    // Kalau belum ada, jalankan migrasi
+    console.log('[Menus] Auto-migrating: dashboard+users → pusat-admin')
+
+    // Hapus menu lama kalau masih ada
+    await db.menuItem.deleteMany({
+      where: { key: { in: ['dashboard', 'users'] } },
+    })
+
+    // Upsert semua menu dari DEFAULT_MENUS
+    for (const m of DEFAULT_MENUS) {
+      await db.menuItem.upsert({
+        where: { key: m.key },
+        update: {
+          label: m.label,
+          icon: m.icon,
+          order: m.order,
+          roles: m.roles,
+        },
+        create: {
+          key: m.key,
+          label: m.label,
+          icon: m.icon,
+          order: m.order,
+          roles: m.roles,
+          isVisible: true,
+          isActive: true,
+          parentId: null,
+        },
+      })
+    }
+    console.log('[Menus] Auto-migrate complete')
+    _migrationCache = { ts: Date.now(), migrated: true }
+  } catch (e: any) {
+    console.error('[Menus] Auto-migrate failed:', e.message)
+    // Set cache pendek supaya tidak retry terus
+    _migrationCache = { ts: Date.now(), migrated: false }
+  }
+}
 
 // GET /api/menus - List menu yang bisa diakses user
 export async function GET(request: NextRequest) {
@@ -16,6 +78,9 @@ export async function GET(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
+
+    // === AUTO-MIGRATE: pastikan menu 'pusat-admin' sudah ada di DB ===
+    await autoMigrateMenus()
 
     const menus = await db.menuItem.findMany({
       where: { isActive: true, isVisible: true, parentId: null },
