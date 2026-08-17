@@ -193,6 +193,9 @@ export function PusatAdminMenu() {
       {/* Manajemen User — inline, bukan tab */}
       <UsersManager />
 
+      {/* Privasi & DPO — UU PDP No. 27/2022 — DPO/SuperAdmin only */}
+      <PrivacyDPOManager currentUser={user} />
+
       {/* Saklar Keamanan — SUPERADMIN only, accordion */}
       {user?.role === 'SUPERADMIN' && <SecurityManager />}
     </div>
@@ -1143,5 +1146,455 @@ function SecurityManager() {
         </AccordionContent>
       </AccordionItem>
     </Accordion>
+  )
+}
+
+// ============================================================
+// PRIVACY & DPO MANAGER — UU PDP No. 27/2022
+// Tampilkan: list DPO aktif, audit log akses data, data access requests
+// RBAC: DPO + SUPERADMIN + ADMIN_DPN bisa lihat
+// ============================================================
+function PrivacyDPOManager({ currentUser }: { currentUser: any }) {
+  const addToast = useToastStore((s) => s.addToast)
+  const [tab, setTab] = useState<'dpo' | 'audit' | 'dar'>('dpo')
+
+  // Cek akses
+  const canView = currentUser?.role === 'SUPERADMIN' || currentUser?.role === 'ADMIN_DPN' || currentUser?.isDPO
+  if (!canView) return null
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Shield className="w-4 h-4 text-red-600" /> Privasi & DPO
+              <Badge variant="outline" className="text-[10px] bg-red-50 text-red-700 border-red-300">
+                UU PDP No. 27/2022
+              </Badge>
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Perlindungan Data Pribadi — penunjukan DPO, audit log akses, dan permintaan hak subjek data
+            </CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {/* Tab navigasi */}
+        <div className="flex gap-2 border-b pb-2">
+          {[
+            { key: 'dpo' as const, label: 'Penunjukan DPO' },
+            { key: 'audit' as const, label: 'Audit Log Akses' },
+            { key: 'dar' as const, label: 'Permintaan Hak Subjek' },
+          ].map(t => (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => setTab(t.key)}
+              className={`px-3 py-1.5 text-xs font-medium rounded-t-md transition-colors ${
+                tab === t.key ? 'bg-red-50 text-red-700 border-b-2 border-red-500' : 'text-muted-foreground hover:bg-accent'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {tab === 'dpo' && <DPOTab currentUser={currentUser} />}
+        {tab === 'audit' && <AuditLogTab />}
+        {tab === 'dar' && <DataAccessRequestTab currentUser={currentUser} />}
+      </CardContent>
+    </Card>
+  )
+}
+
+// ----- DPO Tab -----
+function DPOTab({ currentUser }: { currentUser: any }) {
+  const addToast = useToastStore((s) => s.addToast)
+  const [dpos, setDpos] = useState<any[]>([])
+  const [users, setUsers] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  const loadData = useCallback(async () => {
+    setLoading(true)
+    try {
+      const [dpoList, userList] = await Promise.all([
+        api('/api/dpo').catch(() => []),
+        api('/api/users').catch(() => []),
+      ])
+      setDpos(dpoList || [])
+      setUsers(userList || [])
+    } catch (e: any) {
+      addToast(`Gagal memuat: ${e.message}`, 'error')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { loadData() }, [loadData])
+
+  const toggleDPO = async (userId: string, assign: boolean) => {
+    try {
+      await api('/api/dpo', {
+        method: 'PATCH',
+        body: JSON.stringify({ userId, assign }),
+      })
+      addToast(`DPO ${assign ? 'ditunjuk' : 'dihapus'}`, 'success')
+      loadData()
+    } catch (e: any) {
+      addToast(`Gagal: ${e.message}`, 'error')
+    }
+  }
+
+  if (loading) return <div className="text-center py-4"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></div>
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800">
+        <strong>UU PDP Pasal 53:</strong> Pengendali data wajib tunjuk DPO kalau pemrosesan data skala besar.
+        LAPRA 08 dengan ribuan anggota masuk kategori ini. Minimal 1 DPO aktif.
+      </div>
+
+      <div>
+        <div className="text-xs font-medium text-muted-foreground mb-2">DPO Aktif ({dpos.length})</div>
+        {dpos.length === 0 ? (
+          <div className="text-xs text-red-600 bg-red-50 p-3 rounded">
+            ⚠ Belum ada DPO ditunjuk. Wajib tunjuk minimal 1 DPO untuk compliance UU PDP.
+          </div>
+        ) : (
+          <div className="space-y-1">
+            {dpos.map(dpo => (
+              <div key={dpo.id} className="flex items-center justify-between p-2 rounded border text-xs">
+                <div>
+                  <div className="font-medium">{dpo.fullName} <span className="text-muted-foreground">({dpo.username})</span></div>
+                  <div className="text-muted-foreground">{dpo.role} • {dpo.territory?.name || '-'}</div>
+                </div>
+                {currentUser.role === 'SUPERADMIN' && (
+                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => toggleDPO(dpo.id, false)}>
+                    Hapus DPO
+                  </Button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {currentUser.role === 'SUPERADMIN' && (
+        <div>
+          <div className="text-xs font-medium text-muted-foreground mb-2 mt-4">Tunjuk DPO Baru</div>
+          <div className="space-y-1 max-h-48 overflow-y-auto">
+            {users.filter(u => !u.isDPO && u.isActive).map(u => (
+              <div key={u.id} className="flex items-center justify-between p-2 rounded border text-xs">
+                <div>
+                  <div className="font-medium">{u.fullName} <span className="text-muted-foreground">({u.username})</span></div>
+                  <div className="text-muted-foreground">{u.role} • {u.territory?.name || '-'}</div>
+                </div>
+                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => toggleDPO(u.id, true)}>
+                  Tunjuk DPO
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ----- Audit Log Tab -----
+function AuditLogTab() {
+  const [logs, setLogs] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [filter, setFilter] = useState({ action: '', resource: '', search: '' })
+  const [pagination, setPagination] = useState({ page: 1, totalPages: 1, total: 0 })
+
+  const loadData = useCallback(async () => {
+    setLoading(true)
+    try {
+      const params = new URLSearchParams({ page: String(filter ? 1 : 1), pageSize: '50' })
+      if (filter.action) params.set('action', filter.action)
+      if (filter.resource) params.set('resource', filter.resource)
+      if (filter.search) params.set('search', filter.search)
+      const data = await api(`/api/audit-logs?${params.toString()}`)
+      setLogs((data as any)?.data || [])
+      setPagination((data as any)?.pagination || { page: 1, totalPages: 1, total: 0 })
+    } catch (e: any) {
+      console.error('Audit log load failed:', e)
+    } finally {
+      setLoading(false)
+    }
+  }, [filter])
+
+  useEffect(() => { loadData() }, [loadData])
+
+  if (loading) return <div className="text-center py-4"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></div>
+
+  return (
+    <div className="space-y-2">
+      <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs text-blue-800">
+        <strong>UU PDP Pasal 17:</strong> Audit log wajib disimpan sebagai bukti akuntabilitas pemrosesan data.
+        Setiap akses ke data anggota (Member, User, KTA) tercatat di sini.
+      </div>
+
+      <div className="flex gap-2 flex-wrap">
+        <Select value={filter.action} onValueChange={(v) => setFilter({ ...filter, action: v === 'ALL' ? '' : v })}>
+          <SelectTrigger className="w-32 h-8 text-xs"><SelectValue placeholder="Aksi" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ALL">Semua Aksi</SelectItem>
+            <SelectItem value="VIEW">View</SelectItem>
+            <SelectItem value="UPDATE">Update</SelectItem>
+            <SelectItem value="DELETE">Delete</SelectItem>
+            <SelectItem value="DENIED">Denied</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={filter.resource} onValueChange={(v) => setFilter({ ...filter, resource: v === 'ALL' ? '' : v })}>
+          <SelectTrigger className="w-40 h-8 text-xs"><SelectValue placeholder="Resource" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ALL">Semua Resource</SelectItem>
+            <SelectItem value="MEMBER">Anggota</SelectItem>
+            <SelectItem value="USER">Pengurus</SelectItem>
+            <SelectItem value="KTA_APPLICATION">KTA</SelectItem>
+            <SelectItem value="DATA_ACCESS_REQUEST">DAR</SelectItem>
+          </SelectContent>
+        </Select>
+        <Input
+          placeholder="Cari nama/label..."
+          value={filter.search}
+          onChange={(e) => setFilter({ ...filter, search: e.target.value })}
+          className="h-8 text-xs flex-1 min-w-40"
+        />
+      </div>
+
+      <div className="rounded border overflow-x-auto max-h-96 overflow-y-auto">
+        <Table>
+          <TableHeader className="sticky top-0 bg-background">
+            <TableRow>
+              <TableHead className="text-xs">Waktu</TableHead>
+              <TableHead className="text-xs">Actor</TableHead>
+              <TableHead className="text-xs">Aksi</TableHead>
+              <TableHead className="text-xs">Resource</TableHead>
+              <TableHead className="text-xs">Detail</TableHead>
+              <TableHead className="text-xs">Status</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {logs.length === 0 ? (
+              <TableRow><TableCell colSpan={6} className="text-xs text-center text-muted-foreground py-4">Tidak ada log</TableCell></TableRow>
+            ) : logs.map(log => (
+              <TableRow key={log.id}>
+                <TableCell className="text-xs whitespace-nowrap">{formatDateTimeID(log.createdAt)}</TableCell>
+                <TableCell className="text-xs">
+                  <div className="font-medium">{log.actorName}</div>
+                  <div className="text-muted-foreground">{log.actorRole}{log.actorTerritory ? ` • ${log.actorTerritory}` : ''}</div>
+                </TableCell>
+                <TableCell className="text-xs">
+                  <Badge variant={log.action === 'DENIED' ? 'destructive' : log.action === 'DELETE' ? 'destructive' : 'outline'} className="text-[10px]">
+                    {log.action}
+                  </Badge>
+                </TableCell>
+                <TableCell className="text-xs">{log.resource}</TableCell>
+                <TableCell className="text-xs max-w-xs truncate" title={log.detail || log.resourceLabel || ''}>
+                  {log.resourceLabel || log.detail || '-'}
+                </TableCell>
+                <TableCell className="text-xs">
+                  <Badge variant={log.status === 'DENIED' ? 'destructive' : log.status === 'ERROR' ? 'destructive' : 'secondary'} className="text-[10px]">
+                    {log.status}
+                  </Badge>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+      <div className="text-xs text-muted-foreground">Total: {pagination.total} log</div>
+    </div>
+  )
+}
+
+// ----- Data Access Request Tab -----
+function DataAccessRequestTab({ currentUser }: { currentUser: any }) {
+  const addToast = useToastStore((s) => s.addToast)
+  const [requests, setRequests] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [newOpen, setNewOpen] = useState(false)
+  const [form, setForm] = useState({ type: 'ACCESS', description: '' })
+  const [saving, setSaving] = useState(false)
+
+  const isDPOView = currentUser?.role === 'SUPERADMIN' || currentUser?.role === 'ADMIN_DPN' || currentUser?.isDPO
+
+  const loadData = useCallback(async () => {
+    setLoading(true)
+    try {
+      const data = await api('/api/data-access-requests')
+      setRequests((data as any)?.data || [])
+    } catch (e: any) {
+      addToast(`Gagal memuat: ${e.message}`, 'error')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { loadData() }, [loadData])
+
+  const handleSubmit = async () => {
+    if (form.description.trim().length < 10) {
+      addToast('Deskripsi minimal 10 karakter', 'error')
+      return
+    }
+    setSaving(true)
+    try {
+      await api('/api/data-access-requests', {
+        method: 'POST',
+        body: JSON.stringify(form),
+      })
+      addToast('Permintaan diajukan. DPO akan respons dalam 3×24 jam.', 'success')
+      setNewOpen(false)
+      setForm({ type: 'ACCESS', description: '' })
+      loadData()
+    } catch (e: any) {
+      addToast(`Gagal: ${e.message}`, 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleAction = async (id: string, action: string, notes?: string) => {
+    try {
+      await api(`/api/data-access-requests/${id}/handle`, {
+        method: 'PATCH',
+        body: JSON.stringify({ action, notes }),
+      })
+      addToast(`Permintaan ${action}`, 'success')
+      loadData()
+    } catch (e: any) {
+      addToast(`Gagal: ${e.message}`, 'error')
+    }
+  }
+
+  if (loading) return <div className="text-center py-4"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></div>
+
+  const TYPE_LABELS: Record<string, string> = {
+    ACCESS: 'Lihat Data Saya',
+    CORRECT: 'Koreksi Data',
+    DELETE: 'Hapus Data Saya',
+    RESTRICT: 'Batasi Pemrosesan',
+    PORTABILITY: 'Ekspor Data',
+  }
+  const STATUS_COLORS: Record<string, any> = {
+    PENDING: 'secondary',
+    IN_REVIEW: 'default',
+    APPROVED: 'outline',
+    DENIED: 'destructive',
+    COMPLETED: 'outline',
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs text-blue-800">
+        <strong>UU PDP Pasal 5-13:</strong> Anggota berhak: lihat data (Pasal 5), koreksi (Pasal 9), hapus (Pasal 10),
+        batasi pemrosesan (Pasal 11), portabilitas data (Pasal 13). DPO wajib respons dalam 3×24 jam (Pasal 46).
+      </div>
+
+      <div className="flex justify-between items-center">
+        <div className="text-xs text-muted-foreground">
+          {isDPOView ? `${requests.length} permintaan (DPO view)` : `Riwayat permintaan Anda (${requests.length})`}
+        </div>
+        <Button size="sm" onClick={() => setNewOpen(true)} className="h-8 text-xs">
+          <Plus className="w-3 h-3 mr-1" /> Ajukan Permintaan
+        </Button>
+      </div>
+
+      {requests.length === 0 ? (
+        <div className="text-xs text-muted-foreground text-center py-6">
+          {isDPOView ? 'Belum ada permintaan masuk' : 'Anda belum pernah ajukan permintaan hak subjek data'}
+        </div>
+      ) : (
+        <div className="space-y-2 max-h-96 overflow-y-auto">
+          {requests.map(req => (
+            <div key={req.id} className="rounded border p-3 text-xs space-y-1">
+              <div className="flex items-center justify-between">
+                <div className="font-medium">{req.requestNumber}</div>
+                <Badge variant={STATUS_COLORS[req.status] || 'secondary'} className="text-[10px]">{req.status}</Badge>
+              </div>
+              <div className="flex gap-2 text-muted-foreground">
+                <span>{TYPE_LABELS[req.type] || req.type}</span>
+                <span>•</span>
+                <span>{isDPOView ? req.requestorName : 'Anda'}</span>
+                <span>•</span>
+                <span>{formatDateTimeID(req.submittedAt)}</span>
+              </div>
+              <div className="text-foreground">{req.description}</div>
+              {req.handlerNotes && (
+                <div className="text-muted-foreground italic">Catatan DPO: {req.handlerNotes}</div>
+              )}
+              {isDPOView && req.status === 'PENDING' && (
+                <div className="flex gap-1 pt-1">
+                  <Button size="sm" variant="outline" className="h-6 text-[10px]" onClick={() => handleAction(req.id, 'claim')}>Claim</Button>
+                  <Button size="sm" variant="outline" className="h-6 text-[10px]" onClick={() => {
+                    const notes = prompt('Alasan penolakan:')
+                    if (notes) handleAction(req.id, 'deny', notes)
+                  }}>Tolak</Button>
+                </div>
+              )}
+              {isDPOView && req.status === 'IN_REVIEW' && (
+                <div className="flex gap-1 pt-1">
+                  <Button size="sm" variant="outline" className="h-6 text-[10px]" onClick={() => handleAction(req.id, 'approve')}>Setujui</Button>
+                  <Button size="sm" variant="outline" className="h-6 text-[10px]" onClick={() => {
+                    const notes = prompt('Alasan penolakan:')
+                    if (notes) handleAction(req.id, 'deny', notes)
+                  }}>Tolak</Button>
+                </div>
+              )}
+              {isDPOView && req.status === 'APPROVED' && (
+                <div className="pt-1">
+                  <Button size="sm" variant="outline" className="h-6 text-[10px]" onClick={() => handleAction(req.id, 'complete', 'Selesai diproses')}>Tandai Selesai</Button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      <Dialog open={newOpen} onOpenChange={setNewOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Ajukan Permintaan Hak Subjek Data</DialogTitle>
+            <DialogDescription>Sesuai UU PDP No. 27/2022 Pasal 5-13. DPO akan respons dalam 3×24 jam.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Jenis Permintaan</Label>
+              <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ACCESS">Lihat Data Saya (Pasal 5)</SelectItem>
+                  <SelectItem value="CORRECT">Koreksi Data (Pasal 9)</SelectItem>
+                  <SelectItem value="DELETE">Hapus Data Saya (Pasal 10)</SelectItem>
+                  <SelectItem value="RESTRICT">Batasi Pemrosesan (Pasal 11)</SelectItem>
+                  <SelectItem value="PORTABILITY">Ekspor Data (Pasal 13)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Deskripsi Permintaan *</Label>
+              <Textarea
+                value={form.description}
+                onChange={(e) => setForm({ ...form, description: e.target.value })}
+                placeholder="Jelaskan data yang diminta, mis. 'mohon lihat semua data keanggotaan saya'"
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNewOpen(false)}>Batal</Button>
+            <Button onClick={handleSubmit} disabled={saving} className="gap-1">
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+              Ajukan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
   )
 }

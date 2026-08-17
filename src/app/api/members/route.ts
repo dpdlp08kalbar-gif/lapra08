@@ -7,6 +7,7 @@ import {
   getEditableTerritoryIds,
   generateMemberNumber,
   isDPNLevel,
+  logAccess,
 } from '@/lib/server-helpers'
 
 // Pastikan route berjalan di Node.js runtime (bukan Edge), selalu dynamic
@@ -80,6 +81,15 @@ export async function GET(request: NextRequest) {
       ...m,
       canEdit: editScope.isGlobalEdit || editScope.territoryIds.includes(m.territoryId),
     }))
+
+    // === UU PDP No. 27/2022: Audit log akses data anggota ===
+    await logAccess({
+      actor: user,
+      action: 'VIEW',
+      resource: 'MEMBER',
+      request,
+      detail: `List ${membersWithPermissions.length} members (filter: ${JSON.stringify(where).substring(0, 200)})`,
+    })
 
     return NextResponse.json({ success: true, data: membersWithPermissions, total })
   } catch (e: any) {

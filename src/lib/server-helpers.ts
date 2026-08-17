@@ -293,3 +293,91 @@ export function formatDateTimeID(date: Date | string): string {
     minute: '2-digit',
   }).format(d)
 }
+
+// ============================================================
+// AUDIT LOG — UU PDP No. 27/2022 Pasal 17 (akuntabilitas)
+// Helper untuk catat akses ke data pribadi anggota
+// ============================================================
+
+export type AuditAction = 'VIEW' | 'EXPORT' | 'UPDATE' | 'DELETE' | 'CREATE' | 'LOGIN' | 'DOWNLOAD' | 'DENIED'
+export type AuditResource = 'MEMBER' | 'USER' | 'KTA_APPLICATION' | 'PROGRAM_DOCUMENT' | 'SEKRETARIAT_MESSAGE' | 'DATA_ACCESS_REQUEST'
+
+/**
+ * Catat aksi akses ke data pribadi — wajib dipanggil di setiap endpoint yang menyentuh data anggota.
+ *
+ * @example
+ * await logAccess({
+ *   actor: user,
+ *   action: 'VIEW',
+ *   resource: 'MEMBER',
+ *   resourceId: member.id,
+ *   resourceLabel: `${member.fullName} (${member.memberNumber})`,
+ *   request,
+ * })
+ */
+export async function logAccess(params: {
+  actor: AuthUser
+  action: AuditAction
+  resource: AuditResource
+  resourceId?: string
+  resourceLabel?: string
+  request?: Request
+  status?: 'SUCCESS' | 'DENIED' | 'ERROR'
+  detail?: string
+}): Promise<void> {
+  try {
+    const { actor, action, resource, resourceId, resourceLabel, request, status = 'SUCCESS', detail } = params
+    // Best-effort logging — jangan crash endpoint utama kalau log gagal
+    await db.auditLog.create({
+      data: {
+        actorId: actor.id,
+        actorRole: actor.role,
+        actorName: actor.fullName,
+        actorTerritory: actor.territory?.code || null,
+        action,
+        resource,
+        resourceId: resourceId || null,
+        resourceLabel: resourceLabel || null,
+        ipAddress: request?.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || null,
+        userAgent: request?.headers.get('user-agent')?.substring(0, 500) || null,
+        status,
+        detail: detail || null,
+      },
+    })
+  } catch (e: any) {
+    // Log error tapi jangan throw — audit log tidak boleh break flow utama
+    console.error('[logAccess] failed:', e.message)
+  }
+}
+
+/**
+ * Cek apakah user adalah DPO (Data Protection Officer)
+ * DPO bisa: lihat audit log, handle data access request, export data untuk compliance
+ */
+export function isDPO(user: AuthUser | null | undefined): boolean {
+  if (!user) return false
+  return Boolean((user as any).isDPO) || user.role === 'SUPERADMIN'
+}
+
+/**
+ * Cek apakah user boleh akses audit log
+ * Hanya DPO + SUPERADMIN + ADMIN_DPN yang boleh
+ */
+export function canViewAuditLog(user: AuthUser | null | undefined): boolean {
+  if (!user) return false
+  if (user.role === 'SUPERADMIN' || user.role === 'ADMIN_DPN') return true
+  return isDPO(user)
+}
+
+/**
+ * Generate nomor tiket untuk DataAccessRequest
+ * Format: DAR-YYYYMMDD-XXX
+ */
+export async function generateDARNumber(): Promise<string> {
+  const today = new Date()
+  const dateStr = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}`
+  const count = await db.dataAccessRequest.count({
+    where: { requestNumber: { startsWith: `DAR-${dateStr}` } },
+  })
+  return `DAR-${dateStr}-${String(count + 1).padStart(3, '0')}`
+}

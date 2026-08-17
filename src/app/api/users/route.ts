@@ -1,7 +1,10 @@
 // LAPRA 08 - API: Users (User Management)
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getUserFromRequest, getAccessibleTerritoryIds } from '@/lib/server-helpers'
+import { getUserFromRequest, getAccessibleTerritoryIds, logAccess } from '@/lib/server-helpers'
+
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
   const user = await getUserFromRequest(request)
@@ -24,6 +27,15 @@ export async function GET(request: NextRequest) {
 
   // Strip password
   const safe = users.map(({ password, ...u }) => u)
+
+  // === UU PDP: Audit log akses data pengurus ===
+  await logAccess({
+    actor: user,
+    action: 'VIEW',
+    resource: 'USER',
+    request,
+    detail: `List ${safe.length} users`,
+  })
 
   return NextResponse.json({ success: true, data: safe })
 }
