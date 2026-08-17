@@ -88,6 +88,16 @@ export function ProgramKegiatanMenu() {
         icon={CalendarDays}
       />
 
+      {/* Visual marker untuk verifikasi versi UI */}
+      <div className="flex items-center gap-2 text-xs">
+        <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-300">
+          v2.0 — Hierarki DPN/DPD/DPC
+        </Badge>
+        <span className="text-muted-foreground">
+          Pilih tab kategori → pilih sub-tab level (DPN/DPD/DPC) → upload / lihat / edit / hapus dokumen
+        </span>
+      </div>
+
       {/* Tab navigasi utama */}
       <div className="flex flex-wrap gap-2">
         {tabs.map((t) => (
