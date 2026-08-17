@@ -1,14 +1,21 @@
-// LAPRA 08 - Program & Kegiatan Menu (Restructured)
-// 4 tabs: Program Kerja, Aksi Sosial & Sinergi, Kemitraan, Agenda & Kegiatan
-// Each tab has 3 sub-levels: DPN, DPD, DPC (territory hierarchy)
-// Each level supports: upload multi-format file, view bukti, edit, delete
+// LAPRA 08 - Program & Kegiatan Menu (v2.1)
+// Struktur drill-down DPN/DPD/DPC (restore dari commit 33131a2)
+// + Upload multi-format file (PDF/Image/DOC/Video/Audio) + View/Edit/Delete
+//
+// 4 tab kategori: Program Kerja, Aksi Sosial & Sinergi, Kemitraan, Agenda & Kegiatan
+// Setiap kategori → 3 kartu landing (DPN/DPD/DPC) → drill-down:
+//   DPN → langsung list program
+//   DPD → pilih provinsi → list program DPD provinsi tsb
+//   DPC → pilih provinsi → pilih kab/kota → list program DPC
+//
+// Setiap list program: card dengan Upload, View, Edit, Delete
+// File bukti pelaksanaan: PDF, JPG/PNG/WebP, DOC/DOCX, XLS/XLSX, MP4/MOV/WebM, MP3/WAV, TXT/CSV
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
 import { api } from '@/lib/api-client'
-import { useAuthStore, useToastStore } from '@/lib/store'
 import { PageHeader, LoadingState, EmptyState } from '@/components/ui-helpers'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -24,13 +31,15 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import {
-  Briefcase, HandHeart, Users, CalendarClock, CalendarDays, Plus,
-  Edit, Trash2, Eye, Upload, Loader2, Search, RefreshCw,
-  Building2, MapPin, FileText, Image as ImageIcon, Video, FileCheck,
-  ChevronRight, Globe, Download, X, CheckCircle2, Clock, AlertTriangle,
-} from 'lucide-react'
+import { useToastStore, useAuthStore } from '@/lib/store'
+import { useIsSuperAdmin } from './portal-menus'
 import { formatDateTimeID } from '@/lib/format'
+import {
+  Crown, Building2, MapPin, ChevronRight, Plus, Edit, Trash2,
+  Upload, FileCheck, Loader2, CalendarDays, Briefcase, HandHeart, Users, CalendarClock,
+  FileText, Image as ImageIcon, Video, Download, Eye, X, Search, RefreshCw,
+  CheckCircle2, Clock, AlertTriangle, Globe,
+} from 'lucide-react'
 
 // ============================================================
 // TYPES
@@ -39,12 +48,20 @@ type Level = 'DPN' | 'DPD' | 'DPC'
 type Category = 'PROGRAM_KERJA' | 'AKSI_SOSIAL' | 'KEMITRAAN' | 'AGENDA'
 type Status = 'DIRENCANAKAN' | 'BERJALAN' | 'SELESAI' | 'DITUNDA'
 
+interface Territory {
+  id: string
+  name: string
+  code: string
+  level: string
+  parentId: string | null
+}
+
 interface ProgramDoc {
   id: string
   title: string
   description?: string
-  category: Category
-  level: Level
+  category?: Category
+  level?: Level
   territoryCode?: string | null
   territoryName?: string | null
   territoryId?: string | null
@@ -54,29 +71,24 @@ interface ProgramDoc {
   fileName?: string | null
   fileType?: string | null
   fileSize?: number
-  uploadedBy: string
-  uploadedAt: string
+  uploadedBy?: string
+  uploadedAt?: string
   updatedAt?: string
-}
-
-interface Territory {
-  id: string
-  name: string
-  code: string
-  level: string
-  parentId?: string | null
+  // Legacy fields dari /api/gallery (untuk backward compat)
+  fileUrl?: string | null
+  pdfUrl?: string | null
 }
 
 // ============================================================
-// MAIN MENU — 4 tabs x 3 sub-levels
+// MAIN MENU — 4 tab kategori
 // ============================================================
 export function ProgramKegiatanMenu() {
   const [tab, setTab] = useState<Category>('PROGRAM_KERJA')
-  const tabs: { key: Category; label: string; icon: any; color: string }[] = [
-    { key: 'PROGRAM_KERJA', label: 'Program Kerja', icon: Briefcase, color: 'from-blue-500 to-indigo-600' },
-    { key: 'AKSI_SOSIAL', label: 'Aksi Sosial & Sinergi', icon: HandHeart, color: 'from-emerald-500 to-teal-600' },
-    { key: 'KEMITRAAN', label: 'Kemitraan', icon: Users, color: 'from-purple-500 to-pink-600' },
-    { key: 'AGENDA', label: 'Agenda & Kegiatan', icon: CalendarClock, color: 'from-orange-500 to-red-600' },
+  const tabs: { key: Category; label: string; icon: any; color: string; desc: string }[] = [
+    { key: 'PROGRAM_KERJA', label: 'Program Kerja', icon: Briefcase, color: 'from-blue-500 to-indigo-600', desc: 'Program kerja strategis DPN, DPD, dan DPC' },
+    { key: 'AKSI_SOSIAL', label: 'Aksi Sosial & Sinergi', icon: HandHeart, color: 'from-emerald-500 to-teal-600', desc: 'Dokumentasi aksi sosial dan kegiatan kemasyarakatan' },
+    { key: 'KEMITRAAN', label: 'Kemitraan', icon: Users, color: 'from-purple-500 to-pink-600', desc: 'Kemitraan dengan ummat, organisasi, dan institusi' },
+    { key: 'AGENDA', label: 'Agenda & Kegiatan', icon: CalendarClock, color: 'from-orange-500 to-red-600', desc: 'Agenda kegiatan organisasi' },
   ]
   const activeTab = tabs.find((t) => t.key === tab)!
 
@@ -89,12 +101,12 @@ export function ProgramKegiatanMenu() {
       />
 
       {/* Visual marker untuk verifikasi versi UI */}
-      <div className="flex items-center gap-2 text-xs">
+      <div className="flex items-center gap-2 text-xs flex-wrap">
         <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-300">
-          v2.0 — Hierarki DPN/DPD/DPC
+          v2.1 — Drill-down DPN/DPD/DPC
         </Badge>
         <span className="text-muted-foreground">
-          Pilih tab kategori → pilih sub-tab level (DPN/DPD/DPC) → upload / lihat / edit / hapus dokumen
+          Pilih tab kategori → klik kartu DPN/DPD/DPC → upload / lihat / edit / hapus dokumen
         </span>
       </div>
 
@@ -115,200 +127,337 @@ export function ProgramKegiatanMenu() {
         ))}
       </div>
 
-      {/* Konten tab aktif */}
-      <ProgramLevelManager category={tab} title={activeTab.label} icon={activeTab.icon} accentColor={activeTab.color} />
-    </div>
-  )
-}
-
-// ============================================================
-// LEVEL MANAGER — 3 sub-levels (DPN/DPD/DPC) per category
-// ============================================================
-function ProgramLevelManager({
-  category,
-  title,
-  icon: Icon,
-  accentColor,
-}: {
-  category: Category
-  title: string
-  icon: any
-  accentColor: string
-}) {
-  const [level, setLevel] = useState<Level>('DPN')
-  const [territories, setTerritories] = useState<Territory[]>([])
-  const [selectedTerritoryId, setSelectedTerritoryId] = useState<string>('')
-
-  // Load territories for filter dropdown (DPD/DPC levels)
-  useEffect(() => {
-    if (level === 'DPN') return
-    api('/api/territory').then((all: any[]) => {
-      const filtered = (all || []).filter((t: any) =>
-        level === 'DPD' ? t.level === 'PROVINCE' : t.level === 'REGENCY'
-      )
-      setTerritories(filtered)
-    }).catch(() => {})
-  }, [level])
-
-  return (
-    <div className="space-y-4">
-      {/* Header dengan ikon kategori */}
-      <Card className="border-l-4 border-l-orange-500">
-        <CardHeader className="pb-3">
-          <div className="flex items-center gap-3">
-            <div className={`p-2 rounded-lg bg-gradient-to-br ${accentColor} text-white`}>
-              <Icon className="w-5 h-5" />
-            </div>
-            <div>
-              <CardTitle className="text-lg">{title}</CardTitle>
-              <CardDescription className="text-xs">
-                Kelola dokumen & bukti pelaksanaan per tingkat pengurus
-              </CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-      </Card>
-
-      {/* Sub-tab level: DPN / DPD / DPC */}
-      <div className="flex flex-wrap gap-2">
-        {([
-          { key: 'DPN' as Level, label: 'DPN — Pimpinan Pusat Nasional', icon: Building2, desc: 'Program nasional level pusat' },
-          { key: 'DPD' as Level, label: 'DPD — Pimpinan Daerah (Provinsi)', icon: Globe, desc: 'Program tingkat provinsi & LN' },
-          { key: 'DPC' as Level, label: 'DPC — Pimpinan Cabang (Kab/Kota)', icon: MapPin, desc: 'Program tingkat kabupaten/kota' },
-        ]).map((lv) => (
-          <button
-            key={lv.key}
-            onClick={() => { setLevel(lv.key); setSelectedTerritoryId('') }}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all text-left ${
-              level === lv.key
-                ? 'bg-gradient-to-r from-orange-600 to-red-600 text-white shadow-sm'
-                : 'border hover:bg-accent'
-            }`}
-            title={lv.desc}
-          >
-            <lv.icon className="w-4 h-4" /> {lv.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Filter wilayah untuk DPD/DPC */}
-      {level !== 'DPN' && territories.length > 0 && (
-        <Card>
-          <CardContent className="p-3">
-            <div className="flex items-center gap-3 flex-wrap">
-              <Label className="text-xs text-muted-foreground whitespace-nowrap">
-                {level === 'DPD' ? 'Filter Provinsi:' : 'Filter Kabupaten/Kota:'}
-              </Label>
-              <Select value={selectedTerritoryId} onValueChange={setSelectedTerritoryId}>
-                <SelectTrigger className="w-64 h-9 text-sm">
-                  <SelectValue placeholder="Semua wilayah" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">Semua wilayah</SelectItem>
-                  {territories.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>
-                      {t.name} ({t.code})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Badge variant="outline" className="text-xs">
-                {territories.length} wilayah tersedia
-              </Badge>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Daftar dokumen untuk level terpilih */}
-      <ProgramDocList
-        category={category}
-        level={level}
-        territoryId={selectedTerritoryId}
-        territories={territories}
-        accentColor={accentColor}
+      {/* Konten tab aktif → drill-down DPN/DPD/DPC */}
+      <ProgramContentManager
+        title={activeTab.label}
+        description={activeTab.desc}
+        icon={activeTab.icon}
+        category={tab}
+        accentColor={activeTab.color}
       />
     </div>
   )
 }
 
 // ============================================================
-// DOC LIST — list dokumen + tombol upload
+// PROGRAM CONTENT MANAGER — drill-down DPN/DPD/DPC (restore dari commit 33131a2)
 // ============================================================
-function ProgramDocList({
-  category,
-  level,
-  territoryId,
-  territories,
-  accentColor,
+export function ProgramContentManager({ title, description, icon: Icon, category, accentColor }: {
+  title: string; description: string; icon: any; category: string; accentColor: string
+}) {
+  const [view, setView] = useState<'home' | 'dpn' | 'dpd-list' | 'dpd-detail' | 'dpc-list' | 'dpc-detail'>('home')
+  const [territories, setTerritories] = useState<Territory[]>([])
+  const [regencies, setRegencies] = useState<Territory[]>([])
+  const [selectedProv, setSelectedProv] = useState<Territory | null>(null)
+  const [selectedRegency, setSelectedRegency] = useState<Territory | null>(null)
+  const [items, setItems] = useState<ProgramDoc[]>([])
+  const [loading, setLoading] = useState(true)
+
+  // Load territories + program documents
+  useEffect(() => {
+    Promise.all([
+      api('/api/territory').catch(() => [] as any[]),
+      api('/api/program-documents').catch(() => [] as any[]),
+      api('/api/gallery').catch(() => [] as any[]), // legacy fallback
+    ]).then(([allTerr, allDocs, allGallery]) => {
+      setTerritories((allTerr as any[]).filter(t => t.level === 'PROVINCE'))
+      setRegencies((allTerr as any[]).filter(t => t.level === 'REGENCY'))
+      // Gabungkan: dokumen baru dari /api/program-documents + lama dari /api/gallery
+      const newDocs = (allDocs as any[]).filter(d => d.category === category)
+      const legacyDocs = (allGallery as any[]).filter(a => a.category === category)
+      setItems([...newDocs, ...legacyDocs])
+    }).finally(() => setLoading(false))
+  }, [category])
+
+  // Helper filter
+  const isFiltered = (i: any, code: string, level: string) =>
+    i.territoryCode === code || (i.level === level && i.territoryCode === code)
+
+  const dpnItems = items.filter(i => !i.territoryCode || i.territoryCode === 'ID' || i.level === 'DPN')
+  const dpdCount = items.filter(i => i.level === 'DPD' || (i.territoryCode && i.territoryCode.length === 2 && i.territoryCode !== 'ID')).length
+  const dpcCount = items.filter(i => i.level === 'DPC' || (i.territoryCode && i.territoryCode.length >= 4)).length
+
+  // === HOME: 3 Kartu DPN/DPD/DPC ===
+  if (view === 'home') {
+    const cards = [
+      { key: 'dpn' as const, title: 'DPN', subtitle: 'Pusat Nasional', desc: `${title} tingkat DPN`, count: dpnItems.length, icon: Crown, grad: 'from-red-500 to-orange-600' },
+      { key: 'dpd' as const, title: 'DPD', subtitle: 'Provinsi', desc: `${title} DPD se-Indonesia + LN`, count: dpdCount, icon: Building2, grad: 'from-blue-500 to-cyan-600' },
+      { key: 'dpc' as const, title: 'DPC', subtitle: 'Kabupaten/Kota', desc: `${title} DPC per DPD`, count: dpcCount, icon: MapPin, grad: 'from-emerald-500 to-teal-600' },
+    ]
+    return (
+      <div className="space-y-4">
+        <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs text-blue-800">
+          <strong>Hierarki:</strong> DPN (Pusat Nasional) → DPD (Provinsi) → DPC (Kabupaten/Kota).
+          Pilih tingkat untuk melihat {title.toLowerCase()} masing-masing wilayah.
+        </div>
+        <div className="grid gap-4 md:grid-cols-3">
+          {cards.map(c => (
+            <div key={c.key} className="rounded-2xl border-2 hover:shadow-lg transition-all cursor-pointer overflow-hidden"
+              onClick={() => { setView(c.key === 'dpn' ? 'dpn' : c.key === 'dpd' ? 'dpd-list' : 'dpc-list'); setSelectedProv(null); setSelectedRegency(null) }}>
+              <div className={`bg-gradient-to-br ${c.grad} p-5 text-white`}>
+                <c.icon className="w-8 h-8 mb-2" />
+                <div className="text-xl font-bold">{c.title}</div>
+                <div className="text-sm opacity-90">{c.subtitle}</div>
+              </div>
+              <div className="p-4 bg-white">
+                <div className="text-sm text-muted-foreground mb-2">{c.desc}</div>
+                <div className="flex items-center justify-between">
+                  <Badge variant="outline" className="text-[13px]">{c.count} dokumen</Badge>
+                  <span className="text-xs font-medium text-blue-600">Buka <ChevronRight className="w-4 h-4 inline" /></span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  // === DPN VIEW ===
+  if (view === 'dpn') {
+    return (
+      <ProgramLevelView
+        title={`${title} — DPN (Pusat Nasional)`}
+        description={description}
+        icon={Icon}
+        accentColor={accentColor}
+        items={dpnItems}
+        loading={loading}
+        category={category}
+        level="DPN"
+        territoryCode="ID"
+        territoryName="DPN (Pusat Nasional)"
+        onBack={() => setView('home')}
+        setItems={setItems}
+      />
+    )
+  }
+
+  // === DPD LIST VIEW ===
+  if (view === 'dpd-list') {
+    return (
+      <div className="space-y-4">
+        <Button variant="ghost" size="sm" onClick={() => setView('home')}>
+          <ChevronRight className="w-4 h-4 rotate-180" /> Kembali
+        </Button>
+        <h3 className="text-base font-bold flex items-center gap-2">
+          <Building2 className="w-5 h-5 text-blue-600" /> Pilih DPD (Provinsi)
+        </h3>
+        <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+          {territories.map(prov => {
+            const count = items.filter(i => isFiltered(i, prov.code, 'DPD')).length
+            return (
+              <button key={prov.code} onClick={() => { setSelectedProv(prov); setView('dpd-detail') }}
+                className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent transition-all text-left">
+                <span className="text-sm font-medium">{prov.name}</span>
+                <Badge variant="outline" className="text-[13px]">{count > 0 ? `${count} dok` : 'Kosong'}</Badge>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+
+  // === DPD DETAIL VIEW ===
+  if (view === 'dpd-detail' && selectedProv) {
+    const dpdItems = items.filter(i => isFiltered(i, selectedProv.code, 'DPD'))
+    return (
+      <ProgramLevelView
+        title={`${title} — DPD ${selectedProv.name}`}
+        description={description}
+        icon={Icon}
+        accentColor={accentColor}
+        items={dpdItems}
+        loading={loading}
+        category={category}
+        level="DPD"
+        territoryCode={selectedProv.code}
+        territoryName={`DPD ${selectedProv.name}`}
+        onBack={() => { setSelectedProv(null); setView('dpd-list') }}
+        setItems={setItems}
+      />
+    )
+  }
+
+  // === DPC LIST VIEW (pilih provinsi dulu) ===
+  if (view === 'dpc-list') {
+    return (
+      <div className="space-y-4">
+        <Button variant="ghost" size="sm" onClick={() => setView('home')}>
+          <ChevronRight className="w-4 h-4 rotate-180" /> Kembali
+        </Button>
+        <h3 className="text-base font-bold flex items-center gap-2">
+          <MapPin className="w-5 h-5 text-emerald-600" /> Pilih DPD (Provinsi) untuk lihat DPC
+        </h3>
+        <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+          {territories.map(prov => {
+            const regCount = regencies.filter(r => r.parentId === prov.id).length
+            return (
+              <button key={prov.code} onClick={() => { setSelectedProv(prov); setView('dpc-detail'); setSelectedRegency(null) }}
+                className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent transition-all text-left">
+                <span className="text-sm font-medium">{prov.name}</span>
+                <Badge variant="outline" className="text-[13px]">{regCount > 0 ? `${regCount} DPC` : 'Kosong'}</Badge>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+
+  // === DPC DETAIL VIEW (list kab/kota di provinsi terpilih) ===
+  if (view === 'dpc-detail' && selectedProv) {
+    const provRegencies = regencies.filter(r => r.parentId === selectedProv.id)
+    return (
+      <div className="space-y-4">
+        <Button variant="ghost" size="sm" onClick={() => { setSelectedProv(null); setView('dpc-list') }}>
+          <ChevronRight className="w-4 h-4 rotate-180" /> Kembali ke daftar provinsi
+        </Button>
+        <h3 className="text-base font-bold flex items-center gap-2">
+          <MapPin className="w-5 h-5 text-emerald-600" /> DPC di {selectedProv.name}
+        </h3>
+        <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+          {provRegencies.length === 0 ? (
+            <p className="text-sm text-muted-foreground col-span-full">Belum ada DPC terdaftar di provinsi ini.</p>
+          ) : provRegencies.map(reg => {
+            const count = items.filter(i => isFiltered(i, reg.code, 'DPC')).length
+            return (
+              <button key={reg.code} onClick={() => setSelectedRegency(reg)}
+                className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent transition-all text-left">
+                <span className="text-sm font-medium">{reg.name}</span>
+                <Badge variant="outline" className="text-[13px]">{count > 0 ? `${count} dok` : 'Kosong'}</Badge>
+              </button>
+            )
+          })}
+        </div>
+        {selectedRegency && (() => {
+          const dpcItems = items.filter(i => isFiltered(i, selectedRegency.code, 'DPC'))
+          return (
+            <ProgramLevelView
+              title={`${title} — DPC ${selectedRegency.name}`}
+              description={description}
+              icon={Icon}
+              accentColor={accentColor}
+              items={dpcItems}
+              loading={loading}
+              category={category}
+              level="DPC"
+              territoryCode={selectedRegency.code}
+              territoryName={`DPC ${selectedRegency.name}`}
+              onBack={() => setSelectedRegency(null)}
+              setItems={setItems}
+            />
+          )
+        })()}
+      </div>
+    )
+  }
+
+  return null
+}
+
+// ============================================================
+// PROGRAM LEVEL VIEW — List dokumen per level + Upload/View/Edit/Delete
+// ============================================================
+function ProgramLevelView({
+  title, description, icon: Icon, accentColor, items, loading, category, level, territoryCode, territoryName, onBack, setItems,
 }: {
-  category: Category
-  level: Level
-  territoryId: string
-  territories: Territory[]
+  title: string
+  description: string
+  icon: any
   accentColor: string
+  items: ProgramDoc[]
+  loading: boolean
+  category: string
+  level: Level
+  territoryCode: string
+  territoryName: string
+  onBack: () => void
+  setItems: React.Dispatch<React.SetStateAction<ProgramDoc[]>>
 }) {
   const addToast = useToastStore((s) => s.addToast)
   const user = useAuthStore((s) => s.user)
-  const [docs, setDocs] = useState<ProgramDoc[]>([])
-  const [loading, setLoading] = useState(true)
+  const isSuperAdmin = useIsSuperAdmin()
   const [search, setSearch] = useState('')
   const [uploadOpen, setUploadOpen] = useState(false)
   const [editDoc, setEditDoc] = useState<ProgramDoc | null>(null)
   const [deleteDoc, setDeleteDoc] = useState<ProgramDoc | null>(null)
   const [viewingDoc, setViewingDoc] = useState<ProgramDoc | null>(null)
 
-  const loadData = () => {
-    setLoading(true)
-    const params = new URLSearchParams({ category, level })
-    api(`/api/program-documents?${params.toString()}`)
-      .then((data: any[]) => {
-        let filtered = data || []
-        // Client-side filter by territoryId (extra safety)
-        if (territoryId) {
-          filtered = filtered.filter((d) => d.territoryId === territoryId)
-        }
-        // Client-side search
-        if (search.trim()) {
-          const q = search.toLowerCase()
-          filtered = filtered.filter(
-            (d) =>
-              d.title?.toLowerCase().includes(q) ||
-              d.description?.toLowerCase().includes(q) ||
-              d.location?.toLowerCase().includes(q)
-          )
-        }
-        setDocs(filtered)
-      })
-      .catch((e: any) => {
-        addToast(`Gagal memuat dokumen: ${e.message}`, 'error')
-        setDocs([])
-      })
-      .finally(() => setLoading(false))
+  // === Helper: format ukuran file ===
+  const formatFileSize = (bytes?: number) => {
+    if (!bytes) return '-'
+    if (bytes < 1024) return `${bytes} B`
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+    return `${(bytes / 1024 / 1024).toFixed(2)} MB`
   }
 
-  useEffect(() => { loadData() }, [category, level, territoryId])
+  // === Helper: ikon file ===
+  const getFileIcon = (fileType?: string | null) => {
+    if (!fileType) return FileText
+    const t = fileType.toUpperCase()
+    if (['JPG', 'JPEG', 'PNG', 'WEBP', 'GIF'].includes(t)) return ImageIcon
+    if (['MP4', 'MOV', 'WEBM'].includes(t)) return Video
+    if (['PDF'].includes(t)) return FileText
+    if (['DOC', 'DOCX', 'TXT'].includes(t)) return FileText
+    if (['XLS', 'XLSX', 'CSV'].includes(t)) return FileCheck
+    return FileText
+  }
 
-  // Refresh saat search berubah (debounced via useEffect)
-  useEffect(() => {
-    const t = setTimeout(() => loadData(), 300)
-    return () => clearTimeout(t)
-  }, [search])
+  // === Handler: reload list ===
+  const reload = () => {
+    Promise.all([
+      api('/api/program-documents').catch(() => []),
+      api('/api/gallery').catch(() => []),
+    ]).then(([allDocs, allGallery]: any[]) => {
+      const newDocs = (allDocs || []).filter((d: any) => d.category === category)
+      const legacy = (allGallery || []).filter((a: any) => a.category === category)
+      setItems([...newDocs, ...legacy])
+    })
+  }
 
-  // === Handler: View bukti (buka file di tab baru via authenticated fetch + blob) ===
-  const handleViewBukti = async (doc: ProgramDoc) => {
+  // === Handler: View bukti (inline di browser) ===
+  const handleView = async (doc: ProgramDoc) => {
     setViewingDoc(doc)
     try {
-      const userId = user?.id || ''
-      const res = await fetch(`/api/program-documents/${doc.id}/view`, {
-        headers: { 'x-user-id': userId },
-      })
-      if (!res.ok) {
-        const errData = await res.json().catch(() => null)
-        throw new Error(errData?.error || `HTTP ${res.status}`)
+      // Untuk dokumen baru: pakai /api/program-documents/[id]/view
+      // Untuk dokumen legacy (fileUrl langsung): buka fileUrl
+      let blobUrl: string
+      if (doc.id.startsWith('progdoc_')) {
+        const res = await fetch(`/api/program-documents/${doc.id}/view`, {
+          headers: { 'x-user-id': user?.id || '' },
+        })
+        if (!res.ok) {
+          const errData = await res.json().catch(() => null)
+          throw new Error(errData?.error || `HTTP ${res.status}`)
+        }
+        const blob = await res.blob()
+        blobUrl = URL.createObjectURL(blob)
+      } else if (doc.fileUrl) {
+        // Legacy: fileUrl mungkin data URL atau public URL
+        if (doc.fileUrl.startsWith('data:')) {
+          const res = await fetch(doc.fileUrl)
+          const blob = await res.blob()
+          blobUrl = URL.createObjectURL(blob)
+        } else {
+          window.open(doc.fileUrl, '_blank')
+          return
+        }
+      } else if (doc.pdfUrl) {
+        // Legacy: PDF program kerja
+        if (doc.pdfUrl.startsWith('data:')) {
+          const res = await fetch(doc.pdfUrl)
+          const blob = await res.blob()
+          blobUrl = URL.createObjectURL(blob)
+        } else {
+          window.open(doc.pdfUrl, '_blank')
+          return
+        }
+      } else {
+        addToast('Dokumen tidak punya file', 'error')
+        return
       }
-      const blob = await res.blob()
-      const blobUrl = URL.createObjectURL(blob)
       window.open(blobUrl, '_blank')
       setTimeout(() => URL.revokeObjectURL(blobUrl), 60000)
     } catch (e: any) {
@@ -321,12 +470,33 @@ function ProgramDocList({
   // === Handler: Download file ===
   const handleDownload = async (doc: ProgramDoc) => {
     try {
-      const userId = user?.id || ''
-      const res = await fetch(`/api/program-documents/${doc.id}/view`, {
-        headers: { 'x-user-id': userId },
-      })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const blob = await res.blob()
+      let blob: Blob
+      if (doc.id.startsWith('progdoc_')) {
+        const res = await fetch(`/api/program-documents/${doc.id}/view`, {
+          headers: { 'x-user-id': user?.id || '' },
+        })
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        blob = await res.blob()
+      } else if (doc.fileUrl?.startsWith('data:')) {
+        const res = await fetch(doc.fileUrl)
+        blob = await res.blob()
+      } else if (doc.pdfUrl?.startsWith('data:')) {
+        const res = await fetch(doc.pdfUrl)
+        blob = await res.blob()
+      } else if (doc.fileUrl || doc.pdfUrl) {
+        // External URL
+        const a = window.document.createElement('a')
+        a.href = (doc.fileUrl || doc.pdfUrl) as string
+        a.download = doc.fileName || doc.title
+        a.target = '_blank'
+        window.document.body.appendChild(a)
+        a.click()
+        window.document.body.removeChild(a)
+        return
+      } else {
+        addToast('Tidak ada file untuk diunduh', 'error')
+        return
+      }
       const blobUrl = URL.createObjectURL(blob)
       const a = window.document.createElement('a')
       a.href = blobUrl
@@ -335,107 +505,76 @@ function ProgramDocList({
       a.click()
       window.document.body.removeChild(a)
       setTimeout(() => URL.revokeObjectURL(blobUrl), 30000)
-      addToast(`File "${doc.fileName}" didownload`, 'success')
+      addToast(`File "${doc.fileName || doc.title}" didownload`, 'success')
     } catch (e: any) {
       addToast(`Gagal download: ${e.message}`, 'error')
     }
   }
 
-  // === Helper: ikon berdasarkan jenis file ===
-  const getFileIcon = (fileType?: string | null) => {
-    if (!fileType) return FileText
-    const t = fileType.toUpperCase()
-    if (['JPG', 'JPEG', 'PNG', 'WEBP', 'GIF'].includes(t)) return ImageIcon
-    if (['MP4', 'MOV', 'WEBM'].includes(t)) return Video
-    if (['PDF'].includes(t)) return FileText
-    if (['DOC', 'DOCX', 'TXT'].includes(t)) return FileText
-    if (['XLS', 'XLSX', 'CSV'].includes(t)) return FileCheck
-    return FileText
-  }
-
-  // === Helper: format ukuran file ===
-  const formatFileSize = (bytes: number) => {
-    if (!bytes) return '-'
-    if (bytes < 1024) return `${bytes} B`
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-    return `${(bytes / 1024 / 1024).toFixed(2)} MB`
-  }
-
-  // === Helper: badge warna status ===
-  const getStatusBadge = (status: Status) => {
-    const map: Record<Status, { variant: any; icon: any; label: string }> = {
-      DIRENCANAKAN: { variant: 'secondary', icon: Clock, label: 'Direncanakan' },
-      BERJALAN: { variant: 'default', icon: AlertTriangle, label: 'Berjalan' },
-      SELESAI: { variant: 'outline', icon: CheckCircle2, label: 'Selesai' },
-      DITUNDA: { variant: 'destructive', icon: X, label: 'Ditunda' },
-    }
-    const cfg = map[status] || map.DIRENCANAKAN
-    return (
-      <Badge variant={cfg.variant} className="text-xs gap-1">
-        <cfg.icon className="w-3 h-3" /> {cfg.label}
-      </Badge>
-    )
-  }
-
   if (loading) return <LoadingState message={`Memuat dokumen ${level}...`} />
+
+  const filtered = items.filter((i) =>
+    !search ||
+    i.title?.toLowerCase().includes(search.toLowerCase()) ||
+    i.description?.toLowerCase().includes(search.toLowerCase()) ||
+    i.location?.toLowerCase().includes(search.toLowerCase())
+  )
+
+  // Stats ringkas
+  const stats = {
+    total: filtered.length,
+    selesai: filtered.filter(d => d.status === 'SELESAI').length,
+    berjalan: filtered.filter(d => d.status === 'BERJALAN').length,
+    direncanakan: filtered.filter(d => d.status === 'DIRENCANAKAN').length,
+  }
 
   return (
     <div className="space-y-4">
-      {/* Toolbar: search + upload */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative flex-1 min-w-64">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Cari judul / deskripsi / lokasi..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 h-9"
-          />
-        </div>
-        <Button variant="outline" size="sm" onClick={loadData} className="gap-1">
-          <RefreshCw className="w-4 h-4" /> Refresh
-        </Button>
+      <Button variant="ghost" size="sm" onClick={onBack}>
+        <ChevronRight className="w-4 h-4 rotate-180" /> Kembali
+      </Button>
+
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <h3 className="text-base font-bold flex items-center gap-2">
+          <Icon className={`w-5 h-5 bg-gradient-to-br ${accentColor} bg-clip-text`} />
+          {title}
+          <Badge variant="outline" className="text-[13px]">{filtered.length} dokumen</Badge>
+        </h3>
         <Button
           size="sm"
           onClick={() => setUploadOpen(true)}
-          className={`gap-1 bg-gradient-to-r ${accentColor} hover:opacity-90`}
+          className={`gap-1 bg-gradient-to-r ${accentColor} text-white hover:opacity-90`}
         >
-          <Plus className="w-4 h-4" /> Upload Dokumen {level}
+          <Upload className="w-4 h-4" /> Upload Dokumen {level}
         </Button>
       </div>
 
+      {/* Search */}
+      <div className="relative max-w-md">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <Input
+          placeholder="Cari judul / deskripsi / lokasi..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="pl-9"
+        />
+      </div>
+
       {/* Stats ringkas */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-        <Card className="p-3">
-          <div className="text-muted-foreground">Total Dokumen</div>
-          <div className="text-xl font-bold">{docs.length}</div>
-        </Card>
-        <Card className="p-3">
-          <div className="text-muted-foreground">Selesai</div>
-          <div className="text-xl font-bold text-green-600">
-            {docs.filter((d) => d.status === 'SELESAI').length}
-          </div>
-        </Card>
-        <Card className="p-3">
-          <div className="text-muted-foreground">Berjalan</div>
-          <div className="text-xl font-bold text-blue-600">
-            {docs.filter((d) => d.status === 'BERJALAN').length}
-          </div>
-        </Card>
-        <Card className="p-3">
-          <div className="text-muted-foreground">Direncanakan</div>
-          <div className="text-xl font-bold text-orange-600">
-            {docs.filter((d) => d.status === 'DIRENCANAKAN').length}
-          </div>
-        </Card>
+      <div className="grid grid-cols-4 gap-2 text-xs">
+        <Card className="p-2"><div className="text-muted-foreground">Total</div><div className="text-lg font-bold">{stats.total}</div></Card>
+        <Card className="p-2"><div className="text-muted-foreground">Selesai</div><div className="text-lg font-bold text-green-600">{stats.selesai}</div></Card>
+        <Card className="p-2"><div className="text-muted-foreground">Berjalan</div><div className="text-lg font-bold text-blue-600">{stats.berjalan}</div></Card>
+        <Card className="p-2"><div className="text-muted-foreground">Direncanakan</div><div className="text-lg font-bold text-orange-600">{stats.direncanakan}</div></Card>
       </div>
 
       {/* Empty state */}
-      {docs.length === 0 ? (
+      {filtered.length === 0 ? (
         <EmptyState
           icon={FileText}
           title={`Belum ada dokumen ${level}`}
-          description={`Upload dokumen bukti pelaksanaan ${level} untuk kategori ini. Mendukung PDF, gambar, dokumen, video, dan audio.`}
+          description={`Upload dokumen bukti pelaksanaan ${level} ${territoryName}. Mendukung PDF, gambar, dokumen, video, dan audio.`}
           action={
             <Button onClick={() => setUploadOpen(true)} className={`gap-1 bg-gradient-to-r ${accentColor}`}>
               <Upload className="w-4 h-4" /> Upload Sekarang
@@ -443,106 +582,58 @@ function ProgramDocList({
           }
         />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {docs.map((doc) => {
+        <div className="space-y-2">
+          {filtered.map((doc) => {
             const FileIcon = getFileIcon(doc.fileType)
+            const hasFile = doc.fileName || doc.fileUrl || doc.pdfUrl
             return (
-              <Card key={doc.id} className="flex flex-col hover:shadow-md transition-shadow">
-                <CardHeader className="pb-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <div className="p-1.5 rounded bg-orange-50 text-orange-600 shrink-0">
-                        <FileIcon className="w-4 h-4" />
-                      </div>
-                      <div className="min-w-0">
-                        <CardTitle className="text-sm truncate" title={doc.title}>
-                          {doc.title}
-                        </CardTitle>
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <span className="truncate">{doc.fileName || 'Tanpa file'}</span>
-                          {doc.fileSize ? (
-                            <span className="shrink-0">• {formatFileSize(doc.fileSize)}</span>
-                          ) : null}
-                        </div>
+              <div key={doc.id} className="group relative rounded-lg border p-4 hover:shadow-md transition-all bg-white">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3 flex-1 min-w-0">
+                    <div className="p-1.5 rounded bg-orange-50 text-orange-600 shrink-0">
+                      <FileIcon className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-sm truncate" title={doc.title}>{doc.title}</div>
+                      {doc.description && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{doc.description}</p>}
+                      <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground flex-wrap">
+                        {doc.fileName && (
+                          <span className="flex items-center gap-1">
+                            <FileText className="w-3 h-3" /> {doc.fileName}
+                            {doc.fileSize ? <span className="text-[10px]">({formatFileSize(doc.fileSize)})</span> : null}
+                          </span>
+                        )}
+                        {doc.location && <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {doc.location}</span>}
+                        {doc.date && <span className="flex items-center gap-1"><CalendarDays className="w-3 h-3" /> {doc.date}</span>}
+                        <Badge variant="outline" className="text-[11px]">{doc.status || 'DIRENCANAKAN'}</Badge>
                       </div>
                     </div>
-                    {getStatusBadge(doc.status)}
-                  </div>
-                </CardHeader>
-                <CardContent className="flex-1 flex flex-col gap-2">
-                  {doc.description && (
-                    <p className="text-xs text-muted-foreground line-clamp-3">{doc.description}</p>
-                  )}
-                  <div className="space-y-1 text-xs">
-                    {doc.location && (
-                      <div className="flex items-center gap-1.5 text-muted-foreground">
-                        <MapPin className="w-3 h-3" /> {doc.location}
-                      </div>
-                    )}
-                    {doc.date && (
-                      <div className="flex items-center gap-1.5 text-muted-foreground">
-                        <CalendarClock className="w-3 h-3" /> {formatDateTimeID(doc.date)}
-                      </div>
-                    )}
-                    {level !== 'DPN' && doc.territoryName && (
-                      <div className="flex items-center gap-1.5 text-muted-foreground">
-                        <Globe className="w-3 h-3" /> {doc.territoryName}
-                      </div>
-                    )}
-                    <div className="flex items-center gap-1.5 text-muted-foreground">
-                      <Users className="w-3 h-3" /> {doc.uploadedBy}
-                    </div>
-                  </div>
-                  <div className="text-[10px] text-muted-foreground border-t pt-1.5">
-                    Update: {formatDateTimeID(doc.updatedAt || doc.uploadedAt)}
                   </div>
                   {/* Action buttons */}
-                  <div className="flex flex-wrap gap-1 mt-auto pt-2">
-                    {doc.fileName && (
+                  <div className="flex gap-1 shrink-0">
+                    {hasFile && (
                       <>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleViewBukti(doc)}
-                          disabled={viewingDoc?.id === doc.id}
-                          className="gap-1 text-xs h-7"
-                        >
-                          {viewingDoc?.id === doc.id ? (
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                          ) : (
-                            <Eye className="w-3 h-3" />
-                          )}
-                          Lihat
+                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-green-600 hover:bg-green-50" onClick={() => handleView(doc)} disabled={viewingDoc?.id === doc.id} title="Lihat file">
+                          {viewingDoc?.id === doc.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Eye className="w-3.5 h-3.5" />}
                         </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleDownload(doc)}
-                          className="gap-1 text-xs h-7"
-                        >
-                          <Download className="w-3 h-3" /> Unduh
+                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-purple-600 hover:bg-purple-50" onClick={() => handleDownload(doc)} title="Download file">
+                          <Download className="w-3.5 h-3.5" />
                         </Button>
                       </>
                     )}
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setEditDoc(doc)}
-                      className="gap-1 text-xs h-7"
-                    >
-                      <Edit className="w-3 h-3" /> Edit
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setDeleteDoc(doc)}
-                      className="gap-1 text-xs h-7 text-red-600 hover:bg-red-50"
-                    >
-                      <Trash2 className="w-3 h-3" /> Hapus
-                    </Button>
+                    {isSuperAdmin && (
+                      <>
+                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-blue-600 hover:bg-blue-50" onClick={() => setEditDoc(doc)} title="Edit">
+                          <Edit className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-600 hover:bg-red-50" onClick={() => setDeleteDoc(doc)} title="Hapus">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </>
+                    )}
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </div>
             )
           })}
         </div>
@@ -553,10 +644,11 @@ function ProgramDocList({
         <UploadDialog
           open={uploadOpen}
           onOpenChange={setUploadOpen}
-          category={category}
+          category={category as Category}
           level={level}
-          territories={territories}
-          onSuccess={() => { setUploadOpen(false); loadData() }}
+          territoryCode={territoryCode}
+          territoryName={territoryName}
+          onSuccess={() => { setUploadOpen(false); reload() }}
         />
       )}
 
@@ -566,8 +658,7 @@ function ProgramDocList({
           doc={editDoc}
           open={!!editDoc}
           onOpenChange={(o) => !o && setEditDoc(null)}
-          territories={territories}
-          onSuccess={() => { setEditDoc(null); loadData() }}
+          onSuccess={() => { setEditDoc(null); reload() }}
         />
       )}
 
@@ -578,11 +669,9 @@ function ProgramDocList({
             <AlertDialogHeader>
               <AlertDialogTitle>Hapus dokumen ini?</AlertDialogTitle>
               <AlertDialogDescription>
-                Anda akan menghapus <strong>{deleteDoc.title}</strong> ({deleteDoc.level}).
+                Anda akan menghapus <strong>{deleteDoc.title}</strong> ({level}).
                 {deleteDoc.fileName && (
-                  <>
-                    {' '}File <strong>{deleteDoc.fileName}</strong> juga akan dihapus permanen.
-                  </>
+                  <> File <strong>{deleteDoc.fileName}</strong> juga akan dihapus permanen.</>
                 )}
                 {' '}Aksi ini tidak bisa dibatalkan.
               </AlertDialogDescription>
@@ -592,10 +681,16 @@ function ProgramDocList({
               <AlertDialogAction
                 onClick={async () => {
                   try {
-                    await api(`/api/program-documents/${deleteDoc.id}`, { method: 'DELETE' })
+                    // Coba hapus via /api/program-documents (untuk dokumen baru)
+                    if (deleteDoc.id.startsWith('progdoc_')) {
+                      await api(`/api/program-documents/${deleteDoc.id}`, { method: 'DELETE' })
+                    } else {
+                      // Legacy: hapus via /api/gallery
+                      await api(`/api/gallery?id=${deleteDoc.id}`, { method: 'DELETE' })
+                    }
                     addToast('Dokumen berhasil dihapus', 'success')
                     setDeleteDoc(null)
-                    loadData()
+                    reload()
                   } catch (e: any) {
                     addToast(`Gagal hapus: ${e.message}`, 'error')
                   }
@@ -620,14 +715,16 @@ function UploadDialog({
   onOpenChange,
   category,
   level,
-  territories,
+  territoryCode,
+  territoryName,
   onSuccess,
 }: {
   open: boolean
   onOpenChange: (o: boolean) => void
   category: Category
   level: Level
-  territories: Territory[]
+  territoryCode: string
+  territoryName: string
   onSuccess: () => void
 }) {
   const addToast = useToastStore((s) => s.addToast)
@@ -640,16 +737,13 @@ function UploadDialog({
     status: 'DIRENCANAKAN' as Status,
   })
   const [file, setFile] = useState<File | null>(null)
-  const [selectedTerritoryId, setSelectedTerritoryId] = useState('')
   const [saving, setSaving] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Reset form saat dialog dibuka
   useEffect(() => {
     if (open) {
       setForm({ title: '', description: '', location: '', date: '', status: 'DIRENCANAKAN' })
       setFile(null)
-      setSelectedTerritoryId('')
     }
   }, [open])
 
@@ -662,24 +756,9 @@ function UploadDialog({
       addToast('File wajib diupload', 'error')
       return
     }
-    if (level !== 'DPN' && !selectedTerritoryId) {
-      addToast(`Pilih wilayah ${level === 'DPD' ? 'provinsi' : 'kabupaten/kota'}`, 'error')
-      return
-    }
 
     setSaving(true)
     try {
-      // Ambil territoryCode + territoryName
-      let territoryCode = ''
-      let territoryName = ''
-      if (selectedTerritoryId) {
-        const t = territories.find((x) => x.id === selectedTerritoryId)
-        if (t) {
-          territoryCode = t.code
-          territoryName = t.name
-        }
-      }
-
       const formData = new FormData()
       formData.append('file', file)
       formData.append('title', form.title)
@@ -691,9 +770,7 @@ function UploadDialog({
       formData.append('level', level)
       formData.append('territoryCode', territoryCode)
       formData.append('territoryName', territoryName)
-      formData.append('territoryId', selectedTerritoryId)
 
-      // Gunakan fetch langsung karena api() expect JSON
       const res = await fetch('/api/program-documents', {
         method: 'POST',
         headers: { 'x-user-id': user?.id || '' },
@@ -718,7 +795,7 @@ function UploadDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Upload Dokumen {level} — {category.replace('_', ' ')}</DialogTitle>
+          <DialogTitle>Upload Dokumen {level} — {territoryName}</DialogTitle>
           <DialogDescription>
             Upload file bukti pelaksanaan. Mendukung PDF, gambar (JPG/PNG/WebP), dokumen (DOC/XLS/PPT), video (MP4/MOV/WebM), audio (MP3/WAV), teks (TXT/CSV). Maksimal 4MB.
           </DialogDescription>
@@ -765,28 +842,9 @@ function UploadDialog({
               className="hidden"
             />
             <p className="text-xs text-muted-foreground">
-              Ekstensi yang didukung: PDF, JPG, PNG, WebP, GIF, DOC/DOCX, XLS/XLSX, PPT/PPTX, MP4, MOV, WebM, MP3, WAV, TXT, CSV
+              Ekstensi: PDF, JPG, PNG, WebP, GIF, DOC/DOCX, XLS/XLSX, PPT/PPTX, MP4, MOV, WebM, MP3, WAV, TXT, CSV
             </p>
           </div>
-
-          {/* Wilayah — hanya untuk DPD/DPC */}
-          {level !== 'DPN' && (
-            <div className="space-y-1.5">
-              <Label>Wilayah {level === 'DPD' ? 'Provinsi' : 'Kabupaten/Kota'} *</Label>
-              <Select value={selectedTerritoryId} onValueChange={setSelectedTerritoryId}>
-                <SelectTrigger>
-                  <SelectValue placeholder={`Pilih ${level === 'DPD' ? 'provinsi' : 'kabupaten/kota'}`} />
-                </SelectTrigger>
-                <SelectContent>
-                  {territories.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>
-                      {t.name} ({t.code})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
 
           <div className="space-y-1.5">
             <Label>Judul *</Label>
@@ -847,7 +905,7 @@ function UploadDialog({
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Batal</Button>
-          <Button onClick={handleSubmit} disabled={saving} className="gap-1">
+          <Button onClick={handleSubmit} disabled={saving} className={`gap-1 bg-gradient-to-r ${accentColor ?? 'from-orange-500 to-red-600'} text-white`}>
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
             Upload Dokumen
           </Button>
@@ -864,13 +922,11 @@ function EditDialog({
   doc,
   open,
   onOpenChange,
-  territories,
   onSuccess,
 }: {
   doc: ProgramDoc
   open: boolean
   onOpenChange: (o: boolean) => void
-  territories: Territory[]
   onSuccess: () => void
 }) {
   const addToast = useToastStore((s) => s.addToast)
@@ -884,7 +940,6 @@ function EditDialog({
   })
   const [replaceFile, setReplaceFile] = useState(false)
   const [newFile, setNewFile] = useState<File | null>(null)
-  const [selectedTerritoryId, setSelectedTerritoryId] = useState(doc.territoryId || '')
   const [saving, setSaving] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -900,53 +955,50 @@ function EditDialog({
 
     setSaving(true)
     try {
-      if (replaceFile && newFile) {
-        // Replace file via multipart
-        let territoryCode = doc.territoryCode || ''
-        let territoryName = doc.territoryName || ''
-        if (selectedTerritoryId) {
-          const t = territories.find((x) => x.id === selectedTerritoryId)
-          if (t) { territoryCode = t.code; territoryName = t.name }
+      if (doc.id.startsWith('progdoc_')) {
+        // Dokumen baru via /api/program-documents/[id]
+        if (replaceFile && newFile) {
+          const formData = new FormData()
+          formData.append('file', newFile)
+          formData.append('title', form.title)
+          formData.append('description', form.description)
+          formData.append('location', form.location)
+          formData.append('date', form.date)
+          formData.append('status', form.status)
+
+          const res = await fetch(`/api/program-documents/${doc.id}`, {
+            method: 'PUT',
+            headers: { 'x-user-id': user?.id || '' },
+            body: formData,
+          })
+          const data = await res.json()
+          if (!res.ok || !data.success) throw new Error(data.error || `HTTP ${res.status}`)
+          addToast('File & metadata berhasil diperbarui', 'success')
+        } else {
+          await api(`/api/program-documents/${doc.id}`, {
+            method: 'PUT',
+            body: JSON.stringify(form),
+          })
+          addToast('Metadata berhasil diperbarui', 'success')
         }
-
-        const formData = new FormData()
-        formData.append('file', newFile)
-        formData.append('title', form.title)
-        formData.append('description', form.description)
-        formData.append('location', form.location)
-        formData.append('date', form.date)
-        formData.append('status', form.status)
-        formData.append('territoryCode', territoryCode)
-        formData.append('territoryName', territoryName)
-        formData.append('territoryId', selectedTerritoryId)
-
-        const res = await fetch(`/api/program-documents/${doc.id}`, {
-          method: 'PUT',
-          headers: { 'x-user-id': user?.id || '' },
-          body: formData,
-        })
-        const data = await res.json()
-        if (!res.ok || !data.success) throw new Error(data.error || `HTTP ${res.status}`)
-        addToast('File & metadata berhasil diperbarui', 'success')
       } else {
-        // Update metadata only via JSON
-        let territoryCode = doc.territoryCode
-        let territoryName = doc.territoryName
-        if (selectedTerritoryId !== (doc.territoryId || '')) {
-          const t = territories.find((x) => x.id === selectedTerritoryId)
-          if (t) { territoryCode = t.code; territoryName = t.name }
-        }
-
-        await api(`/api/program-documents/${doc.id}`, {
+        // Legacy: update via /api/gallery
+        await api('/api/gallery', {
           method: 'PUT',
           body: JSON.stringify({
-            ...form,
-            territoryCode,
-            territoryName,
-            territoryId: selectedTerritoryId,
+            id: doc.id,
+            title: form.title,
+            description: form.description,
+            location: form.location,
+            date: form.date,
+            status: form.status,
+            category: doc.category,
+            level: doc.level,
+            territoryCode: doc.territoryCode,
+            territoryName: doc.territoryName,
           }),
         })
-        addToast('Metadata berhasil diperbarui', 'success')
+        addToast('Dokumen (legacy) berhasil diperbarui', 'success')
       }
       onSuccess()
     } catch (e: any) {
@@ -962,17 +1014,15 @@ function EditDialog({
         <DialogHeader>
           <DialogTitle>Edit Dokumen — {doc.title}</DialogTitle>
           <DialogDescription>
-            Level: {doc.level} • Kategori: {doc.category.replace('_', ' ')}
+            Level: {doc.level || '-'} • Wilayah: {doc.territoryName || '-'}
             {doc.fileName && (
-              <>
-                {' '}• File saat ini: <strong>{doc.fileName}</strong>
-              </>
+              <> • File saat ini: <strong>{doc.fileName}</strong></>
             )}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3 py-2">
-          {/* Opsi replace file */}
-          {doc.fileName && (
+          {/* Opsi replace file (hanya untuk dokumen baru) */}
+          {doc.id.startsWith('progdoc_') && doc.fileName && (
             <div className="space-y-2">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
@@ -1020,25 +1070,6 @@ function EditDialog({
                 }}
                 className="hidden"
               />
-            </div>
-          )}
-
-          {/* Wilayah (untuk DPD/DPC) */}
-          {doc.level !== 'DPN' && territories.length > 0 && (
-            <div className="space-y-1.5">
-              <Label>Wilayah {doc.level === 'DPD' ? 'Provinsi' : 'Kabupaten/Kota'}</Label>
-              <Select value={selectedTerritoryId} onValueChange={setSelectedTerritoryId}>
-                <SelectTrigger>
-                  <SelectValue placeholder={`Pilih ${doc.level === 'DPD' ? 'provinsi' : 'kabupaten/kota'}`} />
-                </SelectTrigger>
-                <SelectContent>
-                  {territories.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>
-                      {t.name} ({t.code})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             </div>
           )}
 
