@@ -1,0 +1,681 @@
+  5700→            <AlertDialogAction
+  5701→              onClick={handleDelete}
+  5702→              className="bg-red-600 hover:bg-red-700 text-white"
+  5703→            >
+  5704→              <Trash2 className="w-4 h-4 mr-2" /> Hapus
+  5705→            </AlertDialogAction>
+  5706→          </AlertDialogFooter>
+  5707→        </AlertDialogContent>
+  5708→      </AlertDialog>
+  5709→    </>
+  5710→  )
+  5711→}
+  5712→
+  5713→// ----- Hubungi Kami -----
+  5714→function HubungiKamiManager() {
+  5715→  const addToast = useToastStore((s) => s.addToast)
+  5716→  const [form, setForm] = useState({ name: '', email: '', phone: '', subject: '', message: '', priority: 'NORMAL' })
+  5717→  const [messages, setMessages] = useState<any[]>([])
+  5718→  const [loading, setLoading] = useState(true)
+  5719→  const [submitting, setSubmitting] = useState(false)
+  5720→
+  5721→  useEffect(() => {
+  5722→    api('/api/sekretariat/messages').then((data: any[]) => {
+  5723→      setMessages(data || [])
+  5724→      setLoading(false)
+  5725→    }).catch(() => setLoading(false))
+  5726→  }, [])
+  5727→
+  5728→  const handleSubmit = async (e: React.FormEvent) => {
+  5729→    e.preventDefault()
+  5730→    if (!form.name || !form.email || !form.subject || !form.message) {
+  5731→      addToast('Lengkapi semua field wajib', 'error')
+  5732→      return
+  5733→    }
+  5734→    setSubmitting(true)
+  5735→    try {
+  5736→      const res = await fetch('/api/sekretariat/messages', {
+  5737→        method: 'POST',
+  5738→        headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+  5739→        body: JSON.stringify(form),
+  5740→      })
+  5741→      const data = await res.json()
+  5742→      if (!res.ok || !data.success) throw new Error(data.error || 'Gagal mengirim')
+  5743→      addToast('Pesan terkirim ke sekretariat. Kami akan merespons dalam 1x24 jam.', 'success')
+  5744→      setForm({ name: '', email: '', phone: '', subject: '', message: '', priority: 'NORMAL' })
+  5745→      api('/api/sekretariat/messages').then(setMessages).catch(() => {})
+  5746→    } catch (e: any) { addToast(e.message, 'error') }
+  5747→    finally { setSubmitting(false) }
+  5748→  }
+  5749→
+  5750→  const priorityConfig: Record<string, { label: string; color: string }> = {
+  5751→    RENDAH: { label: 'Rendah', color: 'bg-slate-50 text-slate-700 border-slate-200' },
+  5752→    NORMAL: { label: 'Normal', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+  5753→    TINGGI: { label: 'Tinggi', color: 'bg-orange-50 text-orange-700 border-orange-200' },
+  5754→    URGENT: { label: 'Urgent', color: 'bg-red-50 text-red-700 border-red-200' },
+  5755→  }
+  5756→
+  5757→  return (
+  5758→    <div className="grid gap-6 lg:grid-cols-2">
+  5759→      <Card>
+  5760→        <CardHeader>
+  5761→          <CardTitle className="flex items-center gap-2 text-base"><Mail className="w-4 h-4 text-emerald-600" /> Kirim Pesan ke Sekretariat</CardTitle>
+  5762→          <CardDescription>Formulir kontak resmi untuk pertanyaan, saran, atau aspirasi</CardDescription>
+  5763→        </CardHeader>
+  5764→        <CardContent>
+  5765→          <form onSubmit={handleSubmit} className="space-y-3">
+  5766→            <div className="grid grid-cols-2 gap-3">
+  5767→              <div className="space-y-2"><Label>Nama Lengkap *</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Nama Anda" required /></div>
+  5768→              <div className="space-y-2"><Label>Email *</Label><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="email@example.com" required /></div>
+  5769→            </div>
+  5770→            <div className="grid grid-cols-2 gap-3">
+  5771→              <div className="space-y-2"><Label>Telepon / WA</Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+62 812-xxxx-xxxx" /></div>
+  5772→              <div className="space-y-2"><Label>Prioritas</Label>
+  5773→                <Select value={form.priority} onValueChange={(v) => setForm({ ...form, priority: v })}>
+  5774→                  <SelectTrigger><SelectValue /></SelectTrigger>
+  5775→                  <SelectContent>
+  5776→                    {Object.entries(priorityConfig).map(([k, v]) => <SelectItem key={k} value={k}>{v.label}</SelectItem>)}
+  5777→                  </SelectContent>
+  5778→                </Select>
+  5779→              </div>
+  5780→            </div>
+  5781→            <div className="space-y-2"><Label>Subjek *</Label><Input value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} placeholder="cth: Permintaan informasi keanggotaan" required /></div>
+  5782→            <div className="space-y-2"><Label>Pesan *</Label><Textarea value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} rows={5} placeholder="Tulis pesan Anda dengan jelas dan detail..." required /></div>
+  5783→            <Button type="submit" disabled={submitting} className="w-full bg-gradient-to-r from-orange-600 to-red-600 text-white">
+  5784→              {submitting ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Send className="w-4 h-4 mr-1" />}
+  5785→              Kirim Pesan
+  5786→            </Button>
+  5787→          </form>
+  5788→        </CardContent>
+  5789→      </Card>
+  5790→
+  5791→      <Card>
+  5792→        <CardHeader>
+  5793→          <CardTitle className="flex items-center gap-2 text-base"><MessageSquare className="w-4 h-4 text-blue-600" /> Riwayat Pesan ({messages.length})</CardTitle>
+  5794→          <CardDescription>Pesan yang telah Anda kirim ke sekretariat</CardDescription>
+  5795→        </CardHeader>
+  5796→        <CardContent>
+  5797→          {loading ? <LoadingState /> : messages.length === 0 ? (
+  5798→            <EmptyState icon={Mail} title="Belum ada pesan" description="Pesan yang Anda kirim akan muncul di sini." />
+  5799→          ) : (
+  5800→            <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2">
+  5801→              {messages.map((m) => {
+  5802→                const pc = priorityConfig[m.priority] || priorityConfig.NORMAL
+  5803→                return (
+  5804→                  <div key={m.id} className="rounded-xl border p-3 bg-white">
+  5805→                    <div className="flex items-center justify-between gap-2 mb-1">
+  5806→                      <Badge variant="outline" className={`text-[13px] ${pc.color}`}>{pc.label}</Badge>
+  5807→                      <Badge variant={m.status === 'RESOLVED' ? 'default' : m.status === 'READ' ? 'secondary' : 'outline'} className={`text-[13px] ${m.status === 'RESOLVED' ? 'bg-emerald-50 text-emerald-700' : m.status === 'READ' ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'}`}>
+  5808→                        {m.status === 'RESOLVED' ? 'Selesai' : m.status === 'READ' ? 'Dibaca' : 'Baru'}
+  5809→                      </Badge>
+  5810→                    </div>
+  5811→                    <div className="font-semibold text-sm">{m.subject}</div>
+  5812→                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{m.message}</p>
+  5813→                    <div className="text-[13px] text-muted-foreground mt-2">{m.name} • {formatDateTimeID(m.createdAt)}</div>
+  5814→                  </div>
+  5815→                )
+  5816→              })}
+  5817→            </div>
+  5818→          )}
+  5819→        </CardContent>
+  5820→      </Card>
+  5821→    </div>
+  5822→  )
+  5823→}
+  5824→
+  5825→// ----- FAQ -----
+  5826→// FAQ dapat diedit (CRUD) hanya oleh Super Admin. User lain hanya lihat (read-only).
+  5827→// FAQ disimpan ke database via /api/faq. Jika database kosong, fallback ke 20 FAQ default hardcoded.
+  5828→function FaqManager() {
+  5829→  const addToast = useToastStore((s) => s.addToast)
+  5830→  const isSuperAdmin = useIsSuperAdmin()
+  5831→  const [faqs, setFaqs] = useState<any[]>([])
+  5832→  const [loading, setLoading] = useState(true)
+  5833→  const [search, setSearch] = useState('')
+  5834→  const [openItem, setOpenItem] = useState<string | null>(null)
+  5835→  // === Edit/Tambah dialog state (Super Admin only) ===
+  5836→  const [editDialog, setEditDialog] = useState<any>(null) // null | { faq: any } | { faq: null, isNew: true }
+  5837→  const [saving, setSaving] = useState(false)
+  5838→  const [deleteConfirm, setDeleteConfirm] = useState<any>(null) // null | faq
+  5839→  const [form, setForm] = useState({ id: '', category: 'KEANGGOTAAN', q: '', a: '' })
+  5840→
+  5841→  // === 20 FAQ default (12 lama + 8 baru) ===
+  5842→  const DEFAULT_FAQS = [
+  5843→    // ===== KEANGGOTAAN (4) =====
+  5844→    { id: 'faq_1', category: 'KEANGGOTAAN', q: 'Bagaimana cara mendaftar menjadi anggota LAPRA 08?', a: 'Pendaftaran anggota LAPRA 08 dilakukan melalui DPC setempat (Kabupaten/Kota). Anda dapat mengunjungi sekretariat DPC di wilayah Anda, mengisi formulir pendaftaran, melampirkan fotokopi KTP dan pas foto, serta membayar iuran pendaftaran. Setelah diverifikasi, Anda akan menerima KTA (Kartu Tanda Anggota) digital dengan format unik LAPRA08.[NEGARA].[PROVINSI].[KAB/KOTA].[TAHUN].[URUT].' },
+  5845→    { id: 'faq_2', category: 'KEANGGOTAAN', q: 'Apakah anggota luar negeri bisa mendaftar?', a: 'Ya. LAPRA 08 memiliki DPD di 5 negara (Amerika Serikat, Cina, Malaysia, Arab Saudi, dan Australia). Warga Indonesia yang berdomisili di negara tersebut dapat mendaftar melalui DPD setempat. Format KTA internasional menggunakan kode negara setempat, misalnya LAPRA08.US.00.LAX.26.00001 untuk anggota di Los Angeles.' },
+  5846→    { id: 'faq_3', category: 'KEANGGOTAAN', q: 'Berapa iuran anggota LAPRA 08?', a: 'Iuran anggota dibagi menjadi beberapa kategori: (1) Iuran bulanan anggota biasa Rp 25.000/bulan; (2) Iuran bulanan pengurus Rp 50.000/bulan; (3) Iuran tahunan dapat dibayar di muka dengan diskon. Iuran dapat dibayarkan melalui transfer ke rekening resmi DPC atau via QRIS. Khusus anggota luar negeri, iuran setara USD 5/bulan.' },
+  5847→    { id: 'faq_13', category: 'KEANGGOTAAN', q: 'Bagaimana cara memperbarui data anggota jika ada perubahan (nama, alamat, no HP)?', a: 'Perubahan data anggota dapat dilakukan melalui DPC setempat dengan mengisi formulir "Permohonan Update Data Anggota" dan melampirkan dokumen pendukung (KTP baru, bukti domisili, dll). Update data diproses maksimal 3 hari kerja. Jika anggota berdomisili di luar negeri, permohonan dapat dikirim via email ke DPD setempat dengan scan dokumen yang telah dilegalisasi oleh KBRI.' },
+  5848→    { id: 'faq_14', category: 'KEANGGOTAAN', q: 'Apa yang harus dilakukan jika KTA digital hilang atau tidak bisa diakses?', a: 'Jika KTA digital hilang/tidak bisa diakses, laporkan ke DPC setempat atau gunakan menu "Layanan KTA" > "Lapor KTA Bermasalah". Sistem akan memverifikasi identitas Anda dan menerbitkan ulang KTA digital dalam 1x24 jam. Untuk KTA fisik yang hilang, biaya cetak ulang Rp 25.000. Pastikan data kontak (HP/email) selalu aktif agar proses verifikasi cepat.' },
+  5849→    // ===== STRUKTUR (3) =====
+  5850→    { id: 'faq_4', category: 'STRUKTUR', q: 'Apa saja tingkatan struktur pengurus LAPRA 08?', a: 'Struktur LAPRA 08 terdiri dari 5 tingkat: (1) DPN (Dewan Pimpinan Pusat) di tingkat nasional; (2) Koorwil (Koordinator Wilayah) yang membawahi 7 wilayah Indonesia + 1 LN; (3) DPD (Dewan Pimpinan Daerah) di tingkat provinsi/negara LN; (4) Koor DPD (Koordinator Region) yang membawahi kelompok DPC; (5) DPC (Dewan Pimpinan Cabang) di tingkat kabupaten/kota. Total ada 38 provinsi + IKN + 5 negara LN.' },
+  5851→    { id: 'faq_5', category: 'STRUKTUR', q: 'Siapa Ketua Umum DPN LAPRA 08 periode 2024-2029?', a: 'Pengurus DPN LAPRA 08 periode 2024-2029 dipimpin oleh Dr. (HC) Hashim S. Djojohadikusumo sebagai Ketua Dewan Pembina, dan Devi Taurisa, S.H., M.H., C.L.D. sebagai Ketua Umum DPN. Sekretaris Jenderal dijabat oleh Brigjen. Pol. (Purn) Dr. R. Nurhadi, S.I.K., M.Si., CHRMP, dan Bendahara Umum adalah Timmy Rorimpandey, S.E., M.M. Pembaruan pengurus inti dilakukan pada Maret 2026.' },
+  5852→    { id: 'faq_15', category: 'STRUKTUR', q: 'Bagaimana cara menjadi pengurus di DPC atau DPD?', a: 'Untuk menjadi pengurus, anggota harus: (1) Telah bergabung minimal 6 bulan; (2) Aktif mengikuti kegiatan organisasi; (3) Bersedia menjabat minimal 1 periode (2 tahun). Pemilihan pengurus dilakukan melalui Musyawarah Cabang/Daerah. Calon dapat diajukan oleh anggota lain atau mengajukan diri sendiri melalui formulir "Lamaran Pengurus" di DPC/DPD setempat. Keputusan final melalui voting pengurus inti.' },
+  5853→    // ===== PROGRAM & KEGIATAN (3) =====
+  5854→    { id: 'faq_6', category: 'PROGRAM', q: 'Apa program unggulan LAPRA 08?', a: 'Program unggulan LAPRA 08 meliputi: (1) Sosialisasi Asta Cita Presiden Prabowo ke seluruh DPD di 38 provinsi; (2) Penguatan kader DPC se-Indonesia melalui pelatihan rutin; (3) Aksi sosial seperti bakti sosial, donor darah, dan distribusi sembako; (4) Kemitraan dengan ummat, ormas Islam, kementerian, dan BUMN untuk program CSR; (5) Digitalisasi sistem informasi internal untuk efisiensi administrasi.' },
+  5855→    { id: 'faq_7', category: 'PROGRAM', q: 'Bagaimana cara mengajukan proposal kemitraan dengan LAPRA 08?', a: 'Proposal kemitraan dapat diajukan melalui email resmi sekretariat@lapra08.id dengan subject "Proposal Kemitraan - [Nama Institusi]". Lampirkan profil institusi, latar belakang kemitraan, lingkup kerja sama, dan expected outcomes. Tim Sekretariat DPN akan melakukan review dalam 14 hari kerja dan menghubungi Anda untuk diskusi lebih lanjut jika proposal memenuhi kriteria.' },
+  5856→    { id: 'faq_16', category: 'PROGRAM', q: 'Bagaimana mekanisme pelaporan kegiatan (LPJ) setelah event selesai?', a: 'Setiap kegiatan yang dibiayai organisasi wajib membuat Laporan Pertanggungjawaban (LPJ) maksimal 7 hari setelah event selesai. LPJ berisi: (1) Laporan pelaksanaan (foto/video bukti); (2) Laporan keuangan (kuitansi, nota, bukti transfer); (3) Daftar hadir peserta; (4) Evaluasi dan rekomendasi. Upload melalui menu "Program & Kegiatan" > pilih program > "Upload Bukti Pelaksanaan". LPJ yang tidak disampaikan akan menghambat pencairan dana kegiatan berikutnya.' },
+  5857→    // ===== LAYANAN & ADVOKASI (3) =====
+  5858→    { id: 'faq_8', category: 'LAYANAN', q: 'Bagaimana cara mengajukan pengaduan atau aspirasi?', a: 'Pengaduan dan aspirasi dapat disampaikan melalui: (1) Formulir "Hubungi Kami" di menu Kontak & Sekretariat; (2) Pusat Pengaduan & Aspirasi di menu Layanan & Advokasi; (3) WhatsApp resmi DPC setempat; (4) Surat resmi ke sekretariat DPN. Setiap pengaduan akan ditindaklanjuti dalam 1x24 jam (kasus normal) atau 2 jam (kasus urgent). Identitas pelapor dilindungi sesuai kebijakan privasi.' },
+  5859→    { id: 'faq_9', category: 'LAYANAN', q: 'Apakah LAPRA 08 menyediakan bantuan hukum untuk anggota?', a: 'Ya, LAPRA 08 menyediakan layanan bantuan hukum untuk anggota yang menghadapi kasus hukum terkait aktivitas keorganisasian. Layanan ini diakses melalui menu "Bantuan Hukum" di Layanan & Advokasi. Tim advokasi DPN akan melakukan assessment kasus, memberikan konsultasi awal gratis, dan jika diperlukan, merujuk ke pengacara mitra dengan tarif khusus untuk anggota.' },
+  5860→    { id: 'faq_17', category: 'LAYANAN', q: 'Bagaimana cara mengajukan proposal bantuan dana kegiatan?', a: 'Proposal bantuan dana dapat diajukan melalui menu "Layanan & Advokasi" > "Pengajuan Proposal". Setiap proposal harus berisi: (1) Latar belakang kegiatan; (2) Tujuan dan target peserta; (3) Rincian anggaran (maksimal Rp 50 juta untuk DPC, Rp 200 juta untuk DPD); (4) Jadwal pelaksanaan; (5) Komitmen LPJ. Proposal dievaluasi tim Sekretariat DPN dalam 14 hari kerja. Dana dicairkan 50% di awal, 50% setelah LPJ disetujui.' },
+  5861→    // ===== LAINNYA (4) =====
+  5862→    { id: 'faq_10', category: 'LAINNYA', q: 'Bagaimana cara mendapatkan KTA digital?', a: 'KTA digital diterbitkan secara otomatis setelah pendaftaran anggota diverifikasi oleh pengurus DPC. KTA dapat diakses melalui menu "Layanan KTA" di portal LAPRA 08. Format KTA: LAPRA08.[NEGARA].[PROVINSI].[KAB/KOTA].[TAHUN].[URUT]. KTA digital berisi QR code untuk verifikasi keaslian, foto anggota, dan data keanggotaan. KTA fisik dapat dicetak di DPC dengan biaya Rp 25.000.' },
+  5863→    { id: 'faq_11', category: 'LAINNYA', q: 'Apakah portal LAPRA 08 bisa diakses publik?', a: 'Portal LAPRA 08 bersifat semi-publik. Beranda, Profil, Pusat Media (berita & galeri), dan Program & Kegiatan dapat diakses publik. Sedangkan menu operasional seperti Dashboard, Pusat Data Organisasi, Logistik, Komunikasi, Keuangan, dan User hanya dapat diakses oleh pengurus yang telah login dengan role yang sesuai (SUPERADMIN, ADMIN_DPN, ADMIN_KOORWIL, ADMIN_DPD, ADMIN_KOOR_DPD, ADMIN_DPC). Isolasi data otomatis diterapkan sesuai hierarki wilayah.' },
+  5864→    { id: 'faq_12', category: 'LAINNYA', q: 'Bagaimana cara melaporkan kendala teknis portal?', a: 'Kendala teknis dapat dilaporkan melalui menu "Pusat Bantuan & Tiket" di Layanan & Advokasi. Pilih kategori "Bug/Error Sistem" atau "Permintaan Fitur", sertakan tangkapan layar dan langkah reproduksi jika memungkinkan. Tim IT DPN akan merespons dalam 4 jam kerja. Untuk kendala kritis (sistem tidak bisa diakses), hubungi hotline IT DPN di +62 811-9090-08 (24/7).' },
+  5865→    { id: 'faq_18', category: 'LAINNYA', q: 'Bagaimana cara mengajukan izin kegiatan yang melibatkan massa besar (>100 orang)?', a: 'Kegiatan dengan peserta >100 orang wajib: (1) Mengajukan permohonan izin ke DPC setempat minimal 14 hari sebelum event; (2) Mendapatkan rekomendasi dari DPD; (3) Berkoordinasi dengan kepolisian dan Pemda setempat; (4) Menyiapkan tim keamanan (minimal 1 petugas per 50 peserta); (5) Membuat protokol K3 dan jalur evakuasi. Formulir permohonan tersedia di menu "Layanan & Advokasi" > "Permohonan Izin Kegiatan".' },
+  5866→    { id: 'faq_19', category: 'LAINNYA', q: 'Apakah ada aplikasi mobile LAPRA 08 untuk Android/iOS?', a: 'Saat ini portal LAPRA 08 dioptimalkan untuk akses mobile melalui browser (responsive web design). Aplikasi mobile native (Android/iOS) sedang dalam tahap pengembangan dan rencananya akan dirilis Q1 2027. Fitur yang akan tersedia di app mobile: login biometrik, push notification, KTA digital dengan QR code, check-in event via QR scanner, dan offline mode untuk akses data dasar. Update akan diumumkan melalui portal dan grup WhatsApp resmi.' },
+  5867→    { id: 'faq_20', category: 'LAINNYA', q: 'Bagaimana kebijakan privasi dan keamanan data anggota di portal LAPRA 08?', a: 'Data anggota dilindungi sesuai UU PDP No. 27 Tahun 2022. Kebijakan: (1) Data anggota hanya dapat diakses oleh pengurus dengan otorisasi sesuai hierarki wilayah; (2) Data sensitif (no KTP, alamat lengkap) dienkripsi di database; (3) Setiap akses dicatat dalam audit log; (4) Anggota dapat request akses/hapus data (GDPR-style) melalui menu "Pengaturan" > "Privasi Data"; (5) Tidak ada data yang dibagikan ke pihak ketiga tanpa persetujuan tertulis anggota.' },
+  5868→  ]
+  5869→
+  5870→  // === Load FAQ from API. Gabungkan DEFAULT_FAQS + data DB (deduplikasi by ID) ===
+  5871→  // Jika database kosong → pakai DEFAULT_FAQS (20 FAQ)
+  5872→  // Jika database ada data → gabungkan DEFAULT + DB (DB override DEFAULT by ID)
+  5873→  const reload = () => {
+  5874→    setLoading(true)
+  5875→    api('/api/faq')
+  5876→      .then((data: any[]) => {
+  5877→        // Extract value dari response API
+  5878→        const dbFaqs = (data || [])
+  5879→          .map((item: any) => item.value || item)
+  5880→          .filter(Boolean)
+  5881→          .filter((f: any) => f && f.id && f.q && f.a) // validasi field wajib
+  5882→
+  5883→        // Map DEFAULT_FAQS by ID untuk override
+  5884→        const defaultMap = new Map(DEFAULT_FAQS.map(f => [f.id, f]))
+  5885→        const dbMap = new Map(dbFaqs.map((f: any) => [f.id, f]))
+  5886→
+  5887→        // Gabungan: semua default + semua DB (DB override default dengan ID sama)
+  5888→        const merged = [
+  5889→          ...DEFAULT_FAQS.map(f => dbMap.get(f.id) || f),  // default, di-override DB jika ada
+  5890→          ...dbFaqs.filter((f: any) => !defaultMap.has(f.id)),  // DB items yang bukan default
+  5891→        ]
+  5892→        setFaqs(merged)
+  5893→      })
+  5894→      .catch(() => setFaqs(DEFAULT_FAQS))
+  5895→      .finally(() => setLoading(false))
+  5896→  }
+  5897→
+  5898→  useEffect(() => {
+  5899→    reload()
+  5900→    // eslint-disable-next-line react-hooks/exhaustive-deps
+  5901→  }, [])
+  5902→
+  5903→  // === Handler: Simpan FAQ (create or update) - Super Admin only ===
+  5904→  const handleSave = async (e: React.FormEvent) => {
+  5905→    e.preventDefault()
+  5906→    if (!form.q.trim() || !form.a.trim()) {
+  5907→      addToast('Pertanyaan dan jawaban wajib diisi', 'error')
+  5908→      return
+  5909→    }
+  5910→    setSaving(true)
+  5911→    try {
+  5912→      const id = form.id || `faq_${Date.now()}`
+  5913→      await api('/api/faq', {
+  5914→        method: 'POST',
+  5915→        body: JSON.stringify({ id, category: form.category, q: form.q, a: form.a }),
+  5916→      })
+  5917→      addToast(editDialog?.isNew ? 'FAQ baru ditambahkan' : 'FAQ diperbarui', 'success')
+  5918→      setEditDialog(null)
+  5919→      setForm({ id: '', category: 'KEANGGOTAAN', q: '', a: '' })
+  5920→      reload()
+  5921→    } catch (e: any) {
+  5922→      addToast(e.message, 'error')
+  5923→    } finally {
+  5924→      setSaving(false)
+  5925→    }
+  5926→  }
+  5927→
+  5928→  // === Handler: Hapus FAQ - Super Admin only ===
+  5929→  const handleDelete = async () => {
+  5930→    if (!deleteConfirm) return
+  5931→    try {
+  5932→      await api(`/api/faq?id=${deleteConfirm.id}`, { method: 'DELETE' })
+  5933→      addToast('FAQ dihapus', 'success')
+  5934→      setDeleteConfirm(null)
+  5935→      reload()
+  5936→    } catch (e: any) {
+  5937→      addToast(e.message, 'error')
+  5938→    }
+  5939→  }
+  5940→
+  5941→  if (loading) return <LoadingState />
+  5942→
+  5943→  const categories: Record<string, { label: string; color: string; icon: any }> = {
+  5944→    KEANGGOTAAN: { label: 'Keanggotaan', color: 'bg-blue-50 text-blue-700 border-blue-200', icon: Users },
+  5945→    STRUKTUR: { label: 'Struktur Organisasi', color: 'bg-purple-50 text-purple-700 border-purple-200', icon: Building2 },
+  5946→    PROGRAM: { label: 'Program & Kegiatan', color: 'bg-emerald-50 text-emerald-700 border-emerald-200', icon: Briefcase },
+  5947→    LAYANAN: { label: 'Layanan & Advokasi', color: 'bg-orange-50 text-orange-700 border-orange-200', icon: ShieldCheck },
+  5948→    LAINNYA: { label: 'Lainnya', color: 'bg-slate-50 text-slate-700 border-slate-200', icon: HelpCircle },
+  5949→  }
+  5950→
+  5951→  const filtered = faqs.filter(f => !search || f.q.toLowerCase().includes(search.toLowerCase()) || f.a.toLowerCase().includes(search.toLowerCase()) || f.category.toLowerCase().includes(search.toLowerCase()))
+  5952→
+  5953→  return (
+  5954→    <Card>
+  5955→      <CardHeader>
+  5956→        <CardTitle className="flex items-center gap-2 text-base">
+  5957→          <HelpCircle className="w-4 h-4 text-emerald-600" /> FAQ - Pertanyaan yang Sering Diajukan ({filtered.length})
+  5958→          {/* === Tombol "Tambah FAQ" - Super Admin only === */}
+  5959→          {isSuperAdmin && (
+  5960→            <Button size="sm" className="ml-auto bg-emerald-600 hover:bg-emerald-700 text-white"
+  5961→              onClick={() => { setEditDialog({ isNew: true }); setForm({ id: '', category: 'KEANGGOTAAN', q: '', a: '' }) }}>
+  5962→              <Plus className="w-4 h-4 mr-1" /> Tambah FAQ
+  5963→            </Button>
+  5964→          )}
+  5965→        </CardTitle>
+  5966→        <CardDescription>
+  5967→          Temukan jawaban cepat untuk pertanyaan umum tentang LAPRA 08
+  5968→          {isSuperAdmin && <span className="block text-xs text-emerald-700 mt-1 font-medium">🔓 Mode Super Admin — Anda dapat menambah, mengedit, dan menghapus FAQ</span>}
+  5969→        </CardDescription>
+  5970→      </CardHeader>
+  5971→      <CardContent className="space-y-4">
+  5972→        <div className="relative max-w-md">
+  5973→          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+  5974→          <Input placeholder="Cari pertanyaan atau kata kunci..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />
+  5975→        </div>
+  5976→        <div className="flex flex-wrap gap-2">
+  5977→          {Object.entries(categories).map(([k, v]) => {
+  5978→            const Icon = v.icon
+  5979→            const count = faqs.filter(f => f.category === k).length
+  5980→            return (
+  5981→              <button key={k} onClick={() => setSearch(k === 'KEANGGOTAAN' ? 'keanggotaan' : k === 'STRUKTUR' ? 'struktur' : k === 'PROGRAM' ? 'program' : k === 'LAYANAN' ? 'layanan' : '')}
+  5982→                className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium border bg-white hover:bg-accent transition-colors">
+  5983→                <Icon className="w-3.5 h-3.5" />
+  5984→                <span className={v.color.split(' ').slice(1, 3).join(' ')}>{v.label}</span>
+  5985→                <Badge variant="outline" className="text-[13px]">{count}</Badge>
+  5986→              </button>
+  5987→            )
+  5988→          })}
+  5989→        </div>
+  5990→        <div className="space-y-2">
+  5991→          {filtered.map((faq) => {
+  5992→            const cat = categories[faq.category] || categories.LAINNYA
+  5993→            const CatIcon = cat.icon
+  5994→            const isOpen = openItem === faq.id
+  5995→            return (
+  5996→              <div key={faq.id} className="rounded-xl border bg-white overflow-hidden">
+  5997→                <div className="flex items-stretch">
+  5998→                  <button onClick={() => setOpenItem(isOpen ? null : faq.id)} className="flex-1 p-4 flex items-start gap-3 hover:bg-accent/50 transition-colors text-left">
+  5999→                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${cat.color}`}>
+  6000→                      <CatIcon className="w-4 h-4" />
+  6001→                    </div>
+  6002→                    <div className="flex-1 min-w-0">
+  6003→                      <div className="font-semibold text-sm">{faq.q}</div>
+  6004→                      <Badge variant="outline" className={`text-[13px] mt-1 ${cat.color}`}>{cat.label}</Badge>
+  6005→                    </div>
+  6006→                    <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform shrink-0 mt-1 ${isOpen ? 'rotate-90' : ''}`} />
+  6007→                  </button>
+  6008→                  {/* === Tombol Edit/Hapus - Super Admin only === */}
+  6009→                  {isSuperAdmin && (
+  6010→                    <div className="flex flex-col gap-1 p-2 border-l bg-slate-50/50 justify-center">
+  6011→                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-blue-600 hover:bg-blue-50"
+  6012→                        onClick={() => {
+  6013→                          setEditDialog({ faq })
+  6014→                          setForm({ id: faq.id, category: faq.category, q: faq.q, a: faq.a })
+  6015→                          if (!isOpen) setOpenItem(faq.id) // auto-expand saat edit
+  6016→                        }}
+  6017→                        title="Edit FAQ">
+  6018→                        <Edit className="w-3.5 h-3.5" />
+  6019→                      </Button>
+  6020→                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-600 hover:bg-red-50"
+  6021→                        onClick={() => setDeleteConfirm(faq)}
+  6022→                        title="Hapus FAQ">
+  6023→                        <Trash2 className="w-3.5 h-3.5" />
+  6024→                      </Button>
+  6025→                    </div>
+  6026→                  )}
+  6027→                </div>
+  6028→                {isOpen && (
+  6029→                  <div className="px-4 pb-4 pt-0 text-sm text-muted-foreground leading-relaxed border-t bg-slate-50/50">
+  6030→                    <p className="mt-3 whitespace-pre-wrap">{faq.a}</p>
+  6031→                  </div>
+  6032→                )}
+  6033→              </div>
+  6034→            )
+  6035→          })}
+  6036→        </div>
+  6037→        {filtered.length === 0 && <EmptyState icon={HelpCircle} title="Tidak ada FAQ cocok" description="Coba kata kunci lain atau hubungi sekretariat langsung." />}
+  6038→      </CardContent>
+  6039→
+  6040→      {/* === Dialog Tambah/Edit FAQ - Super Admin only === */}
+  6041→      <Dialog open={!!editDialog} onOpenChange={(o) => { if (!o) { setEditDialog(null); setForm({ id: '', category: 'KEANGGOTAAN', q: '', a: '' }) } }}>
+  6042→        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+  6043→          <DialogHeader>
+  6044→            <DialogTitle>{editDialog?.isNew ? 'Tambah FAQ Baru' : 'Edit FAQ'}</DialogTitle>
+  6045→            <DialogDescription>
+  6046→              {editDialog?.isNew
+  6047→                ? 'Tambah pertanyaan dan jawaban baru ke daftar FAQ'
+  6048→                : 'Edit pertanyaan atau jawaban FAQ yang dipilih'}
+  6049→            </DialogDescription>
+  6050→          </DialogHeader>
+  6051→          <form onSubmit={handleSave} className="space-y-4">
+  6052→            <div className="space-y-2">
+  6053→              <Label>Kategori</Label>
+  6054→              <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}>
+  6055→                <SelectTrigger><SelectValue /></SelectTrigger>
+  6056→                <SelectContent>
+  6057→                  <SelectItem value="KEANGGOTAAN">Keanggotaan</SelectItem>
+  6058→                  <SelectItem value="STRUKTUR">Struktur Organisasi</SelectItem>
+  6059→                  <SelectItem value="PROGRAM">Program & Kegiatan</SelectItem>
+  6060→                  <SelectItem value="LAYANAN">Layanan & Advokasi</SelectItem>
+  6061→                  <SelectItem value="LAINNYA">Lainnya</SelectItem>
+  6062→                </SelectContent>
+  6063→              </Select>
+  6064→            </div>
+  6065→            <div className="space-y-2">
+  6066→              <Label>Pertanyaan *</Label>
+  6067→              <Input value={form.q} onChange={(e) => setForm({ ...form, q: e.target.value })} required placeholder="Contoh: Bagaimana cara mendaftar menjadi anggota LAPRA 08?" />
+  6068→            </div>
+  6069→            <div className="space-y-2">
+  6070→              <Label>Jawaban *</Label>
+  6071→              <Textarea value={form.a} onChange={(e) => setForm({ ...form, a: e.target.value })} required rows={6}
+  6072→                placeholder="Tulis jawaban lengkap dan informatif. Mendukung multiline (tekan Enter untuk baris baru)." />
+  6073→            </div>
+  6074→            <DialogFooter>
+  6075→              <Button type="button" variant="outline" onClick={() => { setEditDialog(null); setForm({ id: '', category: 'KEANGGOTAAN', q: '', a: '' }) }}>Batal</Button>
+  6076→              <Button type="submit" disabled={saving} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+  6077→                {saving ? 'Menyimpan...' : editDialog?.isNew ? 'Tambah FAQ' : 'Simpan Perubahan'}
+  6078→              </Button>
+  6079→            </DialogFooter>
+  6080→          </form>
+  6081→        </DialogContent>
+  6082→      </Dialog>
+  6083→
+  6084→      {/* === Dialog Konfirmasi Hapus FAQ === */}
+  6085→      <AlertDialog open={!!deleteConfirm} onOpenChange={(o) => !o && setDeleteConfirm(null)}>
+  6086→        <AlertDialogContent>
+  6087→          <AlertDialogHeader>
+  6088→            <AlertDialogTitle>Hapus FAQ?</AlertDialogTitle>
+  6089→            <AlertDialogDescription>
+  6090→              Yakin ingin menghapus pertanyaan berikut?
+  6091→              <br /><br />
+  6092→              <strong>"{deleteConfirm?.q}"</strong>
+  6093→              <br /><br />
+  6094→              <span className="text-xs text-muted-foreground">Tindakan ini tidak dapat dibatalkan.</span>
+  6095→            </AlertDialogDescription>
+  6096→          </AlertDialogHeader>
+  6097→          <AlertDialogFooter>
+  6098→            <AlertDialogCancel>Batal</AlertDialogCancel>
+  6099→            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">Hapus</AlertDialogAction>
+  6100→          </AlertDialogFooter>
+  6101→        </AlertDialogContent>
+  6102→      </AlertDialog>
+  6103→    </Card>
+  6104→  )
+  6105→}
+  6106→
+  6107→// ============================================================
+  6108→// AUDIT AI RESPONDING OTOMATIS - Dialog Component
+  6109→// ============================================================
+  6110→function AuditAIRespondingDialog({ open, onOpenChange }: { open: boolean, onOpenChange: (o: boolean) => void }) {
+  6111→  const addToast = useToastStore((s) => s.addToast)
+  6112→  const [scanning, setScanning] = useState(false)
+  6113→  const [scanResult, setScanResult] = useState<any>(null)
+  6114→  const [complaints, setComplaints] = useState<any[]>([])
+  6115→  const [ignoredByWilayah, setIgnoredByWilayah] = useState<any[]>([])
+  6116→  const [stats, setStats] = useState<any>(null)
+  6117→  const [filterPriority, setFilterPriority] = useState('')
+  6118→  const [loadingDetail, setLoadingDetail] = useState(false)
+  6119→
+  6120→  const handleScan = async () => {
+  6121→    setScanning(true); setScanResult(null); setComplaints([]); setIgnoredByWilayah([]); setStats(null)
+  6122→    try {
+  6123→      const res = await fetch('/api/audit-ai/scans', {
+  6124→        method: 'POST', headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+  6125→        body: JSON.stringify({ platforms: ['FACEBOOK', 'INSTAGRAM', 'TIKTOK', 'TWITTER_X', 'GOOGLE'] }),
+  6126→      })
+  6127→      const data = await res.json()
+  6128→      if (!res.ok || !data.success) throw new Error(data.error)
+  6129→      setScanResult(data.data)
+  6130→      addToast(data.message, 'success')
+  6131→      // Load detail complaints
+  6132→      loadComplaints(data.data.id)
+  6133→    } catch (e: any) { addToast(e.message, 'error') }
+  6134→    finally { setScanning(false) }
+  6135→  }
+  6136→
+  6137→  const loadComplaints = async (scanId: string) => {
+  6138→    setLoadingDetail(true)
+  6139→    try {
+  6140→      const params = filterPriority ? `?priority=${filterPriority}` : ''
+  6141→      const res = await fetch(`/api/audit-ai/scans/${scanId}${params}`, { headers: { 'x-user-id': useAuthStore.getState().user?.id || '' } })
+  6142→      const data = await res.json()
+  6143→      if (data.success) {
+  6144→        setComplaints(data.data.complaints)
+  6145→        setIgnoredByWilayah(data.data.ignoredByWilayah)
+  6146→        setStats(data.data.stats)
+  6147→      }
+  6148→    } catch (e: any) { addToast(e.message, 'error') }
+  6149→    finally { setLoadingDetail(false) }
+  6150→  }
+  6151→
+  6152→  const handleRespond = async (complaintId: string, status: string, type: string) => {
+  6153→    try {
+  6154→      await fetch(`/api/audit-ai/complaints/${complaintId}`, {
+  6155→        method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+  6156→        body: JSON.stringify({ responseStatus: status, responseType: type }),
+  6157→      })
+  6158→      addToast(`Keluhan ditandai: ${status}`, 'success')
+  6159→      if (scanResult) loadComplaints(scanResult.id)
+  6160→    } catch (e: any) { addToast(e.message, 'error') }
+  6161→  }
+  6162→
+  6163→  return (
+  6164→    <Dialog open={open} onOpenChange={onOpenChange}>
+  6165→      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+  6166→        <DialogHeader>
+  6167→          <DialogTitle className="flex items-center gap-2">
+  6168→            <ShieldCheck className="w-5 h-5 text-red-600" /> Audit AI Responding Otomatis
+  6169→          </DialogTitle>
+  6170→          <DialogDescription>
+  6171→            Deteksi instan keluhan warganet di Facebook, Instagram, TikTok, X (Twitter), dan Google. Identifikasi mana yang wajib direspon oleh DPN/DPD/DPC.
+  6172→          </DialogDescription>
+  6173→        </DialogHeader>
+  6174→
+  6175→        {/* Rp0 info banner */}
+  6176→        <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-xs text-emerald-800 flex items-start gap-2">
+  6177→          <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" />
+  6178→          <div className="flex-1">
+  6179→            <strong>100% OTOMATIS — TANPA KONFIGURASI:</strong>
+  6180→            <div className="mt-2 space-y-1">
+  6181→              <div>✅ <strong>YouTube:</strong> yt-dlp otomatis search 15 video REAL yang mention "LAPRA 08" — dengan view count, channel, dan tanggal asli. GRATIS, tanpa API key.</div>
+  6182→              <div>✅ <strong>Google News:</strong> RSS otomatis ambil 20 artikel REAL berita tentang LAPRA 08 dari MetroTVNews, Atjeh Watch, dll. GRATIS, tanpa API key.</div>
+  6183→              <div>ℹ️ <strong>Facebook, Instagram, TikTok, X/Twitter:</strong> Platform-platform ini memblokir akses anonim sejak 2023. Untuk audit REAL posts dari medsos ini, perlu API resmi (Meta Graph API gratis untuk FB+IG, YouTube Data API v3 gratis, TikTok Research API perlu approval, X API v2 berbayar $100/bln).</div>
+  6184→            </div>
+  6185→            <div className="mt-2 pt-2 border-t border-emerald-200">
+  6186→              <strong>Cara kerja:</strong> Klik tombol "Mulai Audit" → sistem otomatis scraping YouTube + Google News → AI analisis sentimen + prioritas + lokasi → tampilkan daftar keluhan + rekomendasi tindakan. Semua dalam &lt;3 detik.
+  6187→            </div>
+  6188→          </div>
+  6189→        </div>
+  6190→
+  6191→        {/* Scan button */}
+  6192→        {!scanResult && !scanning && (
+  6193→          <div className="text-center py-8">
+  6194→            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-red-500 to-rose-700 flex items-center justify-center mx-auto mb-4 shadow-lg">
+  6195→              <ShieldCheck className="w-10 h-10 text-white" />
+  6196→            </div>
+  6197→            <h3 className="font-bold text-lg mb-2">Audit AI Responding Otomatis</h3>
+  6198→            <p className="text-sm text-muted-foreground mb-4 max-w-md mx-auto">
+  6199→              Klik tombol di bawah untuk melakukan scan instan terhadap semua media sosial dan mendeteksi keluhan warganet yang wajib direspon oleh pengurus LAPRA 08.
+  6200→            </p>
+  6201→            <Button onClick={handleScan} size="lg" className="bg-gradient-to-r from-red-600 to-rose-700 text-white">
+  6202→              <Zap className="w-5 h-5 mr-2" /> Mulai Audit Sekarang
+  6203→            </Button>
+  6204→          </div>
+  6205→        )}
+  6206→
+  6207→        {/* Scanning */}
+  6208→        {scanning && (
+  6209→          <div className="text-center py-12">
+  6210→            <Loader2 className="w-12 h-12 mx-auto animate-spin text-red-600 mb-4" />
+  6211→            <p className="text-sm font-medium">Sedang mengscan Facebook, Instagram, TikTok, X, dan Google...</p>
+  6212→            <p className="text-xs text-muted-foreground mt-1">Menganalisis keluhan warganet dengan AI lokal (IndoBERT)...</p>
+  6213→          </div>
+  6214→        )}
+  6215→
+  6216→        {/* Results */}
+  6217→        {scanResult && !scanning && (
+  6218→          <div className="space-y-4">
+  6219→            {/* Summary stats */}
+  6220→            {stats && (
+  6221→              <div className="grid grid-cols-4 gap-3">
+  6222→                <div className="rounded-lg border p-3 text-center bg-slate-50">
+  6223→                  <div className="text-2xl font-bold">{stats.total}</div>
+  6224→                  <div className="text-[13px] text-muted-foreground">Total Keluhan</div>
+  6225→                </div>
+  6226→                <div className="rounded-lg border p-3 text-center bg-red-50 border-red-200">
+  6227→                  <div className="text-2xl font-bold text-red-700">{stats.high}</div>
+  6228→                  <div className="text-[13px] text-red-600">Prioritas Tinggi</div>
+  6229→                </div>
+  6230→                <div className="rounded-lg border p-3 text-center bg-amber-50 border-amber-200">
+  6231→                  <div className="text-2xl font-bold text-amber-700">{stats.medium}</div>
+  6232→                  <div className="text-[13px] text-amber-600">Prioritas Sedang</div>
+  6233→                </div>
+  6234→                <div className="rounded-lg border p-3 text-center bg-blue-50 border-blue-200">
+  6235→                  <div className="text-2xl font-bold text-blue-700">{stats.ignored}</div>
+  6236→                  <div className="text-[13px] text-blue-600">Terabaikan</div>
+  6237→                </div>
+  6238→              </div>
+  6239→            )}
+  6240→
+  6241→            {/* Priority filter */}
+  6242→            <div className="flex gap-2 items-center">
+  6243→              <span className="text-sm font-semibold text-muted-foreground">Filter Prioritas:</span>
+  6244→              <Button size="sm" variant={filterPriority === '' ? 'default' : 'outline'} className="h-7 text-xs" onClick={() => { setFilterPriority(''); if (scanResult) loadComplaints(scanResult.id) }}>Semua</Button>
+  6245→              <Button size="sm" variant={filterPriority === 'HIGH' ? 'default' : 'outline'} className="h-7 text-xs bg-red-600 hover:bg-red-700 text-white" onClick={() => { setFilterPriority('HIGH'); if (scanResult) loadComplaints(scanResult.id) }}>Tinggi</Button>
+  6246→              <Button size="sm" variant={filterPriority === 'MEDIUM' ? 'default' : 'outline'} className="h-7 text-xs bg-amber-600 hover:bg-amber-700 text-white" onClick={() => { setFilterPriority('MEDIUM'); if (scanResult) loadComplaints(scanResult.id) }}>Sedang</Button>
+  6247→              <Button size="sm" variant={filterPriority === 'LOW' ? 'default' : 'outline'} className="h-7 text-xs bg-blue-600 hover:bg-blue-700 text-white" onClick={() => { setFilterPriority('LOW'); if (scanResult) loadComplaints(scanResult.id) }}>Rendah</Button>
+  6248→            </div>
+  6249→
+  6250→            {/* Complaints list with priority */}
+  6251→            {loadingDetail ? (
+  6252→              <div className="text-center py-8"><Loader2 className="w-8 h-8 animate-spin text-red-600 mx-auto" /></div>
+  6253→            ) : complaints.length === 0 ? (
+  6254→              <EmptyState icon={ShieldCheck} title="Tidak ada keluhan" description="Tidak ditemukan keluhan pada filter ini." />
+  6255→            ) : (
+  6256→              <div className="space-y-2">
+  6257→                {complaints.map((c, i) => {
+  6258→                  const priColor = c.priority === 'HIGH' ? 'border-l-red-500 bg-red-50/30' : c.priority === 'MEDIUM' ? 'border-l-amber-500 bg-amber-50/30' : 'border-l-blue-500 bg-blue-50/30'
+  6259→                  const priBadge = c.priority === 'HIGH' ? 'bg-red-100 text-red-800 border-red-300' : c.priority === 'MEDIUM' ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-blue-100 text-blue-800 border-blue-300'
+  6260→                  const platformIcon = c.platform === 'FACEBOOK' ? '📘' : c.platform === 'INSTAGRAM' ? '📷' : c.platform === 'TIKTOK' ? '🎵' : c.platform === 'TWITTER_X' ? '🐦' : '🔍'
+  6261→                  return (
+  6262→                    <div key={c.id} className={`rounded-xl border-l-4 p-3 ${priColor}`}>
+  6263→                      <div className="flex items-start gap-3">
+  6264→                        <div className="flex-1 min-w-0">
+  6265→                          <div className="flex items-center gap-2 flex-wrap mb-1">
+  6266→                            <Badge className={`text-[13px] ${priBadge}`}>{c.priority}</Badge>
+  6267→                            <Badge variant="outline" className="text-[13px]">{platformIcon} {c.platform}</Badge>
+  6268→                            <Badge variant="outline" className="text-[13px] bg-emerald-50 text-emerald-700 border-emerald-200">
+  6269→                              <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1" />REAL
+  6270→                            </Badge>
+  6271→                            <Badge variant="outline" className={`text-[13px] ${c.sentiment === 'NEGATIVE' ? 'bg-red-50 text-red-700' : c.sentiment === 'POSITIVE' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-50 text-slate-700'}`}>
+  6272→                              {c.sentiment}
+  6273→                            </Badge>
+  6274→                            <Badge variant="outline" className="text-[13px] bg-purple-50 text-purple-700">{c.category}</Badge>
+  6275→                            {c.regencyName && <Badge variant="outline" className="text-[13px] bg-blue-50 text-blue-700"><MapPin className="w-2.5 h-2.5 mr-0.5" />{c.regencyName}</Badge>}
+  6276→                            {c.provinceName && !c.regencyName && <Badge variant="outline" className="text-[13px] bg-blue-50 text-blue-700"><MapPin className="w-2.5 h-2.5 mr-0.5" />{c.provinceName}</Badge>}
+  6277→                            <Badge variant="outline" className={`text-[13px] ${c.responseStatus === 'IGNORED' ? 'bg-red-50 text-red-700' : c.responseStatus === 'RESPONDED' ? 'bg-emerald-50 text-emerald-700' : c.responseStatus === 'IN_PROGRESS' ? 'bg-amber-50 text-amber-700' : 'bg-slate-50 text-slate-500'}`}>
+  6278→                              {c.responseStatus === 'IGNORED' ? '⚠ TERABAIKAN' : c.responseStatus === 'RESPONDED' ? '✓ Direspon' : c.responseStatus === 'IN_PROGRESS' ? '⏳ Proses' : 'ℹ Info (No Response Needed)'}
+  6279→                            </Badge>
+  6280→                          </div>
+  6281→                          <div className="text-sm font-semibold flex items-center gap-2">
+  6282→                            <span className="text-blue-600">{c.author}</span>
+  6283→                            {c.authorHandle && c.authorHandle !== '@rss' && <span className="text-xs text-muted-foreground font-normal">{c.authorHandle}</span>}
+  6284→                          </div>
+  6285→                          <p className="text-xs text-muted-foreground mt-1 line-clamp-3 whitespace-pre-wrap">{c.content}</p>
+  6286→                          {c.aiRecommendation && (
+  6287→                            <div className="mt-2 p-2 rounded bg-white border text-xs">
+  6288→                              <Lightbulb className="w-3 h-3 inline mr-1 text-amber-500" />
+  6289→                              <strong>AI Rekomendasi:</strong> {c.aiRecommendation}
+  6290→                            </div>
+  6291→                          )}
+  6292→                          <div className="flex items-center gap-3 mt-2 text-[13px] text-muted-foreground">
+  6293→                            <span>📅 {formatDateTimeID(c.publishedAt)}</span>
+  6294→                            <span>💬 {c.engagementCount} engagement</span>
+  6295→                            <span>⚡ Urgency: {c.urgencyScore}/100</span>
+  6296→                          </div>
+  6297→                        </div>
+  6298→                        <div className="flex flex-col gap-1 shrink-0">
+  6299→                          {c.responseStatus === 'IGNORED' && (
+  6300→                            <>
+  6301→                              <Button size="sm" variant="outline" className="h-7 text-xs text-emerald-700 border-emerald-300" onClick={() => handleRespond(c.id, 'IN_PROGRESS', 'ACKNOWLEDGMENT')}>
+  6302→                                <CheckCircle2 className="w-3 h-3 mr-1" /> Tandai Proses
+  6303→                              </Button>
+  6304→                              <Button size="sm" variant="outline" className="h-7 text-xs text-blue-700 border-blue-300" onClick={() => handleRespond(c.id, 'RESPONDED', 'CLARIFICATION')}>
+  6305→                                <Send className="w-3 h-3 mr-1" /> Sudah Respon
+  6306→                              </Button>
+  6307→                            </>
+  6308→                          )}
+  6309→                          <a href={c.url} target="_blank" rel="noopener noreferrer">
+  6310→                            <Button size="sm" variant="ghost" className="h-7 text-xs w-full"><ExternalLink className="w-3 h-3 mr-1" /> Buka Post</Button>
+  6311→                          </a>
+  6312→                        </div>
+  6313→                      </div>
+  6314→                    </div>
+  6315→                  )
+  6316→                })}
+  6317→              </div>
+  6318→            )}
+  6319→
+  6320→            {/* Daftar Keluhan Terabaikan per Wilayah */}
+  6321→            {ignoredByWilayah.length > 0 && (
+  6322→              <Card className="border-red-200">
+  6323→                <CardHeader>
+  6324→                  <CardTitle className="flex items-center gap-2 text-sm text-red-700">
+  6325→                    <AlertTriangle className="w-4 h-4" /> Daftar Keluhan Terabaikan per Wilayah
+  6326→                  </CardTitle>
+  6327→                  <CardDescription>Wilayah yang pasif/lambat merespon keluhan warganet</CardDescription>
+  6328→                </CardHeader>
+  6329→                <CardContent>
+  6330→                  <Table>
+  6331→                    <TableHeader>
+  6332→                      <TableRow>
+  6333→                        <TableHead>Provinsi</TableHead>
+  6334→                        <TableHead>Kab/Kota</TableHead>
+  6335→                        <TableHead className="text-center">Total</TableHead>
+  6336→                        <TableHead className="text-center text-red-600">Tinggi</TableHead>
+  6337→                        <TableHead className="text-center text-amber-600">Sedang</TableHead>
+  6338→                        <TableHead className="text-center text-blue-600">Rendah</TableHead>
+  6339→                        <TableHead>Status</TableHead>
+  6340→                      </TableRow>
+  6341→                    </TableHeader>
+  6342→                    <TableBody>
+  6343→                      {ignoredByWilayah.map((w, i) => (
+  6344→                        <TableRow key={i} className={w.high > 0 ? 'bg-red-50/50' : ''}>
+  6345→                          <TableCell className="text-sm font-medium">{w.provinceName}</TableCell>
+  6346→                          <TableCell className="text-sm">{w.regencyName}</TableCell>
+  6347→                          <TableCell className="text-center font-bold">{w.total}</TableCell>
+  6348→                          <TableCell className="text-center text-red-700 font-bold">{w.high}</TableCell>
+  6349→                          <TableCell className="text-center text-amber-700">{w.medium}</TableCell>
+  6350→                          <TableCell className="text-center text-blue-700">{w.low}</TableCell>
+  6351→                          <TableCell>
+  6352→                            {w.high > 0 ? <Badge className="bg-red-100 text-red-800 text-[13px]">⚠ KRITIS - Wajib Respon</Badge> :
+  6353→                             w.medium > 0 ? <Badge className="bg-amber-100 text-amber-800 text-[13px]">⚠ Perlu Perhatian</Badge> :
+  6354→                             <Badge variant="outline" className="text-[13px]">Monitor</Badge>}
+  6355→                          </TableCell>
+  6356→                        </TableRow>
+  6357→                      ))}
+  6358→                    </TableBody>
+  6359→                  </Table>
+  6360→                </CardContent>
+  6361→              </Card>
+  6362→            )}
+  6363→
+  6364→            {/* Re-scan button */}
+  6365→            <div className="flex justify-end">
+  6366→              <Button onClick={handleScan} disabled={scanning} variant="outline">
+  6367→                <Loader2 className={`w-4 h-4 mr-1 ${scanning ? 'animate-spin' : 'hidden'}`} /> Scan Ulang
+  6368→              </Button>
+  6369→            </div>
+  6370→          </div>
+  6371→        )}
+  6372→
+  6373→        <DialogFooter>
+  6374→          <Button variant="outline" onClick={() => onOpenChange(false)}>Tutup</Button>
+  6375→        </DialogFooter>
+  6376→      </DialogContent>
+  6377→    </Dialog>
+  6378→  )
+  6379→}
+  6380→

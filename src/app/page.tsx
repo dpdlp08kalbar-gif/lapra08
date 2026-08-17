@@ -73,6 +73,7 @@ export default function Home() {
         return <KeanggotaanStrukturMenu />
       case 'membership':
       case 'organization':
+      case 'territory':
         // Menu sudah digabung ke Keanggotaan & Pengurus
         return <KeanggotaanStrukturMenu />
       case 'pusat-data':

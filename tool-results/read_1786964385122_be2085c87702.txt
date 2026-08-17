@@ -1,0 +1,702 @@
+  5300→  )
+  5301→}
+  5302→
+  5303→// ============================================================
+  5304→// 6. KONTAK & SEKRETARIAT — Lokasi, Hubungi, FAQ (Full Implementation)
+  5305→// ============================================================
+  5306→export function KontakSekretariatMenu() {
+  5307→  const [tab, setTab] = useState('lokasi')
+  5308→  const tabs = [
+  5309→    { key: 'lokasi', label: 'Lokasi Sekretariat', icon: MapIcon },
+  5310→    { key: 'hubungi', label: 'Hubungi Kami', icon: Mail },
+  5311→    { key: 'faq', label: 'FAQ', icon: HelpCircle },
+  5312→  ]
+  5313→  return (
+  5314→    <div className="space-y-6">
+  5315→      <PageHeader title="Kontak & Sekretariat" description="Lokasi sekretariat, form kontak, dan FAQ" icon={MapIcon} />
+  5316→      <div className="flex flex-wrap gap-2">
+  5317→        {tabs.map((t) => (
+  5318→          <button key={t.key} onClick={() => setTab(t.key)}
+  5319→            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${tab === t.key ? 'bg-gradient-to-r from-orange-600 to-red-600 text-white shadow-sm' : 'border hover:bg-accent'}`}>
+  5320→            <t.icon className="w-4 h-4" /> {t.label}
+  5321→          </button>
+  5322→        ))}
+  5323→      </div>
+  5324→      {tab === 'lokasi' ? <LokasiSekretariatManager /> : tab === 'hubungi' ? <HubungiKamiManager /> : <FaqManager />}
+  5325→    </div>
+  5326→  )
+  5327→}
+  5328→
+  5329→// ----- Lokasi Sekretariat — Struktur Hierarki DPN/DPD/DPC (seperti Pusat Data Organisasi) -----
+  5330→function LokasiSekretariatManager() {
+  5331→  const isSuperAdmin = useIsSuperAdmin()
+  5332→  const [view, setView] = useState<'home' | 'dpn' | 'dpd-list' | 'dpd-detail' | 'dpc-list' | 'dpc-detail'>('home')
+  5333→  const [territories, setTerritories] = useState<any[]>([])
+  5334→  const [regencies, setRegencies] = useState<any[]>([])
+  5335→  const [selectedProv, setSelectedProv] = useState<any>(null)
+  5336→  const [selectedRegency, setSelectedRegency] = useState<any>(null)
+  5337→  const [locations, setLocations] = useState<any[]>([])
+  5338→  const [loading, setLoading] = useState(true)
+  5339→  const [addOpen, setAddOpen] = useState(false)
+  5340→  const [editItem, setEditItem] = useState<any>(null)
+  5341→  const [deleteItem, setDeleteItem] = useState<any>(null)
+  5342→  const [form, setForm] = useState<any>({ name: '', level: 'DPC', address: '', city: '', province: '', postalCode: '', phone: '', email: '', hours: '', lat: 0, lng: 0, mapUrl: '' })
+  5343→
+  5344→  useEffect(() => {
+  5345→    Promise.all([
+  5346→      api('/api/territory').then((all: any[]) => {
+  5347→        setTerritories(all.filter(t => t.level === 'PROVINCE'))
+  5348→        setRegencies(all.filter(t => t.level === 'REGENCY'))
+  5349→      }).catch(() => {}),
+  5350→      api('/api/sekretariat').then((data: any[]) => setLocations(data || [])).catch(() => {}),
+  5351→    ]).finally(() => setLoading(false))
+  5352→  }, [])
+  5353→
+  5354→  const reloadLocations = () => {
+  5355→    api('/api/sekretariat').then((data: any[]) => setLocations(data || [])).catch(() => {})
+  5356→  }
+  5357→
+  5358→  // Filter locations by level
+  5359→  const dpnLocations = locations.filter(l => l.level === 'DPN')
+  5360→  const dpdLocations = locations.filter(l => l.level === 'DPD')
+  5361→  const dpcLocations = locations.filter(l => l.level === 'DPC')
+  5362→
+  5363→  // Filter DPD locations by selected province
+  5364→  const dpdFiltered = selectedProv ? dpdLocations.filter(l => l.province === selectedProv.name || l.territoryCode === selectedProv.code) : []
+  5365→
+  5366→  // Filter DPC locations by selected regency
+  5367→  const dpcFiltered = selectedRegency ? dpcLocations.filter(l => l.city === selectedRegency.name || l.territoryCode === selectedRegency.code) : []
+  5368→
+  5369→  // Filter regencies by selected province
+  5370→  const filteredRegencies = selectedProv
+  5371→    ? regencies.filter(r => { const prov = territories.find(p => p.code === selectedProv.code); return prov && r.parentId === prov.id })
+  5372→    : []
+  5373→
+  5374→  const handleSave = async (e: React.FormEvent) => {
+  5375→    e.preventDefault()
+  5376→    const userId = useAuthStore.getState().user?.id || ''
+  5377→    const method = editItem ? 'PUT' : 'POST'
+  5378→    const url = editItem ? `/api/sekretariat/${editItem.id}` : '/api/sekretariat'
+  5379→    try {
+  5380→      const res = await fetch(url, {
+  5381→        method, headers: { 'Content-Type': 'application/json', 'x-user-id': userId },
+  5382→        body: JSON.stringify(form),
+  5383→      })
+  5384→      const data = await res.json()
+  5385→      if (!res.ok || !data.success) throw new Error(data.error)
+  5386→      useToastStore.getState().addToast(editItem ? 'Sekretariat diperbarui' : 'Sekretariat ditambahkan', 'success')
+  5387→      setAddOpen(false); setEditItem(null); reloadLocations()
+  5388→    } catch (e: any) { useToastStore.getState().addToast(e.message, 'error') }
+  5389→  }
+  5390→
+  5391→  const handleDelete = async () => {
+  5392→    if (!deleteItem) return
+  5393→    try {
+  5394→      await fetch(`/api/sekretariat/${deleteItem.id}`, { method: 'DELETE', headers: { 'x-user-id': useAuthStore.getState().user?.id || '' } })
+  5395→      useToastStore.getState().addToast('Sekretariat dihapus', 'success')
+  5396→      setDeleteItem(null); reloadLocations()
+  5397→    } catch (e: any) { useToastStore.getState().addToast(e.message, 'error') }
+  5398→  }
+  5399→
+  5400→  const openEditor = (item?: any) => {
+  5401→    if (item) { setEditItem(item); setForm({ ...item }) }
+  5402→    else { setEditItem(null); setForm({ name: '', level: view === 'dpn' ? 'DPN' : view === 'dpd-detail' ? 'DPD' : 'DPC', address: '', city: '', province: selectedProv?.name || '', postalCode: '', phone: '', email: '', hours: '', lat: 0, lng: 0, mapUrl: '' }) }
+  5403→    setAddOpen(true)
+  5404→  }
+  5405→
+  5406→  if (loading) return <LoadingState />
+  5407→
+  5408→  const levelConfig: Record<string, { label: string; color: string }> = {
+  5409→    DPN: { label: 'DPN Pusat', color: 'bg-purple-100 text-purple-700 border-purple-200' },
+  5410→    KOORWIL: { label: 'Koorwil', color: 'bg-purple-100 text-purple-700 border-purple-200' },
+  5411→    DPD: { label: 'DPD Provinsi', color: 'bg-blue-100 text-blue-700 border-blue-200' },
+  5412→    DPC: { label: 'DPC Kab/Kota', color: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
+  5413→  }
+  5414→
+  5415→  const SekretariatCard = ({ loc }: { loc: any }) => {
+  5416→    const lc = levelConfig[loc.level] || levelConfig.DPC
+  5417→    return (
+  5418→      <div className="rounded-xl border p-4 hover:shadow-md transition-all bg-white">
+  5419→        <div className="flex items-start gap-3 mb-3">
+  5420→          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center shrink-0">
+  5421→            <MapIcon className="w-5 h-5 text-white" />
+  5422→          </div>
+  5423→          <div className="flex-1 min-w-0">
+  5424→            <div className="font-bold text-sm leading-tight">{loc.name}</div>
+  5425→            <Badge variant="outline" className={`text-[13px] mt-1 ${lc.color}`}>{lc.label}</Badge>
+  5426→          </div>
+  5427→          {isSuperAdmin && (
+  5428→            <div className="flex gap-1">
+  5429→              <Button size="icon" variant="ghost" className="h-7 w-7 text-blue-600 hover:bg-blue-50" onClick={() => openEditor(loc)}>
+  5430→                <Edit className="w-3.5 h-3.5" />
+  5431→              </Button>
+  5432→              <Button size="icon" variant="ghost" className="h-7 w-7 text-red-600 hover:bg-red-50" onClick={() => setDeleteItem(loc)}>
+  5433→                <Trash2 className="w-3.5 h-3.5" />
+  5434→              </Button>
+  5435→            </div>
+  5436→          )}
+  5437→        </div>
+  5438→        <div className="space-y-2 text-xs text-muted-foreground">
+  5439→          {loc.address && <div className="flex items-start gap-2"><MapPin className="w-3.5 h-3.5 text-red-500 mt-0.5 shrink-0" /><span>{loc.address}, {loc.city}, {loc.province} {loc.postalCode}</span></div>}
+  5440→          {loc.phone && <div className="flex items-center gap-2"><PhoneCall className="w-3.5 h-3.5 text-blue-500 shrink-0" /><span>{loc.phone}</span></div>}
+  5441→          {loc.email && <div className="flex items-center gap-2"><Mail className="w-3.5 h-3.5 text-emerald-500 shrink-0" /><span className="truncate">{loc.email}</span></div>}
+  5442→          {loc.hours && <div className="flex items-center gap-2"><Clock className="w-3.5 h-3.5 text-amber-500 shrink-0" /><span>{loc.hours}</span></div>}
+  5443→        </div>
+  5444→        {loc.mapUrl && <a href={loc.mapUrl} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-800">
+  5445→          <ExternalLink className="w-3 h-3" /> Lihat di Google Maps
+  5446→        </a>}
+  5447→      </div>
+  5448→    )
+  5449→  }
+  5450→
+  5451→  // === Render view content based on view state ===
+  5452→  let viewContent: React.ReactNode = null
+  5453→
+  5454→  // HOME VIEW: 3 Kartu DPN/DPD/DPC
+  5455→  if (view === 'home') {
+  5456→    const cards = [
+  5457→      { key: 'dpn', title: 'DPN', subtitle: 'Pusat Nasional', desc: 'Sekretariat DPN LAPRA 08', count: dpnLocations.length, icon: Building2, grad: 'from-red-500 to-orange-600' },
+  5458→      { key: 'dpd', title: 'DPD', subtitle: 'Provinsi', desc: 'Daftar sekretariat DPD se-Indonesia + LN', count: dpdLocations.length, icon: Globe, grad: 'from-blue-500 to-cyan-600' },
+  5459→      { key: 'dpc', title: 'DPC', subtitle: 'Kabupaten/Kota', desc: 'Daftar sekretariat DPC per DPD', count: dpcLocations.length, icon: MapPin, grad: 'from-emerald-500 to-teal-600' },
+  5460→    ]
+  5461→    viewContent = (
+  5462→      <div className="space-y-4">
+  5463→        <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-2 text-xs text-emerald-800">
+  5464→          <strong>Hierarki:</strong> DPN (Pusat Nasional) → DPD (Provinsi) → DPC (Kabupaten/Kota).
+  5465→          Pilih tingkat untuk melihat sekretariat masing-masing wilayah.
+  5466→        </div>
+  5467→        <div className="grid gap-4 md:grid-cols-3">
+  5468→          {cards.map(c => (
+  5469→            <div key={c.key} className="rounded-2xl border-2 hover:shadow-lg transition-all cursor-pointer overflow-hidden"
+  5470→              onClick={() => { setView(c.key === 'dpn' ? 'dpn' : c.key === 'dpd' ? 'dpd-list' : 'dpc-list'); setSelectedProv(null); setSelectedRegency(null) }}>
+  5471→              <div className={`bg-gradient-to-br ${c.grad} p-5 text-white`}>
+  5472→                <c.icon className="w-8 h-8 mb-2" />
+  5473→                <div className="text-xl font-bold">{c.title}</div>
+  5474→                <div className="text-sm opacity-90">{c.subtitle}</div>
+  5475→              </div>
+  5476→              <div className="p-4 bg-white">
+  5477→                <div className="text-sm text-muted-foreground mb-2">{c.desc}</div>
+  5478→                <div className="flex items-center justify-between">
+  5479→                  <Badge variant="outline" className="text-[13px]">{c.count} sekretariat</Badge>
+  5480→                  <span className="text-xs font-medium text-blue-600">Buka <ChevronRight className="w-4 h-4 inline" /></span>
+  5481→                </div>
+  5482→              </div>
+  5483→            </div>
+  5484→          ))}
+  5485→        </div>
+  5486→      </div>
+  5487→    )
+  5488→  }
+  5489→
+  5490→  // DPN VIEW
+  5491→  else if (view === 'dpn') {
+  5492→    viewContent = (
+  5493→      <div className="space-y-4">
+  5494→        <Button variant="ghost" size="sm" onClick={() => setView('home')}><ChevronRight className="w-4 h-4 rotate-180" /> Kembali</Button>
+  5495→        <div className="flex items-center justify-between">
+  5496→          <h3 className="text-base font-bold flex items-center gap-2"><Building2 className="w-5 h-5 text-red-600" /> Sekretariat DPN (Pusat Nasional)</h3>
+  5497→          {isSuperAdmin && <Button size="sm" onClick={() => openEditor()} className="bg-gradient-to-r from-orange-600 to-red-600 text-white"><Plus className="w-4 h-4 mr-1" /> Tambah</Button>}
+  5498→        </div>
+  5499→        {dpnLocations.length === 0 ? <EmptyState icon={MapIcon} title="Belum ada sekretariat DPN" /> : (
+  5500→          <div className="grid gap-4 md:grid-cols-2">{dpnLocations.map(loc => <SekretariatCard key={loc.id} loc={loc} />)}</div>
+  5501→        )}
+  5502→      </div>
+  5503→    )
+  5504→  }
+  5505→
+  5506→  // DPD LIST VIEW
+  5507→  else if (view === 'dpd-list') {
+  5508→    viewContent = (
+  5509→      <div className="space-y-4">
+  5510→        <Button variant="ghost" size="sm" onClick={() => setView('home')}><ChevronRight className="w-4 h-4 rotate-180" /> Kembali</Button>
+  5511→        <h3 className="text-base font-bold flex items-center gap-2"><Globe className="w-5 h-5 text-blue-600" /> Pilih DPD (Provinsi)</h3>
+  5512→        <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+  5513→          {territories.map(prov => {
+  5514→            const count = dpdLocations.filter(l => l.province === prov.name || l.territoryCode === prov.code).length
+  5515→            return (
+  5516→              <button key={prov.code} onClick={() => { setSelectedProv(prov); setView('dpd-detail') }}
+  5517→                className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent transition-all text-left">
+  5518→                <span className="text-sm font-medium">{prov.name}</span>
+  5519→                <Badge variant="outline" className="text-[13px]">{count > 0 ? `${count} lokasi` : 'Kosong'}</Badge>
+  5520→              </button>
+  5521→            )
+  5522→          })}
+  5523→        </div>
+  5524→      </div>
+  5525→    )
+  5526→  }
+  5527→
+  5528→  // DPD DETAIL VIEW
+  5529→  else if (view === 'dpd-detail' && selectedProv) {
+  5530→    viewContent = (
+  5531→      <div className="space-y-4">
+  5532→        <Button variant="ghost" size="sm" onClick={() => setView('dpd-list')}><ChevronRight className="w-4 h-4 rotate-180" /> Kembali ke daftar DPD</Button>
+  5533→        <div className="flex items-center justify-between">
+  5534→          <h3 className="text-base font-bold flex items-center gap-2"><Globe className="w-5 h-5 text-blue-600" /> Sekretariat DPD {selectedProv.name}</h3>
+  5535→          {isSuperAdmin && <Button size="sm" onClick={() => openEditor()} className="bg-gradient-to-r from-orange-600 to-red-600 text-white"><Plus className="w-4 h-4 mr-1" /> Tambah</Button>}
+  5536→        </div>
+  5537→        {dpdFiltered.length === 0 ? <EmptyState icon={MapIcon} title={`Belum ada sekretariat DPD ${selectedProv.name}`} description="Klik 'Tambah' untuk menambah sekretariat DPD." /> : (
+  5538→          <div className="grid gap-4 md:grid-cols-2">{dpdFiltered.map(loc => <SekretariatCard key={loc.id} loc={loc} />)}</div>
+  5539→        )}
+  5540→      </div>
+  5541→    )
+  5542→  }
+  5543→
+  5544→  // DPC LIST VIEW (pilih provinsi dulu)
+  5545→  else if (view === 'dpc-list') {
+  5546→    viewContent = (
+  5547→      <div className="space-y-4">
+  5548→        <Button variant="ghost" size="sm" onClick={() => setView('home')}><ChevronRight className="w-4 h-4 rotate-180" /> Kembali</Button>
+  5549→        <h3 className="text-base font-bold flex items-center gap-2"><MapPin className="w-5 h-5 text-emerald-600" /> Pilih DPD (Provinsi) untuk lihat DPC</h3>
+  5550→        <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+  5551→          {territories.map(prov => {
+  5552→            const count = dpcLocations.filter(l => l.province === prov.name || l.territoryCode === prov.code).length
+  5553→            return (
+  5554→              <button key={prov.code} onClick={() => { setSelectedProv(prov); setView('dpc-detail'); setSelectedRegency(null) }}
+  5555→                className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent transition-all text-left">
+  5556→                <span className="text-sm font-medium">{prov.name}</span>
+  5557→                <Badge variant="outline" className="text-[13px]">{count > 0 ? `${count} DPC` : 'Kosong'}</Badge>
+  5558→              </button>
+  5559→            )
+  5560→          })}
+  5561→        </div>
+  5562→      </div>
+  5563→    )
+  5564→  }
+  5565→
+  5566→  // DPC DETAIL VIEW (list kab/kota di provinsi terpilih)
+  5567→  else if (view === 'dpc-detail' && selectedProv) {
+  5568→    viewContent = (
+  5569→      <div className="space-y-4">
+  5570→        <Button variant="ghost" size="sm" onClick={() => setView('dpc-list')}><ChevronRight className="w-4 h-4 rotate-180" /> Kembali ke daftar provinsi</Button>
+  5571→        <h3 className="text-base font-bold flex items-center gap-2"><MapPin className="w-5 h-5 text-emerald-600" /> DPC di {selectedProv.name}</h3>
+  5572→        <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+  5573→          {filteredRegencies.map(reg => {
+  5574→            const count = dpcLocations.filter(l => l.city === reg.name || l.territoryCode === reg.code).length
+  5575→            return (
+  5576→              <button key={reg.code} onClick={() => setSelectedRegency(reg)}
+  5577→                className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent transition-all text-left">
+  5578→                <span className="text-sm font-medium">{reg.name}</span>
+  5579→                <Badge variant="outline" className="text-[13px]">{count > 0 ? `${count} lokasi` : 'Kosong'}</Badge>
+  5580→              </button>
+  5581→            )
+  5582→          })}
+  5583→        </div>
+  5584→        {selectedRegency && (
+  5585→          <div className="space-y-2 mt-4">
+  5586→            <div className="flex items-center justify-between">
+  5587→              <h4 className="font-semibold text-sm">Sekretariat DPC {selectedRegency.name}</h4>
+  5588→              {isSuperAdmin && <Button size="sm" onClick={() => openEditor()} className="bg-gradient-to-r from-orange-600 to-red-600 text-white"><Plus className="w-4 h-4 mr-1" /> Tambah</Button>}
+  5589→            </div>
+  5590→            {dpcFiltered.length === 0 ? <EmptyState icon={MapIcon} title={`Belum ada sekretariat DPC ${selectedRegency.name}`} /> : (
+  5591→              <div className="grid gap-4 md:grid-cols-2">{dpcFiltered.map(loc => <SekretariatCard key={loc.id} loc={loc} />)}</div>
+  5592→            )}
+  5593→          </div>
+  5594→        )}
+  5595→      </div>
+  5596→    )
+  5597→  }
+  5598→
+  5599→  // === Final return: view content + always-rendered dialogs ===
+  5600→  return (
+  5601→    <>
+  5602→      {viewContent}
+  5603→
+  5604→      {/* Dialog: Tambah / Edit Sekretariat */}
+  5605→      <Dialog open={addOpen} onOpenChange={(o) => { setAddOpen(o); if (!o) setEditItem(null) }}>
+  5606→        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+  5607→          <DialogHeader>
+  5608→            <DialogTitle className="flex items-center gap-2">
+  5609→              <MapIcon className="w-4 h-4 text-orange-600" />
+  5610→              {editItem ? 'Edit Sekretariat' : 'Tambah Sekretariat'}
+  5611→            </DialogTitle>
+  5612→            <DialogDescription>
+  5613→              {editItem ? `Perbarui informasi lokasi: ${editItem.name}` : 'Lengkapi informasi lokasi sekretariat.'}
+  5614→            </DialogDescription>
+  5615→          </DialogHeader>
+  5616→          <form onSubmit={handleSave} className="space-y-3 py-2">
+  5617→            <div className="grid gap-3 md:grid-cols-2">
+  5618→              <div className="space-y-1 md:col-span-2">
+  5619→                <Label className="text-[13px]">Nama Sekretariat <span className="text-red-500">*</span></Label>
+  5620→                <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Mis. Sekretariat DPN LAPRA 08" required className="text-[14px]" />
+  5621→              </div>
+  5622→              <div className="space-y-1">
+  5623→                <Label className="text-[13px]">Tingkat</Label>
+  5624→                <Select value={form.level} onValueChange={(v) => setForm({ ...form, level: v })}>
+  5625→                  <SelectTrigger className="text-[14px]"><SelectValue /></SelectTrigger>
+  5626→                  <SelectContent>
+  5627→                    <SelectItem value="DPN">DPN — Pusat Nasional</SelectItem>
+  5628→                    <SelectItem value="KOORWIL">Koorwil</SelectItem>
+  5629→                    <SelectItem value="DPD">DPD — Provinsi</SelectItem>
+  5630→                    <SelectItem value="DPC">DPC — Kabupaten/Kota</SelectItem>
+  5631→                  </SelectContent>
+  5632→                </Select>
+  5633→              </div>
+  5634→              <div className="space-y-1">
+  5635→                <Label className="text-[13px]">Kode Wilayah</Label>
+  5636→                <Input value={form.territoryCode || ''} onChange={(e) => setForm({ ...form, territoryCode: e.target.value })} placeholder="Mis. 6171" className="text-[14px]" />
+  5637→              </div>
+  5638→              <div className="space-y-1 md:col-span-2">
+  5639→                <Label className="text-[13px]">Alamat Lengkap</Label>
+  5640→                <Textarea value={form.address || ''} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="Jalan, nomor, RT/RW, kelurahan" rows={2} className="text-[14px]" />
+  5641→              </div>
+  5642→              <div className="space-y-1">
+  5643→                <Label className="text-[13px]">Kabupaten/Kota</Label>
+  5644→                <Input value={form.city || ''} onChange={(e) => setForm({ ...form, city: e.target.value })} placeholder="Mis. Pontianak" className="text-[14px]" />
+  5645→              </div>
+  5646→              <div className="space-y-1">
+  5647→                <Label className="text-[13px]">Provinsi</Label>
+  5648→                <Input value={form.province || ''} onChange={(e) => setForm({ ...form, province: e.target.value })} placeholder="Mis. Kalimantan Barat" className="text-[14px]" />
+  5649→              </div>
+  5650→              <div className="space-y-1">
+  5651→                <Label className="text-[13px]">Kode Pos</Label>
+  5652→                <Input value={form.postalCode || ''} onChange={(e) => setForm({ ...form, postalCode: e.target.value })} placeholder="Mis. 78112" className="text-[14px]" />
+  5653→              </div>
+  5654→              <div className="space-y-1">
+  5655→                <Label className="text-[13px]">Telepon</Label>
+  5656→                <Input value={form.phone || ''} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="Mis. 0812-xxxx-xxxx" className="text-[14px]" />
+  5657→              </div>
+  5658→              <div className="space-y-1">
+  5659→                <Label className="text-[13px]">Email</Label>
+  5660→                <Input type="email" value={form.email || ''} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="Mis. sekretariat@lapra08.id" className="text-[14px]" />
+  5661→              </div>
+  5662→              <div className="space-y-1">
+  5663→                <Label className="text-[13px]">Jam Operasional</Label>
+  5664→                <Input value={form.hours || ''} onChange={(e) => setForm({ ...form, hours: e.target.value })} placeholder="Mis. Senin–Jumat 08.00–17.00 WIB" className="text-[14px]" />
+  5665→              </div>
+  5666→              <div className="space-y-1">
+  5667→                <Label className="text-[13px]">Latitude</Label>
+  5668→                <Input type="number" step="any" value={form.lat || 0} onChange={(e) => setForm({ ...form, lat: parseFloat(e.target.value) || 0 })} className="text-[14px]" />
+  5669→              </div>
+  5670→              <div className="space-y-1">
+  5671→                <Label className="text-[13px]">Longitude</Label>
+  5672→                <Input type="number" step="any" value={form.lng || 0} onChange={(e) => setForm({ ...form, lng: parseFloat(e.target.value) || 0 })} className="text-[14px]" />
+  5673→              </div>
+  5674→              <div className="space-y-1 md:col-span-2">
+  5675→                <Label className="text-[13px]">Google Maps URL</Label>
+  5676→                <Input value={form.mapUrl || ''} onChange={(e) => setForm({ ...form, mapUrl: e.target.value })} placeholder="https://maps.google.com/..." className="text-[14px]" />
+  5677→              </div>
+  5678→            </div>
+  5679→            <DialogFooter>
+  5680→              <Button type="button" variant="outline" onClick={() => { setAddOpen(false); setEditItem(null) }}>Batal</Button>
+  5681→              <Button type="submit" className="bg-gradient-to-r from-orange-600 to-red-600 text-white">
+  5682→                {editItem ? 'Simpan Perubahan' : 'Tambah Sekretariat'}
+  5683→              </Button>
+  5684→            </DialogFooter>
+  5685→          </form>
+  5686→        </DialogContent>
+  5687→      </Dialog>
+  5688→
+  5689→      {/* AlertDialog: Konfirmasi Hapus */}
+  5690→      <AlertDialog open={!!deleteItem} onOpenChange={(o) => !o && setDeleteItem(null)}>
+  5691→        <AlertDialogContent aria-describedby={undefined}>
+  5692→          <AlertDialogHeader>
+  5693→            <AlertDialogTitle>Hapus Sekretariat?</AlertDialogTitle>
+  5694→            <AlertDialogDescription>
+  5695→              Apakah Anda yakin ingin menghapus <strong>&quot;{deleteItem?.name}&quot;</strong>? Tindakan ini tidak dapat dibatalkan.
+  5696→            </AlertDialogDescription>
+  5697→          </AlertDialogHeader>
+  5698→          <AlertDialogFooter>
+  5699→            <AlertDialogCancel>Batal</AlertDialogCancel>
+  5700→            <AlertDialogAction
+  5701→              onClick={handleDelete}
+  5702→              className="bg-red-600 hover:bg-red-700 text-white"
+  5703→            >
+  5704→              <Trash2 className="w-4 h-4 mr-2" /> Hapus
+  5705→            </AlertDialogAction>
+  5706→          </AlertDialogFooter>
+  5707→        </AlertDialogContent>
+  5708→      </AlertDialog>
+  5709→    </>
+  5710→  )
+  5711→}
+  5712→
+  5713→// ----- Hubungi Kami -----
+  5714→function HubungiKamiManager() {
+  5715→  const addToast = useToastStore((s) => s.addToast)
+  5716→  const [form, setForm] = useState({ name: '', email: '', phone: '', subject: '', message: '', priority: 'NORMAL' })
+  5717→  const [messages, setMessages] = useState<any[]>([])
+  5718→  const [loading, setLoading] = useState(true)
+  5719→  const [submitting, setSubmitting] = useState(false)
+  5720→
+  5721→  useEffect(() => {
+  5722→    api('/api/sekretariat/messages').then((data: any[]) => {
+  5723→      setMessages(data || [])
+  5724→      setLoading(false)
+  5725→    }).catch(() => setLoading(false))
+  5726→  }, [])
+  5727→
+  5728→  const handleSubmit = async (e: React.FormEvent) => {
+  5729→    e.preventDefault()
+  5730→    if (!form.name || !form.email || !form.subject || !form.message) {
+  5731→      addToast('Lengkapi semua field wajib', 'error')
+  5732→      return
+  5733→    }
+  5734→    setSubmitting(true)
+  5735→    try {
+  5736→      const res = await fetch('/api/sekretariat/messages', {
+  5737→        method: 'POST',
+  5738→        headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+  5739→        body: JSON.stringify(form),
+  5740→      })
+  5741→      const data = await res.json()
+  5742→      if (!res.ok || !data.success) throw new Error(data.error || 'Gagal mengirim')
+  5743→      addToast('Pesan terkirim ke sekretariat. Kami akan merespons dalam 1x24 jam.', 'success')
+  5744→      setForm({ name: '', email: '', phone: '', subject: '', message: '', priority: 'NORMAL' })
+  5745→      api('/api/sekretariat/messages').then(setMessages).catch(() => {})
+  5746→    } catch (e: any) { addToast(e.message, 'error') }
+  5747→    finally { setSubmitting(false) }
+  5748→  }
+  5749→
+  5750→  const priorityConfig: Record<string, { label: string; color: string }> = {
+  5751→    RENDAH: { label: 'Rendah', color: 'bg-slate-50 text-slate-700 border-slate-200' },
+  5752→    NORMAL: { label: 'Normal', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+  5753→    TINGGI: { label: 'Tinggi', color: 'bg-orange-50 text-orange-700 border-orange-200' },
+  5754→    URGENT: { label: 'Urgent', color: 'bg-red-50 text-red-700 border-red-200' },
+  5755→  }
+  5756→
+  5757→  return (
+  5758→    <div className="grid gap-6 lg:grid-cols-2">
+  5759→      <Card>
+  5760→        <CardHeader>
+  5761→          <CardTitle className="flex items-center gap-2 text-base"><Mail className="w-4 h-4 text-emerald-600" /> Kirim Pesan ke Sekretariat</CardTitle>
+  5762→          <CardDescription>Formulir kontak resmi untuk pertanyaan, saran, atau aspirasi</CardDescription>
+  5763→        </CardHeader>
+  5764→        <CardContent>
+  5765→          <form onSubmit={handleSubmit} className="space-y-3">
+  5766→            <div className="grid grid-cols-2 gap-3">
+  5767→              <div className="space-y-2"><Label>Nama Lengkap *</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Nama Anda" required /></div>
+  5768→              <div className="space-y-2"><Label>Email *</Label><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="email@example.com" required /></div>
+  5769→            </div>
+  5770→            <div className="grid grid-cols-2 gap-3">
+  5771→              <div className="space-y-2"><Label>Telepon / WA</Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+62 812-xxxx-xxxx" /></div>
+  5772→              <div className="space-y-2"><Label>Prioritas</Label>
+  5773→                <Select value={form.priority} onValueChange={(v) => setForm({ ...form, priority: v })}>
+  5774→                  <SelectTrigger><SelectValue /></SelectTrigger>
+  5775→                  <SelectContent>
+  5776→                    {Object.entries(priorityConfig).map(([k, v]) => <SelectItem key={k} value={k}>{v.label}</SelectItem>)}
+  5777→                  </SelectContent>
+  5778→                </Select>
+  5779→              </div>
+  5780→            </div>
+  5781→            <div className="space-y-2"><Label>Subjek *</Label><Input value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} placeholder="cth: Permintaan informasi keanggotaan" required /></div>
+  5782→            <div className="space-y-2"><Label>Pesan *</Label><Textarea value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} rows={5} placeholder="Tulis pesan Anda dengan jelas dan detail..." required /></div>
+  5783→            <Button type="submit" disabled={submitting} className="w-full bg-gradient-to-r from-orange-600 to-red-600 text-white">
+  5784→              {submitting ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Send className="w-4 h-4 mr-1" />}
+  5785→              Kirim Pesan
+  5786→            </Button>
+  5787→          </form>
+  5788→        </CardContent>
+  5789→      </Card>
+  5790→
+  5791→      <Card>
+  5792→        <CardHeader>
+  5793→          <CardTitle className="flex items-center gap-2 text-base"><MessageSquare className="w-4 h-4 text-blue-600" /> Riwayat Pesan ({messages.length})</CardTitle>
+  5794→          <CardDescription>Pesan yang telah Anda kirim ke sekretariat</CardDescription>
+  5795→        </CardHeader>
+  5796→        <CardContent>
+  5797→          {loading ? <LoadingState /> : messages.length === 0 ? (
+  5798→            <EmptyState icon={Mail} title="Belum ada pesan" description="Pesan yang Anda kirim akan muncul di sini." />
+  5799→          ) : (
+  5800→            <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2">
+  5801→              {messages.map((m) => {
+  5802→                const pc = priorityConfig[m.priority] || priorityConfig.NORMAL
+  5803→                return (
+  5804→                  <div key={m.id} className="rounded-xl border p-3 bg-white">
+  5805→                    <div className="flex items-center justify-between gap-2 mb-1">
+  5806→                      <Badge variant="outline" className={`text-[13px] ${pc.color}`}>{pc.label}</Badge>
+  5807→                      <Badge variant={m.status === 'RESOLVED' ? 'default' : m.status === 'READ' ? 'secondary' : 'outline'} className={`text-[13px] ${m.status === 'RESOLVED' ? 'bg-emerald-50 text-emerald-700' : m.status === 'READ' ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'}`}>
+  5808→                        {m.status === 'RESOLVED' ? 'Selesai' : m.status === 'READ' ? 'Dibaca' : 'Baru'}
+  5809→                      </Badge>
+  5810→                    </div>
+  5811→                    <div className="font-semibold text-sm">{m.subject}</div>
+  5812→                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{m.message}</p>
+  5813→                    <div className="text-[13px] text-muted-foreground mt-2">{m.name} • {formatDateTimeID(m.createdAt)}</div>
+  5814→                  </div>
+  5815→                )
+  5816→              })}
+  5817→            </div>
+  5818→          )}
+  5819→        </CardContent>
+  5820→      </Card>
+  5821→    </div>
+  5822→  )
+  5823→}
+  5824→
+  5825→// ----- FAQ -----
+  5826→// FAQ dapat diedit (CRUD) hanya oleh Super Admin. User lain hanya lihat (read-only).
+  5827→// FAQ disimpan ke database via /api/faq. Jika database kosong, fallback ke 20 FAQ default hardcoded.
+  5828→function FaqManager() {
+  5829→  const addToast = useToastStore((s) => s.addToast)
+  5830→  const isSuperAdmin = useIsSuperAdmin()
+  5831→  const [faqs, setFaqs] = useState<any[]>([])
+  5832→  const [loading, setLoading] = useState(true)
+  5833→  const [search, setSearch] = useState('')
+  5834→  const [openItem, setOpenItem] = useState<string | null>(null)
+  5835→  // === Edit/Tambah dialog state (Super Admin only) ===
+  5836→  const [editDialog, setEditDialog] = useState<any>(null) // null | { faq: any } | { faq: null, isNew: true }
+  5837→  const [saving, setSaving] = useState(false)
+  5838→  const [deleteConfirm, setDeleteConfirm] = useState<any>(null) // null | faq
+  5839→  const [form, setForm] = useState({ id: '', category: 'KEANGGOTAAN', q: '', a: '' })
+  5840→
+  5841→  // === 20 FAQ default (12 lama + 8 baru) ===
+  5842→  const DEFAULT_FAQS = [
+  5843→    // ===== KEANGGOTAAN (4) =====
+  5844→    { id: 'faq_1', category: 'KEANGGOTAAN', q: 'Bagaimana cara mendaftar menjadi anggota LAPRA 08?', a: 'Pendaftaran anggota LAPRA 08 dilakukan melalui DPC setempat (Kabupaten/Kota). Anda dapat mengunjungi sekretariat DPC di wilayah Anda, mengisi formulir pendaftaran, melampirkan fotokopi KTP dan pas foto, serta membayar iuran pendaftaran. Setelah diverifikasi, Anda akan menerima KTA (Kartu Tanda Anggota) digital dengan format unik LAPRA08.[NEGARA].[PROVINSI].[KAB/KOTA].[TAHUN].[URUT].' },
+  5845→    { id: 'faq_2', category: 'KEANGGOTAAN', q: 'Apakah anggota luar negeri bisa mendaftar?', a: 'Ya. LAPRA 08 memiliki DPD di 5 negara (Amerika Serikat, Cina, Malaysia, Arab Saudi, dan Australia). Warga Indonesia yang berdomisili di negara tersebut dapat mendaftar melalui DPD setempat. Format KTA internasional menggunakan kode negara setempat, misalnya LAPRA08.US.00.LAX.26.00001 untuk anggota di Los Angeles.' },
+  5846→    { id: 'faq_3', category: 'KEANGGOTAAN', q: 'Berapa iuran anggota LAPRA 08?', a: 'Iuran anggota dibagi menjadi beberapa kategori: (1) Iuran bulanan anggota biasa Rp 25.000/bulan; (2) Iuran bulanan pengurus Rp 50.000/bulan; (3) Iuran tahunan dapat dibayar di muka dengan diskon. Iuran dapat dibayarkan melalui transfer ke rekening resmi DPC atau via QRIS. Khusus anggota luar negeri, iuran setara USD 5/bulan.' },
+  5847→    { id: 'faq_13', category: 'KEANGGOTAAN', q: 'Bagaimana cara memperbarui data anggota jika ada perubahan (nama, alamat, no HP)?', a: 'Perubahan data anggota dapat dilakukan melalui DPC setempat dengan mengisi formulir "Permohonan Update Data Anggota" dan melampirkan dokumen pendukung (KTP baru, bukti domisili, dll). Update data diproses maksimal 3 hari kerja. Jika anggota berdomisili di luar negeri, permohonan dapat dikirim via email ke DPD setempat dengan scan dokumen yang telah dilegalisasi oleh KBRI.' },
+  5848→    { id: 'faq_14', category: 'KEANGGOTAAN', q: 'Apa yang harus dilakukan jika KTA digital hilang atau tidak bisa diakses?', a: 'Jika KTA digital hilang/tidak bisa diakses, laporkan ke DPC setempat atau gunakan menu "Layanan KTA" > "Lapor KTA Bermasalah". Sistem akan memverifikasi identitas Anda dan menerbitkan ulang KTA digital dalam 1x24 jam. Untuk KTA fisik yang hilang, biaya cetak ulang Rp 25.000. Pastikan data kontak (HP/email) selalu aktif agar proses verifikasi cepat.' },
+  5849→    // ===== STRUKTUR (3) =====
+  5850→    { id: 'faq_4', category: 'STRUKTUR', q: 'Apa saja tingkatan struktur pengurus LAPRA 08?', a: 'Struktur LAPRA 08 terdiri dari 5 tingkat: (1) DPN (Dewan Pimpinan Pusat) di tingkat nasional; (2) Koorwil (Koordinator Wilayah) yang membawahi 7 wilayah Indonesia + 1 LN; (3) DPD (Dewan Pimpinan Daerah) di tingkat provinsi/negara LN; (4) Koor DPD (Koordinator Region) yang membawahi kelompok DPC; (5) DPC (Dewan Pimpinan Cabang) di tingkat kabupaten/kota. Total ada 38 provinsi + IKN + 5 negara LN.' },
+  5851→    { id: 'faq_5', category: 'STRUKTUR', q: 'Siapa Ketua Umum DPN LAPRA 08 periode 2024-2029?', a: 'Pengurus DPN LAPRA 08 periode 2024-2029 dipimpin oleh Dr. (HC) Hashim S. Djojohadikusumo sebagai Ketua Dewan Pembina, dan Devi Taurisa, S.H., M.H., C.L.D. sebagai Ketua Umum DPN. Sekretaris Jenderal dijabat oleh Brigjen. Pol. (Purn) Dr. R. Nurhadi, S.I.K., M.Si., CHRMP, dan Bendahara Umum adalah Timmy Rorimpandey, S.E., M.M. Pembaruan pengurus inti dilakukan pada Maret 2026.' },
+  5852→    { id: 'faq_15', category: 'STRUKTUR', q: 'Bagaimana cara menjadi pengurus di DPC atau DPD?', a: 'Untuk menjadi pengurus, anggota harus: (1) Telah bergabung minimal 6 bulan; (2) Aktif mengikuti kegiatan organisasi; (3) Bersedia menjabat minimal 1 periode (2 tahun). Pemilihan pengurus dilakukan melalui Musyawarah Cabang/Daerah. Calon dapat diajukan oleh anggota lain atau mengajukan diri sendiri melalui formulir "Lamaran Pengurus" di DPC/DPD setempat. Keputusan final melalui voting pengurus inti.' },
+  5853→    // ===== PROGRAM & KEGIATAN (3) =====
+  5854→    { id: 'faq_6', category: 'PROGRAM', q: 'Apa program unggulan LAPRA 08?', a: 'Program unggulan LAPRA 08 meliputi: (1) Sosialisasi Asta Cita Presiden Prabowo ke seluruh DPD di 38 provinsi; (2) Penguatan kader DPC se-Indonesia melalui pelatihan rutin; (3) Aksi sosial seperti bakti sosial, donor darah, dan distribusi sembako; (4) Kemitraan dengan ummat, ormas Islam, kementerian, dan BUMN untuk program CSR; (5) Digitalisasi sistem informasi internal untuk efisiensi administrasi.' },
+  5855→    { id: 'faq_7', category: 'PROGRAM', q: 'Bagaimana cara mengajukan proposal kemitraan dengan LAPRA 08?', a: 'Proposal kemitraan dapat diajukan melalui email resmi sekretariat@lapra08.id dengan subject "Proposal Kemitraan - [Nama Institusi]". Lampirkan profil institusi, latar belakang kemitraan, lingkup kerja sama, dan expected outcomes. Tim Sekretariat DPN akan melakukan review dalam 14 hari kerja dan menghubungi Anda untuk diskusi lebih lanjut jika proposal memenuhi kriteria.' },
+  5856→    { id: 'faq_16', category: 'PROGRAM', q: 'Bagaimana mekanisme pelaporan kegiatan (LPJ) setelah event selesai?', a: 'Setiap kegiatan yang dibiayai organisasi wajib membuat Laporan Pertanggungjawaban (LPJ) maksimal 7 hari setelah event selesai. LPJ berisi: (1) Laporan pelaksanaan (foto/video bukti); (2) Laporan keuangan (kuitansi, nota, bukti transfer); (3) Daftar hadir peserta; (4) Evaluasi dan rekomendasi. Upload melalui menu "Program & Kegiatan" > pilih program > "Upload Bukti Pelaksanaan". LPJ yang tidak disampaikan akan menghambat pencairan dana kegiatan berikutnya.' },
+  5857→    // ===== LAYANAN & ADVOKASI (3) =====
+  5858→    { id: 'faq_8', category: 'LAYANAN', q: 'Bagaimana cara mengajukan pengaduan atau aspirasi?', a: 'Pengaduan dan aspirasi dapat disampaikan melalui: (1) Formulir "Hubungi Kami" di menu Kontak & Sekretariat; (2) Pusat Pengaduan & Aspirasi di menu Layanan & Advokasi; (3) WhatsApp resmi DPC setempat; (4) Surat resmi ke sekretariat DPN. Setiap pengaduan akan ditindaklanjuti dalam 1x24 jam (kasus normal) atau 2 jam (kasus urgent). Identitas pelapor dilindungi sesuai kebijakan privasi.' },
+  5859→    { id: 'faq_9', category: 'LAYANAN', q: 'Apakah LAPRA 08 menyediakan bantuan hukum untuk anggota?', a: 'Ya, LAPRA 08 menyediakan layanan bantuan hukum untuk anggota yang menghadapi kasus hukum terkait aktivitas keorganisasian. Layanan ini diakses melalui menu "Bantuan Hukum" di Layanan & Advokasi. Tim advokasi DPN akan melakukan assessment kasus, memberikan konsultasi awal gratis, dan jika diperlukan, merujuk ke pengacara mitra dengan tarif khusus untuk anggota.' },
+  5860→    { id: 'faq_17', category: 'LAYANAN', q: 'Bagaimana cara mengajukan proposal bantuan dana kegiatan?', a: 'Proposal bantuan dana dapat diajukan melalui menu "Layanan & Advokasi" > "Pengajuan Proposal". Setiap proposal harus berisi: (1) Latar belakang kegiatan; (2) Tujuan dan target peserta; (3) Rincian anggaran (maksimal Rp 50 juta untuk DPC, Rp 200 juta untuk DPD); (4) Jadwal pelaksanaan; (5) Komitmen LPJ. Proposal dievaluasi tim Sekretariat DPN dalam 14 hari kerja. Dana dicairkan 50% di awal, 50% setelah LPJ disetujui.' },
+  5861→    // ===== LAINNYA (4) =====
+  5862→    { id: 'faq_10', category: 'LAINNYA', q: 'Bagaimana cara mendapatkan KTA digital?', a: 'KTA digital diterbitkan secara otomatis setelah pendaftaran anggota diverifikasi oleh pengurus DPC. KTA dapat diakses melalui menu "Layanan KTA" di portal LAPRA 08. Format KTA: LAPRA08.[NEGARA].[PROVINSI].[KAB/KOTA].[TAHUN].[URUT]. KTA digital berisi QR code untuk verifikasi keaslian, foto anggota, dan data keanggotaan. KTA fisik dapat dicetak di DPC dengan biaya Rp 25.000.' },
+  5863→    { id: 'faq_11', category: 'LAINNYA', q: 'Apakah portal LAPRA 08 bisa diakses publik?', a: 'Portal LAPRA 08 bersifat semi-publik. Beranda, Profil, Pusat Media (berita & galeri), dan Program & Kegiatan dapat diakses publik. Sedangkan menu operasional seperti Dashboard, Pusat Data Organisasi, Logistik, Komunikasi, Keuangan, dan User hanya dapat diakses oleh pengurus yang telah login dengan role yang sesuai (SUPERADMIN, ADMIN_DPN, ADMIN_KOORWIL, ADMIN_DPD, ADMIN_KOOR_DPD, ADMIN_DPC). Isolasi data otomatis diterapkan sesuai hierarki wilayah.' },
+  5864→    { id: 'faq_12', category: 'LAINNYA', q: 'Bagaimana cara melaporkan kendala teknis portal?', a: 'Kendala teknis dapat dilaporkan melalui menu "Pusat Bantuan & Tiket" di Layanan & Advokasi. Pilih kategori "Bug/Error Sistem" atau "Permintaan Fitur", sertakan tangkapan layar dan langkah reproduksi jika memungkinkan. Tim IT DPN akan merespons dalam 4 jam kerja. Untuk kendala kritis (sistem tidak bisa diakses), hubungi hotline IT DPN di +62 811-9090-08 (24/7).' },
+  5865→    { id: 'faq_18', category: 'LAINNYA', q: 'Bagaimana cara mengajukan izin kegiatan yang melibatkan massa besar (>100 orang)?', a: 'Kegiatan dengan peserta >100 orang wajib: (1) Mengajukan permohonan izin ke DPC setempat minimal 14 hari sebelum event; (2) Mendapatkan rekomendasi dari DPD; (3) Berkoordinasi dengan kepolisian dan Pemda setempat; (4) Menyiapkan tim keamanan (minimal 1 petugas per 50 peserta); (5) Membuat protokol K3 dan jalur evakuasi. Formulir permohonan tersedia di menu "Layanan & Advokasi" > "Permohonan Izin Kegiatan".' },
+  5866→    { id: 'faq_19', category: 'LAINNYA', q: 'Apakah ada aplikasi mobile LAPRA 08 untuk Android/iOS?', a: 'Saat ini portal LAPRA 08 dioptimalkan untuk akses mobile melalui browser (responsive web design). Aplikasi mobile native (Android/iOS) sedang dalam tahap pengembangan dan rencananya akan dirilis Q1 2027. Fitur yang akan tersedia di app mobile: login biometrik, push notification, KTA digital dengan QR code, check-in event via QR scanner, dan offline mode untuk akses data dasar. Update akan diumumkan melalui portal dan grup WhatsApp resmi.' },
+  5867→    { id: 'faq_20', category: 'LAINNYA', q: 'Bagaimana kebijakan privasi dan keamanan data anggota di portal LAPRA 08?', a: 'Data anggota dilindungi sesuai UU PDP No. 27 Tahun 2022. Kebijakan: (1) Data anggota hanya dapat diakses oleh pengurus dengan otorisasi sesuai hierarki wilayah; (2) Data sensitif (no KTP, alamat lengkap) dienkripsi di database; (3) Setiap akses dicatat dalam audit log; (4) Anggota dapat request akses/hapus data (GDPR-style) melalui menu "Pengaturan" > "Privasi Data"; (5) Tidak ada data yang dibagikan ke pihak ketiga tanpa persetujuan tertulis anggota.' },
+  5868→  ]
+  5869→
+  5870→  // === Load FAQ from API. Gabungkan DEFAULT_FAQS + data DB (deduplikasi by ID) ===
+  5871→  // Jika database kosong → pakai DEFAULT_FAQS (20 FAQ)
+  5872→  // Jika database ada data → gabungkan DEFAULT + DB (DB override DEFAULT by ID)
+  5873→  const reload = () => {
+  5874→    setLoading(true)
+  5875→    api('/api/faq')
+  5876→      .then((data: any[]) => {
+  5877→        // Extract value dari response API
+  5878→        const dbFaqs = (data || [])
+  5879→          .map((item: any) => item.value || item)
+  5880→          .filter(Boolean)
+  5881→          .filter((f: any) => f && f.id && f.q && f.a) // validasi field wajib
+  5882→
+  5883→        // Map DEFAULT_FAQS by ID untuk override
+  5884→        const defaultMap = new Map(DEFAULT_FAQS.map(f => [f.id, f]))
+  5885→        const dbMap = new Map(dbFaqs.map((f: any) => [f.id, f]))
+  5886→
+  5887→        // Gabungan: semua default + semua DB (DB override default dengan ID sama)
+  5888→        const merged = [
+  5889→          ...DEFAULT_FAQS.map(f => dbMap.get(f.id) || f),  // default, di-override DB jika ada
+  5890→          ...dbFaqs.filter((f: any) => !defaultMap.has(f.id)),  // DB items yang bukan default
+  5891→        ]
+  5892→        setFaqs(merged)
+  5893→      })
+  5894→      .catch(() => setFaqs(DEFAULT_FAQS))
+  5895→      .finally(() => setLoading(false))
+  5896→  }
+  5897→
+  5898→  useEffect(() => {
+  5899→    reload()
+  5900→    // eslint-disable-next-line react-hooks/exhaustive-deps
+  5901→  }, [])
+  5902→
+  5903→  // === Handler: Simpan FAQ (create or update) - Super Admin only ===
+  5904→  const handleSave = async (e: React.FormEvent) => {
+  5905→    e.preventDefault()
+  5906→    if (!form.q.trim() || !form.a.trim()) {
+  5907→      addToast('Pertanyaan dan jawaban wajib diisi', 'error')
+  5908→      return
+  5909→    }
+  5910→    setSaving(true)
+  5911→    try {
+  5912→      const id = form.id || `faq_${Date.now()}`
+  5913→      await api('/api/faq', {
+  5914→        method: 'POST',
+  5915→        body: JSON.stringify({ id, category: form.category, q: form.q, a: form.a }),
+  5916→      })
+  5917→      addToast(editDialog?.isNew ? 'FAQ baru ditambahkan' : 'FAQ diperbarui', 'success')
+  5918→      setEditDialog(null)
+  5919→      setForm({ id: '', category: 'KEANGGOTAAN', q: '', a: '' })
+  5920→      reload()
+  5921→    } catch (e: any) {
+  5922→      addToast(e.message, 'error')
+  5923→    } finally {
+  5924→      setSaving(false)
+  5925→    }
+  5926→  }
+  5927→
+  5928→  // === Handler: Hapus FAQ - Super Admin only ===
+  5929→  const handleDelete = async () => {
+  5930→    if (!deleteConfirm) return
+  5931→    try {
+  5932→      await api(`/api/faq?id=${deleteConfirm.id}`, { method: 'DELETE' })
+  5933→      addToast('FAQ dihapus', 'success')
+  5934→      setDeleteConfirm(null)
+  5935→      reload()
+  5936→    } catch (e: any) {
+  5937→      addToast(e.message, 'error')
+  5938→    }
+  5939→  }
+  5940→
+  5941→  if (loading) return <LoadingState />
+  5942→
+  5943→  const categories: Record<string, { label: string; color: string; icon: any }> = {
+  5944→    KEANGGOTAAN: { label: 'Keanggotaan', color: 'bg-blue-50 text-blue-700 border-blue-200', icon: Users },
+  5945→    STRUKTUR: { label: 'Struktur Organisasi', color: 'bg-purple-50 text-purple-700 border-purple-200', icon: Building2 },
+  5946→    PROGRAM: { label: 'Program & Kegiatan', color: 'bg-emerald-50 text-emerald-700 border-emerald-200', icon: Briefcase },
+  5947→    LAYANAN: { label: 'Layanan & Advokasi', color: 'bg-orange-50 text-orange-700 border-orange-200', icon: ShieldCheck },
+  5948→    LAINNYA: { label: 'Lainnya', color: 'bg-slate-50 text-slate-700 border-slate-200', icon: HelpCircle },
+  5949→  }
+  5950→
+  5951→  const filtered = faqs.filter(f => !search || f.q.toLowerCase().includes(search.toLowerCase()) || f.a.toLowerCase().includes(search.toLowerCase()) || f.category.toLowerCase().includes(search.toLowerCase()))
+  5952→
+  5953→  return (
+  5954→    <Card>
+  5955→      <CardHeader>
+  5956→        <CardTitle className="flex items-center gap-2 text-base">
+  5957→          <HelpCircle className="w-4 h-4 text-emerald-600" /> FAQ - Pertanyaan yang Sering Diajukan ({filtered.length})
+  5958→          {/* === Tombol "Tambah FAQ" - Super Admin only === */}
+  5959→          {isSuperAdmin && (
+  5960→            <Button size="sm" className="ml-auto bg-emerald-600 hover:bg-emerald-700 text-white"
+  5961→              onClick={() => { setEditDialog({ isNew: true }); setForm({ id: '', category: 'KEANGGOTAAN', q: '', a: '' }) }}>
+  5962→              <Plus className="w-4 h-4 mr-1" /> Tambah FAQ
+  5963→            </Button>
+  5964→          )}
+  5965→        </CardTitle>
+  5966→        <CardDescription>
+  5967→          Temukan jawaban cepat untuk pertanyaan umum tentang LAPRA 08
+  5968→          {isSuperAdmin && <span className="block text-xs text-emerald-700 mt-1 font-medium">🔓 Mode Super Admin — Anda dapat menambah, mengedit, dan menghapus FAQ</span>}
+  5969→        </CardDescription>
+  5970→      </CardHeader>
+  5971→      <CardContent className="space-y-4">
+  5972→        <div className="relative max-w-md">
+  5973→          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+  5974→          <Input placeholder="Cari pertanyaan atau kata kunci..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />
+  5975→        </div>
+  5976→        <div className="flex flex-wrap gap-2">
+  5977→          {Object.entries(categories).map(([k, v]) => {
+  5978→            const Icon = v.icon
+  5979→            const count = faqs.filter(f => f.category === k).length
+  5980→            return (
+  5981→              <button key={k} onClick={() => setSearch(k === 'KEANGGOTAAN' ? 'keanggotaan' : k === 'STRUKTUR' ? 'struktur' : k === 'PROGRAM' ? 'program' : k === 'LAYANAN' ? 'layanan' : '')}
+  5982→                className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium border bg-white hover:bg-accent transition-colors">
+  5983→                <Icon className="w-3.5 h-3.5" />
+  5984→                <span className={v.color.split(' ').slice(1, 3).join(' ')}>{v.label}</span>
+  5985→                <Badge variant="outline" className="text-[13px]">{count}</Badge>
+  5986→              </button>
+  5987→            )
+  5988→          })}
+  5989→        </div>
+  5990→        <div className="space-y-2">
+  5991→          {filtered.map((faq) => {
+  5992→            const cat = categories[faq.category] || categories.LAINNYA
+  5993→            const CatIcon = cat.icon
+  5994→            const isOpen = openItem === faq.id
+  5995→            return (
+  5996→              <div key={faq.id} className="rounded-xl border bg-white overflow-hidden">
+  5997→                <div className="flex items-stretch">
+  5998→                  <button onClick={() => setOpenItem(isOpen ? null : faq.id)} className="flex-1 p-4 flex items-start gap-3 hover:bg-accent/50 transition-colors text-left">
+  5999→                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${cat.color}`}>
+
+[showing lines 5300-5999 of 6380; use offset=6000 with limit to continue reading]

@@ -44,6 +44,7 @@ import {
   Edit, Trash2, Search, RefreshCw, Loader2, Shield, ShieldCheck, Lock, Unlock,
   KeyRound, UserPlus, CalendarDays, Briefcase, ChevronLeft, ChevronRight,
   CheckCircle2, XCircle, Clock, Building2, MapPin, User as UserIcon,
+  Megaphone, HelpCircle,
 } from 'lucide-react'
 import { formatDateTimeID } from '@/lib/format'
 
@@ -283,7 +284,7 @@ function AlertCallout({ stats, onNavigate }: { stats: StatsData; onNavigate: (me
           </div>
           <div className="text-xs text-orange-700">Klik untuk membuka menu Keanggotaan</div>
         </div>
-        <Button size="sm" variant="outline" onClick={() => onNavigate('membership')} className="gap-1">
+        <Button size="sm" variant="outline" onClick={() => onNavigate('keanggotaan-struktur')} className="gap-1">
           Buka <ArrowRight className="w-3 h-3" />
         </Button>
       </CardContent>
@@ -292,14 +293,14 @@ function AlertCallout({ stats, onNavigate }: { stats: StatsData; onNavigate: (me
 }
 
 // ============================================================
-// QUICK ACTIONS — 4 tombol shortcut
+// QUICK ACTIONS — 4 tombol shortcut ke menu yang masih aktif
 // ============================================================
 function QuickActions({ onNavigate }: { onNavigate: (menu: string) => void }) {
   const actions = [
-    { label: 'Tambah Anggota', icon: UserPlus, menu: 'membership', color: 'text-blue-600 hover:bg-blue-50' },
-    { label: 'Buat Event', icon: CalendarDays, menu: 'events', color: 'text-purple-600 hover:bg-purple-50' },
-    { label: 'Input Keuangan', icon: Wallet, menu: 'finance', color: 'text-orange-600 hover:bg-orange-50' },
-    { label: 'Tambah Atribut', icon: Briefcase, menu: 'logistics', color: 'text-emerald-600 hover:bg-emerald-50' },
+    { label: 'Verifikasi Anggota', icon: UserPlus, menu: 'keanggotaan-struktur', color: 'text-blue-600 hover:bg-blue-50' },
+    { label: 'Struktur Pengurus', icon: Building2, menu: 'keanggotaan-struktur', color: 'text-purple-600 hover:bg-purple-50' },
+    { label: 'Buat Siaran', icon: Megaphone, menu: 'communication', color: 'text-orange-600 hover:bg-orange-50' },
+    { label: 'Tiket Bantuan', icon: HelpCircle, menu: 'help', color: 'text-emerald-600 hover:bg-emerald-50' },
   ]
 
   return (

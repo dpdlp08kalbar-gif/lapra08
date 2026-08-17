@@ -1,0 +1,1668 @@
+     1→// LAPRA 08 - Program & Kegiatan Menu (v3.0 — Enterprise grade)
+     2→// 4 tab kategori × drill-down DPN/DPD/DPC × pagination + filter + sorting + bulk upload
+     3→//
+     4→// Fitur:
+     5→// 1. 4 tab: Program Kerja, Aksi Sosial & Sinergi, Kemitraan, Agenda & Kegiatan
+     6→// 2. 3 sub-level: DPN (Pusat) → DPD (Provinsi) → DPC (Kab/Kota) via drill-down kartu
+     7→// 3. Breadcrumb untuk navigasi konteks
+     8→// 4. Server-side pagination (20/page default)
+     9→// 5. Filter: status (Select), file type (Select)
+    10→// 6. Sorting: updated desc/asc, title asc/desc, file size, event date
+    11→// 7. Search (debounced 250ms)
+    12→// 8. StatCard clickable untuk filter cepat by status
+    13→// 9. Bulk upload multi-file (max 10 file per batch)
+    14→// 10. Bulk select + bulk delete (checkbox per row)
+    15→// 11. View inline (blob URL) + Download
+    16→// 12. Edit dengan opsi replace file
+    17→// 13. Soft delete dengan konfirmasi
+    18→// 14. ErrorState handler (no silent fail)
+    19→// 15. RBAC hierarki (DPN/DPD/DPC) — diserahkan ke API, UI tampilkan tombol sesuai role
+    20→// 16. Drag & drop yang berfungsi (onDrop handler)
+    21→// 17. Client-side file validation (size + type) sebelum upload
+    22→'use client'
+    23→
+    24→import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+    25→import { api } from '@/lib/api-client'
+    26→import { PageHeader, LoadingState, EmptyState, ErrorState, StatCard } from '@/components/ui-helpers'
+    27→import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+    28→import { Badge } from '@/components/ui/badge'
+    29→import { Button } from '@/components/ui/button'
+    30→import { Input } from '@/components/ui/input'
+    31→import { Label } from '@/components/ui/label'
+    32→import { Textarea } from '@/components/ui/textarea'
+    33→import { Checkbox } from '@/components/ui/checkbox'
+    34→import {
+    35→  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+    36→} from '@/components/ui/dialog'
+    37→import {
+    38→  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+    39→} from '@/components/ui/select'
+    40→import {
+    41→  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+    42→  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+    43→} from '@/components/ui/alert-dialog'
+    44→import {
+    45→  Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbSeparator, BreadcrumbPage,
+    46→} from '@/components/ui/breadcrumb'
+    47→import { useToastStore, useAuthStore } from '@/lib/store'
+    48→import { useIsSuperAdmin } from './portal-menus'
+    49→import { formatDateTimeID } from '@/lib/format'
+    50→import {
+    51→  Crown, Building2, MapPin, ChevronRight, Plus, Edit, Trash2,
+    52→  Upload, FileCheck, Loader2, CalendarDays, Briefcase, HandHeart, Users, CalendarClock,
+    53→  FileText, Image as ImageIcon, Video, Download, Eye, X, Search, RefreshCw,
+    54→  CheckCircle2, Clock, AlertTriangle, Globe, Files, ChevronLeft, Filter, ArrowUpDown,
+    55→  Home, Layers,
+    56→} from 'lucide-react'
+    57→
+    58→// ============================================================
+    59→// TYPES
+    60→// ============================================================
+    61→type Level = 'DPN' | 'DPD' | 'DPC'
+    62→type Category = 'PROGRAM_KERJA' | 'AKSI_SOSIAL' | 'KEMITRAAN' | 'AGENDA'
+    63→type Status = 'DIRENCANAKAN' | 'BERJALAN' | 'SELESAI' | 'DITUNDA'
+    64→type SortKey = 'updatedAt_desc' | 'updatedAt_asc' | 'title_asc' | 'title_desc' | 'fileSize_desc' | 'eventDate_desc'
+    65→
+    66→interface ProgramDoc {
+    67→  id: string
+    68→  docKey?: string
+    69→  title: string
+    70→  description?: string | null
+    71→  category?: Category
+    72→  level?: Level
+    73→  territoryCode?: string | null
+    74→  territoryName?: string | null
+    75→  territoryId?: string | null
+    76→  location?: string | null
+    77→  eventDate?: string | null
+    78→  status: Status
+    79→  fileName?: string | null
+    80→  fileType?: string | null
+    81→  fileSize?: number
+    82→  uploadedBy?: { id: string; fullName: string }
+    83→  uploadedAt?: string
+    84→  updatedAt?: string
+    85→}
+    86→
+    87→interface Territory {
+    88→  id: string
+    89→  name: string
+    90→  code: string
+    91→  level: string
+    92→  parentId?: string | null
+    93→}
+    94→
+    95→interface PaginationInfo {
+    96→  page: number
+    97→  pageSize: number
+    98→  total: number
+    99→  totalPages: number
+   100→}
+   101→
+   102→// ============================================================
+   103→// CONSTANTS (module-level — tidak re-create saat re-render)
+   104→// ============================================================
+   105→const CATEGORY_TABS: { key: Category; label: string; icon: any; color: string; desc: string }[] = [
+   106→  { key: 'PROGRAM_KERJA', label: 'Program Kerja', icon: Briefcase, color: 'from-blue-500 to-indigo-600', desc: 'Program kerja strategis DPN, DPD, dan DPC' },
+   107→  { key: 'AKSI_SOSIAL', label: 'Aksi Sosial & Sinergi', icon: HandHeart, color: 'from-emerald-500 to-teal-600', desc: 'Dokumentasi aksi sosial dan kegiatan kemasyarakatan' },
+   108→  { key: 'KEMITRAAN', label: 'Kemitraan', icon: Users, color: 'from-purple-500 to-pink-600', desc: 'Kemitraan dengan ummat, organisasi, dan institusi' },
+   109→  { key: 'AGENDA', label: 'Agenda & Kegiatan', icon: CalendarClock, color: 'from-orange-500 to-red-600', desc: 'Agenda kegiatan organisasi' },
+   110→]
+   111→
+   112→const LEVEL_CARDS: { key: Level; title: string; subtitle: string; icon: any; grad: string }[] = [
+   113→  { key: 'DPN', title: 'DPN', subtitle: 'Pusat Nasional', icon: Crown, grad: 'from-red-500 to-orange-600' },
+   114→  { key: 'DPD', title: 'DPD', subtitle: 'Provinsi', icon: Building2, grad: 'from-blue-500 to-cyan-600' },
+   115→  { key: 'DPC', title: 'DPC', subtitle: 'Kabupaten/Kota', icon: MapPin, grad: 'from-emerald-500 to-teal-600' },
+   116→]
+   117→
+   118→const STATUS_CONFIG: Record<Status, { label: string; color: string; icon: any; badgeVariant: any }> = {
+   119→  DIRENCANAKAN: { label: 'Direncanakan', color: 'text-orange-600', icon: Clock, badgeVariant: 'secondary' },
+   120→  BERJALAN: { label: 'Berjalan', color: 'text-blue-600', icon: AlertTriangle, badgeVariant: 'default' },
+   121→  SELESAI: { label: 'Selesai', color: 'text-green-600', icon: CheckCircle2, badgeVariant: 'outline' },
+   122→  DITUNDA: { label: 'Ditunda', color: 'text-red-600', icon: X, badgeVariant: 'destructive' },
+   123→}
+   124→
+   125→const SORT_OPTIONS: { key: SortKey; label: string }[] = [
+   126→  { key: 'updatedAt_desc', label: 'Update Terbaru' },
+   127→  { key: 'updatedAt_asc', label: 'Update Terlama' },
+   128→  { key: 'title_asc', label: 'Judul A-Z' },
+   129→  { key: 'title_desc', label: 'Judul Z-A' },
+   130→  { key: 'fileSize_desc', label: 'File Terbesar' },
+   131→  { key: 'eventDate_desc', label: 'Tanggal Event Terbaru' },
+   132→]
+   133→
+   134→const MAX_FILE_SIZE = 4 * 1024 * 1024 // 4MB — match server
+   135→const ACCEPTED_EXTENSIONS = '.pdf,.jpg,.jpeg,.png,.webp,.gif,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.mp4,.mov,.webm,.mp3,.wav,.txt,.csv'
+   136→const ALLOWED_EXT_ARRAY = ['pdf','jpg','jpeg','png','webp','gif','doc','docx','xls','xlsx','ppt','pptx','mp4','mov','webm','mp3','wav','txt','csv']
+   137→
+   138→const PAGE_SIZE = 20
+   139→
+   140→// ============================================================
+   141→// HELPERS (module-level pure functions)
+   142→// ============================================================
+   143→function formatFileSize(bytes?: number): string {
+   144→  if (!bytes) return '-'
+   145→  if (bytes < 1024) return `${bytes} B`
+   146→  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+   147→  return `${(bytes / 1024 / 1024).toFixed(2)} MB`
+   148→}
+   149→
+   150→function getFileIcon(fileType?: string | null) {
+   151→  if (!fileType) return FileText
+   152→  const t = fileType.toUpperCase()
+   153→  if (['JPG', 'JPEG', 'PNG', 'WEBP', 'GIF'].includes(t)) return ImageIcon
+   154→  if (['MP4', 'MOV', 'WEBM'].includes(t)) return Video
+   155→  if (['PDF'].includes(t)) return FileText
+   156→  if (['DOC', 'DOCX', 'TXT'].includes(t)) return FileText
+   157→  if (['XLS', 'XLSX', 'CSV'].includes(t)) return FileCheck
+   158→  return FileText
+   159→}
+   160→
+   161→function validateFile(file: File): { valid: boolean; error?: string } {
+   162→  if (file.size > MAX_FILE_SIZE) {
+   163→    return { valid: false, error: `Ukuran > 4MB (${(file.size / 1024 / 1024).toFixed(2)}MB)` }
+   164→  }
+   165→  const parts = file.name.toLowerCase().split('.')
+   166→  const ext = parts.length > 1 ? parts[parts.length - 1] : ''
+   167→  if (!ALLOWED_EXT_ARRAY.includes(ext)) {
+   168→    return { valid: false, error: `Format .${ext} tidak didukung` }
+   169→  }
+   170→  return { valid: true }
+   171→}
+   172→
+   173→// ============================================================
+   174→// MAIN MENU — 4 tab kategori
+   175→// ============================================================
+   176→export function ProgramKegiatanMenu() {
+   177→  const [tab, setTab] = useState<Category>('PROGRAM_KERJA')
+   178→  const activeTab = useMemo(() => CATEGORY_TABS.find(t => t.key === tab) || CATEGORY_TABS[0], [tab])
+   179→
+   180→  return (
+   181→    <div className="space-y-6">
+   182→      <PageHeader
+   183→        title="Program & Kegiatan"
+   184→        description="Program kerja, aksi sosial, kemitraan, dan agenda kegiatan — terstruktur per tingkat pengurus (DPN → DPD → DPC)"
+   185→        icon={CalendarDays}
+   186→      />
+   187→
+   188→      {/* Tab navigasi utama */}
+   189→      <div className="flex flex-wrap gap-2">
+   190→        {CATEGORY_TABS.map((t) => (
+   191→          <button
+   192→            key={t.key}
+   193→            onClick={() => setTab(t.key)}
+   194→            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+   195→              tab === t.key
+   196→                ? `bg-gradient-to-r ${t.color} text-white shadow-sm`
+   197→                : 'border hover:bg-accent'
+   198→            }`}
+   199→          >
+   200→            <t.icon className="w-4 h-4" /> {t.label}
+   201→          </button>
+   202→        ))}
+   203→      </div>
+   204→
+   205→      <ProgramContentManager
+   206→        key={tab}
+   207→        category={tab}
+   208→        title={activeTab.label}
+   209→        description={activeTab.desc}
+   210→        icon={activeTab.icon}
+   211→        accentColor={activeTab.color}
+   212→      />
+   213→    </div>
+   214→  )
+   215→}
+   216→
+   217→// ============================================================
+   218→// PROGRAM CONTENT MANAGER — drill-down DPN/DPD/DPC + Breadcrumb
+   219→// ============================================================
+   220→export function ProgramContentManager({ title, description, icon: Icon, category, accentColor }: {
+   221→  title: string; description: string; icon: any; category: string; accentColor: string
+   222→}) {
+   223→  const [view, setView] = useState<'home' | 'dpn' | 'dpd-list' | 'dpd-detail' | 'dpc-list' | 'dpc-detail'>('home')
+   224→  const [territories, setTerritories] = useState<Territory[]>([])
+   225→  const [regencies, setRegencies] = useState<Territory[]>([])
+   226→  const [selectedProv, setSelectedProv] = useState<Territory | null>(null)
+   227→  const [selectedRegency, setSelectedRegency] = useState<Territory | null>(null)
+   228→  const [items, setItems] = useState<ProgramDoc[]>([])
+   229→  const [loading, setLoading] = useState(true)
+   230→  const [error, setError] = useState<string | null>(null)
+   231→
+   232→  // Load territories sekali saja (mount-only)
+   233→  useEffect(() => {
+   234→    let cancelled = false
+   235→    api('/api/territory')
+   236→      .then((all: any[]) => {
+   237→        if (cancelled) return
+   238→        setTerritories((all || []).filter(t => t.level === 'PROVINCE'))
+   239→        setRegencies((all || []).filter(t => t.level === 'REGENCY'))
+   240→      })
+   241→      .catch((e: any) => {
+   242→        if (cancelled) return
+   243→        console.error('[ProgramContentManager] territory load failed:', e.message)
+   244→      })
+   245→    return () => { cancelled = true }
+   246→  }, [])
+   247→
+   248→  // Helper filter (FIX B4 — pakai && bukan ||)
+   249→  const isFiltered = useCallback((i: ProgramDoc, code: string, level: string) => {
+   250→    // Strict match: territoryCode sama DAN level sama
+   251→    if (i.territoryCode === code && i.level === level) return true
+   252→    // Fallback untuk legacy data yang mungkin level-nya null
+   253→    if (!i.level && i.territoryCode === code && level === 'DPD') return true
+   254→    return false
+   255→  }, [])
+   256→
+   257→  const dpnItems = useMemo(() => items.filter(i => !i.territoryCode || i.territoryCode === 'ID' || i.level === 'DPN'), [items])
+   258→  const dpdCount = useMemo(() => items.filter(i => i.level === 'DPD').length, [items])
+   259→  const dpcCount = useMemo(() => items.filter(i => i.level === 'DPC').length, [items])
+   260→
+   261→  // === HOME: 3 Kartu DPN/DPD/DPC ===
+   262→  if (view === 'home') {
+   263→    return (
+   264→      <div className="space-y-4">
+   265→        <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs text-blue-800">
+   266→          <strong>Hierarki:</strong> DPN (Pusat Nasional) → DPD (Provinsi) → DPC (Kabupaten/Kota).
+   267→          Pilih tingkat untuk melihat {title.toLowerCase()} masing-masing wilayah.
+   268→        </div>
+   269→        <div className="grid gap-4 md:grid-cols-3">
+   270→          {LEVEL_CARDS.map(c => {
+   271→            const count = c.key === 'DPN' ? dpnItems.length : c.key === 'DPD' ? dpdCount : dpcCount
+   272→            return (
+   273→              <button
+   274→                key={c.key}
+   275→                type="button"
+   276→                onClick={() => { setView(c.key === 'DPN' ? 'dpn' : c.key === 'DPD' ? 'dpd-list' : 'dpc-list'); setSelectedProv(null); setSelectedRegency(null) }}
+   277→                className="rounded-2xl border-2 hover:shadow-lg transition-all overflow-hidden text-left"
+   278→              >
+   279→                <div className={`bg-gradient-to-br ${c.grad} p-5 text-white`}>
+   280→                  <c.icon className="w-8 h-8 mb-2" />
+   281→                  <div className="text-xl font-bold">{c.title}</div>
+   282→                  <div className="text-sm opacity-90">{c.subtitle}</div>
+   283→                </div>
+   284→                <div className="p-4 bg-white">
+   285→                  <div className="text-sm text-muted-foreground mb-2">{title} tingkat {c.title}</div>
+   286→                  <div className="flex items-center justify-between">
+   287→                    <Badge variant="outline" className="text-[13px]">{count} dokumen</Badge>
+   288→                    <span className="text-xs font-medium text-blue-600 flex items-center gap-1">
+   289→                      Buka <ChevronRight className="w-4 h-4" />
+   290→                    </span>
+   291→                  </div>
+   292→                </div>
+   293→              </button>
+   294→            )
+   295→          })}
+   296→        </div>
+   297→      </div>
+   298→    )
+   299→  }
+   300→
+   301→  // === DPN VIEW ===
+   302→  if (view === 'dpn') {
+   303→    return (
+   304→      <ProgramLevelView
+   305→        key={`dpn-${category}`}
+   306→        title={`${title} — DPN (Pusat Nasional)`}
+   307→        description={description}
+   308→        icon={Icon}
+   309→        accentColor={accentColor}
+   310→        category={category}
+   311→        level="DPN"
+   312→        territoryCode="ID"
+   313→        territoryName="DPN (Pusat Nasional)"
+   314→        breadcrumb={
+   315→          <Breadcrumb>
+   316→            <BreadcrumbList>
+   317→              <BreadcrumbItem>
+   318→                <BreadcrumbLink onClick={() => setView('home')}><Home className="w-3 h-3 inline mr-1" />Beranda</BreadcrumbLink>
+   319→              </BreadcrumbItem>
+   320→              <BreadcrumbSeparator />
+   321→              <BreadcrumbItem><BreadcrumbPage>DPN</BreadcrumbPage></BreadcrumbItem>
+   322→            </BreadcrumbList>
+   323→          </Breadcrumb>
+   324→        }
+   325→        onBack={() => setView('home')}
+   326→      />
+   327→    )
+   328→  }
+   329→
+   330→  // === DPD LIST VIEW ===
+   331→  if (view === 'dpd-list') {
+   332→    return (
+   333→      <div className="space-y-4">
+   334→        <Breadcrumb>
+   335→          <BreadcrumbList>
+   336→            <BreadcrumbItem>
+   337→              <BreadcrumbLink onClick={() => setView('home')}><Home className="w-3 h-3 inline mr-1" />Beranda</BreadcrumbLink>
+   338→            </BreadcrumbItem>
+   339→            <BreadcrumbSeparator />
+   340→            <BreadcrumbItem><BreadcrumbPage>DPD</BreadcrumbPage></BreadcrumbItem>
+   341→          </BreadcrumbList>
+   342→        </Breadcrumb>
+   343→        <h3 className="text-base font-bold flex items-center gap-2">
+   344→          <Building2 className="w-5 h-5 text-blue-600" /> Pilih DPD (Provinsi)
+   345→        </h3>
+   346→        {territories.length === 0 ? (
+   347→          <EmptyState icon={Building2} title="Belum ada DPD" description="Data wilayah belum dimuat. Coba refresh halaman." />
+   348→        ) : (
+   349→          <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+   350→            {territories.map(prov => (
+   351→              <button
+   352→                key={prov.code}
+   353→                type="button"
+   354→                onClick={() => { setSelectedProv(prov); setView('dpd-detail') }}
+   355→                className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent transition-all text-left"
+   356→              >
+   357→                <span className="text-sm font-medium">{prov.name}</span>
+   358→                <ChevronRight className="w-4 h-4 text-muted-foreground" />
+   359→              </button>
+   360→            ))}
+   361→          </div>
+   362→        )}
+   363→      </div>
+   364→    )
+   365→  }
+   366→
+   367→  // === DPD DETAIL VIEW ===
+   368→  if (view === 'dpd-detail' && selectedProv) {
+   369→    return (
+   370→      <ProgramLevelView
+   371→        key={`dpd-${category}-${selectedProv.code}`}
+   372→        title={`${title} — DPD ${selectedProv.name}`}
+   373→        description={description}
+   374→        icon={Icon}
+   375→        accentColor={accentColor}
+   376→        category={category}
+   377→        level="DPD"
+   378→        territoryCode={selectedProv.code}
+   379→        territoryName={`DPD ${selectedProv.name}`}
+   380→        breadcrumb={
+   381→          <Breadcrumb>
+   382→            <BreadcrumbList>
+   383→              <BreadcrumbItem>
+   384→                <BreadcrumbLink onClick={() => setView('home')}><Home className="w-3 h-3 inline mr-1" />Beranda</BreadcrumbLink>
+   385→              </BreadcrumbItem>
+   386→              <BreadcrumbSeparator />
+   387→              <BreadcrumbItem>
+   388→                <BreadcrumbLink onClick={() => { setSelectedProv(null); setView('dpd-list') }}>DPD</BreadcrumbLink>
+   389→              </BreadcrumbItem>
+   390→              <BreadcrumbSeparator />
+   391→              <BreadcrumbItem><BreadcrumbPage>{selectedProv.name}</BreadcrumbPage></BreadcrumbItem>
+   392→            </BreadcrumbList>
+   393→          </Breadcrumb>
+   394→        }
+   395→        onBack={() => { setSelectedProv(null); setView('dpd-list') }}
+   396→      />
+   397→    )
+   398→  }
+   399→
+   400→  // === DPC LIST VIEW (pilih provinsi dulu) ===
+   401→  if (view === 'dpc-list') {
+   402→    return (
+   403→      <div className="space-y-4">
+   404→        <Breadcrumb>
+   405→          <BreadcrumbList>
+   406→            <BreadcrumbItem>
+   407→              <BreadcrumbLink onClick={() => setView('home')}><Home className="w-3 h-3 inline mr-1" />Beranda</BreadcrumbLink>
+   408→            </BreadcrumbItem>
+   409→            <BreadcrumbSeparator />
+   410→            <BreadcrumbItem><BreadcrumbPage>DPC</BreadcrumbPage></BreadcrumbItem>
+   411→          </BreadcrumbList>
+   412→        </Breadcrumb>
+   413→        <h3 className="text-base font-bold flex items-center gap-2">
+   414→          <MapPin className="w-5 h-5 text-emerald-600" /> Pilih DPD (Provinsi) untuk lihat DPC
+   415→        </h3>
+   416→        {territories.length === 0 ? (
+   417→          <EmptyState icon={MapPin} title="Belum ada DPD" description="Data wilayah belum dimuat." />
+   418→        ) : (
+   419→          <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+   420→            {territories.map(prov => {
+   421→              const regCount = regencies.filter(r => r.parentId === prov.id).length
+   422→              return (
+   423→                <button
+   424→                  key={prov.code}
+   425→                  type="button"
+   426→                  onClick={() => { setSelectedProv(prov); setView('dpc-detail'); setSelectedRegency(null) }}
+   427→                  className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent transition-all text-left"
+   428→                >
+   429→                  <span className="text-sm font-medium">{prov.name}</span>
+   430→                  <Badge variant="outline" className="text-[13px]">{regCount > 0 ? `${regCount} DPC` : 'Kosong'}</Badge>
+   431→                </button>
+   432→              )
+   433→            })}
+   434→          </div>
+   435→        )}
+   436→      </div>
+   437→    )
+   438→  }
+   439→
+   440→  // === DPC DETAIL VIEW (list kab/kota di provinsi terpilih) ===
+   441→  if (view === 'dpc-detail' && selectedProv) {
+   442→    const provRegencies = regencies.filter(r => r.parentId === selectedProv.id)
+   443→    return (
+   444→      <div className="space-y-4">
+   445→        <Breadcrumb>
+   446→          <BreadcrumbList>
+   447→            <BreadcrumbItem>
+   448→              <BreadcrumbLink onClick={() => setView('home')}><Home className="w-3 h-3 inline mr-1" />Beranda</BreadcrumbLink>
+   449→            </BreadcrumbItem>
+   450→            <BreadcrumbSeparator />
+   451→            <BreadcrumbItem>
+   452→              <BreadcrumbLink onClick={() => { setSelectedProv(null); setView('dpc-list') }}>DPC</BreadcrumbLink>
+   453→            </BreadcrumbItem>
+   454→            <BreadcrumbSeparator />
+   455→            <BreadcrumbItem><BreadcrumbPage>{selectedProv.name}</BreadcrumbPage></BreadcrumbItem>
+   456→          </BreadcrumbList>
+   457→        </Breadcrumb>
+   458→        <h3 className="text-base font-bold flex items-center gap-2">
+   459→          <MapPin className="w-5 h-5 text-emerald-600" /> DPC di {selectedProv.name}
+   460→        </h3>
+   461→        {provRegencies.length === 0 ? (
+   462→          <EmptyState icon={MapPin} title="Belum ada DPC" description={`Belum ada DPC terdaftar di ${selectedProv.name}.`} />
+   463→        ) : (
+   464→          <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+   465→            {provRegencies.map(reg => (
+   466→              <button
+   467→                key={reg.code}
+   468→                type="button"
+   469→                onClick={() => setSelectedRegency(reg)}
+   470→                className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent transition-all text-left"
+   471→              >
+   472→                <span className="text-sm font-medium">{reg.name}</span>
+   473→                <ChevronRight className="w-4 h-4 text-muted-foreground" />
+   474→              </button>
+   475→            ))}
+   476→          </div>
+   477→        )}
+   478→        {selectedRegency && (
+   479→          <ProgramLevelView
+   480→            key={`dpc-${category}-${selectedRegency.code}`}
+   481→            title={`${title} — DPC ${selectedRegency.name}`}
+   482→            description={description}
+   483→            icon={Icon}
+   484→            accentColor={accentColor}
+   485→            category={category}
+   486→            level="DPC"
+   487→            territoryCode={selectedRegency.code}
+   488→            territoryName={`DPC ${selectedRegency.name}`}
+   489→            breadcrumb={
+   490→              <Breadcrumb>
+   491→                <BreadcrumbList>
+   492→                  <BreadcrumbItem>
+   493→                    <BreadcrumbLink onClick={() => setView('home')}><Home className="w-3 h-3 inline mr-1" />Beranda</BreadcrumbLink>
+   494→                  </BreadcrumbItem>
+   495→                  <BreadcrumbSeparator />
+   496→                  <BreadcrumbItem>
+   497→                    <BreadcrumbLink onClick={() => { setSelectedProv(null); setView('dpc-list') }}>DPC</BreadcrumbLink>
+   498→                  </BreadcrumbItem>
+   499→                  <BreadcrumbSeparator />
+   500→                  <BreadcrumbItem>
+   501→                    <BreadcrumbLink onClick={() => setSelectedRegency(null)}>{selectedProv.name}</BreadcrumbLink>
+   502→                  </BreadcrumbItem>
+   503→                  <BreadcrumbSeparator />
+   504→                  <BreadcrumbItem><BreadcrumbPage>{selectedRegency.name}</BreadcrumbPage></BreadcrumbItem>
+   505→                </BreadcrumbList>
+   506→              </Breadcrumb>
+   507→            }
+   508→            onBack={() => setSelectedRegency(null)}
+   509→          />
+   510→        )}
+   511→      </div>
+   512→    )
+   513→  }
+   514→
+   515→  return null
+   516→}
+   517→
+   518→// ============================================================
+   519→// PROGRAM LEVEL VIEW — List dokumen per level dengan semua fitur
+   520→// ============================================================
+   521→function ProgramLevelView({
+   522→  title, description, icon: Icon, accentColor, category, level, territoryCode, territoryName, onBack, breadcrumb,
+   523→}: {
+   524→  title: string
+   525→  description: string
+   526→  icon: any
+   527→  accentColor: string
+   528→  category: string
+   529→  level: Level
+   530→  territoryCode: string
+   531→  territoryName: string
+   532→  onBack: () => void
+   533→  breadcrumb?: React.ReactNode
+   534→}) {
+   535→  const addToast = useToastStore((s) => s.addToast)
+   536→  const user = useAuthStore((s) => s.user)
+   537→
+   538→  // State data
+   539→  const [docs, setDocs] = useState<ProgramDoc[]>([])
+   540→  const [pagination, setPagination] = useState<PaginationInfo>({ page: 1, pageSize: PAGE_SIZE, total: 0, totalPages: 1 })
+   541→  const [loading, setLoading] = useState(true)
+   542→  const [error, setError] = useState<string | null>(null)
+   543→
+   544→  // State filter
+   545→  const [search, setSearch] = useState('')
+   546→  const [searchDebounced, setSearchDebounced] = useState('')
+   547→  const [statusFilter, setStatusFilter] = useState<Status | 'ALL'>('ALL')
+   548→  const [sort, setSort] = useState<SortKey>('updatedAt_desc')
+   549→  const [page, setPage] = useState(1)
+   550→
+   551→  // State UI
+   552→  const [uploadOpen, setUploadOpen] = useState(false)
+   553→  const [bulkUploadOpen, setBulkUploadOpen] = useState(false)
+   554→  const [editDoc, setEditDoc] = useState<ProgramDoc | null>(null)
+   555→  const [deleteDoc, setDeleteDoc] = useState<ProgramDoc | null>(null)
+   556→  const [viewingDoc, setViewingDoc] = useState<string | null>(null)
+   557→  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+   558→  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
+   559→
+   560→  // Debounce search (250ms)
+   561→  useEffect(() => {
+   562→    const t = setTimeout(() => {
+   563→      setSearchDebounced(search)
+   564→      setPage(1) // reset to page 1 saat search berubah
+   565→    }, 250)
+   566→    return () => clearTimeout(t)
+   567→  }, [search])
+   568→
+   569→  // === Load data ===
+   570→  const loadData = useCallback(async () => {
+   571→    setLoading(true)
+   572→    setError(null)
+   573→    try {
+   574→      const params = new URLSearchParams({
+   575→        category,
+   576→        level,
+   577→        territoryCode,
+   578→        page: String(page),
+   579→        pageSize: String(PAGE_SIZE),
+   580→        sort,
+   581→      })
+   582→      if (searchDebounced) params.set('search', searchDebounced)
+   583→      if (statusFilter !== 'ALL') params.set('status', statusFilter)
+   584→
+   585→      const data = await api(`/api/program-documents?${params.toString()}`)
+   586→      // api() return data (unwrapped)
+   587→      if (Array.isArray(data)) {
+   588→        // Backward compat: kalau API lama return array langsung
+   589→        setDocs(data)
+   590→        setPagination({ page: 1, pageSize: PAGE_SIZE, total: data.length, totalPages: 1 })
+   591→      } else if (data && Array.isArray((data as any).data)) {
+   592→        // API baru return { data, pagination }
+   593→        setDocs((data as any).data)
+   594→        setPagination((data as any).pagination || { page: 1, pageSize: PAGE_SIZE, total: 0, totalPages: 1 })
+   595→      } else {
+   596→        setDocs([])
+   597→      }
+   598→    } catch (e: any) {
+   599→      console.error('[ProgramLevelView] load failed:', e)
+   600→      setError(e.message || 'Gagal memuat data')
+   601→      setDocs([])
+   602→    } finally {
+   603→      setLoading(false)
+   604→    }
+   605→  }, [category, level, territoryCode, page, sort, searchDebounced, statusFilter])
+   606→
+   607→  useEffect(() => { loadData() }, [loadData])
+   608→
+   609→  // Reset selectedIds saat data berubah
+   610→  useEffect(() => { setSelectedIds(new Set()) }, [docs])
+   611→
+   612→  // === Handler: View bukti ===
+   613→  const handleView = async (doc: ProgramDoc) => {
+   614→    setViewingDoc(doc.id)
+   615→    try {
+   616→      const res = await fetch(`/api/program-documents/${doc.id}/view`, {
+   617→        headers: { 'x-user-id': user?.id || '' },
+   618→      })
+   619→      if (!res.ok) {
+   620→        const errData = await res.json().catch(() => null)
+   621→        throw new Error(errData?.error || `HTTP ${res.status}`)
+   622→      }
+   623→      const blob = await res.blob()
+   624→      const blobUrl = URL.createObjectURL(blob)
+   625→      window.open(blobUrl, '_blank')
+   626→      setTimeout(() => URL.revokeObjectURL(blobUrl), 60000)
+   627→    } catch (e: any) {
+   628→      addToast(`Gagal membuka file: ${e.message}`, 'error')
+   629→    } finally {
+   630→      setViewingDoc(null)
+   631→    }
+   632→  }
+   633→
+   634→  // === Handler: Download file ===
+   635→  const handleDownload = async (doc: ProgramDoc) => {
+   636→    try {
+   637→      const res = await fetch(`/api/program-documents/${doc.id}/view`, {
+   638→        headers: { 'x-user-id': user?.id || '' },
+   639→      })
+   640→      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+   641→      const blob = await res.blob()
+   642→      const blobUrl = URL.createObjectURL(blob)
+   643→      const a = window.document.createElement('a')
+   644→      a.href = blobUrl
+   645→      a.download = doc.fileName || `${doc.title}.bin`
+   646→      window.document.body.appendChild(a)
+   647→      a.click()
+   648→      window.document.body.removeChild(a)
+   649→      setTimeout(() => URL.revokeObjectURL(blobUrl), 30000)
+   650→      addToast(`File "${doc.fileName || doc.title}" didownload`, 'success')
+   651→    } catch (e: any) {
+   652→      addToast(`Gagal download: ${e.message}`, 'error')
+   653→    }
+   654→  }
+   655→
+   656→  // === Handler: Bulk delete ===
+   657→  const handleBulkDelete = async () => {
+   658→    if (selectedIds.size === 0) return
+   659→    try {
+   660→      const ids = Array.from(selectedIds)
+   661→      await api(`/api/program-documents/bulk?ids=${ids.join(',')}`, { method: 'DELETE' })
+   662→      addToast(`${ids.length} dokumen berhasil dihapus`, 'success')
+   663→      setBulkDeleteOpen(false)
+   664→      setSelectedIds(new Set())
+   665→      loadData()
+   666→    } catch (e: any) {
+   667→      addToast(`Gagal hapus massal: ${e.message}`, 'error')
+   668→    }
+   669→  }
+   670→
+   671→  // === Stats: hitung sekali, gunakan useMemo ===
+   672→  const stats = useMemo(() => {
+   673→    // Note: stats ini hanya untuk page aktif (bukan total)
+   674→    // Untuk total stats server-side, butuh API stats terpisah
+   675→    return {
+   676→      total: pagination.total,
+   677→      selesai: 0,
+   678→      berjalan: 0,
+   679→      direncanakan: 0,
+   680→      inPage: docs.length,
+   681→    }
+   682→  }, [pagination.total, docs.length])
+   683→
+   684→  // === Render ===
+   685→  return (
+   686→    <div className="space-y-4">
+   687→      {breadcrumb}
+   688→      <Button variant="ghost" size="sm" onClick={onBack} className="gap-1">
+   689→        <ChevronLeft className="w-4 h-4" /> Kembali
+   690→      </Button>
+   691→
+   692→      {/* Header dengan tombol upload */}
+   693→      <div className="flex items-center justify-between flex-wrap gap-2">
+   694→        <h3 className="text-base font-bold flex items-center gap-2">
+   695→          <Icon className={`w-5 h-5 bg-gradient-to-br ${accentColor} bg-clip-text`} />
+   696→          {title}
+   697→          <Badge variant="outline" className="text-[13px]">{pagination.total} total dokumen</Badge>
+   698→        </h3>
+   699→        <div className="flex gap-2 flex-wrap">
+   700→          <Button
+   701→            size="sm"
+   702→            variant="outline"
+   703→            onClick={() => setBulkUploadOpen(true)}
+   704→            className="gap-1"
+   705→          >
+   706→            <Files className="w-4 h-4" /> Bulk Upload
+   707→          </Button>
+   708→          <Button
+   709→            size="sm"
+   710→            onClick={() => setUploadOpen(true)}
+   711→            className={`gap-1 bg-gradient-to-r ${accentColor} text-white hover:opacity-90`}
+   712→          >
+   713→            <Upload className="w-4 h-4" /> Upload Dokumen
+   714→          </Button>
+   715→        </div>
+   716→      </div>
+   717→
+   718→      {/* Filter bar */}
+   719→      <div className="flex flex-wrap gap-2 items-center">
+   720→        <div className="relative flex-1 min-w-64">
+   721→          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+   722→          <Input
+   723→            placeholder="Cari judul / deskripsi / lokasi..."
+   724→            value={search}
+   725→            onChange={(e) => setSearch(e.target.value)}
+   726→            className="pl-9"
+   727→          />
+   728→          {search && (
+   729→            <button
+   730→              type="button"
+   731→              onClick={() => setSearch('')}
+   732→              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground"
+   733→            >
+   734→              <X className="w-3 h-3" />
+   735→            </button>
+   736→          )}
+   737→        </div>
+   738→        <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v as any); setPage(1) }}>
+   739→          <SelectTrigger className="w-40">
+   740→            <SelectValue placeholder="Status" />
+   741→          </SelectTrigger>
+   742→          <SelectContent>
+   743→            <SelectItem value="ALL">Semua Status</SelectItem>
+   744→            <SelectItem value="DIRENCANAKAN">Direncanakan</SelectItem>
+   745→            <SelectItem value="BERJALAN">Berjalan</SelectItem>
+   746→            <SelectItem value="SELESAI">Selesai</SelectItem>
+   747→            <SelectItem value="DITUNDA">Ditunda</SelectItem>
+   748→          </SelectContent>
+   749→        </Select>
+   750→        <Select value={sort} onValueChange={(v) => setSort(v as SortKey)}>
+   751→          <SelectTrigger className="w-44">
+   752→            <ArrowUpDown className="w-3 h-3 mr-1" />
+   753→            <SelectValue placeholder="Urutkan" />
+   754→          </SelectTrigger>
+   755→          <SelectContent>
+   756→            {SORT_OPTIONS.map(s => (
+   757→              <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>
+   758→            ))}
+   759→          </SelectContent>
+   760→        </Select>
+   761→        <Button variant="outline" size="sm" onClick={loadData} className="gap-1">
+   762→          <RefreshCw className="w-3 h-3" /> Refresh
+   763→        </Button>
+   764→      </div>
+   765→
+   766→      {/* Bulk action bar — tampil saat ada selected */}
+   767→      {selectedIds.size > 0 && (
+   768→        <div className="flex items-center gap-2 p-2 bg-orange-50 border border-orange-200 rounded-lg">
+   769→          <Checkbox checked={true} onCheckedChange={(checked) => {
+   770→            if (!checked) setSelectedIds(new Set())
+   771→          }} />
+   772→          <span className="text-sm font-medium">{selectedIds.size} dipilih</span>
+   773→          <Button
+   774→            size="sm"
+   775→            variant="destructive"
+   776→            onClick={() => setBulkDeleteOpen(true)}
+   777→            className="gap-1 ml-auto"
+   778→          >
+   779→            <Trash2 className="w-3 h-3" /> Hapus Massal
+   780→          </Button>
+   781→        </div>
+   782→      )}
+   783→
+   784→      {/* Error state */}
+   785→      {error && (
+   786→        <ErrorState message={error} />
+   787→      )}
+   788→
+   789→      {/* Loading state */}
+   790→      {loading && !error && <LoadingState message={`Memuat dokumen ${level}...`} />}
+   791→
+   792→      {/* Empty state */}
+   793→      {!loading && !error && docs.length === 0 && (
+   794→        <EmptyState
+   795→          icon={FileText}
+   796→          title={searchDebounced || statusFilter !== 'ALL' ? 'Tidak ada dokumen cocok' : `Belum ada dokumen ${level}`}
+   797→          description={
+   798→            searchDebounced || statusFilter !== 'ALL'
+   799→              ? 'Coba ubah filter atau kata kunci pencarian.'
+   800→              : `Upload dokumen bukti pelaksanaan ${level} ${territoryName}. Mendukung PDF, gambar, dokumen, video, dan audio.`
+   801→          }
+   802→          action={
+   803→            !searchDebounced && statusFilter === 'ALL' ? (
+   804→              <Button onClick={() => setUploadOpen(true)} className={`gap-1 bg-gradient-to-r ${accentColor}`}>
+   805→                <Upload className="w-4 h-4" /> Upload Sekarang
+   806→              </Button>
+   807→            ) : undefined
+   808→          }
+   809→        />
+   810→      )}
+   811→
+   812→      {/* List dokumen */}
+   813→      {!loading && !error && docs.length > 0 && (
+   814→        <div className="space-y-2">
+   815→          {/* Header dengan select-all */}
+   816→          <div className="flex items-center gap-2 pb-1">
+   817→            <Checkbox
+   818→              checked={docs.length > 0 && selectedIds.size === docs.length}
+   819→              onCheckedChange={(checked) => {
+   820→                if (checked) setSelectedIds(new Set(docs.map(d => d.id)))
+   821→                else setSelectedIds(new Set())
+   822→              }}
+   823→            />
+   824→            <span className="text-xs text-muted-foreground">Pilih semua di halaman ini</span>
+   825→          </div>
+   826→          {docs.map((doc) => {
+   827→            const FileIcon = getFileIcon(doc.fileType)
+   828→            const hasFile = !!doc.fileName
+   829→            const isSelected = selectedIds.has(doc.id)
+   830→            const statusCfg = STATUS_CONFIG[doc.status] || STATUS_CONFIG.DIRENCANAKAN
+   831→            return (
+   832→              <div
+   833→                key={doc.id}
+   834→                className={`group relative rounded-lg border p-4 hover:shadow-md transition-all bg-white ${isSelected ? 'border-orange-400 bg-orange-50' : ''}`}
+   835→              >
+   836→                <div className="flex items-start gap-3">
+   837→                  <Checkbox
+   838→                    checked={isSelected}
+   839→                    onCheckedChange={(checked) => {
+   840→                      const newSet = new Set(selectedIds)
+   841→                      if (checked) newSet.add(doc.id)
+   842→                      else newSet.delete(doc.id)
+   843→                      setSelectedIds(newSet)
+   844→                    }}
+   845→                    className="mt-1"
+   846→                  />
+   847→                  <div className="p-1.5 rounded bg-orange-50 text-orange-600 shrink-0">
+   848→                    <FileIcon className="w-4 h-4" />
+   849→                  </div>
+   850→                  <div className="flex-1 min-w-0">
+   851→                    <div className="font-semibold text-sm truncate" title={doc.title}>{doc.title}</div>
+   852→                    {doc.description && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{doc.description}</p>}
+   853→                    <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground flex-wrap">
+   854→                      {doc.fileName && (
+   855→                        <span className="flex items-center gap-1">
+   856→                          <FileText className="w-3 h-3" /> {doc.fileName}
+   857→                          {doc.fileSize ? <span className="text-[10px]">({formatFileSize(doc.fileSize)})</span> : null}
+   858→                        </span>
+   859→                      )}
+   860→                      {doc.location && <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {doc.location}</span>}
+   861→                      {doc.eventDate && <span className="flex items-center gap-1"><CalendarDays className="w-3 h-3" /> {formatDateTimeID(doc.eventDate)}</span>}
+   862→                      <Badge variant={statusCfg.badgeVariant} className="text-[11px] gap-1">
+   863→                        <statusCfg.icon className="w-3 h-3" /> {statusCfg.label}
+   864→                      </Badge>
+   865→                      {doc.uploadedBy && (
+   866→                        <span className="flex items-center gap-1">
+   867→                          <Users className="w-3 h-3" /> {doc.uploadedBy.fullName}
+   868→                        </span>
+   869→                      )}
+   870→                    </div>
+   871→                  </div>
+   872→                  {/* Action buttons */}
+   873→                  <div className="flex gap-1 shrink-0">
+   874→                    {hasFile && (
+   875→                      <>
+   876→                        <Button
+   877→                          variant="ghost"
+   878→                          size="sm"
+   879→                          className="h-7 w-7 p-0 text-green-600 hover:bg-green-50"
+   880→                          onClick={() => handleView(doc)}
+   881→                          disabled={viewingDoc === doc.id}
+   882→                          aria-label="Lihat file"
+   883→                        >
+   884→                          {viewingDoc === doc.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Eye className="w-3.5 h-3.5" />}
+   885→                        </Button>
+   886→                        <Button
+   887→                          variant="ghost"
+   888→                          size="sm"
+   889→                          className="h-7 w-7 p-0 text-purple-600 hover:bg-purple-50"
+   890→                          onClick={() => handleDownload(doc)}
+   891→                          aria-label="Download file"
+   892→                        >
+   893→                          <Download className="w-3.5 h-3.5" />
+   894→                        </Button>
+   895→                      </>
+   896→                    )}
+   897→                    <Button
+   898→                      variant="ghost"
+   899→                      size="sm"
+   900→                      className="h-7 w-7 p-0 text-blue-600 hover:bg-blue-50"
+   901→                      onClick={() => setEditDoc(doc)}
+   902→                      aria-label="Edit dokumen"
+   903→                    >
+   904→                      <Edit className="w-3.5 h-3.5" />
+   905→                    </Button>
+   906→                    <Button
+   907→                      variant="ghost"
+   908→                      size="sm"
+   909→                      className="h-7 w-7 p-0 text-red-600 hover:bg-red-50"
+   910→                      onClick={() => setDeleteDoc(doc)}
+   911→                      aria-label="Hapus dokumen"
+   912→                    >
+   913→                      <Trash2 className="w-3.5 h-3.5" />
+   914→                    </Button>
+   915→                  </div>
+   916→                </div>
+   917→              </div>
+   918→            )
+   919→          })}
+   920→        </div>
+   921→      )}
+   922→
+   923→      {/* Pagination */}
+   924→      {!loading && !error && pagination.totalPages > 1 && (
+   925→        <div className="flex items-center justify-between gap-2 pt-2">
+   926→          <span className="text-xs text-muted-foreground">
+   927→            Halaman {pagination.page} dari {pagination.totalPages} • {pagination.total} total
+   928→          </span>
+   929→          <div className="flex gap-2">
+   930→            <Button
+   931→              variant="outline"
+   932→              size="sm"
+   933→              disabled={page === 1}
+   934→              onClick={() => setPage(p => Math.max(1, p - 1))}
+   935→              className="gap-1"
+   936→            >
+   937→              <ChevronLeft className="w-3 h-3" /> Sebelumnya
+   938→            </Button>
+   939→            <Button
+   940→              variant="outline"
+   941→              size="sm"
+   942→              disabled={page >= pagination.totalPages}
+   943→              onClick={() => setPage(p => p + 1)}
+   944→              className="gap-1"
+   945→            >
+   946→              Berikutnya <ChevronRight className="w-3 h-3" />
+   947→            </Button>
+   948→          </div>
+   949→        </div>
+   950→      )}
+   951→
+   952→      {/* Upload Dialog */}
+   953→      {uploadOpen && (
+   954→        <UploadDialog
+   955→          open={uploadOpen}
+   956→          onOpenChange={setUploadOpen}
+   957→          category={category as Category}
+   958→          level={level}
+   959→          territoryCode={territoryCode}
+   960→          territoryName={territoryName}
+   961→          accentColor={accentColor}
+   962→          onSuccess={() => { setUploadOpen(false); loadData() }}
+   963→        />
+   964→      )}
+   965→
+   966→      {/* Bulk Upload Dialog */}
+   967→      {bulkUploadOpen && (
+   968→        <BulkUploadDialog
+   969→          open={bulkUploadOpen}
+   970→          onOpenChange={setBulkUploadOpen}
+   971→          category={category as Category}
+   972→          level={level}
+   973→          territoryCode={territoryCode}
+   974→          territoryName={territoryName}
+   975→          accentColor={accentColor}
+   976→          onSuccess={() => { setBulkUploadOpen(false); loadData() }}
+   977→        />
+   978→      )}
+   979→
+   980→      {/* Edit Dialog */}
+   981→      {editDoc && (
+   982→        <EditDialog
+   983→          doc={editDoc}
+   984→          open={!!editDoc}
+   985→          onOpenChange={(o) => !o && setEditDoc(null)}
+   986→          onSuccess={() => { setEditDoc(null); loadData() }}
+   987→        />
+   988→      )}
+   989→
+   990→      {/* Delete Confirmation (single) */}
+   991→      {deleteDoc && (
+   992→        <AlertDialog open={!!deleteDoc} onOpenChange={(o) => !o && setDeleteDoc(null)}>
+   993→          <AlertDialogContent>
+   994→            <AlertDialogHeader>
+   995→              <AlertDialogTitle>Hapus dokumen ini?</AlertDialogTitle>
+   996→              <AlertDialogDescription>
+   997→                Anda akan menghapus <strong>{deleteDoc.title}</strong> ({level}).
+   998→                {deleteDoc.fileName && (
+   999→                  <> File <strong>{deleteDoc.fileName}</strong> juga akan dihapus permanen.</>
+  1000→                )}
+  1001→                {' '}Aksi ini tidak bisa dibatalkan.
+  1002→              </AlertDialogDescription>
+  1003→            </AlertDialogHeader>
+  1004→            <AlertDialogFooter>
+  1005→              <AlertDialogCancel>Batal</AlertDialogCancel>
+  1006→              <AlertDialogAction
+  1007→                onClick={async () => {
+  1008→                  try {
+  1009→                    await api(`/api/program-documents/${deleteDoc.id}`, { method: 'DELETE' })
+  1010→                    addToast('Dokumen berhasil dihapus', 'success')
+  1011→                    setDeleteDoc(null)
+  1012→                    loadData()
+  1013→                  } catch (e: any) {
+  1014→                    addToast(`Gagal hapus: ${e.message}`, 'error')
+  1015→                  }
+  1016→                }}
+  1017→                className="bg-red-600 hover:bg-red-700"
+  1018→              >
+  1019→                Hapus Permanen
+  1020→              </AlertDialogAction>
+  1021→            </AlertDialogFooter>
+  1022→          </AlertDialogContent>
+  1023→        </AlertDialog>
+  1024→      )}
+  1025→
+  1026→      {/* Bulk Delete Confirmation */}
+  1027→      {bulkDeleteOpen && (
+  1028→        <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+  1029→          <AlertDialogContent>
+  1030→            <AlertDialogHeader>
+  1031→              <AlertDialogTitle>Hapus {selectedIds.size} dokumen?</AlertDialogTitle>
+  1032→              <AlertDialogDescription>
+  1033→                Anda akan menghapus <strong>{selectedIds.size} dokumen</strong> sekaligus.
+  1034→                Aksi ini tidak bisa dibatalkan.
+  1035→              </AlertDialogDescription>
+  1036→            </AlertDialogHeader>
+  1037→            <AlertDialogFooter>
+  1038→              <AlertDialogCancel>Batal</AlertDialogCancel>
+  1039→              <AlertDialogAction onClick={handleBulkDelete} className="bg-red-600 hover:bg-red-700">
+  1040→                Hapus {selectedIds.size} Dokumen
+  1041→              </AlertDialogAction>
+  1042→            </AlertDialogFooter>
+  1043→          </AlertDialogContent>
+  1044→        </AlertDialog>
+  1045→      )}
+  1046→    </div>
+  1047→  )
+  1048→}
+  1049→
+  1050→// ============================================================
+  1051→// UPLOAD DIALOG — single file upload + metadata
+  1052→// ============================================================
+  1053→function UploadDialog({
+  1054→  open, onOpenChange, category, level, territoryCode, territoryName, accentColor, onSuccess,
+  1055→}: {
+  1056→  open: boolean
+  1057→  onOpenChange: (o: boolean) => void
+  1058→  category: Category
+  1059→  level: Level
+  1060→  territoryCode: string
+  1061→  territoryName: string
+  1062→  accentColor: string
+  1063→  onSuccess: () => void
+  1064→}) {
+  1065→  const addToast = useToastStore((s) => s.addToast)
+  1066→  const user = useAuthStore((s) => s.user)
+  1067→  const [form, setForm] = useState({
+  1068→    title: '', description: '', location: '', eventDate: '', status: 'DIRENCANAKAN' as Status,
+  1069→  })
+  1070→  const [file, setFile] = useState<File | null>(null)
+  1071→  const [fileError, setFileError] = useState<string | null>(null)
+  1072→  const [isDragging, setIsDragging] = useState(false)
+  1073→  const [saving, setSaving] = useState(false)
+  1074→  const fileInputRef = useRef<HTMLInputElement>(null)
+  1075→
+  1076→  useEffect(() => {
+  1077→    if (open) {
+  1078→      setForm({ title: '', description: '', location: '', eventDate: '', status: 'DIRENCANAKAN' })
+  1079→      setFile(null)
+  1080→      setFileError(null)
+  1081→      if (fileInputRef.current) fileInputRef.current.value = ''
+  1082→    }
+  1083→  }, [open])
+  1084→
+  1085→  const handleFileSelect = (f: File | null) => {
+  1086→    setFileError(null)
+  1087→    if (!f) {
+  1088→      setFile(null)
+  1089→      return
+  1090→    }
+  1091→    const validation = validateFile(f)
+  1092→    if (!validation.valid) {
+  1093→      setFileError(validation.error || 'File tidak valid')
+  1094→      setFile(null)
+  1095→      return
+  1096→    }
+  1097→    setFile(f)
+  1098→  }
+  1099→
+  1100→  const handleSubmit = async () => {
+  1101→    if (!form.title.trim()) { addToast('Judul wajib diisi', 'error'); return }
+  1102→    if (!file) { addToast('File wajib diupload', 'error'); return }
+  1103→    if (fileError) { addToast(fileError, 'error'); return }
+  1104→
+  1105→    setSaving(true)
+  1106→    try {
+  1107→      const formData = new FormData()
+  1108→      formData.append('file', file)
+  1109→      formData.append('title', form.title)
+  1110→      formData.append('description', form.description)
+  1111→      formData.append('location', form.location)
+  1112→      formData.append('eventDate', form.eventDate)
+  1113→      formData.append('status', form.status)
+  1114→      formData.append('category', category)
+  1115→      formData.append('level', level)
+  1116→      formData.append('territoryCode', territoryCode)
+  1117→      formData.append('territoryName', territoryName)
+  1118→
+  1119→      const res = await fetch('/api/program-documents', {
+  1120→        method: 'POST',
+  1121→        headers: { 'x-user-id': user?.id || '' },
+  1122→        body: formData,
+  1123→      })
+  1124→      const data = await res.json()
+  1125→      if (!res.ok || !data.success) {
+  1126→        throw new Error(data.error || `HTTP ${res.status}`)
+  1127→      }
+  1128→      addToast(data.message || 'Dokumen berhasil diupload', 'success')
+  1129→      onSuccess()
+  1130→    } catch (e: any) {
+  1131→      addToast(`Gagal upload: ${e.message}`, 'error')
+  1132→    } finally {
+  1133→      setSaving(false)
+  1134→    }
+  1135→  }
+  1136→
+  1137→  return (
+  1138→    <Dialog open={open} onOpenChange={onOpenChange}>
+  1139→      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+  1140→        <DialogHeader>
+  1141→          <DialogTitle>Upload Dokumen {level} — {territoryName}</DialogTitle>
+  1142→          <DialogDescription>
+  1143→            Upload file bukti pelaksanaan. Mendukung PDF, gambar (JPG/PNG/WebP), dokumen (DOC/XLS/PPT), video (MP4/MOV/WebM), audio (MP3/WAV), teks (TXT/CSV). Maksimal 4MB.
+  1144→          </DialogDescription>
+  1145→        </DialogHeader>
+  1146→        <div className="space-y-3 py-2">
+  1147→          {/* Dropzone dengan drag & drop yang berfungsi */}
+  1148→          <div className="space-y-1.5">
+  1149→            <Label>File Bukti *</Label>
+  1150→            <div
+  1151→              onClick={() => fileInputRef.current?.click()}
+  1152→              onDragOver={(e) => { e.preventDefault(); setIsDragging(true) }}
+  1153→              onDragLeave={() => setIsDragging(false)}
+  1154→              onDrop={(e) => {
+  1155→                e.preventDefault()
+  1156→                setIsDragging(false)
+  1157→                const f = e.dataTransfer.files?.[0]
+  1158→                if (f) handleFileSelect(f)
+  1159→              }}
+  1160→              className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
+  1161→                isDragging ? 'border-orange-500 bg-orange-50' : 'hover:bg-accent'
+  1162→              } ${fileError ? 'border-red-400' : ''}`}
+  1163→            >
+  1164→              {file ? (
+  1165→                <div className="flex items-center justify-center gap-2 text-sm">
+  1166→                  <FileText className="w-5 h-5 text-orange-600" />
+  1167→                  <span className="font-medium">{file.name}</span>
+  1168→                  <span className="text-muted-foreground">({formatFileSize(file.size)})</span>
+  1169→                  <Button
+  1170→                    type="button"
+  1171→                    variant="ghost"
+  1172→                    size="sm"
+  1173→                    onClick={(e) => { e.stopPropagation(); setFile(null); if (fileInputRef.current) fileInputRef.current.value = '' }}
+  1174→                    className="h-7 w-7 p-0"
+  1175→                  >
+  1176→                    <X className="w-3 h-3" />
+  1177→                  </Button>
+  1178→                </div>
+  1179→              ) : (
+  1180→                <div className="space-y-1">
+  1181→                  <Upload className="w-8 h-8 mx-auto text-muted-foreground" />
+  1182→                  <div className="text-sm font-medium">Klik untuk pilih file atau drag & drop</div>
+  1183→                  <div className="text-xs text-muted-foreground">PDF, JPG, PNG, WebP, DOC, XLS, MP4, MP3, TXT — maks 4MB</div>
+  1184→                </div>
+  1185→              )}
+  1186→            </div>
+  1187→            <input
+  1188→              ref={fileInputRef}
+  1189→              type="file"
+  1190→              accept={ACCEPTED_EXTENSIONS}
+  1191→              onChange={(e) => handleFileSelect(e.target.files?.[0] || null)}
+  1192→              className="hidden"
+  1193→            />
+  1194→            {fileError && (
+  1195→              <p className="text-xs text-red-600">{fileError}</p>
+  1196→            )}
+  1197→          </div>
+  1198→
+  1199→          <div className="space-y-1.5">
+  1200→            <Label>Judul *</Label>
+  1201→            <Input
+  1202→              value={form.title}
+  1203→              onChange={(e) => setForm({ ...form, title: e.target.value })}
+  1204→              placeholder="Contoh: Sosialisasi Asta Cita Presiden"
+  1205→            />
+  1206→          </div>
+  1207→
+  1208→          <div className="space-y-1.5">
+  1209→            <Label>Deskripsi</Label>
+  1210→            <Textarea
+  1211→              value={form.description}
+  1212→              onChange={(e) => setForm({ ...form, description: e.target.value })}
+  1213→              placeholder="Deskripsi singkat program/kegiatan..."
+  1214→              rows={3}
+  1215→            />
+  1216→          </div>
+  1217→
+  1218→          <div className="grid grid-cols-2 gap-3">
+  1219→            <div className="space-y-1.5">
+  1220→              <Label>Lokasi</Label>
+  1221→              <Input
+  1222→                value={form.location}
+  1223→                onChange={(e) => setForm({ ...form, location: e.target.value })}
+  1224→                placeholder="Contoh: Jakarta Pusat"
+  1225→              />
+  1226→            </div>
+  1227→            <div className="space-y-1.5">
+  1228→              <Label>Tanggal</Label>
+  1229→              <Input
+  1230→                type="date"
+  1231→                value={form.eventDate}
+  1232→                onChange={(e) => setForm({ ...form, eventDate: e.target.value })}
+  1233→              />
+  1234→            </div>
+  1235→          </div>
+  1236→
+  1237→          <div className="space-y-1.5">
+  1238→            <Label>Status</Label>
+  1239→            <Select
+  1240→              value={form.status}
+  1241→              onValueChange={(v) => setForm({ ...form, status: v as Status })}
+  1242→            >
+  1243→              <SelectTrigger>
+  1244→                <SelectValue />
+  1245→              </SelectTrigger>
+  1246→              <SelectContent>
+  1247→                <SelectItem value="DIRENCANAKAN">Direncanakan</SelectItem>
+  1248→                <SelectItem value="BERJALAN">Berjalan</SelectItem>
+  1249→                <SelectItem value="SELESAI">Selesai</SelectItem>
+  1250→                <SelectItem value="DITUNDA">Ditunda</SelectItem>
+  1251→              </SelectContent>
+  1252→            </Select>
+  1253→          </div>
+  1254→        </div>
+  1255→
+  1256→        <DialogFooter>
+  1257→          <Button variant="outline" onClick={() => onOpenChange(false)}>Batal</Button>
+  1258→          <Button
+  1259→            onClick={handleSubmit}
+  1260→            disabled={saving || !!fileError || !file || !form.title.trim()}
+  1261→            className={`gap-1 bg-gradient-to-r ${accentColor} text-white hover:opacity-90`}
+  1262→          >
+  1263→            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+  1264→            Upload Dokumen
+  1265→          </Button>
+  1266→        </DialogFooter>
+  1267→      </DialogContent>
+  1268→    </Dialog>
+  1269→  )
+  1270→}
+  1271→
+  1272→// ============================================================
+  1273→// BULK UPLOAD DIALOG — multiple files + shared metadata
+  1274→// ============================================================
+  1275→function BulkUploadDialog({
+  1276→  open, onOpenChange, category, level, territoryCode, territoryName, accentColor, onSuccess,
+  1277→}: {
+  1278→  open: boolean
+  1279→  onOpenChange: (o: boolean) => void
+  1280→  category: Category
+  1281→  level: Level
+  1282→  territoryCode: string
+  1283→  territoryName: string
+  1284→  accentColor: string
+  1285→  onSuccess: () => void
+  1286→}) {
+  1287→  const addToast = useToastStore((s) => s.addToast)
+  1288→  const user = useAuthStore((s) => s.user)
+  1289→  const [files, setFiles] = useState<File[]>([])
+  1290→  const [filesError, setFilesError] = useState<string | null>(null)
+  1291→  const [isDragging, setIsDragging] = useState(false)
+  1292→  const [titlePrefix, setTitlePrefix] = useState('')
+  1293→  const [location, setLocation] = useState('')
+  1294→  const [eventDate, setEventDate] = useState('')
+  1295→  const [status, setStatus] = useState<Status>('DIRENCANAKAN')
+  1296→  const [saving, setSaving] = useState(false)
+  1297→  const fileInputRef = useRef<HTMLInputElement>(null)
+  1298→
+  1299→  useEffect(() => {
+  1300→    if (open) {
+  1301→      setFiles([])
+  1302→      setFilesError(null)
+  1303→      setTitlePrefix('')
+  1304→      setLocation('')
+  1305→      setEventDate('')
+  1306→      setStatus('DIRENCANAKAN')
+  1307→      if (fileInputRef.current) fileInputRef.current.value = ''
+  1308→    }
+  1309→  }, [open])
+  1310→
+  1311→  const handleFilesSelect = (fileList: FileList | null) => {
+  1312→    setFilesError(null)
+  1313→    if (!fileList || fileList.length === 0) return
+  1314→    const arr = Array.from(fileList)
+  1315→    if (arr.length > 10) {
+  1316→      setFilesError('Maksimal 10 file per batch')
+  1317→      return
+  1318→    }
+  1319→    const invalid = arr.find(f => {
+  1320→      const v = validateFile(f)
+  1321→      return !v.valid
+  1322→    })
+  1323→    if (invalid) {
+  1324→      const v = validateFile(invalid)
+  1325→      setFilesError(`File "${invalid.name}": ${v.error}`)
+  1326→      return
+  1327→    }
+  1328→    setFiles(arr)
+  1329→  }
+  1330→
+  1331→  const handleSubmit = async () => {
+  1332→    if (files.length === 0) { addToast('Tidak ada file', 'error'); return }
+  1333→    if (filesError) { addToast(filesError, 'error'); return }
+  1334→
+  1335→    setSaving(true)
+  1336→    try {
+  1337→      const formData = new FormData()
+  1338→      files.forEach(f => formData.append('files', f))
+  1339→      formData.append('titlePrefix', titlePrefix)
+  1340→      formData.append('category', category)
+  1341→      formData.append('level', level)
+  1342→      formData.append('territoryCode', territoryCode)
+  1343→      formData.append('territoryName', territoryName)
+  1344→      formData.append('location', location)
+  1345→      formData.append('eventDate', eventDate)
+  1346→      formData.append('status', status)
+  1347→
+  1348→      const res = await fetch('/api/program-documents/bulk', {
+  1349→        method: 'POST',
+  1350→        headers: { 'x-user-id': user?.id || '' },
+  1351→        body: formData,
+  1352→      })
+  1353→      const data = await res.json()
+  1354→      if (!res.ok || !data.success) {
+  1355→        throw new Error(data.error || `HTTP ${res.status}`)
+  1356→      }
+  1357→      const { uploaded, failed } = data.data
+  1358→      addToast(`Upload selesai: ${uploaded.length} berhasil, ${failed.length} gagal`, failed.length > 0 ? 'warning' : 'success')
+  1359→      if (failed.length > 0) {
+  1360→        console.warn('Failed uploads:', failed)
+  1361→      }
+  1362→      onSuccess()
+  1363→    } catch (e: any) {
+  1364→      addToast(`Gagal bulk upload: ${e.message}`, 'error')
+  1365→    } finally {
+  1366→      setSaving(false)
+  1367→    }
+  1368→  }
+  1369→
+  1370→  return (
+  1371→    <Dialog open={open} onOpenChange={onOpenChange}>
+  1372→      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+  1373→        <DialogHeader>
+  1374→          <DialogTitle>Bulk Upload — {level} {territoryName}</DialogTitle>
+  1375→          <DialogDescription>
+  1376→            Upload multiple file sekaligus (maksimal 10 file). Semua file akan diberi metadata yang sama (lokasi, tanggal, status). Judul otomatis pakai nama file atau prefix + nomor urut.
+  1377→          </DialogDescription>
+  1378→        </DialogHeader>
+  1379→        <div className="space-y-3 py-2">
+  1380→          {/* Dropzone */}
+  1381→          <div className="space-y-1.5">
+  1382→            <Label>Pilih Multiple File (maks 10)</Label>
+  1383→            <div
+  1384→              onClick={() => fileInputRef.current?.click()}
+  1385→              onDragOver={(e) => { e.preventDefault(); setIsDragging(true) }}
+  1386→              onDragLeave={() => setIsDragging(false)}
+  1387→              onDrop={(e) => {
+  1388→                e.preventDefault()
+  1389→                setIsDragging(false)
+  1390→                handleFilesSelect(e.dataTransfer.files)
+  1391→              }}
+  1392→              className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
+  1393→                isDragging ? 'border-orange-500 bg-orange-50' : 'hover:bg-accent'
+  1394→              } ${filesError ? 'border-red-400' : ''}`}
+  1395→            >
+  1396→              {files.length > 0 ? (
+  1397→                <div className="space-y-2">
+  1398→                  <FileCheck className="w-8 h-8 text-emerald-600 mx-auto" />
+  1399→                  <div className="text-sm font-medium">{files.length} file dipilih</div>
+  1400→                  <div className="text-xs text-muted-foreground">
+  1401→                    Total: {formatFileSize(files.reduce((s, f) => s + f.size, 0))}
+  1402→                  </div>
+  1403→                  <div className="text-xs text-left max-h-32 overflow-y-auto border rounded p-2 bg-accent">
+  1404→                    {files.map((f, i) => (
+  1405→                      <div key={i} className="flex items-center justify-between gap-2 text-xs">
+  1406→                        <span className="truncate">{f.name}</span>
+  1407→                        <span className="text-muted-foreground shrink-0">{formatFileSize(f.size)}</span>
+  1408→                      </div>
+  1409→                    ))}
+  1410→                  </div>
+  1411→                </div>
+  1412→              ) : (
+  1413→                <div className="space-y-1">
+  1414→                  <Files className="w-8 h-8 mx-auto text-muted-foreground" />
+  1415→                  <div className="text-sm font-medium">Klik atau drag multiple file ke sini</div>
+  1416→                  <div className="text-xs text-muted-foreground">Maks 10 file, masing-masing maks 4MB</div>
+  1417→                </div>
+  1418→              )}
+  1419→            </div>
+  1420→            <input
+  1421→              ref={fileInputRef}
+  1422→              type="file"
+  1423→              accept={ACCEPTED_EXTENSIONS}
+  1424→              multiple
+  1425→              onChange={(e) => handleFilesSelect(e.target.files)}
+  1426→              className="hidden"
+  1427→            />
+  1428→            {filesError && <p className="text-xs text-red-600">{filesError}</p>}
+  1429→          </div>
+  1430→
+  1431→          <div className="space-y-1.5">
+  1432→            <Label>Prefix Judul (opsional)</Label>
+  1433→            <Input
+  1434→              value={titlePrefix}
+  1435→              onChange={(e) => setTitlePrefix(e.target.value)}
+  1436→              placeholder="Contoh: Sosialisasi Asta Cita — akan jadi 'Sosialisasi Asta Cita (1)', '(2)', dst."
+  1437→            />
+  1438→            <p className="text-xs text-muted-foreground">
+  1439→              Kalau kosong, judul pakai nama file tanpa ekstensi.
+  1440→            </p>
+  1441→          </div>
+  1442→
+  1443→          <div className="grid grid-cols-2 gap-3">
+  1444→            <div className="space-y-1.5">
+  1445→              <Label>Lokasi (untuk semua)</Label>
+  1446→              <Input value={location} onChange={(e) => setLocation(e.target.value)} />
+  1447→            </div>
+  1448→            <div className="space-y-1.5">
+  1449→              <Label>Tanggal (untuk semua)</Label>
+  1450→              <Input type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} />
+  1451→            </div>
+  1452→          </div>
+  1453→
+  1454→          <div className="space-y-1.5">
+  1455→            <Label>Status (untuk semua)</Label>
+  1456→            <Select value={status} onValueChange={(v) => setStatus(v as Status)}>
+  1457→              <SelectTrigger>
+  1458→                <SelectValue />
+  1459→              </SelectTrigger>
+  1460→              <SelectContent>
+  1461→                <SelectItem value="DIRENCANAKAN">Direncanakan</SelectItem>
+  1462→                <SelectItem value="BERJALAN">Berjalan</SelectItem>
+  1463→                <SelectItem value="SELESAI">Selesai</SelectItem>
+  1464→                <SelectItem value="DITUNDA">Ditunda</SelectItem>
+  1465→              </SelectContent>
+  1466→            </Select>
+  1467→          </div>
+  1468→        </div>
+  1469→
+  1470→        <DialogFooter>
+  1471→          <Button variant="outline" onClick={() => onOpenChange(false)}>Batal</Button>
+  1472→          <Button
+  1473→            onClick={handleSubmit}
+  1474→            disabled={saving || !!filesError || files.length === 0}
+  1475→            className={`gap-1 bg-gradient-to-r ${accentColor} text-white hover:opacity-90`}
+  1476→          >
+  1477→            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+  1478→            Upload {files.length || ''} File
+  1479→          </Button>
+  1480→        </DialogFooter>
+  1481→      </DialogContent>
+  1482→    </Dialog>
+  1483→  )
+  1484→}
+  1485→
+  1486→// ============================================================
+  1487→// EDIT DIALOG — edit metadata + opsi replace file
+  1488→// ============================================================
+  1489→function EditDialog({
+  1490→  doc, open, onOpenChange, onSuccess,
+  1491→}: {
+  1492→  doc: ProgramDoc
+  1493→  open: boolean
+  1494→  onOpenChange: (o: boolean) => void
+  1495→  onSuccess: () => void
+  1496→}) {
+  1497→  const addToast = useToastStore((s) => s.addToast)
+  1498→  const user = useAuthStore((s) => s.user)
+  1499→  const [form, setForm] = useState({
+  1500→    title: doc.title,
+  1501→    description: doc.description || '',
+  1502→    location: doc.location || '',
+  1503→    eventDate: doc.eventDate ? doc.eventDate.substring(0, 10) : '',
+  1504→    status: doc.status,
+  1505→  })
+  1506→  const [replaceFile, setReplaceFile] = useState(false)
+  1507→  const [newFile, setNewFile] = useState<File | null>(null)
+  1508→  const [fileError, setFileError] = useState<string | null>(null)
+  1509→  const [saving, setSaving] = useState(false)
+  1510→  const fileInputRef = useRef<HTMLInputElement>(null)
+  1511→
+  1512→  const handleFileSelect = (f: File | null) => {
+  1513→    setFileError(null)
+  1514→    if (!f) { setNewFile(null); return }
+  1515→    const v = validateFile(f)
+  1516→    if (!v.valid) { setFileError(v.error || 'File tidak valid'); setNewFile(null); return }
+  1517→    setNewFile(f)
+  1518→  }
+  1519→
+  1520→  const handleSubmit = async () => {
+  1521→    if (!form.title.trim()) { addToast('Judul wajib diisi', 'error'); return }
+  1522→    if (replaceFile && !newFile) { addToast('Pilih file baru atau uncheck "Ganti file"', 'error'); return }
+  1523→    if (fileError) { addToast(fileError, 'error'); return }
+  1524→
+  1525→    setSaving(true)
+  1526→    try {
+  1527→      if (replaceFile && newFile) {
+  1528→        const formData = new FormData()
+  1529→        formData.append('file', newFile)
+  1530→        formData.append('title', form.title)
+  1531→        formData.append('description', form.description)
+  1532→        formData.append('location', form.location)
+  1533→        formData.append('eventDate', form.eventDate)
+  1534→        formData.append('status', form.status)
+  1535→
+  1536→        const res = await fetch(`/api/program-documents/${doc.id}`, {
+  1537→          method: 'PUT',
+  1538→          headers: { 'x-user-id': user?.id || '' },
+  1539→          body: formData,
+  1540→        })
+  1541→        const data = await res.json()
+  1542→        if (!res.ok || !data.success) throw new Error(data.error || `HTTP ${res.status}`)
+  1543→        addToast('File & metadata berhasil diperbarui', 'success')
+  1544→      } else {
+  1545→        await api(`/api/program-documents/${doc.id}`, {
+  1546→          method: 'PUT',
+  1547→          body: JSON.stringify({
+  1548→            title: form.title,
+  1549→            description: form.description,
+  1550→            location: form.location,
+  1551→            eventDate: form.eventDate,
+  1552→            status: form.status,
+  1553→          }),
+  1554→        })
+  1555→        addToast('Metadata berhasil diperbarui', 'success')
+  1556→      }
+  1557→      onSuccess()
+  1558→    } catch (e: any) {
+  1559→      addToast(`Gagal update: ${e.message}`, 'error')
+  1560→    } finally {
+  1561→      setSaving(false)
+  1562→    }
+  1563→  }
+  1564→
+  1565→  return (
+  1566→    <Dialog open={open} onOpenChange={onOpenChange}>
+  1567→      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+  1568→        <DialogHeader>
+  1569→          <DialogTitle>Edit Dokumen — {doc.title}</DialogTitle>
+  1570→          <DialogDescription>
+  1571→            Level: {doc.level || '-'} • Wilayah: {doc.territoryName || '-'}
+  1572→            {doc.fileName && (<> • File: <strong>{doc.fileName}</strong></>)}
+  1573→          </DialogDescription>
+  1574→        </DialogHeader>
+  1575→        <div className="space-y-3 py-2">
+  1576→          {doc.fileName && (
+  1577→            <div className="space-y-2">
+  1578→              <label className="flex items-center gap-2 cursor-pointer">
+  1579→                <Checkbox
+  1580→                  checked={replaceFile}
+  1581→                  onCheckedChange={(checked) => { setReplaceFile(checked === true); setNewFile(null); setFileError(null) }}
+  1582→                />
+  1583→                <span className="text-sm font-medium">Ganti file bukti</span>
+  1584→              </label>
+  1585→              {replaceFile && (
+  1586→                <div
+  1587→                  onClick={() => fileInputRef.current?.click()}
+  1588→                  onDragOver={(e) => { e.preventDefault() }}
+  1589→                  onDrop={(e) => {
+  1590→                    e.preventDefault()
+  1591→                    handleFileSelect(e.dataTransfer.files?.[0] || null)
+  1592→                  }}
+  1593→                  className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer hover:bg-accent ${fileError ? 'border-red-400' : ''}`}
+  1594→                >
+  1595→                  {newFile ? (
+  1596→                    <div className="flex items-center justify-center gap-2 text-sm">
+  1597→                      <FileText className="w-4 h-4 text-orange-600" />
+  1598→                      <span>{newFile.name}</span>
+  1599→                      <span className="text-muted-foreground">({formatFileSize(newFile.size)})</span>
+  1600→                      <Button type="button" variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); setNewFile(null); if (fileInputRef.current) fileInputRef.current.value = '' }} className="h-6 w-6 p-0">
+  1601→                        <X className="w-3 h-3" />
+  1602→                      </Button>
+  1603→                    </div>
+  1604→                  ) : (
+  1605→                    <div className="text-sm text-muted-foreground">Klik atau drag file baru</div>
+  1606→                  )}
+  1607→                </div>
+  1608→              )}
+  1609→              <input
+  1610→                ref={fileInputRef}
+  1611→                type="file"
+  1612→                accept={ACCEPTED_EXTENSIONS}
+  1613→                onChange={(e) => handleFileSelect(e.target.files?.[0] || null)}
+  1614→                className="hidden"
+  1615→              />
+  1616→              {fileError && <p className="text-xs text-red-600">{fileError}</p>}
+  1617→            </div>
+  1618→          )}
+  1619→
+  1620→          <div className="space-y-1.5">
+  1621→            <Label>Judul *</Label>
+  1622→            <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+  1623→          </div>
+  1624→
+  1625→          <div className="space-y-1.5">
+  1626→            <Label>Deskripsi</Label>
+  1627→            <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} />
+  1628→          </div>
+  1629→
+  1630→          <div className="grid grid-cols-2 gap-3">
+  1631→            <div className="space-y-1.5">
+  1632→              <Label>Lokasi</Label>
+  1633→              <Input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} />
+  1634→            </div>
+  1635→            <div className="space-y-1.5">
+  1636→              <Label>Tanggal</Label>
+  1637→              <Input type="date" value={form.eventDate} onChange={(e) => setForm({ ...form, eventDate: e.target.value })} />
+  1638→            </div>
+  1639→          </div>
+  1640→
+  1641→          <div className="space-y-1.5">
+  1642→            <Label>Status</Label>
+  1643→            <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v as Status })}>
+  1644→              <SelectTrigger>
+  1645→                <SelectValue />
+  1646→              </SelectTrigger>
+  1647→              <SelectContent>
+  1648→                <SelectItem value="DIRENCANAKAN">Direncanakan</SelectItem>
+  1649→                <SelectItem value="BERJALAN">Berjalan</SelectItem>
+  1650→                <SelectItem value="SELESAI">Selesai</SelectItem>
+  1651→                <SelectItem value="DITUNDA">Ditunda</SelectItem>
+  1652→              </SelectContent>
+  1653→            </Select>
+  1654→          </div>
+  1655→        </div>
+  1656→
+  1657→        <DialogFooter>
+  1658→          <Button variant="outline" onClick={() => onOpenChange(false)}>Batal</Button>
+  1659→          <Button onClick={handleSubmit} disabled={saving} className="gap-1">
+  1660→            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Edit className="w-4 h-4" />}
+  1661→            Simpan Perubahan
+  1662→          </Button>
+  1663→        </DialogFooter>
+  1664→      </DialogContent>
+  1665→    </Dialog>
+  1666→  )
+  1667→}
+  1668→

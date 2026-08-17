@@ -1,0 +1,702 @@
+  3611→function _ProgramKegiatanMenuLegacy() {
+  3612→  const [tab, setTab] = useState('program')
+  3613→  const tabs = [
+  3614→    { key: 'program', label: 'Program Kerja', icon: Briefcase },
+  3615→    { key: 'aksi', label: 'Aksi Sosial & Sinergi', icon: HandHeart },
+  3616→    { key: 'kemitraan', label: 'Kemitraan', icon: Users },
+  3617→    { key: 'agenda', label: 'Agenda & Kegiatan', icon: CalendarClock },
+  3618→  ]
+  3619→  return (
+  3620→    <div className="space-y-6">
+  3621→      <PageHeader title="Program & Kegiatan" description="Program kerja, aksi sosial, kemitraan, dan agenda kegiatan" icon={CalendarDays} />
+  3622→      <div className="flex flex-wrap gap-2">
+  3623→        {tabs.map((t) => (
+  3624→          <button key={t.key} onClick={() => setTab(t.key)}
+  3625→            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${tab === t.key ? 'bg-gradient-to-r from-orange-600 to-red-600 text-white shadow-sm' : 'border hover:bg-accent'}`}>
+  3626→            <t.icon className="w-4 h-4" /> {t.label}
+  3627→          </button>
+  3628→        ))}
+  3629→      </div>
+  3630→      {tab === 'agenda' ? (
+  3631→        <EventsMenu />
+  3632→      ) : tab === 'program' ? (
+  3633→        <ProgramKerjaManager />
+  3634→      ) : tab === 'aksi' ? (
+  3635→        <AksiSosialManager />
+  3636→      ) : (
+  3637→        <KemitraanManager />
+  3638→      )}
+  3639→    </div>
+  3640→  )
+  3641→}
+  3642→
+  3643→// ============================================================
+  3644→// PROGRAM KERJA MANAGER — CRUD + auto-sync dari berita
+  3645→// ============================================================
+  3646→function ProgramKerjaManager() {
+  3647→  return (
+  3648→    <ProgramContentManager
+  3649→      title="Program Kerja Nasional & Daerah"
+  3650→      description="Program kerja strategis DPN, DPD, dan DPC"
+  3651→      icon={Briefcase}
+  3652→      category="PROGRAM_KERJA"
+  3653→      accentColor="from-blue-500 to-indigo-600"
+  3654→    />
+  3655→  )
+  3656→}
+  3657→
+  3658→// ============================================================
+  3659→// AKSI SOSIAL MANAGER — CRUD + auto-sync dari berita
+  3660→// ============================================================
+  3661→function AksiSosialManager() {
+  3662→  return (
+  3663→    <ProgramContentManager
+  3664→      title="Aksi Sosialisasi & Sinergi"
+  3665→      description="Dokumentasi aksi sosial dan kegiatan kemasyarakatan"
+  3666→      icon={HandHeart}
+  3667→      category="AKSI_SOSIAL"
+  3668→      accentColor="from-emerald-500 to-teal-600"
+  3669→    />
+  3670→  )
+  3671→}
+  3672→
+  3673→// ============================================================
+  3674→// KEMITRAAN MANAGER — CRUD + auto-sync dari berita
+  3675→// ============================================================
+  3676→function KemitraanManager() {
+  3677→  return (
+  3678→    <ProgramContentManager
+  3679→      title="Kemitraan & Kolaborasi Strategis"
+  3680→      description="Kemitraan dengan ummat, organisasi, dan institusi"
+  3681→      icon={Users}
+  3682→      category="KEMITRAAN"
+  3683→      accentColor="from-purple-500 to-pink-600"
+  3684→    />
+  3685→  )
+  3686→}
+  3687→
+  3688→// ============================================================
+  3689→// PROGRAM CONTENT MANAGER — Reusable CRUD untuk semua tab
+  3690→// Store di SystemSetting dengan category = PROGRAM_*
+  3691→// ============================================================
+  3692→function ProgramContentManager({ title, description, icon: Icon, category, accentColor }: {
+  3693→  title: string; description: string; icon: any; category: string; accentColor: string
+  3694→}) {
+  3695→  const addToast = useToastStore((s) => s.addToast)
+  3696→  const [items, setItems] = useState<any[]>([])
+  3697→  const [loading, setLoading] = useState(true)
+  3698→  const [search, setSearch] = useState('')
+  3699→  const [addOpen, setAddOpen] = useState(false)
+  3700→  const [editItem, setEditItem] = useState<any>(null)
+  3701→  const [deleteItem, setDeleteItem] = useState<any>(null)
+  3702→  const [form, setForm] = useState({ title: '', description: '', location: '', date: '', status: 'DIRENCANAKAN' })
+  3703→  const [saving, setSaving] = useState(false)
+  3704→  // === State untuk PDF Upload + OCR ===
+  3705→  const [pdfUploadOpen, setPdfUploadOpen] = useState(false)
+  3706→  const [pdfFile, setPdfFile] = useState<File | null>(null)
+  3707→  const [ocrLoading, setOcrLoading] = useState(false)
+  3708→  const [ocrResult, setOcrResult] = useState<any>(null)
+  3709→  const [pdfLevel, setPdfLevel] = useState('DPN')
+  3710→  // === State untuk dynamic territory selection (dari DB Struktur Organisasi) ===
+  3711→  const [territories, setTerritories] = useState<any[]>([])
+  3712→  const [selectedProvCode, setSelectedProvCode] = useState('')
+  3713→  const [selectedRegencyCode, setSelectedRegencyCode] = useState('')
+  3714→  const [regencies, setRegencies] = useState<any[]>([])
+  3715→
+  3716→  const loadData = () => {
+  3717→    setLoading(true)
+  3718→    api('/api/gallery').then((all: any[]) => {
+  3719→      const filtered = all.filter((a: any) => a.category === category)
+  3720→      setItems(filtered)
+  3721→    }).catch(() => {}).finally(() => setLoading(false))
+  3722→  }
+  3723→  useEffect(() => { loadData() }, [])
+  3724→
+  3725→  // === Load territories dari DB saat dialog PDF dibuka ===
+  3726→  useEffect(() => {
+  3727→    if (pdfUploadOpen && territories.length === 0) {
+  3728→      api('/api/territory').then((all: any[]) => {
+  3729→        const provs = all.filter(t => t.level === 'PROVINCE')
+  3730→        const regs = all.filter(t => t.level === 'REGENCY')
+  3731→        setTerritories(provs)
+  3732→        setRegencies(regs)
+  3733→      }).catch(() => {})
+  3734→    }
+  3735→  }, [pdfUploadOpen, territories.length])
+  3736→
+  3737→  // === Update regencies saat provinsi dipilih ===
+  3738→  const filteredRegencies = selectedProvCode
+  3739→    ? regencies.filter(r => {
+  3740→        // Find province territory by code to get its ID
+  3741→        const prov = territories.find(p => p.code === selectedProvCode)
+  3742→        return prov && r.parentId === prov.id
+  3743→      })
+  3744→    : []
+  3745→
+  3746→  // === Get territory name dari code ===
+  3747→  const getTerritoryName = () => {
+  3748→    if (pdfLevel === 'DPN') return 'Pusat Nasional (DPN)'
+  3749→    if (pdfLevel === 'DPD' && selectedProvCode) {
+  3750→      const prov = territories.find(p => p.code === selectedProvCode)
+  3751→      return prov?.name || selectedProvCode
+  3752→    }
+  3753→    if (pdfLevel === 'DPC' && selectedRegencyCode) {
+  3754→      const reg = regencies.find(r => r.code === selectedRegencyCode)
+  3755→      return reg?.name || selectedRegencyCode
+  3756→    }
+  3757→    return ''
+  3758→  }
+  3759→
+  3760→  // === Get territory code untuk kirim ke API ===
+  3761→  const getTerritoryCode = () => {
+  3762→    if (pdfLevel === 'DPN') return 'ID'
+  3763→    if (pdfLevel === 'DPD') return selectedProvCode
+  3764→    if (pdfLevel === 'DPC') return selectedRegencyCode
+  3765→    return ''
+  3766→  }
+  3767→
+  3768→  // === Handle PDF Upload + OCR ===
+  3769→  const handlePdfUpload = async (e: React.FormEvent) => {
+  3770→    e.preventDefault()
+  3771→    if (!pdfFile) { addToast('Pilih file PDF dulu', 'error'); return }
+  3772→    
+  3773→    // Validate territory selection
+  3774→    if (pdfLevel === 'DPD' && !selectedProvCode) { addToast('Pilih provinsi (DPD) dulu', 'error'); return }
+  3775→    if (pdfLevel === 'DPC' && !selectedRegencyCode) { addToast('Pilih kabupaten/kota (DPC) dulu', 'error'); return }
+  3776→    
+  3777→    setOcrLoading(true)
+  3778→    setOcrResult(null)
+  3779→    try {
+  3780→      const formData = new FormData()
+  3781→      formData.append('file', pdfFile)
+  3782→      formData.append('level', pdfLevel)
+  3783→      formData.append('territoryCode', getTerritoryCode())
+  3784→      formData.append('territoryName', getTerritoryName())
+  3785→      const res = await fetch('/api/program-kerja/upload-pdf', {
+  3786→        method: 'POST',
+  3787→        headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+  3788→        body: formData,
+  3789→      })
+  3790→      const data = await res.json()
+  3791→      if (!res.ok || !data.success) throw new Error(data.error)
+  3792→      setOcrResult(data.data)
+  3793→      addToast(data.message, 'success')
+  3794→    } catch (e: any) { addToast(e.message, 'error') }
+  3795→    finally { setOcrLoading(false) }
+  3796→  }
+  3797→
+  3798→  // === Save OCR result as program items ===
+  3799→  const handleSaveOcrResult = async () => {
+  3800→    if (!ocrResult) return
+  3801→    setSaving(true)
+  3802→    const territoryName = getTerritoryName() || ocrResult.territoryName || pdfLevel
+  3803→    const territoryCode = getTerritoryCode()
+  3804→    try {
+  3805→      // Save each program as separate item
+  3806→      const programs = ocrResult.programs || []
+  3807→      if (programs.length === 0) {
+  3808→        // Save as single item with summary
+  3809→        const itemData = {
+  3810→          id: `prog_${Date.now()}`,
+  3811→          title: ocrResult.title || 'Program Kerja',
+  3812→          description: ocrResult.aiSummary || ocrResult.rawOcrText || '',
+  3813→          location: territoryName,
+  3814→          date: ocrResult.period || '',
+  3815→          status: 'DIRENCANAKAN',
+  3816→          category,
+  3817→          uploadedBy: useAuthStore.getState().user?.fullName || 'Admin',
+  3818→          uploadedAt: new Date().toISOString(),
+  3819→          pdfUrl: ocrResult.fileUrl,
+  3820→          ocrResult: true,
+  3821→          level: pdfLevel,
+  3822→          territoryCode,
+  3823→        }
+  3824→        await fetch('/api/gallery', {
+  3825→          method: 'POST',
+  3826→          headers: { 'x-user-id': useAuthStore.getState().user?.id || '', 'Content-Type': 'application/json' },
+  3827→          body: JSON.stringify(itemData),
+  3828→        })
+  3829→      } else {
+  3830→        // Save each program as separate item
+  3831→        for (const prog of programs) {
+  3832→          const itemData = {
+  3833→            id: `prog_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+  3834→            title: prog.name || 'Program',
+  3835→            description: prog.description || '',
+  3836→            location: `${territoryName} | Timeline: ${prog.timeline || '-'} | Target: ${prog.target || '-'} | Anggaran: ${prog.budget || '-'}`,
+  3837→            date: ocrResult.period || '',
+  3838→            status: 'DIRENCANAKAN',
+  3839→            category,
+  3840→            uploadedBy: useAuthStore.getState().user?.fullName || 'Admin',
+  3841→            uploadedAt: new Date().toISOString(),
+  3842→            pdfUrl: ocrResult.fileUrl,
+  3843→            ocrResult: true,
+  3844→            level: pdfLevel,
+  3845→            territoryCode,
+  3846→            priority: prog.priority || 99,
+  3847→          }
+  3848→          await fetch('/api/gallery', {
+  3849→            method: 'POST',
+  3850→            headers: { 'x-user-id': useAuthStore.getState().user?.id || '', 'Content-Type': 'application/json' },
+  3851→            body: JSON.stringify(itemData),
+  3852→          })
+  3853→        }
+  3854→      }
+  3855→      addToast(`${programs.length || 1} program kerja berhasil disimpan dari PDF (${territoryName})`, 'success')
+  3856→      setPdfUploadOpen(false); setPdfFile(null); setOcrResult(null)
+  3857→      setSelectedProvCode(''); setSelectedRegencyCode('')
+  3858→      loadData()
+  3859→    } catch (e: any) { addToast(e.message, 'error') }
+  3860→    finally { setSaving(false) }
+  3861→  }
+  3862→
+  3863→  const handleSave = async (e: React.FormEvent) => {
+  3864→    e.preventDefault()
+  3865→    setSaving(true)
+  3866→    try {
+  3867→      const itemData = {
+  3868→        id: editItem?.id || `prog_${Date.now()}`,
+  3869→        title: form.title,
+  3870→        description: form.description,
+  3871→        location: form.location,
+  3872→        date: form.date,
+  3873→        status: form.status,
+  3874→        category,
+  3875→        uploadedBy: useAuthStore.getState().user?.fullName || 'Admin',
+  3876→        uploadedAt: new Date().toISOString(),
+  3877→      }
+  3878→
+  3879→      // Save via gallery API (JSON mode) — handles both create and update
+  3880→      const res = await fetch('/api/gallery', {
+  3881→        method: 'POST',
+  3882→        headers: { 'x-user-id': useAuthStore.getState().user?.id || '', 'Content-Type': 'application/json' },
+  3883→        body: JSON.stringify(itemData),
+  3884→      })
+  3885→      const data = await res.json()
+  3886→      if (!res.ok || !data.success) throw new Error(data.error || 'Gagal menyimpan')
+  3887→
+  3888→      addToast(editItem ? 'Program diperbarui' : 'Program baru ditambahkan', 'success')
+  3889→      setForm({ title: '', description: '', location: '', date: '', status: 'DIRENCANAKAN' })
+  3890→      setAddOpen(false); setEditItem(null)
+  3891→      loadData()
+  3892→    } catch (e: any) { addToast(e.message, 'error') }
+  3893→    finally { setSaving(false) }
+  3894→  }
+  3895→
+  3896→  const handleDelete = async () => {
+  3897→    if (!deleteItem) return
+  3898→    try {
+  3899→      await fetch(`/api/gallery/${deleteItem.id}?id=${deleteItem.id}`, {
+  3900→        method: 'DELETE',
+  3901→        headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+  3902→      })
+  3903→      addToast('Program dihapus', 'success')
+  3904→      setDeleteItem(null); loadData()
+  3905→    } catch (e: any) { addToast(e.message, 'error') }
+  3906→  }
+  3907→
+  3908→  const openEditor = (item?: any) => {
+  3909→    if (item) {
+  3910→      setEditItem(item)
+  3911→      setForm({ title: item.title || '', description: item.description || '', location: item.location || '', date: item.date || '', status: item.status || 'DIRENCANAKAN' })
+  3912→    } else {
+  3913→      setEditItem(null)
+  3914→      setForm({ title: '', description: '', location: '', date: '', status: 'DIRENCANAKAN' })
+  3915→    }
+  3916→    setAddOpen(true)
+  3917→  }
+  3918→
+  3919→  if (loading) return <LoadingState />
+  3920→
+  3921→  const filtered = items.filter((a) => !search || a.title?.toLowerCase().includes(search.toLowerCase()) || a.description?.toLowerCase().includes(search.toLowerCase()))
+  3922→
+  3923→  const statusConfig: Record<string, { label: string; color: string }> = {
+  3924→    DIRENCANAKAN: { label: 'Direncanakan', color: 'bg-amber-50 text-amber-700 border-amber-200' },
+  3925→    BERJALAN: { label: 'Berjalan', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+  3926→    SELESAI: { label: 'Selesai', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  3927→    DITUNDA: { label: 'Ditunda', color: 'bg-red-50 text-red-700 border-red-200' },
+  3928→  }
+  3929→
+  3930→  // Check if this is PROGRAM_KERJA category (supports PDF upload)
+  3931→  const supportsPdfUpload = category === 'PROGRAM_KERJA'
+  3932→
+  3933→  return (
+  3934→    <Card>
+  3935→      <CardHeader>
+  3936→        <div className="flex items-center justify-between flex-wrap gap-2">
+  3937→          <CardTitle className="flex items-center gap-2 text-base">
+  3938→            <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${accentColor} flex items-center justify-center`}>
+  3939→              <Icon className="w-4 h-4 text-white" />
+  3940→            </div>
+  3941→            {title} ({items.length})
+  3942→          </CardTitle>
+  3943→          <div className="flex gap-2">
+  3944→            {supportsPdfUpload && (
+  3945→              <Button onClick={() => { setPdfUploadOpen(true); setOcrResult(null); setPdfFile(null) }} size="sm" variant="outline" className="bg-blue-50 border-blue-300 text-blue-700 hover:bg-blue-100">
+  3946→                <Upload className="w-4 h-4 mr-1" /> Upload PDF + OCR
+  3947→              </Button>
+  3948→            )}
+  3949→            <Button onClick={() => openEditor()} size="sm" className="bg-gradient-to-r from-orange-600 to-red-600 text-white">
+  3950→              <Plus className="w-4 h-4 mr-1" /> Tambah
+  3951→            </Button>
+  3952→          </div>
+  3953→        </div>
+  3954→        <CardDescription className="text-sm">{description}</CardDescription>
+  3955→        {supportsPdfUpload && (
+  3956→          <div className="rounded-lg bg-blue-50 border border-blue-200 p-2 text-xs text-blue-800 mt-2">
+  3957→            <strong>📋 Upload PDF Program Kerja:</strong> DPN/DPD/DPC dapat upload dokumen Program Kerja format PDF.
+  3958→            Sistem akan <strong>OCR otomatis</strong> + <strong>AI analisis</strong> untuk extract: program utama, timeline, target, anggaran, prioritas.
+  3959→          </div>
+  3960→        )}
+  3961→      </CardHeader>
+  3962→      <CardContent className="space-y-3">
+  3963→        <div className="relative max-w-md">
+  3964→          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+  3965→          <Input placeholder={`Cari ${title.toLowerCase()}...`} value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />
+  3966→        </div>
+  3967→        {filtered.length === 0 ? (
+  3968→          <EmptyState icon={Icon} title={`Belum ada ${title.toLowerCase()}`} description={supportsPdfUpload ? `Klik 'Upload PDF + OCR' untuk upload dokumen Program Kerja, atau 'Tambah' untuk input manual.` : `Klik 'Tambah' untuk mempublikasikan ${title.toLowerCase()}.`} />
+  3969→        ) : (
+  3970→          <div className="space-y-2">
+  3971→            {filtered.map((item) => {
+  3972→              const sc = statusConfig[item.status] || statusConfig.DIRENCANAKAN
+  3973→              return (
+  3974→                <div key={item.id} className="group relative rounded-xl border p-4 hover:shadow-md transition-all bg-white">
+  3975→                  <div className="flex items-start gap-3">
+  3976→                    <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${accentColor} flex items-center justify-center shrink-0`}>
+  3977→                      <Icon className="w-5 h-5 text-white" />
+  3978→                    </div>
+  3979→                    <div className="flex-1 min-w-0">
+  3980→                      <div className="font-bold text-sm">{item.title}</div>
+  3981→                      {item.description && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{item.description}</p>}
+  3982→                      <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+  3983→                        <Badge variant="outline" className={`text-[13px] ${sc.color}`}>{sc.label}</Badge>
+  3984→                        {item.ocrResult && <Badge variant="outline" className="text-[13px] bg-purple-50 text-purple-700">🤖 OCR</Badge>}
+  3985→                        {item.level && <Badge variant="outline" className="text-[13px] bg-blue-50 text-blue-700">{item.level}</Badge>}
+  3986→                        {item.location && <span className="text-[13px] text-muted-foreground">📍 {item.location}</span>}
+  3987→                        {item.date && <span className="text-[13px] text-muted-foreground">📅 {formatDateID(item.date)}</span>}
+  3988→                        {item.priority && <Badge variant="outline" className="text-[13px]">Prioritas #{item.priority}</Badge>}
+  3989→                      </div>
+  3990→                      {item.pdfUrl && (
+  3991→                        <a href={item.pdfUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline mt-1">
+  3992→                          <FileText className="w-3 h-3" /> Lihat PDF asli
+  3993→                        </a>
+  3994→                      )}
+  3995→                    </div>
+  3996→                    <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+  3997→                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-blue-600 hover:bg-blue-50" onClick={() => openEditor(item)}>
+  3998→                        <Edit className="w-3.5 h-3.5" />
+  3999→                      </Button>
+  4000→                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-600 hover:bg-red-50" onClick={() => setDeleteItem(item)}>
+  4001→                        <Trash2 className="w-3.5 h-3.5" />
+  4002→                      </Button>
+  4003→                    </div>
+  4004→                  </div>
+  4005→                </div>
+  4006→              )
+  4007→            })}
+  4008→          </div>
+  4009→        )}
+  4010→      </CardContent>
+  4011→
+  4012→      {/* Dialog Tambah/Edit */}
+  4013→      <Dialog open={addOpen} onOpenChange={(o) => { setAddOpen(o); if (!o) setEditItem(null) }}>
+  4014→        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+  4015→          <DialogHeader>
+  4016→            <DialogTitle className="flex items-center gap-2">
+  4017→              <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${accentColor} flex items-center justify-center`}>
+  4018→                <Icon className="w-4 h-4 text-white" />
+  4019→              </div>
+  4020→              {editItem ? 'Edit' : 'Tambah'} {title}
+  4021→            </DialogTitle>
+  4022→            <DialogDescription>{description}</DialogDescription>
+  4023→          </DialogHeader>
+  4024→          <form onSubmit={handleSave} className="space-y-4">
+  4025→            <div className="space-y-2">
+  4026→              <Label>Judul *</Label>
+  4027→              <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })}
+  4028→                placeholder="cth: Program Sosialisasi MBG ke DPC" required />
+  4029→            </div>
+  4030→            <div className="space-y-2">
+  4031→              <Label>Deskripsi</Label>
+  4032→              <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
+  4033→                rows={4} placeholder="Jelaskan program/kegiatan secara detail..." />
+  4034→            </div>
+  4035→            <div className="grid grid-cols-2 gap-3">
+  4036→              <div className="space-y-2">
+  4037→                <Label>Lokasi</Label>
+  4038→                <Input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })}
+  4039→                  placeholder="cth: Jakarta, Pontianak, dll" />
+  4040→              </div>
+  4041→              <div className="space-y-2">
+  4042→                <Label>Tanggal</Label>
+  4043→                <Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
+  4044→              </div>
+  4045→            </div>
+  4046→            <div className="space-y-2">
+  4047→              <Label>Status</Label>
+  4048→              <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
+  4049→                <SelectTrigger><SelectValue /></SelectTrigger>
+  4050→                <SelectContent>
+  4051→                  <SelectItem value="DIRENCANAKAN">Direncanakan</SelectItem>
+  4052→                  <SelectItem value="BERJALAN">Berjalan</SelectItem>
+  4053→                  <SelectItem value="SELESAI">Selesai</SelectItem>
+  4054→                  <SelectItem value="DITUNDA">Ditunda</SelectItem>
+  4055→                </SelectContent>
+  4056→              </Select>
+  4057→            </div>
+  4058→            <DialogFooter>
+  4059→              <Button type="button" variant="outline" onClick={() => setAddOpen(false)}>Batal</Button>
+  4060→              <Button type="submit" disabled={saving}>
+  4061→                {saving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : null}
+  4062→                {editItem ? 'Simpan Perubahan' : 'Publikasikan'}
+  4063→              </Button>
+  4064→            </DialogFooter>
+  4065→          </form>
+  4066→        </DialogContent>
+  4067→      </Dialog>
+  4068→
+  4069→      <AlertDialog open={!!deleteItem} onOpenChange={(o) => !o && setDeleteItem(null)}>
+  4070→        <AlertDialogContent>
+  4071→          <AlertDialogHeader>
+  4072→            <AlertDialogTitle>Hapus?</AlertDialogTitle>
+  4073→            <AlertDialogDescription>Yakin hapus <strong>{deleteItem?.title}</strong>?</AlertDialogDescription>
+  4074→          </AlertDialogHeader>
+  4075→          <AlertDialogFooter>
+  4076→            <AlertDialogCancel>Batal</AlertDialogCancel>
+  4077→            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">Hapus</AlertDialogAction>
+  4078→          </AlertDialogFooter>
+  4079→        </AlertDialogContent>
+  4080→      </AlertDialog>
+  4081→
+  4082→      {/* === Dialog Upload PDF + OCR + AI Analisis === */}
+  4083→      {supportsPdfUpload && (
+  4084→        <Dialog open={pdfUploadOpen} onOpenChange={(o) => { setPdfUploadOpen(o); if (!o) { setOcrResult(null); setPdfFile(null) } }}>
+  4085→          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+  4086→            <DialogHeader>
+  4087→              <DialogTitle className="flex items-center gap-2">
+  4088→                <Upload className="w-5 h-5 text-blue-600" /> Upload PDF Program Kerja + OCR + AI Analisis
+  4089→              </DialogTitle>
+  4090→              <DialogDescription>
+  4091→                Upload dokumen Program Kerja format PDF. Sistem akan OCR otomatis + AI analisis untuk extract program, timeline, target, anggaran, prioritas.
+  4092→              </DialogDescription>
+  4093→            </DialogHeader>
+  4094→
+  4095→            {!ocrResult && (
+  4096→              <form onSubmit={handlePdfUpload} className="space-y-3">
+  4097→                {/* Pilih Tingkat Kepengurusan (dari Struktur Organisasi) */}
+  4098→                <div className="space-y-2">
+  4099→                  <Label>Tingkat Kepengurusan *</Label>
+  4100→                  <div className="flex gap-2">
+  4101→                    {[
+  4102→                      { lvl: 'DPN', label: '🏛️ DPN', desc: 'Pusat Nasional' },
+  4103→                      { lvl: 'DPD', label: '🗺️ DPD', desc: 'Provinsi' },
+  4104→                      { lvl: 'DPC', label: '🏙️ DPC', desc: 'Kabupaten/Kota' },
+  4105→                    ].map(opt => (
+  4106→                      <button key={opt.lvl} type="button"
+  4107→                        onClick={() => { setPdfLevel(opt.lvl); setSelectedProvCode(''); setSelectedRegencyCode('') }}
+  4108→                        className={`flex-1 px-3 py-2.5 rounded-lg text-sm font-medium border transition-all ${pdfLevel === opt.lvl ? 'bg-blue-600 text-white border-blue-600' : 'border hover:bg-accent'}`}>
+  4109→                        <div className="font-semibold">{opt.label}</div>
+  4110→                        <div className={`text-[13px] ${pdfLevel === opt.lvl ? 'text-blue-100' : 'text-muted-foreground'}`}>{opt.desc}</div>
+  4111→                      </button>
+  4112→                    ))}
+  4113→                  </div>
+  4114→                </div>
+  4115→
+  4116→                {/* DPN: show static info */}
+  4117→                {pdfLevel === 'DPN' && (
+  4118→                  <div className="rounded-lg bg-blue-50 border border-blue-200 p-2 text-sm text-blue-800">
+  4119→                    🏛️ <strong>Pusat Nasional (DPN)</strong> — Program Kerja Nasional LAPRA 08
+  4120→                  </div>
+  4121→                )}
+  4122→
+  4123→                {/* DPD: dropdown provinsi dari DB Struktur Organisasi */}
+  4124→                {pdfLevel === 'DPD' && (
+  4125→                  <div className="space-y-2">
+  4126→                    <Label>Pilih DPD (Provinsi) *</Label>
+  4127→                    <Select value={selectedProvCode} onValueChange={(v) => { setSelectedProvCode(v); setSelectedRegencyCode('') }}>
+  4128→                      <SelectTrigger><SelectValue placeholder="Pilih provinsi..." /></SelectTrigger>
+  4129→                      <SelectContent>
+  4130→                        {territories.map(t => (
+  4131→                          <SelectItem key={t.code} value={t.code}>{t.name}</SelectItem>
+  4132→                        ))}
+  4133→                      </SelectContent>
+  4134→                    </Select>
+  4135→                    <div className="text-[13px] text-muted-foreground">
+  4136→                      {territories.length} DPD tersedia dari database Struktur Organisasi
+  4137→                    </div>
+  4138→                  </div>
+  4139→                )}
+  4140→
+  4141→                {/* DPC: dropdown provinsi → lalu dropdown kab/kota */}
+  4142→                {pdfLevel === 'DPC' && (
+  4143→                  <div className="space-y-2">
+  4144→                    <div className="space-y-1">
+  4145→                      <Label>Pilih DPD (Provinsi) *</Label>
+  4146→                      <Select value={selectedProvCode} onValueChange={(v) => { setSelectedProvCode(v); setSelectedRegencyCode('') }}>
+  4147→                        <SelectTrigger><SelectValue placeholder="Pilih provinsi dulu..." /></SelectTrigger>
+  4148→                        <SelectContent>
+  4149→                          {territories.map(t => (
+  4150→                            <SelectItem key={t.code} value={t.code}>{t.name}</SelectItem>
+  4151→                          ))}
+  4152→                        </SelectContent>
+  4153→                      </Select>
+  4154→                    </div>
+  4155→                    {selectedProvCode && (
+  4156→                      <div className="space-y-1">
+  4157→                        <Label>Pilih DPC (Kabupaten/Kota) *</Label>
+  4158→                        <Select value={selectedRegencyCode} onValueChange={setSelectedRegencyCode}>
+  4159→                          <SelectTrigger><SelectValue placeholder="Pilih kabupaten/kota..." /></SelectTrigger>
+  4160→                          <SelectContent>
+  4161→                            {filteredRegencies.map(r => (
+  4162→                              <SelectItem key={r.code} value={r.code}>{r.name}</SelectItem>
+  4163→                            ))}
+  4164→                          </SelectContent>
+  4165→                        </Select>
+  4166→                        <div className="text-[13px] text-muted-foreground">
+  4167→                          {filteredRegencies.length} DPC tersedia di provinsi ini
+  4168→                        </div>
+  4169→                      </div>
+  4170→                    )}
+  4171→                  </div>
+  4172→                )}
+  4173→
+  4174→                {/* Upload file PDF */}
+  4175→                <div className="space-y-2">
+  4176→                  <Label>File PDF Program Kerja *</Label>
+  4177→                  {pdfFile ? (
+  4178→                    <div className="flex items-center gap-2 p-3 rounded-lg border bg-blue-50">
+  4179→                      <FileText className="w-5 h-5 text-blue-600" />
+  4180→                      <span className="text-sm font-medium flex-1">{pdfFile.name}</span>
+  4181→                      <span className="text-xs text-muted-foreground">{(pdfFile.size / 1024 / 1024).toFixed(1)} MB</span>
+  4182→                      <Button type="button" variant="ghost" size="sm" className="h-7 text-red-600" onClick={() => setPdfFile(null)}>
+  4183→                        <Trash2 className="w-3.5 h-3.5" />
+  4184→                      </Button>
+  4185→                    </div>
+  4186→                  ) : (
+  4187→                    <div className="border-2 border-dashed rounded-xl p-8 text-center hover:border-blue-400 transition-colors cursor-pointer"
+  4188→                      onClick={() => document.getElementById('pdf-upload-input')?.click()}>
+  4189→                      <input type="file" id="pdf-upload-input" className="hidden" accept="application/pdf"
+  4190→                        onChange={(e) => setPdfFile(e.target.files?.[0] || null)} />
+  4191→                      <Upload className="w-10 h-10 text-blue-400 mx-auto mb-2" />
+  4192→                      <div className="text-sm font-medium">Klik untuk pilih file PDF</div>
+  4193→                      <div className="text-xs text-muted-foreground mt-1">Maksimal 20MB • Format PDF</div>
+  4194→                    </div>
+  4195→                  )}
+  4196→                </div>
+  4197→
+  4198→                {/* Info cara kerja */}
+  4199→                <div className="rounded-lg bg-blue-50 border border-blue-200 p-2 text-xs text-blue-800">
+  4200→                  <strong>📋 Cara kerja:</strong>
+  4201→                  <ol className="list-decimal ml-4 mt-1 space-y-0.5">
+  4202→                    <li>Pilih tingkat: DPN / DPD / DPC (terhubung ke database Struktur Organisasi)</li>
+  4203→                    <li>Pilih wilayah spesifik (provinsi/kab-kota dari DB)</li>
+  4204→                    <li>Upload PDF Program Kerja</li>
+  4205→                    <li>Sistem OCR otomatis baca isi PDF via VLM (Vision Language Model)</li>
+  4206→                    <li>AI analisis: extract program, timeline, target, anggaran, prioritas</li>
+  4207→                    <li>Preview hasil → konfirmasi → simpan</li>
+  4208→                  </ol>
+  4209→                </div>
+  4210→
+  4211→                <DialogFooter>
+  4212→                  <Button type="button" variant="outline" onClick={() => setPdfUploadOpen(false)}>Batal</Button>
+  4213→                  <Button type="submit" disabled={!pdfFile || ocrLoading || (pdfLevel === 'DPD' && !selectedProvCode) || (pdfLevel === 'DPC' && !selectedRegencyCode)} className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
+  4214→                    {ocrLoading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Sparkles className="w-4 h-4 mr-1" />}
+  4215→                    {ocrLoading ? 'OCR + AI menganalisis...' : 'Upload & OCR'}
+  4216→                  </Button>
+  4217→                </DialogFooter>
+  4218→              </form>
+  4219→            )}
+  4220→
+  4221→            {/* OCR Result Preview */}
+  4222→            {ocrResult && (
+  4223→              <div className="space-y-3">
+  4224→                <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-sm text-emerald-800">
+  4225→                  <CheckCircle2 className="w-4 h-4 inline mr-1" />
+  4226→                  <strong>OCR + AI Analisis berhasil!</strong> Berikut hasil extract dari PDF:
+  4227→                </div>
+  4228→
+  4229→                {/* Document info */}
+  4230→                <div className="rounded-lg border p-3 space-y-2">
+  4231→                  <div className="font-bold text-sm">{ocrResult.title || '(No title extracted)'}</div>
+  4232→                  <div className="flex items-center gap-2 flex-wrap text-xs">
+  4233→                    <Badge variant="outline" className="bg-blue-50 text-blue-700">{ocrResult.level || pdfLevel}</Badge>
+  4234→                    {ocrResult.territoryName && <Badge variant="outline">{ocrResult.territoryName}</Badge>}
+  4235→                    {ocrResult.period && <Badge variant="outline">{ocrResult.period}</Badge>}
+  4236→                  </div>
+  4237→                  {ocrResult.aiSummary && (
+  4238→                    <p className="text-sm text-muted-foreground italic mt-2">{ocrResult.aiSummary}</p>
+  4239→                  )}
+  4240→                </div>
+  4241→
+  4242→                {/* Extracted programs */}
+  4243→                {ocrResult.programs && ocrResult.programs.length > 0 ? (
+  4244→                  <div>
+  4245→                    <div className="text-sm font-semibold mb-2">📋 Program Terdeteksi ({ocrResult.programs.length}):</div>
+  4246→                    <div className="space-y-2 max-h-60 overflow-y-auto">
+  4247→                      {ocrResult.programs.map((prog: any, i: number) => (
+  4248→                        <div key={i} className="rounded border p-2 text-xs">
+  4249→                          <div className="flex items-center justify-between mb-1">
+  4250→                            <span className="font-semibold">{i + 1}. {prog.name}</span>
+  4251→                            {prog.priority && <Badge variant="outline" className="text-[13px]">Prioritas #{prog.priority}</Badge>}
+  4252→                          </div>
+  4253→                          {prog.description && <p className="text-muted-foreground">{prog.description}</p>}
+  4254→                          <div className="flex items-center gap-2 mt-1 text-[13px] text-muted-foreground">
+  4255→                            {prog.timeline && <span>📅 {prog.timeline}</span>}
+  4256→                            {prog.target && <span>👥 {prog.target}</span>}
+  4257→                            {prog.budget && <span>💰 {prog.budget}</span>}
+  4258→                          </div>
+  4259→                        </div>
+  4260→                      ))}
+  4261→                    </div>
+  4262→                  </div>
+  4263→                ) : (
+  4264→                  <div className="text-sm text-muted-foreground italic">Tidak ada program terdeteksi dalam struktur. AI summary akan disimpan sebagai deskripsi.</div>
+  4265→                )}
+  4266→
+  4267→                {/* Top priorities */}
+  4268→                {ocrResult.topPriorities && ocrResult.topPriorities.length > 0 && (
+  4269→                  <div>
+  4270→                    <div className="text-sm font-semibold mb-1">⚡ Prioritas Utama:</div>
+  4271→                    <div className="flex flex-wrap gap-1">
+  4272→                      {ocrResult.topPriorities.map((p: string, i: number) => (
+  4273→                        <Badge key={i} variant="outline" className="text-[13px] bg-amber-50 text-amber-700">{i + 1}. {p}</Badge>
+  4274→                      ))}
+  4275→                    </div>
+  4276→                  </div>
+  4277→                )}
+  4278→
+  4279→                <DialogFooter>
+  4280→                  <Button type="button" variant="outline" onClick={() => { setOcrResult(null); setPdfFile(null) }}>Upload Ulang</Button>
+  4281→                  <Button type="button" onClick={handleSaveOcrResult} disabled={saving} className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
+  4282→                    {saving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-1" />}
+  4283→                    {saving ? 'Menyimpan...' : `Simpan ${ocrResult.programs?.length || 1} Program`}
+  4284→                  </Button>
+  4285→                </DialogFooter>
+  4286→              </div>
+  4287→            )}
+  4288→          </DialogContent>
+  4289→        </Dialog>
+  4290→      )}
+  4291→    </Card>
+  4292→  )
+  4293→}
+  4294→
+  4295→// ============================================================
+  4296→// 5. LAYANAN & ADVOKASI — KTA, Pengaduan, Bantuan Hukum, Help
+  4297→// ============================================================
+  4298→export function LayananAdvokasiMenu() {
+  4299→  const [tab, setTab] = useState('bantuan')
+  4300→  const tabs = [
+  4301→    { key: 'kta', label: 'Layanan KTA', icon: KeyRound },
+  4302→    { key: 'pengaduan', label: 'Pengaduan & Aspirasi', icon: MessageSquare },
+  4303→    { key: 'hukum', label: 'Bantuan Hukum', icon: Scale },
+  4304→    { key: 'bantuan', label: 'Pusat Bantuan & Tiket', icon: HelpCircle },
+  4305→  ]
+  4306→  return (
+  4307→    <div className="space-y-6">
+  4308→      <PageHeader title="Layanan & Advokasi" description="Layanan KTA, pengaduan, advokasi hukum, dan pusat bantuan" icon={ShieldCheck} />
+  4309→      <div className="flex flex-wrap gap-2">
+  4310→        {tabs.map((t) => (
+
+[showing lines 3611-4310 of 6380; use offset=4311 with limit to continue reading]

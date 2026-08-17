@@ -1,0 +1,1349 @@
+     1→'use client'
+     2→
+     3→import { useState, useEffect } from 'react'
+     4→import { api } from '@/lib/api-client'
+     5→import { PageHeader, LoadingState, ErrorState, EmptyState, StatCard } from '@/components/ui-helpers'
+     6→import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+     7→import { Badge } from '@/components/ui/badge'
+     8→import { Button } from '@/components/ui/button'
+     9→import { Input } from '@/components/ui/input'
+    10→import { Label } from '@/components/ui/label'
+    11→import { Textarea } from '@/components/ui/textarea'
+    12→import {
+    13→  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+    14→} from '@/components/ui/dialog'
+    15→import {
+    16→  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+    17→} from '@/components/ui/select'
+    18→import {
+    19→  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+    20→} from '@/components/ui/dropdown-menu'
+    21→import {
+    22→  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+    23→  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+    24→} from '@/components/ui/alert-dialog'
+    25→import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+    26→import { useToastStore, useAuthStore } from '@/lib/store'
+    27→import {
+    28→  Map, Plus, Globe, MapPin, Users, Trash2, Edit, CheckCircle2, XCircle,
+    29→  ChevronRight, ChevronDown, Crown, Building2, User, Phone, Mail,
+    30→  MoreVertical, Eye, UserPlus, ShieldCheck, Layers, Network, Flag, Building, UserCog,
+    31→} from 'lucide-react'
+    32→
+    33→interface Territory {
+    34→  id: string
+    35→  code: string
+    36→  name: string
+    37→  level: string
+    38→  category: string
+    39→  parentId: string | null
+    40→  parent?: Territory | null
+    41→  isActive: boolean
+    42→  metadata: string | null
+    43→  createdAt: string
+    44→  canEdit?: boolean
+    45→  _count?: {
+    46→    children: number
+    47→    members: number
+    48→    users: number
+    49→  }
+    50→}
+    51→
+    52→interface OrgPosition {
+    53→  id: string
+    54→  fullName: string
+    55→  positionName: string
+    56→  level: string
+    57→  territoryId: string
+    58→  phone: string | null
+    59→  email: string | null
+    60→  photoUrl: string | null
+    61→  isActive: boolean
+    62→  order: number
+    63→}
+    64→
+    65→const LEVEL_LABELS: Record<string, string> = {
+    66→  COUNTRY: 'Negara (DPN)',
+    67→  PROVINCE: 'Provinsi (DPD)',
+    68→  REGENCY: 'Kabupaten/Kota (DPC)',
+    69→  DISTRICT: 'Kecamatan',
+    70→  VILLAGE: 'Desa/Kelurahan',
+    71→}
+    72→
+    73→const LEVEL_COLORS: Record<string, string> = {
+    74→  COUNTRY: 'bg-purple-100 text-purple-700 border-purple-200',
+    75→  PROVINCE: 'bg-blue-100 text-blue-700 border-blue-200',
+    76→  REGENCY: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+    77→  DISTRICT: 'bg-gray-100 text-gray-700 border-gray-200',
+    78→  VILLAGE: 'bg-gray-50 text-gray-600 border-gray-200',
+    79→}
+    80→
+    81→const LEVEL_ICONS: Record<string, any> = {
+    82→  COUNTRY: Crown,
+    83→  PROVINCE: Building2,
+    84→  REGENCY: MapPin,
+    85→  DISTRICT: Building,
+    86→  VILLAGE: Flag,
+    87→}
+    88→
+    89→const LEVEL_ORDER = ['COUNTRY', 'PROVINCE', 'REGENCY', 'DISTRICT', 'VILLAGE']
+    90→
+    91→export function TerritoryMenu() {
+    92→  const user = useAuthStore((s) => s.user)!
+    93→  const addToast = useToastStore((s) => s.addToast)
+    94→  const [territories, setTerritories] = useState<Territory[]>([])
+    95→  const [orgPositions, setOrgPositions] = useState<OrgPosition[]>([])
+    96→  const [loading, setLoading] = useState(true)
+    97→  const [error, setError] = useState('')
+    98→  const [addOpen, setAddOpen] = useState(false)
+    99→  const [editTerritory, setEditTerritory] = useState<Territory | null>(null)
+   100→  const [deleteTerritory, setDeleteTerritory] = useState<Territory | null>(null)
+   101→  const [addPositionFor, setAddPositionFor] = useState<Territory | null>(null)
+   102→  const [editPosition, setEditPosition] = useState<OrgPosition | null>(null)
+   103→  const [deletePosition, setDeletePosition] = useState<OrgPosition | null>(null)
+   104→  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
+   105→  const [tab, setTab] = useState('tree')
+   106→
+   107→  const canCreate = user.role === 'SUPERADMIN' || user.role === 'ADMIN_DPN'
+   108→
+   109→  const loadData = () => {
+   110→    setLoading(true)
+   111→    Promise.all([
+   112→      api('/api/territory'),
+   113→      api('/api/organization'),
+   114→    ])
+   115→      .then(([t, p]) => {
+   116→        setTerritories(t)
+   117→        setOrgPositions(p)
+   118→        // Auto-expand COUNTRY
+   119→        const initialExpanded = new Set<string>()
+   120→        t.forEach((tt: Territory) => {
+   121→          if (tt.level === 'COUNTRY') {
+   122→            initialExpanded.add(tt.id)
+   123→          }
+   124→        })
+   125→        setExpandedIds(initialExpanded)
+   126→      })
+   127→      .catch((e) => setError(e.message))
+   128→      .finally(() => setLoading(false))
+   129→  }
+   130→
+   131→  useEffect(() => { loadData() }, [])
+   132→
+   133→  const toggleExpand = (id: string) => {
+   134→    setExpandedIds((prev) => {
+   135→      const next = new Set(prev)
+   136→      if (next.has(id)) next.delete(id)
+   137→      else next.add(id)
+   138→      return next
+   139→    })
+   140→  }
+   141→
+   142→  const handleDeleteTerritory = async () => {
+   143→    if (!deleteTerritory) return
+   144→    try {
+   145→      await api(`/api/territory/${deleteTerritory.id}`, { method: 'DELETE' })
+   146→      addToast(`Wilayah "${deleteTerritory.name}" berhasil dihapus`, 'success')
+   147→      setDeleteTerritory(null)
+   148→      loadData()
+   149→    } catch (e: any) {
+   150→      addToast(e.message, 'error')
+   151→    }
+   152→  }
+   153→
+   154→  const handleDeletePosition = async () => {
+   155→    if (!deletePosition) return
+   156→    try {
+   157→      await api(`/api/organization/${deletePosition.id}`, { method: 'DELETE' })
+   158→      addToast(`Pengurus "${deletePosition.fullName}" berhasil dihapus`, 'success')
+   159→      setDeletePosition(null)
+   160→      loadData()
+   161→    } catch (e: any) {
+   162→      addToast(e.message, 'error')
+   163→    }
+   164→  }
+   165→
+   166→  if (loading) return <LoadingState />
+   167→  if (error) return <ErrorState message={error} />
+   168→
+   169→  const domestic = territories.filter((t) => t.category === 'DOMESTIC')
+   170→  const international = territories.filter((t) => t.category === 'INTERNATIONAL')
+   171→
+   172→  // Statistik per level
+   173→  const stats = LEVEL_ORDER.reduce((acc, level) => {
+   174→    acc[level] = territories.filter((t) => t.level === level && t.isActive).length
+   175→    return acc
+   176→  }, {} as Record<string, number>)
+   177→
+   178→  return (
+   179→    <div className="space-y-6">
+   180→      <PageHeader
+   181→        title="Manajemen Wilayah"
+   182→        description="Kelola hierarki wilayah: DPN (Pusat) → DPD (Provinsi) → DPC (Kabupaten/Kota)"
+   183→        icon={Map}
+   184→        actions={
+   185→          canCreate && (
+   186→            <Button onClick={() => setAddOpen(true)} className="bg-gradient-to-r from-orange-600 to-red-600 text-white">
+   187→              <Plus className="w-4 h-4 mr-2" />
+   188→              Tambah Wilayah
+   189→            </Button>
+   190→          )
+   191→        }
+   192→      />
+   193→
+   194→      {/* Statistik per level */}
+   195→      <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+   196→        {(['COUNTRY', 'PROVINCE', 'REGENCY'] as const).map((level) => {
+   197→          const Icon = LEVEL_ICONS[level]
+   198→          const colorMap: Record<string, string> = {
+   199→            COUNTRY: 'purple',
+   200→            PROVINCE: 'blue',
+   201→            REGENCY: 'emerald',
+   202→          }
+   203→          return (
+   204→            <StatCard
+   205→              key={level}
+   206→              label={LEVEL_LABELS[level].split(' (')[0]}
+   207→              value={stats[level] || 0}
+   208→              icon={Icon}
+   209→              color={colorMap[level] as any || 'orange'}
+   210→            />
+   211→          )
+   212→        })}
+   213→      </div>
+   214→
+   215→      <Tabs value={tab} onValueChange={setTab}>
+   216→        <TabsList className="grid w-full max-w-md grid-cols-2">
+   217→          <TabsTrigger value="tree">
+   218→            <Network className="w-4 h-4 mr-2" />
+   219→            Pohon Hierarki
+   220→          </TabsTrigger>
+   221→          <TabsTrigger value="list">
+   222→            <Layers className="w-4 h-4 mr-2" />
+   223→            Daftar Lengkap
+   224→          </TabsTrigger>
+   225→        </TabsList>
+   226→
+   227→        <TabsContent value="tree" className="mt-4">
+   228→          {domestic.length === 0 && international.length === 0 ? (
+   229→            <EmptyState
+   230→              icon={Map}
+   231→              title="Belum ada data wilayah"
+   232→              description="Klik 'Tambah Wilayah' untuk mulai membangun hierarki wilayah."
+   233→            />
+   234→          ) : (
+   235→            <div className="space-y-6">
+   236→              {/* Domestik */}
+   237→              <Card>
+   238→                <CardHeader>
+   239→                  <CardTitle className="flex items-center gap-2 text-base">
+   240→                    <Building2 className="w-4 h-4 text-purple-600" />
+   241→                    Domestik (Indonesia)
+   242→                    <Badge variant="outline" className="text-xs">{domestic.length} wilayah</Badge>
+   243→                  </CardTitle>
+   244→                </CardHeader>
+   245→                <CardContent className="p-0">
+   246→                  <TerritoryTreeList
+   247→                    territories={domestic}
+   248→                    orgPositions={orgPositions}
+   249→                    expandedIds={expandedIds}
+   250→                    onToggleExpand={toggleExpand}
+   251→                    onEdit={setEditTerritory}
+   252→                    onDelete={setDeleteTerritory}
+   253→                    onAddPosition={setAddPositionFor}
+   254→                    onEditPosition={setEditPosition}
+   255→                    onDeletePosition={setDeletePosition}
+   256→                    canCreate={canCreate}
+   257→                  />
+   258→                </CardContent>
+   259→              </Card>
+   260→
+   261→              {/* Internasional */}
+   262→              <Card>
+   263→                <CardHeader>
+   264→                  <CardTitle className="flex items-center gap-2 text-base">
+   265→                    <Globe className="w-4 h-4 text-indigo-600" />
+   266→                    Internasional (Luar Negeri)
+   267→                    <Badge variant="outline" className="text-xs">{international.length} wilayah</Badge>
+   268→                  </CardTitle>
+   269→                </CardHeader>
+   270→                <CardContent className="p-0">
+   271→                  <TerritoryTreeList
+   272→                    territories={international}
+   273→                    orgPositions={orgPositions}
+   274→                    expandedIds={expandedIds}
+   275→                    onToggleExpand={toggleExpand}
+   276→                    onEdit={setEditTerritory}
+   277→                    onDelete={setDeleteTerritory}
+   278→                    onAddPosition={setAddPositionFor}
+   279→                    onEditPosition={setEditPosition}
+   280→                    onDeletePosition={setDeletePosition}
+   281→                    canCreate={canCreate}
+   282→                  />
+   283→                </CardContent>
+   284→              </Card>
+   285→            </div>
+   286→          )}
+   287→        </TabsContent>
+   288→
+   289→        <TabsContent value="list" className="mt-4">
+   290→          <TerritoryFlatList
+   291→            territories={territories}
+   292→            orgPositions={orgPositions}
+   293→            onEdit={setEditTerritory}
+   294→            onDelete={setDeleteTerritory}
+   295→            onAddPosition={setAddPositionFor}
+   296→            onEditPosition={setEditPosition}
+   297→            onDeletePosition={setDeletePosition}
+   298→            canCreate={canCreate}
+   299→          />
+   300→        </TabsContent>
+   301→      </Tabs>
+   302→
+   303→      {/* Dialogs */}
+   304→      <AddTerritoryDialog
+   305→        open={addOpen}
+   306→        onOpenChange={setAddOpen}
+   307→        allTerritories={territories}
+   308→        onSuccess={() => { loadData(); setAddOpen(false); addToast('Wilayah baru berhasil ditambahkan', 'success') }}
+   309→      />
+   310→
+   311→      <EditTerritoryDialog
+   312→        territory={editTerritory}
+   313→        allTerritories={territories}
+   314→        onOpenChange={(o) => !o && setEditTerritory(null)}
+   315→        onSuccess={() => { loadData(); setEditTerritory(null); addToast('Wilayah berhasil diperbarui', 'success') }}
+   316→      />
+   317→
+   318→      <AlertDialog open={!!deleteTerritory} onOpenChange={(o) => !o && setDeleteTerritory(null)}>
+   319→        <AlertDialogContent>
+   320→          <AlertDialogHeader>
+   321→            <AlertDialogTitle>Konfirmasi Hapus Wilayah</AlertDialogTitle>
+   322→            <AlertDialogDescription>
+   323→              Apakah Anda yakin ingin menghapus wilayah <strong>{deleteTerritory?.name}</strong> ({deleteTerritory?.code})?
+   324→              Tindakan ini tidak dapat dibatalkan. Pastikan tidak ada sub-wilayah, anggota, atau user yang terkait.
+   325→            </AlertDialogDescription>
+   326→          </AlertDialogHeader>
+   327→          <AlertDialogFooter>
+   328→            <AlertDialogCancel>Batal</AlertDialogCancel>
+   329→            <AlertDialogAction
+   330→              onClick={handleDeleteTerritory}
+   331→              className="bg-red-600 hover:bg-red-700"
+   332→            >
+   333→              Hapus
+   334→            </AlertDialogAction>
+   335→          </AlertDialogFooter>
+   336→        </AlertDialogContent>
+   337→      </AlertDialog>
+   338→
+   339→      <AddOrgPositionDialog
+   340→        territory={addPositionFor}
+   341→        onOpenChange={(o) => !o && setAddPositionFor(null)}
+   342→        onSuccess={() => { loadData(); setAddPositionFor(null); addToast('Pengurus baru berhasil ditambahkan', 'success') }}
+   343→      />
+   344→
+   345→      <EditOrgPositionDialog
+   346→        position={editPosition}
+   347→        onOpenChange={(o) => !o && setEditPosition(null)}
+   348→        onSuccess={() => { loadData(); setEditPosition(null); addToast('Pengurus berhasil diperbarui', 'success') }}
+   349→      />
+   350→
+   351→      <AlertDialog open={!!deletePosition} onOpenChange={(o) => !o && setDeletePosition(null)}>
+   352→        <AlertDialogContent>
+   353→          <AlertDialogHeader>
+   354→            <AlertDialogTitle>Konfirmasi Hapus Pengurus</AlertDialogTitle>
+   355→            <AlertDialogDescription>
+   356→              Apakah Anda yakin ingin menghapus pengurus <strong>{deletePosition?.fullName}</strong> ({deletePosition?.positionName})?
+   357→            </AlertDialogDescription>
+   358→          </AlertDialogHeader>
+   359→          <AlertDialogFooter>
+   360→            <AlertDialogCancel>Batal</AlertDialogCancel>
+   361→            <AlertDialogAction
+   362→              onClick={handleDeletePosition}
+   363→              className="bg-red-600 hover:bg-red-700"
+   364→            >
+   365→              Hapus
+   366→            </AlertDialogAction>
+   367→          </AlertDialogFooter>
+   368→        </AlertDialogContent>
+   369→      </AlertDialog>
+   370→    </div>
+   371→  )
+   372→}
+   373→
+   374→// ============================================================
+   375→// TREE VIEW - Hierarki bertingkat dengan expand/collapse
+   376→// ============================================================
+   377→function TerritoryTreeList({
+   378→  territories, orgPositions, expandedIds, onToggleExpand,
+   379→  onEdit, onDelete, onAddPosition, onEditPosition, onDeletePosition, canCreate,
+   380→}: {
+   381→  territories: Territory[]
+   382→  orgPositions: OrgPosition[]
+   383→  expandedIds: Set<string>
+   384→  onToggleExpand: (id: string) => void
+   385→  onEdit: (t: Territory) => void
+   386→  onDelete: (t: Territory) => void
+   387→  onAddPosition: (t: Territory) => void
+   388→  onEditPosition: (p: OrgPosition) => void
+   389→  onDeletePosition: (p: OrgPosition) => void
+   390→  canCreate: boolean
+   391→}) {
+   392→  const buildTree = (items: Territory[], parentId: string | null = null): Territory[] => {
+   393→    return items
+   394→      .filter((t) => t.parentId === parentId)
+   395→      .sort((a, b) => {
+   396→        const aIdx = LEVEL_ORDER.indexOf(a.level)
+   397→        const bIdx = LEVEL_ORDER.indexOf(b.level)
+   398→        if (aIdx !== bIdx) return aIdx - bIdx
+   399→        return a.name.localeCompare(b.name)
+   400→      })
+   401→  }
+   402→
+   403→  const roots = buildTree(territories, null)
+   404→
+   405→  if (roots.length === 0) {
+   406→    return (
+   407→      <div className="p-8 text-center text-sm text-muted-foreground">
+   408→        Tidak ada data wilayah
+   409→      </div>
+   410→    )
+   411→  }
+   412→
+   413→  return (
+   414→    <div className="p-2 space-y-1">
+   415→      {roots.map((t) => (
+   416→        <TerritoryNode
+   417→          key={t.id}
+   418→          territory={t}
+   419→          allTerritories={territories}
+   420→          orgPositions={orgPositions}
+   421→          depth={0}
+   422→          expandedIds={expandedIds}
+   423→          onToggleExpand={onToggleExpand}
+   424→          onEdit={onEdit}
+   425→          onDelete={onDelete}
+   426→          onAddPosition={onAddPosition}
+   427→          onEditPosition={onEditPosition}
+   428→          onDeletePosition={onDeletePosition}
+   429→          canCreate={canCreate}
+   430→        />
+   431→      ))}
+   432→    </div>
+   433→  )
+   434→}
+   435→
+   436→function TerritoryNode({
+   437→  territory, allTerritories, orgPositions, depth, expandedIds, onToggleExpand,
+   438→  onEdit, onDelete, onAddPosition, onEditPosition, onDeletePosition, canCreate,
+   439→}: {
+   440→  territory: Territory
+   441→  allTerritories: Territory[]
+   442→  orgPositions: OrgPosition[]
+   443→  depth: number
+   444→  expandedIds: Set<string>
+   445→  onToggleExpand: (id: string) => void
+   446→  onEdit: (t: Territory) => void
+   447→  onDelete: (t: Territory) => void
+   448→  onAddPosition: (t: Territory) => void
+   449→  onEditPosition: (p: OrgPosition) => void
+   450→  onDeletePosition: (p: OrgPosition) => void
+   451→  canCreate: boolean
+   452→}) {
+   453→  const children = allTerritories.filter((t) => t.parentId === territory.id)
+   454→    .sort((a, b) => {
+   455→      const aIdx = LEVEL_ORDER.indexOf(a.level)
+   456→      const bIdx = LEVEL_ORDER.indexOf(b.level)
+   457→      if (aIdx !== bIdx) return aIdx - bIdx
+   458→      return a.name.localeCompare(b.name)
+   459→    })
+   460→  const hasChildren = children.length > 0
+   461→  const isExpanded = expandedIds.has(territory.id)
+   462→  const Icon = LEVEL_ICONS[territory.level] || Map
+   463→  const positions = orgPositions.filter((p) => p.territoryId === territory.id && p.isActive)
+   464→    .sort((a, b) => a.order - b.order)
+   465→  const ketua = positions.find((p) =>
+   466→    p.positionName.toLowerCase().includes('ketua') &&
+   467→    !p.positionName.toLowerCase().includes('wakil')
+   468→  ) || positions[0]
+   469→
+   470→  const canEdit = territory.canEdit !== false && canCreate
+   471→
+   472→  return (
+   473→    <div>
+   474→      <div
+   475→        className={`group flex items-start gap-2 p-2 rounded-lg transition-colors ${
+   476→          territory.canEdit === false ? 'bg-muted/20' : 'hover:bg-accent/50'
+   477→        }`}
+   478→        style={{ paddingLeft: `${depth * 20 + 8}px` }}
+   479→      >
+   480→        {/* Expand/Collapse button */}
+   481→        <button
+   482→          onClick={() => hasChildren && onToggleExpand(territory.id)}
+   483→          className={`mt-0.5 w-5 h-5 flex items-center justify-center shrink-0 ${
+   484→            hasChildren ? 'hover:bg-muted rounded' : 'opacity-0'
+   485→          }`}
+   486→        >
+   487→          {hasChildren ? (
+   488→            isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />
+   489→          ) : null}
+   490→        </button>
+   491→
+   492→        {/* Icon */}
+   493→        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${LEVEL_COLORS[territory.level]}`}>
+   494→          <Icon className="w-4 h-4" />
+   495→        </div>
+   496→
+   497→        {/* Content */}
+   498→        <div className="flex-1 min-w-0">
+   499→          <div className="flex items-center gap-2 flex-wrap">
+   500→            <span className="font-semibold text-sm truncate">{territory.name}</span>
+   501→            <Badge variant="outline" className={`text-[13px] ${LEVEL_COLORS[territory.level]}`}>
+   502→              {LEVEL_LABELS[territory.level]}
+   503→            </Badge>
+   504→            <code className="text-[13px] font-mono bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
+   505→              {territory.code}
+   506→            </code>
+   507→            {territory.isActive ? (
+   508→              <Badge variant="outline" className="text-[13px] bg-emerald-50 text-emerald-700 border-emerald-200">
+   509→                Aktif
+   510→              </Badge>
+   511→            ) : (
+   512→              <Badge variant="outline" className="text-[13px] bg-gray-50 text-gray-500 border-gray-200">
+   513→                Nonaktif
+   514→              </Badge>
+   515→            )}
+   516→            {territory.canEdit === false && canCreate && (
+   517→              <Badge variant="outline" className="text-[13px] bg-amber-50 text-amber-700 border-amber-200">
+   518→                Read-Only
+   519→              </Badge>
+   520→            )}
+   521→          </div>
+   522→
+   523→          {/* Info: Ketua & stats */}
+   524→          <div className="mt-1 flex items-center gap-3 flex-wrap text-xs text-muted-foreground">
+   525→            {ketua && (
+   526→              <span className="inline-flex items-center gap-1">
+   527→                <Crown className="w-3 h-3 text-orange-500" />
+   528→                <span className="font-medium text-foreground">{ketua.fullName}</span>
+   529→                <span className="text-muted-foreground">({ketua.positionName})</span>
+   530→              </span>
+   531→            )}
+   532→            {territory._count && (
+   533→              <>
+   534→                {territory._count.children > 0 && (
+   535→                  <span className="inline-flex items-center gap-1">
+   536→                    <Layers className="w-3 h-3" />
+   537→                    {territory._count.children} sub-wilayah
+   538→                  </span>
+   539→                )}
+   540→                <span className="inline-flex items-center gap-1">
+   541→                  <Users className="w-3 h-3" />
+   542→                  {territory._count.members} anggota
+   543→                </span>
+   544→                {territory._count.users > 0 && (
+   545→                  <span className="inline-flex items-center gap-1">
+   546→                    <UserCog className="w-3 h-3" />
+   547→                    {territory._count.users} user
+   548→                  </span>
+   549→                )}
+   550→              </>
+   551→            )}
+   552→            {positions.length > 0 && (
+   553→              <span className="inline-flex items-center gap-1">
+   554→                <Building2 className="w-3 h-3" />
+   555→                {positions.length} pengurus
+   556→              </span>
+   557→            )}
+   558→          </div>
+   559→        </div>
+   560→
+   561→        {/* Actions */}
+   562→        {canCreate && (
+   563→          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+   564→            <DropdownMenu>
+   565→              <DropdownMenuTrigger asChild>
+   566→                <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+   567→                  <MoreVertical className="w-4 h-4" />
+   568→                </Button>
+   569→              </DropdownMenuTrigger>
+   570→              <DropdownMenuContent align="end">
+   571→                <DropdownMenuItem onClick={() => onEdit(territory)}>
+   572→                  <Edit className="w-4 h-4 mr-2" /> Edit Wilayah
+   573→                </DropdownMenuItem>
+   574→                <DropdownMenuItem onClick={() => onAddPosition(territory)}>
+   575→                  <UserPlus className="w-4 h-4 mr-2" /> Tambah Pengurus
+   576→                </DropdownMenuItem>
+   577→                {hasChildren && (
+   578→                  <DropdownMenuItem onClick={() => onToggleExpand(territory.id)}>
+   579→                    {isExpanded ? (
+   580→                      <><ChevronDown className="w-4 h-4 mr-2" /> Tutup Sub-wilayah</>
+   581→                    ) : (
+   582→                      <><ChevronRight className="w-4 h-4 mr-2" /> Buka Sub-wilayah</>
+   583→                    )}
+   584→                  </DropdownMenuItem>
+   585→                )}
+   586→                <DropdownMenuSeparator />
+   587→                <DropdownMenuItem
+   588→                  onClick={() => onDelete(territory)}
+   589→                  className="text-red-600"
+   590→                  disabled={hasChildren || (territory._count?.members || 0) > 0 || (territory._count?.users || 0) > 0}
+   591→                >
+   592→                  <Trash2 className="w-4 h-4 mr-2" /> Hapus Wilayah
+   593→                </DropdownMenuItem>
+   594→              </DropdownMenuContent>
+   595→            </DropdownMenu>
+   596→          </div>
+   597→        )}
+   598→      </div>
+   599→
+   600→      {/* Pengurus Inti (jika expanded & ada pengurus) */}
+   601→      {isExpanded && positions.length > 0 && (
+   602→        <div
+   603→          className="ml-6 border-l-2 border-orange-200 pl-3 py-2 space-y-1"
+   604→          style={{ marginLeft: `${depth * 20 + 36}px` }}
+   605→        >
+   606→          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+   607→            Pengurus Inti ({positions.length})
+   608→          </div>
+   609→          {positions.slice(0, 5).map((p) => (
+   610→            <div key={p.id} className="flex items-center gap-2 text-xs group/pos">
+   611→              <div className="w-6 h-6 rounded-full bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center shrink-0">
+   612→                <User className="w-3 h-3 text-white" />
+   613→              </div>
+   614→              <div className="flex-1 min-w-0">
+   615→                <span className="font-medium">{p.fullName}</span>
+   616→                <span className="text-muted-foreground ml-1">- {p.positionName}</span>
+   617→                {p.phone && (
+   618→                  <span className="text-muted-foreground ml-2 inline-flex items-center gap-0.5">
+   619→                    <Phone className="w-3 h-3" />
+   620→                    {p.phone}
+   621→                  </span>
+   622→                )}
+   623→              </div>
+   624→              {canCreate && (
+   625→                <div className="opacity-0 group-hover/pos:opacity-100 transition-opacity flex gap-1">
+   626→                  <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => onEditPosition(p)}>
+   627→                    <Edit className="w-3 h-3" />
+   628→                  </Button>
+   629→                  <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-red-600" onClick={() => onDeletePosition(p)}>
+   630→                    <Trash2 className="w-3 h-3" />
+   631→                  </Button>
+   632→                </div>
+   633→              )}
+   634→            </div>
+   635→          ))}
+   636→          {positions.length > 5 && (
+   637→            <div className="text-xs text-muted-foreground italic pl-8">
+   638→              + {positions.length - 5} pengurus lainnya
+   639→            </div>
+   640→          )}
+   641→        </div>
+   642→      )}
+   643→
+   644→      {/* Children */}
+   645→      {isExpanded && hasChildren && (
+   646→        <div>
+   647→          {children.map((child) => (
+   648→            <TerritoryNode
+   649→              key={child.id}
+   650→              territory={child}
+   651→              allTerritories={allTerritories}
+   652→              orgPositions={orgPositions}
+   653→              depth={depth + 1}
+   654→              expandedIds={expandedIds}
+   655→              onToggleExpand={onToggleExpand}
+   656→              onEdit={onEdit}
+   657→              onDelete={onDelete}
+   658→              onAddPosition={onAddPosition}
+   659→              onEditPosition={onEditPosition}
+   660→              onDeletePosition={onDeletePosition}
+   661→              canCreate={canCreate}
+   662→            />
+   663→          ))}
+   664→        </div>
+   665→      )}
+   666→    </div>
+   667→  )
+   668→}
+   669→
+   670→// ============================================================
+   671→// FLAT LIST VIEW - Daftar lengkap dengan filter
+   672→// ============================================================
+   673→function TerritoryFlatList({
+   674→  territories, orgPositions, onEdit, onDelete, onAddPosition, onEditPosition, onDeletePosition, canCreate,
+   675→}: {
+   676→  territories: Territory[]
+   677→  orgPositions: OrgPosition[]
+   678→  onEdit: (t: Territory) => void
+   679→  onDelete: (t: Territory) => void
+   680→  onAddPosition: (t: Territory) => void
+   681→  onEditPosition: (p: OrgPosition) => void
+   682→  onDeletePosition: (p: OrgPosition) => void
+   683→  canCreate: boolean
+   684→}) {
+   685→  const [filterLevel, setFilterLevel] = useState('')
+   686→  const [search, setSearch] = useState('')
+   687→
+   688→  const filtered = territories.filter((t) => {
+   689→    if (filterLevel && t.level !== filterLevel) return false
+   690→    if (search && !t.name.toLowerCase().includes(search.toLowerCase()) && !t.code.toLowerCase().includes(search.toLowerCase())) return false
+   691→    return true
+   692→  })
+   693→
+   694→  return (
+   695→    <div className="space-y-4">
+   696→      <div className="flex flex-col sm:flex-row gap-2">
+   697→        <Input
+   698→          placeholder="Cari nama atau kode wilayah..."
+   699→          value={search}
+   700→          onChange={(e) => setSearch(e.target.value)}
+   701→          className="flex-1"
+   702→        />
+   703→        <Select value={filterLevel || 'ALL'} onValueChange={(v) => setFilterLevel(v === 'ALL' ? '' : v)}>
+   704→          <SelectTrigger className="w-full sm:w-56">
+   705→            <SelectValue placeholder="Filter level..." />
+   706→          </SelectTrigger>
+   707→          <SelectContent>
+   708→            <SelectItem value="ALL">Semua Level</SelectItem>
+   709→            {LEVEL_ORDER.map((level) => (
+   710→              <SelectItem key={level} value={level}>{LEVEL_LABELS[level]}</SelectItem>
+   711→            ))}
+   712→          </SelectContent>
+   713→        </Select>
+   714→      </div>
+   715→
+   716→      <Card>
+   717→        <CardContent className="p-0">
+   718→          <div className="overflow-x-auto">
+   719→            <table className="w-full text-sm">
+   720→              <thead className="border-b bg-muted/30">
+   721→                <tr>
+   722→                  <th className="text-left p-3 font-semibold">Nama Wilayah</th>
+   723→                  <th className="text-left p-3 font-semibold">Level</th>
+   724→                  <th className="text-left p-3 font-semibold">Kode</th>
+   725→                  <th className="text-left p-3 font-semibold">Ketua</th>
+   726→                  <th className="text-center p-3 font-semibold">Anggota</th>
+   727→                  <th className="text-center p-3 font-semibold">Pengurus</th>
+   728→                  <th className="text-center p-3 font-semibold">Status</th>
+   729→                  {canCreate && <th className="text-right p-3 font-semibold">Aksi</th>}
+   730→                </tr>
+   731→              </thead>
+   732→              <tbody>
+   733→                {filtered.map((t) => {
+   734→                  const positions = orgPositions.filter((p) => p.territoryId === t.id && p.isActive)
+   735→                  const ketua = positions.find((p) => p.positionName.toLowerCase().includes('ketua') && !p.positionName.toLowerCase().includes('wakil')) || positions[0]
+   736→                  const Icon = LEVEL_ICONS[t.level] || Map
+   737→                  return (
+   738→                    <tr key={t.id} className="border-b hover:bg-muted/30">
+   739→                      <td className="p-3">
+   740→                        <div className="flex items-center gap-2">
+   741→                          <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${LEVEL_COLORS[t.level]}`}>
+   742→                            <Icon className="w-3.5 h-3.5" />
+   743→                          </div>
+   744→                          <span className="font-medium">{t.name}</span>
+   745→                        </div>
+   746→                      </td>
+   747→                      <td className="p-3">
+   748→                        <Badge variant="outline" className={`text-[13px] ${LEVEL_COLORS[t.level]}`}>
+   749→                          {LEVEL_LABELS[t.level]}
+   750→                        </Badge>
+   751→                      </td>
+   752→                      <td className="p-3">
+   753→                        <code className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{t.code}</code>
+   754→                      </td>
+   755→                      <td className="p-3 text-xs">
+   756→                        {ketua ? (
+   757→                          <div>
+   758→                            <div className="font-medium">{ketua.fullName}</div>
+   759→                            <div className="text-muted-foreground text-[13px]">{ketua.positionName}</div>
+   760→                          </div>
+   761→                        ) : (
+   762→                          <span className="text-muted-foreground italic">Belum ada</span>
+   763→                        )}
+   764→                      </td>
+   765→                      <td className="p-3 text-center">
+   766→                        <Badge variant="outline" className="text-xs">
+   767→                          {t._count?.members || 0}
+   768→                        </Badge>
+   769→                      </td>
+   770→                      <td className="p-3 text-center">
+   771→                        <Badge variant="outline" className="text-xs">
+   772→                          {positions.length}
+   773→                        </Badge>
+   774→                      </td>
+   775→                      <td className="p-3 text-center">
+   776→                        {t.isActive ? (
+   777→                          <Badge variant="outline" className="text-[13px] bg-emerald-50 text-emerald-700 border-emerald-200">
+   778→                            Aktif
+   779→                          </Badge>
+   780→                        ) : (
+   781→                          <Badge variant="outline" className="text-[13px] bg-gray-50 text-gray-500 border-gray-200">
+   782→                            Nonaktif
+   783→                          </Badge>
+   784→                        )}
+   785→                      </td>
+   786→                      {canCreate && (
+   787→                        <td className="p-3 text-right">
+   788→                          <DropdownMenu>
+   789→                            <DropdownMenuTrigger asChild>
+   790→                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+   791→                                <MoreVertical className="w-4 h-4" />
+   792→                              </Button>
+   793→                            </DropdownMenuTrigger>
+   794→                            <DropdownMenuContent align="end">
+   795→                              <DropdownMenuItem onClick={() => onEdit(t)}>
+   796→                                <Edit className="w-4 h-4 mr-2" /> Edit
+   797→                              </DropdownMenuItem>
+   798→                              <DropdownMenuItem onClick={() => onAddPosition(t)}>
+   799→                                <UserPlus className="w-4 h-4 mr-2" /> Tambah Pengurus
+   800→                              </DropdownMenuItem>
+   801→                              <DropdownMenuSeparator />
+   802→                              <DropdownMenuItem
+   803→                                onClick={() => onDelete(t)}
+   804→                                className="text-red-600"
+   805→                                disabled={(t._count?.children || 0) > 0 || (t._count?.members || 0) > 0 || (t._count?.users || 0) > 0}
+   806→                              >
+   807→                                <Trash2 className="w-4 h-4 mr-2" /> Hapus
+   808→                              </DropdownMenuItem>
+   809→                            </DropdownMenuContent>
+   810→                          </DropdownMenu>
+   811→                        </td>
+   812→                      )}
+   813→                    </tr>
+   814→                  )
+   815→                })}
+   816→              </tbody>
+   817→            </table>
+   818→          </div>
+   819→        </CardContent>
+   820→      </Card>
+   821→    </div>
+   822→  )
+   823→}
+   824→
+   825→// ============================================================
+   826→// DIALOGS
+   827→// ============================================================
+   828→
+   829→function AddTerritoryDialog({
+   830→  open, onOpenChange, allTerritories, onSuccess,
+   831→}: {
+   832→  open: boolean
+   833→  onOpenChange: (o: boolean) => void
+   834→  allTerritories: Territory[]
+   835→  onSuccess: () => void
+   836→}) {
+   837→  const addToast = useToastStore((s) => s.addToast)
+   838→  const [form, setForm] = useState({
+   839→    code: '', name: '', level: 'REGENCY', category: 'DOMESTIC', parentId: '', isActive: true,
+   840→  })
+   841→  const [loading, setLoading] = useState(false)
+   842→
+   843→  const getParentOptions = () => {
+   844→    const parentMap: Record<string, string> = {
+   845→      PROVINCE: 'COUNTRY',
+   846→      REGENCY: 'PROVINCE',
+   847→      DISTRICT: 'REGENCY',
+   848→      VILLAGE: 'DISTRICT',
+   849→    }
+   850→    const parentLevel = parentMap[form.level]
+   851→    if (!parentLevel) return []
+   852→    if (form.level === 'PROVINCE') {
+   853→      return allTerritories.filter((t) => t.level === 'COUNTRY')
+   854→    }
+   855→    if (form.level === 'REGENCY') {
+   856→      return allTerritories.filter((t) => t.level === 'PROVINCE' || t.level === 'COUNTRY')
+   857→    }
+   858→    return allTerritories.filter((t) => t.level === parentLevel)
+   859→  }
+   860→
+   861→  const handleSubmit = async (e: React.FormEvent) => {
+   862→    e.preventDefault()
+   863→    setLoading(true)
+   864→    try {
+   865→      await api('/api/territory', {
+   866→        method: 'POST',
+   867→        body: JSON.stringify({ ...form, parentId: form.parentId || null }),
+   868→      })
+   869→      setForm({ code: '', name: '', level: 'REGENCY', category: 'DOMESTIC', parentId: '', isActive: true })
+   870→      onSuccess()
+   871→    } catch (err: any) {
+   872→      addToast(err.message, 'error')
+   873→    } finally {
+   874→      setLoading(false)
+   875→    }
+   876→  }
+   877→
+   878→  const parentOptions = getParentOptions()
+   879→
+   880→  return (
+   881→    <Dialog open={open} onOpenChange={onOpenChange}>
+   882→      <DialogContent className="max-w-lg">
+   883→        <DialogHeader>
+   884→          <DialogTitle>Tambah Wilayah Baru</DialogTitle>
+   885→          <DialogDescription>
+   886→            Tambah wilayah kepengurusan baru. Sistem 100% dinamis - tidak ada batasan hardcoded.
+   887→          </DialogDescription>
+   888→        </DialogHeader>
+   889→        <form onSubmit={handleSubmit} className="space-y-4">
+   890→          <div className="grid grid-cols-2 gap-3">
+   891→            <div className="space-y-2">
+   892→              <Label htmlFor="code">Kode Wilayah *</Label>
+   893→              <Input
+   894→                id="code"
+   895→                value={form.code}
+   896→                onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })}
+   897→                placeholder="cth: 6171, US, LAX, IKN"
+   898→                required
+   899→              />
+   900→            </div>
+   901→            <div className="space-y-2">
+   902→              <Label htmlFor="name">Nama Wilayah *</Label>
+   903→              <Input
+   904→                id="name"
+   905→                value={form.name}
+   906→                onChange={(e) => setForm({ ...form, name: e.target.value })}
+   907→                placeholder="cth: Kota Pontianak"
+   908→                required
+   909→              />
+   910→            </div>
+   911→          </div>
+   912→          <div className="grid grid-cols-2 gap-3">
+   913→            <div className="space-y-2">
+   914→              <Label>Level *</Label>
+   915→              <Select value={form.level} onValueChange={(v) => setForm({ ...form, level: v, parentId: '' })}>
+   916→                <SelectTrigger><SelectValue /></SelectTrigger>
+   917→                <SelectContent>
+   918→                  {LEVEL_ORDER.map((level) => (
+   919→                    <SelectItem key={level} value={level}>{LEVEL_LABELS[level]}</SelectItem>
+   920→                  ))}
+   921→                </SelectContent>
+   922→              </Select>
+   923→            </div>
+   924→            <div className="space-y-2">
+   925→              <Label>Kategori</Label>
+   926→              <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v, parentId: '' })}>
+   927→                <SelectTrigger><SelectValue /></SelectTrigger>
+   928→                <SelectContent>
+   929→                  <SelectItem value="DOMESTIC">Domestik (Indonesia)</SelectItem>
+   930→                  <SelectItem value="INTERNATIONAL">Internasional</SelectItem>
+   931→                </SelectContent>
+   932→              </Select>
+   933→            </div>
+   934→          </div>
+   935→          {parentOptions.length > 0 && (
+   936→            <div className="space-y-2">
+   937→              <Label>Wilayah Induk (Parent) *</Label>
+   938→              <Select value={form.parentId} onValueChange={(v) => setForm({ ...form, parentId: v })}>
+   939→                <SelectTrigger><SelectValue placeholder="Pilih wilayah induk..." /></SelectTrigger>
+   940→                <SelectContent>
+   941→                  {parentOptions.map((t) => (
+   942→                    <SelectItem key={t.id} value={t.id}>
+   943→                      [{LEVEL_LABELS[t.level].split(' (')[0]}] {t.name} ({t.code})
+   944→                    </SelectItem>
+   945→                  ))}
+   946→                </SelectContent>
+   947→              </Select>
+   948→            </div>
+   949→          )}
+   950→          <div className="flex items-center gap-2">
+   951→            <input
+   952→              type="checkbox"
+   953→              id="active"
+   954→              checked={form.isActive}
+   955→              onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
+   956→              className="w-4 h-4"
+   957→            />
+   958→            <Label htmlFor="active">Wilayah aktif (siap digunakan)</Label>
+   959→          </div>
+   960→          <DialogFooter>
+   961→            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Batal</Button>
+   962→            <Button type="submit" disabled={loading}>
+   963→              {loading ? 'Menyimpan...' : 'Simpan Wilayah'}
+   964→            </Button>
+   965→          </DialogFooter>
+   966→        </form>
+   967→      </DialogContent>
+   968→    </Dialog>
+   969→  )
+   970→}
+   971→
+   972→function EditTerritoryDialog({
+   973→  territory, allTerritories, onOpenChange, onSuccess,
+   974→}: {
+   975→  territory: Territory | null
+   976→  allTerritories: Territory[]
+   977→  onOpenChange: (o: boolean) => void
+   978→  onSuccess: () => void
+   979→}) {
+   980→  const addToast = useToastStore((s) => s.addToast)
+   981→  const [form, setForm] = useState<any>({})
+   982→  const [loading, setLoading] = useState(false)
+   983→
+   984→  useEffect(() => {
+   985→    if (territory) {
+   986→      setForm({
+   987→        code: territory.code,
+   988→        name: territory.name,
+   989→        level: territory.level,
+   990→        category: territory.category,
+   991→        parentId: territory.parentId || '',
+   992→        isActive: territory.isActive,
+   993→      })
+   994→    }
+   995→  }, [territory])
+   996→
+   997→  if (!territory) return null
+   998→
+   999→  const handleSubmit = async (e: React.FormEvent) => {
+  1000→    e.preventDefault()
+  1001→    setLoading(true)
+  1002→    try {
+  1003→      await api(`/api/territory/${territory.id}`, {
+  1004→        method: 'PUT',
+  1005→        body: JSON.stringify({
+  1006→          ...form,
+  1007→          parentId: form.parentId || null,
+  1008→        }),
+  1009→      })
+  1010→      onSuccess()
+  1011→    } catch (err: any) {
+  1012→      addToast(err.message, 'error')
+  1013→    } finally {
+  1014→      setLoading(false)
+  1015→    }
+  1016→  }
+  1017→
+  1018→  return (
+  1019→    <Dialog open={!!territory} onOpenChange={(o) => !o && onOpenChange(false)}>
+  1020→      <DialogContent className="max-w-lg">
+  1021→        <DialogHeader>
+  1022→          <DialogTitle>Edit Wilayah</DialogTitle>
+  1023→          <DialogDescription>
+  1024→            Edit data wilayah <strong>{territory.name}</strong>
+  1025→          </DialogDescription>
+  1026→        </DialogHeader>
+  1027→        <form onSubmit={handleSubmit} className="space-y-4">
+  1028→          <div className="grid grid-cols-2 gap-3">
+  1029→            <div className="space-y-2">
+  1030→              <Label>Kode Wilayah *</Label>
+  1031→              <Input
+  1032→                value={form.code || ''}
+  1033→                onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })}
+  1034→                required
+  1035→              />
+  1036→            </div>
+  1037→            <div className="space-y-2">
+  1038→              <Label>Nama Wilayah *</Label>
+  1039→              <Input
+  1040→                value={form.name || ''}
+  1041→                onChange={(e) => setForm({ ...form, name: e.target.value })}
+  1042→                required
+  1043→              />
+  1044→            </div>
+  1045→          </div>
+  1046→          <div className="grid grid-cols-2 gap-3">
+  1047→            <div className="space-y-2">
+  1048→              <Label>Level</Label>
+  1049→              <Select value={form.level} onValueChange={(v) => setForm({ ...form, level: v })}>
+  1050→                <SelectTrigger><SelectValue /></SelectTrigger>
+  1051→                <SelectContent>
+  1052→                  {LEVEL_ORDER.map((level) => (
+  1053→                    <SelectItem key={level} value={level}>{LEVEL_LABELS[level]}</SelectItem>
+  1054→                  ))}
+  1055→                </SelectContent>
+  1056→              </Select>
+  1057→            </div>
+  1058→            <div className="space-y-2">
+  1059→              <Label>Kategori</Label>
+  1060→              <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}>
+  1061→                <SelectTrigger><SelectValue /></SelectTrigger>
+  1062→                <SelectContent>
+  1063→                  <SelectItem value="DOMESTIC">Domestik</SelectItem>
+  1064→                  <SelectItem value="INTERNATIONAL">Internasional</SelectItem>
+  1065→                </SelectContent>
+  1066→              </Select>
+  1067→            </div>
+  1068→          </div>
+  1069→          <div className="space-y-2">
+  1070→            <Label>Wilayah Induk</Label>
+  1071→            <Select value={form.parentId || 'NONE'} onValueChange={(v) => setForm({ ...form, parentId: v === 'NONE' ? '' : v })}>
+  1072→              <SelectTrigger><SelectValue /></SelectTrigger>
+  1073→              <SelectContent>
+  1074→                <SelectItem value="NONE">- Tanpa Induk (Root) -</SelectItem>
+  1075→                {allTerritories
+  1076→                  .filter((t) => t.id !== territory.id && t.level !== territory.level)
+  1077→                  .map((t) => (
+  1078→                    <SelectItem key={t.id} value={t.id}>
+  1079→                      [{LEVEL_LABELS[t.level].split(' (')[0]}] {t.name} ({t.code})
+  1080→                    </SelectItem>
+  1081→                  ))}
+  1082→              </SelectContent>
+  1083→            </Select>
+  1084→          </div>
+  1085→          <div className="flex items-center gap-2">
+  1086→            <input
+  1087→              type="checkbox"
+  1088→              id="edit-active"
+  1089→              checked={form.isActive || false}
+  1090→              onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
+  1091→              className="w-4 h-4"
+  1092→            />
+  1093→            <Label htmlFor="edit-active">Wilayah aktif</Label>
+  1094→          </div>
+  1095→          <DialogFooter>
+  1096→            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Batal</Button>
+  1097→            <Button type="submit" disabled={loading}>
+  1098→              {loading ? 'Menyimpan...' : 'Simpan Perubahan'}
+  1099→            </Button>
+  1100→          </DialogFooter>
+  1101→        </form>
+  1102→      </DialogContent>
+  1103→    </Dialog>
+  1104→  )
+  1105→}
+  1106→
+  1107→function AddOrgPositionDialog({
+  1108→  territory, onOpenChange, onSuccess,
+  1109→}: {
+  1110→  territory: Territory | null
+  1111→  onOpenChange: (o: boolean) => void
+  1112→  onSuccess: () => void
+  1113→}) {
+  1114→  const addToast = useToastStore((s) => s.addToast)
+  1115→  const [form, setForm] = useState({
+  1116→    fullName: '', positionName: '', level: 'DPC', phone: '', email: '', order: 1,
+  1117→  })
+  1118→  const [loading, setLoading] = useState(false)
+  1119→
+  1120→  useEffect(() => {
+  1121→    if (territory) {
+  1122→      // Auto-set level berdasarkan territory level
+  1123→      const levelMap: Record<string, string> = {
+  1124→        COUNTRY: 'DPN',
+  1125→        PROVINCE: 'DPD',
+  1126→        REGENCY: 'DPC',
+  1127→      }
+  1128→      setForm({
+  1129→        fullName: '', positionName: '',
+  1130→        level: levelMap[territory.level] || 'DPC',
+  1131→        phone: '', email: '', order: 1,
+  1132→      })
+  1133→    }
+  1134→  }, [territory])
+  1135→
+  1136→  if (!territory) return null
+  1137→
+  1138→  const handleSubmit = async (e: React.FormEvent) => {
+  1139→    e.preventDefault()
+  1140→    setLoading(true)
+  1141→    try {
+  1142→      await api('/api/organization', {
+  1143→        method: 'POST',
+  1144→        body: JSON.stringify({
+  1145→          ...form,
+  1146→          territoryId: territory.id,
+  1147→          order: parseInt(form.order.toString()) || 1,
+  1148→        }),
+  1149→      })
+  1150→      setForm({ fullName: '', positionName: '', level: 'DPC', phone: '', email: '', order: 1 })
+  1151→      onSuccess()
+  1152→    } catch (err: any) {
+  1153→      addToast(err.message, 'error')
+  1154→    } finally {
+  1155→      setLoading(false)
+  1156→    }
+  1157→  }
+  1158→
+  1159→  return (
+  1160→    <Dialog open={!!territory} onOpenChange={(o) => !o && onOpenChange(false)}>
+  1161→      <DialogContent className="max-w-lg">
+  1162→        <DialogHeader>
+  1163→          <DialogTitle>Tambah Pengurus</DialogTitle>
+  1164→          <DialogDescription>
+  1165→            Tambah pengurus untuk wilayah <strong>{territory.name}</strong> ({LEVEL_LABELS[territory.level]})
+  1166→          </DialogDescription>
+  1167→        </DialogHeader>
+  1168→        <form onSubmit={handleSubmit} className="space-y-3">
+  1169→          <div className="space-y-2">
+  1170→            <Label>Nama Lengkap *</Label>
+  1171→            <Input
+  1172→              value={form.fullName}
+  1173→              onChange={(e) => setForm({ ...form, fullName: e.target.value })}
+  1174→              placeholder="cth: Dr. H. Bambang Sutejo, M.Si"
+  1175→              required
+  1176→            />
+  1177→          </div>
+  1178→          <div className="grid grid-cols-2 gap-3">
+  1179→            <div className="space-y-2">
+  1180→              <Label>Jabatan *</Label>
+  1181→              <Input
+  1182→                value={form.positionName}
+  1183→                onChange={(e) => setForm({ ...form, positionName: e.target.value })}
+  1184→                placeholder="cth: Ketua, Sekretaris, Bendahara"
+  1185→                required
+  1186→              />
+  1187→            </div>
+  1188→            <div className="space-y-2">
+  1189→              <Label>Level *</Label>
+  1190→              <Select value={form.level} onValueChange={(v) => setForm({ ...form, level: v })}>
+  1191→                <SelectTrigger><SelectValue /></SelectTrigger>
+  1192→                <SelectContent>
+  1193→                  <SelectItem value="DPN">DPN</SelectItem>
+  1194→                  <SelectItem value="DPD">DPD</SelectItem>
+  1195→                  <SelectItem value="DPC">DPC</SelectItem>
+  1196→                </SelectContent>
+  1197→              </Select>
+  1198→            </div>
+  1199→          </div>
+  1200→          <div className="grid grid-cols-2 gap-3">
+  1201→            <div className="space-y-2">
+  1202→              <Label>WhatsApp</Label>
+  1203→              <Input
+  1204→                value={form.phone}
+  1205→                onChange={(e) => setForm({ ...form, phone: e.target.value })}
+  1206→                placeholder="628xxx"
+  1207→              />
+  1208→            </div>
+  1209→            <div className="space-y-2">
+  1210→              <Label>Email</Label>
+  1211→              <Input
+  1212→                type="email"
+  1213→                value={form.email}
+  1214→                onChange={(e) => setForm({ ...form, email: e.target.value })}
+  1215→              />
+  1216→            </div>
+  1217→          </div>
+  1218→          <div className="space-y-2">
+  1219→            <Label>Urutan</Label>
+  1220→            <Input
+  1221→              type="number"
+  1222→              value={form.order}
+  1223→              onChange={(e) => setForm({ ...form, order: parseInt(e.target.value) || 1 })}
+  1224→              min="1"
+  1225→            />
+  1226→          </div>
+  1227→          <DialogFooter>
+  1228→            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Batal</Button>
+  1229→            <Button type="submit" disabled={loading}>
+  1230→              {loading ? 'Menyimpan...' : 'Simpan Pengurus'}
+  1231→            </Button>
+  1232→          </DialogFooter>
+  1233→        </form>
+  1234→      </DialogContent>
+  1235→    </Dialog>
+  1236→  )
+  1237→}
+  1238→
+  1239→function EditOrgPositionDialog({
+  1240→  position, onOpenChange, onSuccess,
+  1241→}: {
+  1242→  position: OrgPosition | null
+  1243→  onOpenChange: (o: boolean) => void
+  1244→  onSuccess: () => void
+  1245→}) {
+  1246→  const addToast = useToastStore((s) => s.addToast)
+  1247→  const [form, setForm] = useState<any>({})
+  1248→  const [loading, setLoading] = useState(false)
+  1249→
+  1250→  useEffect(() => {
+  1251→    if (position) {
+  1252→      setForm({
+  1253→        fullName: position.fullName,
+  1254→        positionName: position.positionName,
+  1255→        level: position.level,
+  1256→        phone: position.phone || '',
+  1257→        email: position.email || '',
+  1258→        order: position.order,
+  1259→        isActive: position.isActive,
+  1260→      })
+  1261→    }
+  1262→  }, [position])
+  1263→
+  1264→  if (!position) return null
+  1265→
+  1266→  const handleSubmit = async (e: React.FormEvent) => {
+  1267→    e.preventDefault()
+  1268→    setLoading(true)
+  1269→    try {
+  1270→      await api(`/api/organization/${position.id}`, {
+  1271→        method: 'PUT',
+  1272→        body: JSON.stringify({
+  1273→          ...form,
+  1274→          order: parseInt(form.order.toString()) || 1,
+  1275→        }),
+  1276→      })
+  1277→      onSuccess()
+  1278→    } catch (err: any) {
+  1279→      addToast(err.message, 'error')
+  1280→    } finally {
+  1281→      setLoading(false)
+  1282→    }
+  1283→  }
+  1284→
+  1285→  return (
+  1286→    <Dialog open={!!position} onOpenChange={(o) => !o && onOpenChange(false)}>
+  1287→      <DialogContent className="max-w-lg">
+  1288→        <DialogHeader>
+  1289→          <DialogTitle>Edit Pengurus</DialogTitle>
+  1290→          <DialogDescription>Edit data pengurus <strong>{position.fullName}</strong></DialogDescription>
+  1291→        </DialogHeader>
+  1292→        <form onSubmit={handleSubmit} className="space-y-3">
+  1293→          <div className="space-y-2">
+  1294→            <Label>Nama Lengkap *</Label>
+  1295→            <Input value={form.fullName || ''} onChange={(e) => setForm({ ...form, fullName: e.target.value })} required />
+  1296→          </div>
+  1297→          <div className="grid grid-cols-2 gap-3">
+  1298→            <div className="space-y-2">
+  1299→              <Label>Jabatan *</Label>
+  1300→              <Input value={form.positionName || ''} onChange={(e) => setForm({ ...form, positionName: e.target.value })} required />
+  1301→            </div>
+  1302→            <div className="space-y-2">
+  1303→              <Label>Level</Label>
+  1304→              <Select value={form.level || 'DPC'} onValueChange={(v) => setForm({ ...form, level: v })}>
+  1305→                <SelectTrigger><SelectValue /></SelectTrigger>
+  1306→                <SelectContent>
+  1307→                  <SelectItem value="DPN">DPN</SelectItem>
+  1308→                  <SelectItem value="DPD">DPD</SelectItem>
+  1309→                  <SelectItem value="DPC">DPC</SelectItem>
+  1310→                </SelectContent>
+  1311→              </Select>
+  1312→            </div>
+  1313→          </div>
+  1314→          <div className="grid grid-cols-2 gap-3">
+  1315→            <div className="space-y-2">
+  1316→              <Label>WhatsApp</Label>
+  1317→              <Input value={form.phone || ''} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+  1318→            </div>
+  1319→            <div className="space-y-2">
+  1320→              <Label>Email</Label>
+  1321→              <Input type="email" value={form.email || ''} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+  1322→            </div>
+  1323→          </div>
+  1324→          <div className="grid grid-cols-2 gap-3">
+  1325→            <div className="space-y-2">
+  1326→              <Label>Urutan</Label>
+  1327→              <Input type="number" value={form.order || 1} onChange={(e) => setForm({ ...form, order: parseInt(e.target.value) || 1 })} min="1" />
+  1328→            </div>
+  1329→            <div className="space-y-2">
+  1330→              <Label>Status</Label>
+  1331→              <Select value={form.isActive ? 'true' : 'false'} onValueChange={(v) => setForm({ ...form, isActive: v === 'true' })}>
+  1332→                <SelectTrigger><SelectValue /></SelectTrigger>
+  1333→                <SelectContent>
+  1334→                  <SelectItem value="true">Aktif</SelectItem>
+  1335→                  <SelectItem value="false">Nonaktif</SelectItem>
+  1336→                </SelectContent>
+  1337→              </Select>
+  1338→            </div>
+  1339→          </div>
+  1340→          <DialogFooter>
+  1341→            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Batal</Button>
+  1342→            <Button type="submit" disabled={loading}>{loading ? 'Menyimpan...' : 'Simpan'}</Button>
+  1343→          </DialogFooter>
+  1344→        </form>
+  1345→      </DialogContent>
+  1346→    </Dialog>
+  1347→  )
+  1348→}
+  1349→

@@ -1,0 +1,702 @@
+  1060→      {/* === Search + filter format === */}
+  1061→      {docs.length > 0 && (
+  1062→        <div className="flex gap-2 flex-wrap">
+  1063→          <div className="relative flex-1 min-w-[200px]">
+  1064→            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+  1065→            <Input placeholder="Cari judul/deskripsi/uploader..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />
+  1066→          </div>
+  1067→          <Select value={filterFormat} onValueChange={setFilterFormat}>
+  1068→            <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+  1069→            <SelectContent>
+  1070→              <SelectItem value="ALL">Semua Format</SelectItem>
+  1071→              <SelectItem value="PDF">PDF</SelectItem>
+  1072→              <SelectItem value="IMAGE">Gambar</SelectItem>
+  1073→              <SelectItem value="DOC">DOC/DOCX</SelectItem>
+  1074→            </SelectContent>
+  1075→          </Select>
+  1076→        </div>
+  1077→      )}
+  1078→
+  1079→      {loading ? (
+  1080→        <LoadingState message="Memuat dokumen..." />
+  1081→      ) : error ? (
+  1082→        <ErrorState message={error} />
+  1083→      ) : docs.length === 0 ? (
+  1084→        <EmptyState icon={meta.icon} title={meta.emptyTitle} description={meta.emptyDesc} />
+  1085→      ) : filtered.length === 0 ? (
+  1086→        <EmptyState icon={meta.icon} title="Tidak ada dokumen cocok" description="Coba ubah kata kunci atau filter format." />
+  1087→      ) : (
+  1088→        <div className="grid gap-3 max-h-[40rem] overflow-y-auto pr-1">
+  1089→          {filtered.map((doc) => {
+  1090→            const fileCat = getFileCategory(doc.fileType)
+  1091→            const FileIcon = formatIcons[fileCat]
+  1092→            const fileColor = formatColors[fileCat]
+  1093→            const isLoading = viewLoading === doc.id
+  1094→            return (
+  1095→              <Card key={doc.id} className="hover:shadow-md transition-shadow">
+  1096→                <CardContent className="p-4">
+  1097→                  <div className="flex items-start gap-4">
+  1098→                    {/* Icon berdasarkan format file */}
+  1099→                    <div className={`w-12 h-12 rounded-lg border flex items-center justify-center shrink-0 ${fileColor}`}>
+  1100→                      <FileIcon className="w-6 h-6" />
+  1101→                    </div>
+  1102→                    <div className="flex-1 min-w-0">
+  1103→                      <div className="flex items-center gap-2 flex-wrap">
+  1104→                        <h4 className="font-semibold text-sm truncate">{doc.title}</h4>
+  1105→                        <Badge variant="secondary" className="uppercase text-[11px]">{doc.fileType || 'file'}</Badge>
+  1106→                        <Badge variant="outline" className="text-[11px]">{formatSize(doc.fileSize)}</Badge>
+  1107→                        {doc.description && doc.description.startsWith('AD_ART:') && (
+  1108→                          <Badge variant="outline" className="text-[11px] bg-blue-50 text-blue-700 border-blue-200">AD/ART</Badge>
+  1109→                        )}
+  1110→                      </div>
+  1111→                      {doc.description && (
+  1112→                        <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{doc.description.replace(/^(AD_ART|LEGALITAS):\s*/, '')}</p>
+  1113→                      )}
+  1114→                      <div className="text-[12px] text-muted-foreground mt-2 flex items-center gap-2 flex-wrap">
+  1115→                        <span>📤 Diunggah oleh {doc.uploadedBy || '-'}</span>
+  1116→                        <span className="opacity-50">•</span>
+  1117→                        <span>📅 {formatDateTimeID(doc.uploadedAt || doc.updatedAt)}</span>
+  1118→                      </div>
+  1119→                    </div>
+  1120→                    {/* === Tombol Aksi === */}
+  1121→                    <div className="flex items-center gap-1 shrink-0 flex-wrap">
+  1122→                      {/* Tombol Preview (ikon mata) — buka dialog inline */}
+  1123→                      <Button
+  1124→                        size="sm"
+  1125→                        variant="ghost"
+  1126→                        className="h-8 w-8 p-0 text-emerald-600 hover:bg-emerald-50"
+  1127→                        disabled={isLoading}
+  1128→                        onClick={() => handlePreviewDoc(doc)}
+  1129→                        title="Preview dokumen inline">
+  1130→                        {isLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Eye className="w-3.5 h-3.5" />}
+  1131→                      </Button>
+  1132→                      {/* Tombol Buka di tab baru */}
+  1133→                      <Button
+  1134→                        size="sm"
+  1135→                        variant="outline"
+  1136→                        className="h-8 gap-1"
+  1137→                        disabled={isLoading}
+  1138→                        onClick={() => handleViewDoc(doc)}
+  1139→                        title="Buka dokumen di tab baru">
+  1140→                        <ExternalLink className="w-3.5 h-3.5" /> Buka
+  1141→                      </Button>
+  1142→                      {/* Tombol Download */}
+  1143→                      <Button
+  1144→                        size="sm"
+  1145→                        variant="ghost"
+  1146→                        className="h-8 w-8 p-0 text-blue-600 hover:bg-blue-50"
+  1147→                        disabled={isLoading}
+  1148→                        onClick={() => handleDownloadDoc(doc)}
+  1149→                        title="Download dokumen">
+  1150→                        <Download className="w-3.5 h-3.5" />
+  1151→                      </Button>
+  1152→                      {/* Tombol Hapus (admin only) */}
+  1153→                      {isSuperAdmin && (
+  1154→                        <Button
+  1155→                          size="icon"
+  1156→                          variant="ghost"
+  1157→                          className="text-red-500 hover:text-red-600 h-8 w-8"
+  1158→                          onClick={() => setDeleteTarget(doc)}
+  1159→                          title="Hapus dokumen">
+  1160→                          <Trash2 className="w-4 h-4" />
+  1161→                        </Button>
+  1162→                      )}
+  1163→                    </div>
+  1164→                  </div>
+  1165→                </CardContent>
+  1166→              </Card>
+  1167→            )
+  1168→          })}
+  1169→        </div>
+  1170→      )}
+  1171→
+  1172→      <DocumentUploadDialog
+  1173→        open={uploadOpen}
+  1174→        onOpenChange={setUploadOpen}
+  1175→        type={type}
+  1176→        onUploaded={() => { setUploadOpen(false); load() }}
+  1177→        addToast={addToast}
+  1178→      />
+  1179→
+  1180→      {/* === Dialog Preview PDF/Image inline === */}
+  1181→      <Dialog open={!!previewDoc} onOpenChange={(o) => {
+  1182→        if (!o && previewDoc?.blobUrl) {
+  1183→          URL.revokeObjectURL(previewDoc.blobUrl)
+  1184→        }
+  1185→        setPreviewDoc(null)
+  1186→      }}>
+  1187→        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+  1188→          <DialogHeader>
+  1189→            <DialogTitle className="flex items-center gap-2 flex-wrap">
+  1190→              <FileText className="w-4 h-4 text-blue-600" />
+  1191→              <span className="truncate">{previewDoc?.title}</span>
+  1192→            </DialogTitle>
+  1193→            <DialogDescription className="flex items-center gap-2 flex-wrap">
+  1194→              <Badge variant="outline" className="text-[11px] uppercase">{previewDoc?.fileType}</Badge>
+  1195→              <Badge variant="outline" className="text-[11px]">{previewDoc ? formatSize(previewDoc.fileSize) : ''}</Badge>
+  1196→              {previewDoc?.uploadedBy && <span className="text-xs">oleh {previewDoc.uploadedBy}</span>}
+  1197→            </DialogDescription>
+  1198→          </DialogHeader>
+  1199→          <div className="flex-1 overflow-hidden rounded-lg border bg-slate-100">
+  1200→            {previewDoc?.fileType === 'pdf' ? (
+  1201→              <iframe src={previewDoc.blobUrl} className="w-full h-[70vh] rounded-lg" title="Preview PDF" />
+  1202→            ) : ['jpg', 'jpeg', 'png', 'webp', 'gif'].includes((previewDoc?.fileType || '').toLowerCase()) ? (
+  1203→              <img src={previewDoc?.blobUrl} alt={previewDoc?.title} className="w-full max-h-[70vh] object-contain" />
+  1204→            ) : (
+  1205→              <div className="flex flex-col items-center justify-center h-[70vh] text-center p-8">
+  1206→                <FileText className="w-16 h-16 text-slate-400 mb-3" />
+  1207→                <div className="font-semibold mb-1">Preview tidak tersedia untuk format ini</div>
+  1208→                <p className="text-sm text-muted-foreground mb-4">Format {previewDoc?.fileType?.toUpperCase()} tidak bisa di-preview di browser. Silakan download untuk membuka.</p>
+  1209→                <Button onClick={() => previewDoc && handleDownloadDoc(previewDoc)} className="gap-2">
+  1210→                  <Download className="w-4 h-4" /> Download File
+  1211→                </Button>
+  1212→              </div>
+  1213→            )}
+  1214→          </div>
+  1215→          <DialogFooter className="gap-2">
+  1216→            <Button variant="outline" onClick={() => previewDoc && handleViewDoc(previewDoc)} className="gap-2">
+  1217→              <ExternalLink className="w-4 h-4" /> Buka di Tab Baru
+  1218→            </Button>
+  1219→            <Button onClick={() => previewDoc && handleDownloadDoc(previewDoc)} className="gap-2">
+  1220→              <Download className="w-4 h-4" /> Download
+  1221→            </Button>
+  1222→          </DialogFooter>
+  1223→        </DialogContent>
+  1224→      </Dialog>
+  1225→
+  1226→      <AlertDialog open={!!deleteTarget} onOpenChange={(v) => !v && setDeleteTarget(null)}>
+  1227→        <AlertDialogContent aria-describedby={undefined}>
+  1228→          <AlertDialogHeader>
+  1229→            <AlertDialogTitle>Konfirmasi Hapus Dokumen</AlertDialogTitle>
+  1230→            <AlertDialogDescription>
+  1231→              Apakah Anda yakin ingin menghapus dokumen{' '}
+  1232→              <strong>&quot;{deleteTarget?.title}&quot;</strong>? Tindakan ini tidak dapat dibatalkan.
+  1233→            </AlertDialogDescription>
+  1234→          </AlertDialogHeader>
+  1235→          <AlertDialogFooter>
+  1236→            <AlertDialogCancel>Batal</AlertDialogCancel>
+  1237→            <AlertDialogAction
+  1238→              onClick={() => deleteTarget && handleDelete(deleteTarget)}
+  1239→              className="bg-red-600 hover:bg-red-700 text-white"
+  1240→            >
+  1241→              <Trash2 className="w-4 h-4 mr-2" /> Hapus
+  1242→            </AlertDialogAction>
+  1243→          </AlertDialogFooter>
+  1244→        </AlertDialogContent>
+  1245→      </AlertDialog>
+  1246→    </div>
+  1247→  )
+  1248→}
+  1249→
+  1250→// --- Dialog upload dokumen (FormData) ---
+  1251→function DocumentUploadDialog({
+  1252→  open, onOpenChange, type, onUploaded, addToast,
+  1253→}: {
+  1254→  open: boolean
+  1255→  onOpenChange: (v: boolean) => void
+  1256→  type: 'AD_ART' | 'LEGALITAS'
+  1257→  onUploaded: () => void
+  1258→  addToast: (msg: string, type?: 'success' | 'error' | 'info' | 'warning') => void
+  1259→}) {
+  1260→  const [title, setTitle] = useState('')
+  1261→  const [description, setDescription] = useState('')
+  1262→  const [file, setFile] = useState<File | null>(null)
+  1263→  const [saving, setSaving] = useState(false)
+  1264→
+  1265→  useEffect(() => {
+  1266→    if (open) {
+  1267→      setTitle(''); setDescription(''); setFile(null)
+  1268→    }
+  1269→  }, [open])
+  1270→
+  1271→  const handleSubmit = async () => {
+  1272→    if (!file) {
+  1273→      addToast('Pilih file terlebih dahulu', 'warning')
+  1274→      return
+  1275→    }
+  1276→    if (!title.trim()) {
+  1277→      addToast('Judul wajib diisi', 'warning')
+  1278→      return
+  1279→    }
+  1280→    setSaving(true)
+  1281→    try {
+  1282→      const fd = new FormData()
+  1283→      fd.append('file', file)
+  1284→      fd.append('title', title.trim())
+  1285→      fd.append('description', description.trim())
+  1286→      fd.append('docType', type)
+  1287→      const res = await fetch('/api/profile-documents', {
+  1288→        method: 'POST',
+  1289→        headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+  1290→        body: fd,
+  1291→      })
+  1292→      const data = await res.json()
+  1293→      if (!data.success) throw new Error(data.error || 'Gagal upload')
+  1294→      addToast('Dokumen berhasil diupload', 'success')
+  1295→      onUploaded()
+  1296→    } catch (e: any) {
+  1297→      addToast(e.message || 'Gagal upload dokumen', 'error')
+  1298→    } finally {
+  1299→      setSaving(false)
+  1300→    }
+  1301→  }
+  1302→
+  1303→  return (
+  1304→    <Dialog open={open} onOpenChange={onOpenChange}>
+  1305→      <DialogContent className="max-w-lg" aria-describedby={undefined}>
+  1306→        <DialogHeader>
+  1307→          <DialogTitle>Upload Dokumen {type === 'AD_ART' ? 'AD/ART' : 'Legalitas'}</DialogTitle>
+  1308→          <DialogDescription>
+  1309→            Format yang didukung: PDF, JPG, PNG, DOC/DOCX. Maksimal 20MB.
+  1310→          </DialogDescription>
+  1311→        </DialogHeader>
+  1312→        <div className="space-y-4 py-2">
+  1313→          <div className="space-y-1">
+  1314→            <Label className="text-xs">Judul Dokumen *</Label>
+  1315→            <Input
+  1316→              value={title}
+  1317→              onChange={(e) => setTitle(e.target.value)}
+  1318→              placeholder="cth: AD/ART LAPRA 08 Periode 2024-2029"
+  1319→            />
+  1320→          </div>
+  1321→          <div className="space-y-1">
+  1322→            <Label className="text-xs">Deskripsi (opsional)</Label>
+  1323→            <Textarea
+  1324→              value={description}
+  1325→              onChange={(e) => setDescription(e.target.value)}
+  1326→              rows={2}
+  1327→              placeholder="Ringkasan singkat dokumen..."
+  1328→            />
+  1329→          </div>
+  1330→          <div className="space-y-1">
+  1331→            <Label className="text-xs">File Dokumen *</Label>
+  1332→            <Input
+  1333→              type="file"
+  1334→              accept=".pdf,.jpg,.jpeg,.png,.webp,.gif,.doc,.docx"
+  1335→              onChange={(e) => setFile(e.target.files?.[0] || null)}
+  1336→            />
+  1337→            {file && (
+  1338→              <p className="text-xs text-muted-foreground mt-1">
+  1339→                {file.name} • {(file.size / 1024 / 1024).toFixed(2)} MB
+  1340→              </p>
+  1341→            )}
+  1342→          </div>
+  1343→        </div>
+  1344→        <DialogFooter>
+  1345→          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Batal</Button>
+  1346→          <Button onClick={handleSubmit} disabled={saving || !file} className="gap-2">
+  1347→            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+  1348→            Upload
+  1349→          </Button>
+  1350→        </DialogFooter>
+  1351→      </DialogContent>
+  1352→    </Dialog>
+  1353→  )
+  1354→}
+  1355→
+  1356→export function ProfilMenu() {
+  1357→  const [tab, setTab] = useState('tentang')
+  1358→  const tabs = [
+  1359→    { key: 'tentang', label: 'Tentang LAPRA 08', icon: BookOpen },
+  1360→    { key: 'visi-misi', label: 'Visi & Misi', icon: TrendingUp },
+  1361→    { key: 'struktur', label: 'Struktur & Pusat Data', icon: Building2 },
+  1362→    { key: 'ad-art', label: 'AD/ART', icon: FileText },
+  1363→    { key: 'legalitas', label: 'Landasan Hukum', icon: Scale },
+  1364→  ]
+  1365→  return (
+  1366→    <div className="space-y-6">
+  1367→      <PageHeader title="Profil" description="Profil organisasi Laskar Prabowo 08" icon={Building2} />
+  1368→      <div className="flex flex-wrap gap-2">
+  1369→        {tabs.map((t) => (
+  1370→          <button key={t.key} onClick={() => setTab(t.key)}
+  1371→            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${tab === t.key ? 'bg-gradient-to-r from-orange-600 to-red-600 text-white shadow-sm' : 'border hover:bg-accent'}`}>
+  1372→            <t.icon className="w-4 h-4" /> {t.label}
+  1373→          </button>
+  1374→        ))}
+  1375→      </div>
+  1376→      {tab === 'tentang' && <TentangLAPRASection />}
+  1377→      {tab === 'visi-misi' && <VisiMisiSection />}
+  1378→      {tab === 'struktur' && <PusatDataMenu />}
+  1379→      {tab === 'ad-art' && <ProfileDocumentSection type="AD_ART" />}
+  1380→      {tab === 'legalitas' && <ProfileDocumentSection type="LEGALITAS" />}
+  1381→    </div>
+  1382→  )
+  1383→}
+  1384→
+  1385→// ============================================================
+  1386→// 3. PUSAT MEDIA — Wired with Announcement CRUD
+  1387→// ============================================================
+  1388→export function PusatMediaMenu() {
+  1389→  const [tab, setTab] = useState('berita')
+  1390→  // Lifted state: lets MediaSiaranManager trigger AnnouncementManager's new-berita dialog
+  1391→  // with category pre-set to SIRANAN_PERS (auto consumed once opened)
+  1392→  const [pendingNewBerita, setPendingNewBerita] = useState<string | null>(null)
+  1393→  const tabs = [
+  1394→    { key: 'berita', label: 'Kabar Utama & Pengumuman', icon: Newspaper },
+  1395→    { key: 'galeri', label: 'Galeri Media', icon: ImageIcon },
+  1396→    { key: 'rilis-pers', label: 'Media Siaran LAPRA 08', icon: Megaphone },
+  1397→    { key: 'majalah', label: 'Majalah / Buletin Digital', icon: BookOpen },
+  1398→  ]
+  1399→
+  1400→  // Helper: switch to berita tab + auto-open new-berita dialog with optional category preset
+  1401→  const openNewBerita = (category: string = 'BERITA') => {
+  1402→    setTab('berita')
+  1403→    setPendingNewBerita(category)
+  1404→  }
+  1405→
+  1406→  return (
+  1407→    <div className="space-y-6">
+  1408→      <PageHeader title="Pusat Media" description="Kabar, berita, galeri, dan publikasi LAPRA 08" icon={Newspaper} />
+  1409→      <div className="flex flex-wrap gap-2">
+  1410→        {tabs.map((t) => (
+  1411→          <button key={t.key} onClick={() => setTab(t.key)}
+  1412→            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${tab === t.key ? 'bg-gradient-to-r from-orange-600 to-red-600 text-white shadow-sm' : 'border hover:bg-accent'}`}>
+  1413→            <t.icon className="w-4 h-4" /> {t.label}
+  1414→          </button>
+  1415→        ))}
+  1416→      </div>
+  1417→      {tab === 'berita' ? (
+  1418→        <AnnouncementManager
+  1419→          pendingNewBerita={pendingNewBerita}
+  1420→          onConsumePendingNewBerita={() => setPendingNewBerita(null)}
+  1421→        />
+  1422→      ) : tab === 'galeri' ? (
+  1423→        <GaleriMediaManager />
+  1424→      ) : tab === 'rilis-pers' ? (
+  1425→        <MediaSiaranManager onCreateNew={() => openNewBerita('SIRANAN_PERS')} />
+  1426→      ) : (
+  1427→        <MajalahManager />
+  1428→      )}
+  1429→    </div>
+  1430→  )
+  1431→}
+  1432→
+  1433→// ============================================================
+  1434→// GALERI MEDIA — 3 Sub-Tab: Foto, Video, Arsip Berita Penting
+  1435→// ============================================================
+  1436→function GaleriMediaManager() {
+  1437→  const addToast = useToastStore((s) => s.addToast)
+  1438→  const isSuperAdmin = useIsSuperAdmin()
+  1439→  const [subTab, setSubTab] = useState('foto')
+  1440→  const [seedLoading, setSeedLoading] = useState(false)
+  1441→  const subTabs = [
+  1442→    { key: 'foto', label: 'Galeri Foto', icon: ImageIcon },
+  1443→    { key: 'video', label: 'Galeri Video', icon: Video },
+  1444→    { key: 'arsip', label: 'Arsip Berita Penting', icon: BookMarked },
+  1445→  ]
+  1446→
+  1447→  // === Handler: Generate Data Demo via Z.AI image API ===
+  1448→  const handleSeedDemo = async () => {
+  1449→    setSeedLoading(true)
+  1450→    try {
+  1451→      const userId = useAuthStore.getState().user?.id || ''
+  1452→      const res = await fetch('/api/gallery/seed-demo', {
+  1453→        method: 'POST',
+  1454→        headers: { 'x-user-id': userId },
+  1455→      })
+  1456→      const data = await res.json()
+  1457→      if (!data.success) throw new Error(data.error || 'Gagal generate data demo')
+  1458→      addToast(
+  1459→        `Berhasil generate: ${data.data.photosGenerated} foto, ${data.data.videosGenerated} video, ${data.data.bookmarksGenerated} berita arsip. Refresh halaman.`,
+  1460→        'success'
+  1461→      )
+  1462→      // Auto-refresh halaman setelah 2 detik
+  1463→      setTimeout(() => window.location.reload(), 2000)
+  1464→    } catch (e: any) {
+  1465→      addToast(`Gagal generate demo: ${e.message}`, 'error')
+  1466→    } finally {
+  1467→      setSeedLoading(false)
+  1468→    }
+  1469→  }
+  1470→
+  1471→  return (
+  1472→    <div className="space-y-4">
+  1473→      <div className="flex flex-wrap items-center justify-between gap-2">
+  1474→        <div className="flex flex-wrap gap-2">
+  1475→          {subTabs.map((t) => (
+  1476→            <button key={t.key} onClick={() => setSubTab(t.key)}
+  1477→              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${subTab === t.key ? 'bg-emerald-600 text-white shadow-sm' : 'border hover:bg-accent'}`}>
+  1478→              <t.icon className="w-3.5 h-3.5" /> {t.label}
+  1479→            </button>
+  1480→          ))}
+  1481→        </div>
+  1482→        {/* === Tombol "Generate Data Demo" — SuperAdmin only === */}
+  1483→        {isSuperAdmin && (
+  1484→          <Button
+  1485→            size="sm"
+  1486→            onClick={handleSeedDemo}
+  1487→            disabled={seedLoading}
+  1488→            className="bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:opacity-90"
+  1489→            title="Generate data dummy untuk demo Galeri Foto, Video, dan Arsip Berita menggunakan Z.AI image generation (API gratis)">
+  1490→            {seedLoading ? (
+  1491→              <><Loader2 className="w-4 h-4 mr-1 animate-spin" /> Generating...</>
+  1492→            ) : (
+  1493→              <><Sparkles className="w-4 h-4 mr-1" /> Generate Data Demo</>
+  1494→            )}
+  1495→          </Button>
+  1496→        )}
+  1497→      </div>
+  1498→      {subTab === 'foto' ? (
+  1499→        <GalleryManager />
+  1500→      ) : subTab === 'video' ? (
+  1501→        <GaleriVideoManager />
+  1502→      ) : (
+  1503→        <ArsipBeritaPentingManager />
+  1504→      )}
+  1505→    </div>
+  1506→  )
+  1507→}
+  1508→
+  1509→// ============================================================
+  1510→// GALERI VIDEO — YouTube embed + MP4 upload
+  1511→// ============================================================
+  1512→function GaleriVideoManager() {
+  1513→  const addToast = useToastStore((s) => s.addToast)
+  1514→  const [items, setItems] = useState<any[]>([])
+  1515→  const [territories, setTerritories] = useState<Territory[]>([])
+  1516→  const [loading, setLoading] = useState(true)
+  1517→  const [addOpen, setAddOpen] = useState(false)
+  1518→  const [deleteItem, setDeleteItem] = useState<any>(null)
+  1519→  const [form, setForm] = useState({
+  1520→    title: '', description: '', category: 'KEGIATAN', youtubeUrl: '',
+  1521→    level: 'DPN', territoryCode: 'ID', territoryName: 'DPN (Pusat Nasional)',
+  1522→    albumName: '',
+  1523→  })
+  1524→  const [mode, setMode] = useState<'YOUTUBE' | 'UPLOAD'>('YOUTUBE')
+  1525→  const [file, setFile] = useState<File | null>(null)
+  1526→  const [uploading, setUploading] = useState(false)
+  1527→  const [playingVideo, setPlayingVideo] = useState<any>(null)
+  1528→  // === Filter state ===
+  1529→  const [filterLevel, setFilterLevel] = useState('ALL')
+  1530→  const [filterTerritoryCode, setFilterTerritoryCode] = useState('ALL')
+  1531→  const [filterAlbum, setFilterAlbum] = useState('ALL')
+  1532→
+  1533→  const loadData = () => {
+  1534→    setLoading(true)
+  1535→    Promise.all([
+  1536→      api('/api/gallery/videos'),
+  1537→      api('/api/territory'),
+  1538→    ]).then(([vids, terr]: any) => {
+  1539→      setItems(vids || [])
+  1540→      setTerritories(terr || [])
+  1541→    }).catch(() => {}).finally(() => setLoading(false))
+  1542→  }
+  1543→  useEffect(() => { loadData() }, [])
+  1544→
+  1545→  const handleSubmit = async (e: React.FormEvent) => {
+  1546→    e.preventDefault()
+  1547→    if (!form.albumName.trim()) { addToast('Nama Album wajib diisi', 'error'); return }
+  1548→    setUploading(true)
+  1549→    try {
+  1550→      const albumName = form.albumName.trim() || 'Umum'
+  1551→      if (mode === 'YOUTUBE') {
+  1552→        if (!form.youtubeUrl) { addToast('URL YouTube wajib diisi', 'error'); setUploading(false); return }
+  1553→        const res = await fetch('/api/gallery/videos', {
+  1554→          method: 'POST',
+  1555→          headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+  1556→          body: JSON.stringify({ ...form, albumName }),
+  1557→        })
+  1558→        const data = await res.json()
+  1559→        if (!res.ok || !data.success) throw new Error(data.error || 'Gagal')
+  1560→        addToast('Video YouTube berhasil ditambahkan', 'success')
+  1561→      } else {
+  1562→        if (!file) { addToast('Pilih file video dulu', 'error'); setUploading(false); return }
+  1563→        const formData = new FormData()
+  1564→        formData.append('file', file)
+  1565→        formData.append('title', form.title || file.name)
+  1566→        formData.append('description', form.description)
+  1567→        formData.append('category', form.category)
+  1568→        formData.append('level', form.level)
+  1569→        formData.append('territoryCode', form.territoryCode)
+  1570→        formData.append('territoryName', form.territoryName)
+  1571→        formData.append('albumName', albumName)
+  1572→        const res = await fetch('/api/gallery/videos', {
+  1573→          method: 'POST',
+  1574→          headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+  1575→          body: formData,
+  1576→        })
+  1577→        const data = await res.json()
+  1578→        if (!res.ok || !data.success) throw new Error(data.error || 'Upload gagal')
+  1579→        addToast('Video berhasil diupload', 'success')
+  1580→      }
+  1581→      setForm({ title: '', description: '', category: 'KEGIATAN', youtubeUrl: '', level: 'DPN', territoryCode: 'ID', territoryName: 'DPN (Pusat Nasional)', albumName: '' })
+  1582→      setFile(null); setAddOpen(false)
+  1583→      loadData()
+  1584→    } catch (e: any) { addToast(e.message, 'error') }
+  1585→    finally { setUploading(false) }
+  1586→  }
+  1587→
+  1588→  const handleDelete = async () => {
+  1589→    if (!deleteItem) return
+  1590→    try {
+  1591→      await fetch(`/api/gallery/${deleteItem.id}?id=${deleteItem.id}`, {
+  1592→        method: 'DELETE',
+  1593→        headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+  1594→      })
+  1595→      addToast('Video dihapus', 'success')
+  1596→      setDeleteItem(null); loadData()
+  1597→    } catch (e: any) { addToast(e.message, 'error') }
+  1598→  }
+  1599→
+  1600→  if (loading) return <LoadingState />
+  1601→
+  1602→  const categories: Record<string, string> = {
+  1603→    KEGIATAN: 'Kegiatan', RAPAT: 'Rapat', PELANTIKAN: 'Pelantikan',
+  1604→    SOSIAL: 'Aksi Sosial', DOKUMENTER: 'Dokumenter', LAINNYA: 'Lainnya',
+  1605→  }
+  1606→
+  1607→  // === Filter wilayah berdasarkan level yang dipilih ===
+  1608→  const territoriesByLevel = (level: string): Territory[] => {
+  1609→    if (level === 'DPN') return [{ id: 'id', name: 'DPN (Pusat Nasional)', code: 'ID', level: 'COUNTRY', parentId: null }]
+  1610→    if (level === 'DPD') return territories.filter(t => t.level === 'PROVINCE')
+  1611→    if (level === 'DPC') return territories.filter(t => t.level === 'REGENCY')
+  1612→    return territories
+  1613→  }
+  1614→
+  1615→  // === Filter items ===
+  1616→  const filtered = items.filter(item => {
+  1617→    if (filterLevel !== 'ALL' && (item.level || 'DPN') !== filterLevel) return false
+  1618→    if (filterTerritoryCode !== 'ALL' && (item.territoryCode || 'ID') !== filterTerritoryCode) return false
+  1619→    if (filterAlbum !== 'ALL' && (item.albumName || 'Umum') !== filterAlbum) return false
+  1620→    return true
+  1621→  })
+  1622→
+  1623→  // === List album unik ===
+  1624→  const availableAlbums = Array.from(new Set(
+  1625→    items
+  1626→      .filter(item =>
+  1627→        (filterLevel === 'ALL' || (item.level || 'DPN') === filterLevel) &&
+  1628→        (filterTerritoryCode === 'ALL' || (item.territoryCode || 'ID') === filterTerritoryCode)
+  1629→      )
+  1630→      .map(item => item.albumName || 'Umum')
+  1631→  )).sort()
+  1632→
+  1633→  // === Group by level + territory + album ===
+  1634→  const grouped = filtered.reduce((acc: any, item: any) => {
+  1635→    const level = item.level || 'DPN'
+  1636→    const terrCode = item.territoryCode || 'ID'
+  1637→    const terrName = item.territoryName || 'DPN (Pusat Nasional)'
+  1638→    const album = item.albumName || 'Umum'
+  1639→    const key = `${level}|${terrCode}|${album}`
+  1640→    if (!acc[key]) acc[key] = { level, terrCode, terrName, album, items: [] }
+  1641→    acc[key].items.push(item)
+  1642→    return acc
+  1643→  }, {} as Record<string, any>)
+  1644→
+  1645→  const groupedArray = Object.values(grouped).sort((a: any, b: any) => {
+  1646→    const levelOrder: Record<string, number> = { DPN: 1, DPD: 2, DPC: 3 }
+  1647→    const lvlA = levelOrder[a.level] || 4
+  1648→    const lvlB = levelOrder[b.level] || 4
+  1649→    if (lvlA !== lvlB) return lvlA - lvlB
+  1650→    if (a.terrName !== b.terrName) return a.terrName.localeCompare(b.terrName)
+  1651→    return a.album.localeCompare(b.album)
+  1652→  })
+  1653→
+  1654→  const levelColors: Record<string, string> = {
+  1655→    DPN: 'bg-red-50 text-red-700 border-red-200',
+  1656→    DPD: 'bg-blue-50 text-blue-700 border-blue-200',
+  1657→    DPC: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  1658→  }
+  1659→
+  1660→  return (
+  1661→    <Card>
+  1662→      <CardHeader>
+  1663→        <div className="flex items-center justify-between flex-wrap gap-2">
+  1664→          <CardTitle className="flex items-center gap-2 text-base">
+  1665→            <Video className="w-4 h-4 text-emerald-600" /> Galeri Video ({filtered.length})
+  1666→          </CardTitle>
+  1667→          <div className="flex gap-2">
+  1668→            <Button onClick={async () => {
+  1669→              setUploading(true)
+  1670→              try {
+  1671→                const res = await fetch('/api/gallery/videos', {
+  1672→                  method: 'POST', headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+  1673→                  body: JSON.stringify({ action: 'sync_youtube' }),
+  1674→                })
+  1675→                const data = await res.json()
+  1676→                if (data.success) {
+  1677→                  addToast(data.message, 'success')
+  1678→                  loadData()
+  1679→                } else {
+  1680→                  addToast(data.error, 'error')
+  1681→                }
+  1682→              } catch (e: any) { addToast(e.message, 'error') }
+  1683→              finally { setUploading(false) }
+  1684→            }} size="sm" variant="outline" disabled={uploading}>
+  1685→              {uploading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-1" />}
+  1686→              {uploading ? 'Syncing...' : 'Sync YouTube'}
+  1687→            </Button>
+  1688→            <Button onClick={() => setAddOpen(true)} size="sm" className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white">
+  1689→              <Plus className="w-4 h-4 mr-1" /> Tambah Video
+  1690→            </Button>
+  1691→          </div>
+  1692→        </div>
+  1693→        <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-2 text-xs text-emerald-800 mt-2">
+  1694→          <strong>📋 Filter LAPRA 08 Aktif:</strong> Hanya video yang mengandung keyword "Laskar Prabowo 08" / "LAPRA 08" / varian yang diperbolehkan.
+  1695→          Klik <strong>"Sync YouTube"</strong> untuk auto-cari video LAPRA 08 terbaru dari YouTube.
+  1696→        </div>
+  1697→
+  1698→        {/* === Filter Hierarki === */}
+  1699→        <div className="mt-3 p-3 rounded-lg bg-slate-50 border">
+  1700→          <div className="flex items-center gap-2 mb-2">
+  1701→            <FolderTree className="w-4 h-4 text-slate-600" />
+  1702→            <span className="text-xs font-semibold text-slate-700">Filter berdasarkan hierarki & folder:</span>
+  1703→          </div>
+  1704→          <div className="grid gap-2 md:grid-cols-3">
+  1705→            <div className="space-y-1">
+  1706→              <Label className="text-xs">Level</Label>
+  1707→              <Select value={filterLevel} onValueChange={(v) => { setFilterLevel(v); setFilterTerritoryCode('ALL'); setFilterAlbum('ALL') }}>
+  1708→                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+  1709→                <SelectContent>
+  1710→                  <SelectItem value="ALL">📂 Semua Level</SelectItem>
+  1711→                  <SelectItem value="DPN">🔴 DPN (Pusat)</SelectItem>
+  1712→                  <SelectItem value="DPD">🔵 DPD (Provinsi)</SelectItem>
+  1713→                  <SelectItem value="DPC">🟢 DPC (Kab/Kota)</SelectItem>
+  1714→                </SelectContent>
+  1715→              </Select>
+  1716→            </div>
+  1717→            <div className="space-y-1">
+  1718→              <Label className="text-xs">Wilayah</Label>
+  1719→              <Select value={filterTerritoryCode} onValueChange={(v) => { setFilterTerritoryCode(v); setFilterAlbum('ALL') }}>
+  1720→                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+  1721→                <SelectContent>
+  1722→                  <SelectItem value="ALL">📍 Semua Wilayah</SelectItem>
+  1723→                  {filterLevel === 'ALL'
+  1724→                    ? territories.map(t => <SelectItem key={t.code} value={t.code}>{t.name}</SelectItem>)
+  1725→                    : territoriesByLevel(filterLevel).map(t => <SelectItem key={t.code} value={t.code}>{t.name}</SelectItem>)
+  1726→                  }
+  1727→                </SelectContent>
+  1728→              </Select>
+  1729→            </div>
+  1730→            <div className="space-y-1">
+  1731→              <Label className="text-xs">Album/Folder</Label>
+  1732→              <Select value={filterAlbum} onValueChange={setFilterAlbum}>
+  1733→                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+  1734→                <SelectContent>
+  1735→                  <SelectItem value="ALL">📁 Semua Album</SelectItem>
+  1736→                  {availableAlbums.map(a => <SelectItem key={a} value={a}>📁 {a}</SelectItem>)}
+  1737→                </SelectContent>
+  1738→              </Select>
+  1739→            </div>
+  1740→          </div>
+  1741→        </div>
+  1742→      </CardHeader>
+  1743→      <CardContent>
+  1744→        {filtered.length === 0 ? (
+  1745→          <EmptyState icon={Video} title={items.length === 0 ? "Galeri video masih kosong" : "Tidak ada video cocok"} description={items.length === 0 ? "Klik 'Sync YouTube' untuk auto-cari video LAPRA 08, atau tambah manual." : "Coba ubah filter level/wilayah/album."} />
+  1746→        ) : (
+  1747→          <div className="space-y-6">
+  1748→            {/* === Display grouped by level + territory + album === */}
+  1749→            {groupedArray.map((group: any) => (
+  1750→              <div key={`vid-${group.level}-${group.terrCode}-${group.album}`} className="space-y-2">
+  1751→                <div className="flex items-center gap-2 flex-wrap pb-2 border-b">
+  1752→                  <Badge variant="outline" className={`text-[11px] ${levelColors[group.level]}`}>
+  1753→                    {group.level}
+  1754→                  </Badge>
+  1755→                  <span className="text-sm font-semibold">{group.terrName}</span>
+  1756→                  <ChevronRight className="w-3 h-3 text-muted-foreground" />
+  1757→                  <span className="text-sm flex items-center gap-1">
+  1758→                    <Folder className="w-4 h-4 text-amber-500" />
+  1759→                    {group.album}
+
+[showing lines 1060-1759 of 6380; use offset=1760 with limit to continue reading]

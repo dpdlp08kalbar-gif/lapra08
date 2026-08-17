@@ -1,0 +1,511 @@
+  5870→  // === Load FAQ from API. Gabungkan DEFAULT_FAQS + data DB (deduplikasi by ID) ===
+  5871→  // Jika database kosong → pakai DEFAULT_FAQS (20 FAQ)
+  5872→  // Jika database ada data → gabungkan DEFAULT + DB (DB override DEFAULT by ID)
+  5873→  const reload = () => {
+  5874→    setLoading(true)
+  5875→    api('/api/faq')
+  5876→      .then((data: any[]) => {
+  5877→        // Extract value dari response API
+  5878→        const dbFaqs = (data || [])
+  5879→          .map((item: any) => item.value || item)
+  5880→          .filter(Boolean)
+  5881→          .filter((f: any) => f && f.id && f.q && f.a) // validasi field wajib
+  5882→
+  5883→        // Map DEFAULT_FAQS by ID untuk override
+  5884→        const defaultMap = new Map(DEFAULT_FAQS.map(f => [f.id, f]))
+  5885→        const dbMap = new Map(dbFaqs.map((f: any) => [f.id, f]))
+  5886→
+  5887→        // Gabungan: semua default + semua DB (DB override default dengan ID sama)
+  5888→        const merged = [
+  5889→          ...DEFAULT_FAQS.map(f => dbMap.get(f.id) || f),  // default, di-override DB jika ada
+  5890→          ...dbFaqs.filter((f: any) => !defaultMap.has(f.id)),  // DB items yang bukan default
+  5891→        ]
+  5892→        setFaqs(merged)
+  5893→      })
+  5894→      .catch(() => setFaqs(DEFAULT_FAQS))
+  5895→      .finally(() => setLoading(false))
+  5896→  }
+  5897→
+  5898→  useEffect(() => {
+  5899→    reload()
+  5900→    // eslint-disable-next-line react-hooks/exhaustive-deps
+  5901→  }, [])
+  5902→
+  5903→  // === Handler: Simpan FAQ (create or update) - Super Admin only ===
+  5904→  const handleSave = async (e: React.FormEvent) => {
+  5905→    e.preventDefault()
+  5906→    if (!form.q.trim() || !form.a.trim()) {
+  5907→      addToast('Pertanyaan dan jawaban wajib diisi', 'error')
+  5908→      return
+  5909→    }
+  5910→    setSaving(true)
+  5911→    try {
+  5912→      const id = form.id || `faq_${Date.now()}`
+  5913→      await api('/api/faq', {
+  5914→        method: 'POST',
+  5915→        body: JSON.stringify({ id, category: form.category, q: form.q, a: form.a }),
+  5916→      })
+  5917→      addToast(editDialog?.isNew ? 'FAQ baru ditambahkan' : 'FAQ diperbarui', 'success')
+  5918→      setEditDialog(null)
+  5919→      setForm({ id: '', category: 'KEANGGOTAAN', q: '', a: '' })
+  5920→      reload()
+  5921→    } catch (e: any) {
+  5922→      addToast(e.message, 'error')
+  5923→    } finally {
+  5924→      setSaving(false)
+  5925→    }
+  5926→  }
+  5927→
+  5928→  // === Handler: Hapus FAQ - Super Admin only ===
+  5929→  const handleDelete = async () => {
+  5930→    if (!deleteConfirm) return
+  5931→    try {
+  5932→      await api(`/api/faq?id=${deleteConfirm.id}`, { method: 'DELETE' })
+  5933→      addToast('FAQ dihapus', 'success')
+  5934→      setDeleteConfirm(null)
+  5935→      reload()
+  5936→    } catch (e: any) {
+  5937→      addToast(e.message, 'error')
+  5938→    }
+  5939→  }
+  5940→
+  5941→  if (loading) return <LoadingState />
+  5942→
+  5943→  const categories: Record<string, { label: string; color: string; icon: any }> = {
+  5944→    KEANGGOTAAN: { label: 'Keanggotaan', color: 'bg-blue-50 text-blue-700 border-blue-200', icon: Users },
+  5945→    STRUKTUR: { label: 'Struktur Organisasi', color: 'bg-purple-50 text-purple-700 border-purple-200', icon: Building2 },
+  5946→    PROGRAM: { label: 'Program & Kegiatan', color: 'bg-emerald-50 text-emerald-700 border-emerald-200', icon: Briefcase },
+  5947→    LAYANAN: { label: 'Layanan & Advokasi', color: 'bg-orange-50 text-orange-700 border-orange-200', icon: ShieldCheck },
+  5948→    LAINNYA: { label: 'Lainnya', color: 'bg-slate-50 text-slate-700 border-slate-200', icon: HelpCircle },
+  5949→  }
+  5950→
+  5951→  const filtered = faqs.filter(f => !search || f.q.toLowerCase().includes(search.toLowerCase()) || f.a.toLowerCase().includes(search.toLowerCase()) || f.category.toLowerCase().includes(search.toLowerCase()))
+  5952→
+  5953→  return (
+  5954→    <Card>
+  5955→      <CardHeader>
+  5956→        <CardTitle className="flex items-center gap-2 text-base">
+  5957→          <HelpCircle className="w-4 h-4 text-emerald-600" /> FAQ - Pertanyaan yang Sering Diajukan ({filtered.length})
+  5958→          {/* === Tombol "Tambah FAQ" - Super Admin only === */}
+  5959→          {isSuperAdmin && (
+  5960→            <Button size="sm" className="ml-auto bg-emerald-600 hover:bg-emerald-700 text-white"
+  5961→              onClick={() => { setEditDialog({ isNew: true }); setForm({ id: '', category: 'KEANGGOTAAN', q: '', a: '' }) }}>
+  5962→              <Plus className="w-4 h-4 mr-1" /> Tambah FAQ
+  5963→            </Button>
+  5964→          )}
+  5965→        </CardTitle>
+  5966→        <CardDescription>
+  5967→          Temukan jawaban cepat untuk pertanyaan umum tentang LAPRA 08
+  5968→          {isSuperAdmin && <span className="block text-xs text-emerald-700 mt-1 font-medium">🔓 Mode Super Admin — Anda dapat menambah, mengedit, dan menghapus FAQ</span>}
+  5969→        </CardDescription>
+  5970→      </CardHeader>
+  5971→      <CardContent className="space-y-4">
+  5972→        <div className="relative max-w-md">
+  5973→          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+  5974→          <Input placeholder="Cari pertanyaan atau kata kunci..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />
+  5975→        </div>
+  5976→        <div className="flex flex-wrap gap-2">
+  5977→          {Object.entries(categories).map(([k, v]) => {
+  5978→            const Icon = v.icon
+  5979→            const count = faqs.filter(f => f.category === k).length
+  5980→            return (
+  5981→              <button key={k} onClick={() => setSearch(k === 'KEANGGOTAAN' ? 'keanggotaan' : k === 'STRUKTUR' ? 'struktur' : k === 'PROGRAM' ? 'program' : k === 'LAYANAN' ? 'layanan' : '')}
+  5982→                className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium border bg-white hover:bg-accent transition-colors">
+  5983→                <Icon className="w-3.5 h-3.5" />
+  5984→                <span className={v.color.split(' ').slice(1, 3).join(' ')}>{v.label}</span>
+  5985→                <Badge variant="outline" className="text-[13px]">{count}</Badge>
+  5986→              </button>
+  5987→            )
+  5988→          })}
+  5989→        </div>
+  5990→        <div className="space-y-2">
+  5991→          {filtered.map((faq) => {
+  5992→            const cat = categories[faq.category] || categories.LAINNYA
+  5993→            const CatIcon = cat.icon
+  5994→            const isOpen = openItem === faq.id
+  5995→            return (
+  5996→              <div key={faq.id} className="rounded-xl border bg-white overflow-hidden">
+  5997→                <div className="flex items-stretch">
+  5998→                  <button onClick={() => setOpenItem(isOpen ? null : faq.id)} className="flex-1 p-4 flex items-start gap-3 hover:bg-accent/50 transition-colors text-left">
+  5999→                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${cat.color}`}>
+  6000→                      <CatIcon className="w-4 h-4" />
+  6001→                    </div>
+  6002→                    <div className="flex-1 min-w-0">
+  6003→                      <div className="font-semibold text-sm">{faq.q}</div>
+  6004→                      <Badge variant="outline" className={`text-[13px] mt-1 ${cat.color}`}>{cat.label}</Badge>
+  6005→                    </div>
+  6006→                    <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform shrink-0 mt-1 ${isOpen ? 'rotate-90' : ''}`} />
+  6007→                  </button>
+  6008→                  {/* === Tombol Edit/Hapus - Super Admin only === */}
+  6009→                  {isSuperAdmin && (
+  6010→                    <div className="flex flex-col gap-1 p-2 border-l bg-slate-50/50 justify-center">
+  6011→                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-blue-600 hover:bg-blue-50"
+  6012→                        onClick={() => {
+  6013→                          setEditDialog({ faq })
+  6014→                          setForm({ id: faq.id, category: faq.category, q: faq.q, a: faq.a })
+  6015→                          if (!isOpen) setOpenItem(faq.id) // auto-expand saat edit
+  6016→                        }}
+  6017→                        title="Edit FAQ">
+  6018→                        <Edit className="w-3.5 h-3.5" />
+  6019→                      </Button>
+  6020→                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-600 hover:bg-red-50"
+  6021→                        onClick={() => setDeleteConfirm(faq)}
+  6022→                        title="Hapus FAQ">
+  6023→                        <Trash2 className="w-3.5 h-3.5" />
+  6024→                      </Button>
+  6025→                    </div>
+  6026→                  )}
+  6027→                </div>
+  6028→                {isOpen && (
+  6029→                  <div className="px-4 pb-4 pt-0 text-sm text-muted-foreground leading-relaxed border-t bg-slate-50/50">
+  6030→                    <p className="mt-3 whitespace-pre-wrap">{faq.a}</p>
+  6031→                  </div>
+  6032→                )}
+  6033→              </div>
+  6034→            )
+  6035→          })}
+  6036→        </div>
+  6037→        {filtered.length === 0 && <EmptyState icon={HelpCircle} title="Tidak ada FAQ cocok" description="Coba kata kunci lain atau hubungi sekretariat langsung." />}
+  6038→      </CardContent>
+  6039→
+  6040→      {/* === Dialog Tambah/Edit FAQ - Super Admin only === */}
+  6041→      <Dialog open={!!editDialog} onOpenChange={(o) => { if (!o) { setEditDialog(null); setForm({ id: '', category: 'KEANGGOTAAN', q: '', a: '' }) } }}>
+  6042→        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+  6043→          <DialogHeader>
+  6044→            <DialogTitle>{editDialog?.isNew ? 'Tambah FAQ Baru' : 'Edit FAQ'}</DialogTitle>
+  6045→            <DialogDescription>
+  6046→              {editDialog?.isNew
+  6047→                ? 'Tambah pertanyaan dan jawaban baru ke daftar FAQ'
+  6048→                : 'Edit pertanyaan atau jawaban FAQ yang dipilih'}
+  6049→            </DialogDescription>
+  6050→          </DialogHeader>
+  6051→          <form onSubmit={handleSave} className="space-y-4">
+  6052→            <div className="space-y-2">
+  6053→              <Label>Kategori</Label>
+  6054→              <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}>
+  6055→                <SelectTrigger><SelectValue /></SelectTrigger>
+  6056→                <SelectContent>
+  6057→                  <SelectItem value="KEANGGOTAAN">Keanggotaan</SelectItem>
+  6058→                  <SelectItem value="STRUKTUR">Struktur Organisasi</SelectItem>
+  6059→                  <SelectItem value="PROGRAM">Program & Kegiatan</SelectItem>
+  6060→                  <SelectItem value="LAYANAN">Layanan & Advokasi</SelectItem>
+  6061→                  <SelectItem value="LAINNYA">Lainnya</SelectItem>
+  6062→                </SelectContent>
+  6063→              </Select>
+  6064→            </div>
+  6065→            <div className="space-y-2">
+  6066→              <Label>Pertanyaan *</Label>
+  6067→              <Input value={form.q} onChange={(e) => setForm({ ...form, q: e.target.value })} required placeholder="Contoh: Bagaimana cara mendaftar menjadi anggota LAPRA 08?" />
+  6068→            </div>
+  6069→            <div className="space-y-2">
+  6070→              <Label>Jawaban *</Label>
+  6071→              <Textarea value={form.a} onChange={(e) => setForm({ ...form, a: e.target.value })} required rows={6}
+  6072→                placeholder="Tulis jawaban lengkap dan informatif. Mendukung multiline (tekan Enter untuk baris baru)." />
+  6073→            </div>
+  6074→            <DialogFooter>
+  6075→              <Button type="button" variant="outline" onClick={() => { setEditDialog(null); setForm({ id: '', category: 'KEANGGOTAAN', q: '', a: '' }) }}>Batal</Button>
+  6076→              <Button type="submit" disabled={saving} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+  6077→                {saving ? 'Menyimpan...' : editDialog?.isNew ? 'Tambah FAQ' : 'Simpan Perubahan'}
+  6078→              </Button>
+  6079→            </DialogFooter>
+  6080→          </form>
+  6081→        </DialogContent>
+  6082→      </Dialog>
+  6083→
+  6084→      {/* === Dialog Konfirmasi Hapus FAQ === */}
+  6085→      <AlertDialog open={!!deleteConfirm} onOpenChange={(o) => !o && setDeleteConfirm(null)}>
+  6086→        <AlertDialogContent>
+  6087→          <AlertDialogHeader>
+  6088→            <AlertDialogTitle>Hapus FAQ?</AlertDialogTitle>
+  6089→            <AlertDialogDescription>
+  6090→              Yakin ingin menghapus pertanyaan berikut?
+  6091→              <br /><br />
+  6092→              <strong>"{deleteConfirm?.q}"</strong>
+  6093→              <br /><br />
+  6094→              <span className="text-xs text-muted-foreground">Tindakan ini tidak dapat dibatalkan.</span>
+  6095→            </AlertDialogDescription>
+  6096→          </AlertDialogHeader>
+  6097→          <AlertDialogFooter>
+  6098→            <AlertDialogCancel>Batal</AlertDialogCancel>
+  6099→            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">Hapus</AlertDialogAction>
+  6100→          </AlertDialogFooter>
+  6101→        </AlertDialogContent>
+  6102→      </AlertDialog>
+  6103→    </Card>
+  6104→  )
+  6105→}
+  6106→
+  6107→// ============================================================
+  6108→// AUDIT AI RESPONDING OTOMATIS - Dialog Component
+  6109→// ============================================================
+  6110→function AuditAIRespondingDialog({ open, onOpenChange }: { open: boolean, onOpenChange: (o: boolean) => void }) {
+  6111→  const addToast = useToastStore((s) => s.addToast)
+  6112→  const [scanning, setScanning] = useState(false)
+  6113→  const [scanResult, setScanResult] = useState<any>(null)
+  6114→  const [complaints, setComplaints] = useState<any[]>([])
+  6115→  const [ignoredByWilayah, setIgnoredByWilayah] = useState<any[]>([])
+  6116→  const [stats, setStats] = useState<any>(null)
+  6117→  const [filterPriority, setFilterPriority] = useState('')
+  6118→  const [loadingDetail, setLoadingDetail] = useState(false)
+  6119→
+  6120→  const handleScan = async () => {
+  6121→    setScanning(true); setScanResult(null); setComplaints([]); setIgnoredByWilayah([]); setStats(null)
+  6122→    try {
+  6123→      const res = await fetch('/api/audit-ai/scans', {
+  6124→        method: 'POST', headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+  6125→        body: JSON.stringify({ platforms: ['FACEBOOK', 'INSTAGRAM', 'TIKTOK', 'TWITTER_X', 'GOOGLE'] }),
+  6126→      })
+  6127→      const data = await res.json()
+  6128→      if (!res.ok || !data.success) throw new Error(data.error)
+  6129→      setScanResult(data.data)
+  6130→      addToast(data.message, 'success')
+  6131→      // Load detail complaints
+  6132→      loadComplaints(data.data.id)
+  6133→    } catch (e: any) { addToast(e.message, 'error') }
+  6134→    finally { setScanning(false) }
+  6135→  }
+  6136→
+  6137→  const loadComplaints = async (scanId: string) => {
+  6138→    setLoadingDetail(true)
+  6139→    try {
+  6140→      const params = filterPriority ? `?priority=${filterPriority}` : ''
+  6141→      const res = await fetch(`/api/audit-ai/scans/${scanId}${params}`, { headers: { 'x-user-id': useAuthStore.getState().user?.id || '' } })
+  6142→      const data = await res.json()
+  6143→      if (data.success) {
+  6144→        setComplaints(data.data.complaints)
+  6145→        setIgnoredByWilayah(data.data.ignoredByWilayah)
+  6146→        setStats(data.data.stats)
+  6147→      }
+  6148→    } catch (e: any) { addToast(e.message, 'error') }
+  6149→    finally { setLoadingDetail(false) }
+  6150→  }
+  6151→
+  6152→  const handleRespond = async (complaintId: string, status: string, type: string) => {
+  6153→    try {
+  6154→      await fetch(`/api/audit-ai/complaints/${complaintId}`, {
+  6155→        method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+  6156→        body: JSON.stringify({ responseStatus: status, responseType: type }),
+  6157→      })
+  6158→      addToast(`Keluhan ditandai: ${status}`, 'success')
+  6159→      if (scanResult) loadComplaints(scanResult.id)
+  6160→    } catch (e: any) { addToast(e.message, 'error') }
+  6161→  }
+  6162→
+  6163→  return (
+  6164→    <Dialog open={open} onOpenChange={onOpenChange}>
+  6165→      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+  6166→        <DialogHeader>
+  6167→          <DialogTitle className="flex items-center gap-2">
+  6168→            <ShieldCheck className="w-5 h-5 text-red-600" /> Audit AI Responding Otomatis
+  6169→          </DialogTitle>
+  6170→          <DialogDescription>
+  6171→            Deteksi instan keluhan warganet di Facebook, Instagram, TikTok, X (Twitter), dan Google. Identifikasi mana yang wajib direspon oleh DPN/DPD/DPC.
+  6172→          </DialogDescription>
+  6173→        </DialogHeader>
+  6174→
+  6175→        {/* Rp0 info banner */}
+  6176→        <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-xs text-emerald-800 flex items-start gap-2">
+  6177→          <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" />
+  6178→          <div className="flex-1">
+  6179→            <strong>100% OTOMATIS — TANPA KONFIGURASI:</strong>
+  6180→            <div className="mt-2 space-y-1">
+  6181→              <div>✅ <strong>YouTube:</strong> yt-dlp otomatis search 15 video REAL yang mention "LAPRA 08" — dengan view count, channel, dan tanggal asli. GRATIS, tanpa API key.</div>
+  6182→              <div>✅ <strong>Google News:</strong> RSS otomatis ambil 20 artikel REAL berita tentang LAPRA 08 dari MetroTVNews, Atjeh Watch, dll. GRATIS, tanpa API key.</div>
+  6183→              <div>ℹ️ <strong>Facebook, Instagram, TikTok, X/Twitter:</strong> Platform-platform ini memblokir akses anonim sejak 2023. Untuk audit REAL posts dari medsos ini, perlu API resmi (Meta Graph API gratis untuk FB+IG, YouTube Data API v3 gratis, TikTok Research API perlu approval, X API v2 berbayar $100/bln).</div>
+  6184→            </div>
+  6185→            <div className="mt-2 pt-2 border-t border-emerald-200">
+  6186→              <strong>Cara kerja:</strong> Klik tombol "Mulai Audit" → sistem otomatis scraping YouTube + Google News → AI analisis sentimen + prioritas + lokasi → tampilkan daftar keluhan + rekomendasi tindakan. Semua dalam &lt;3 detik.
+  6187→            </div>
+  6188→          </div>
+  6189→        </div>
+  6190→
+  6191→        {/* Scan button */}
+  6192→        {!scanResult && !scanning && (
+  6193→          <div className="text-center py-8">
+  6194→            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-red-500 to-rose-700 flex items-center justify-center mx-auto mb-4 shadow-lg">
+  6195→              <ShieldCheck className="w-10 h-10 text-white" />
+  6196→            </div>
+  6197→            <h3 className="font-bold text-lg mb-2">Audit AI Responding Otomatis</h3>
+  6198→            <p className="text-sm text-muted-foreground mb-4 max-w-md mx-auto">
+  6199→              Klik tombol di bawah untuk melakukan scan instan terhadap semua media sosial dan mendeteksi keluhan warganet yang wajib direspon oleh pengurus LAPRA 08.
+  6200→            </p>
+  6201→            <Button onClick={handleScan} size="lg" className="bg-gradient-to-r from-red-600 to-rose-700 text-white">
+  6202→              <Zap className="w-5 h-5 mr-2" /> Mulai Audit Sekarang
+  6203→            </Button>
+  6204→          </div>
+  6205→        )}
+  6206→
+  6207→        {/* Scanning */}
+  6208→        {scanning && (
+  6209→          <div className="text-center py-12">
+  6210→            <Loader2 className="w-12 h-12 mx-auto animate-spin text-red-600 mb-4" />
+  6211→            <p className="text-sm font-medium">Sedang mengscan Facebook, Instagram, TikTok, X, dan Google...</p>
+  6212→            <p className="text-xs text-muted-foreground mt-1">Menganalisis keluhan warganet dengan AI lokal (IndoBERT)...</p>
+  6213→          </div>
+  6214→        )}
+  6215→
+  6216→        {/* Results */}
+  6217→        {scanResult && !scanning && (
+  6218→          <div className="space-y-4">
+  6219→            {/* Summary stats */}
+  6220→            {stats && (
+  6221→              <div className="grid grid-cols-4 gap-3">
+  6222→                <div className="rounded-lg border p-3 text-center bg-slate-50">
+  6223→                  <div className="text-2xl font-bold">{stats.total}</div>
+  6224→                  <div className="text-[13px] text-muted-foreground">Total Keluhan</div>
+  6225→                </div>
+  6226→                <div className="rounded-lg border p-3 text-center bg-red-50 border-red-200">
+  6227→                  <div className="text-2xl font-bold text-red-700">{stats.high}</div>
+  6228→                  <div className="text-[13px] text-red-600">Prioritas Tinggi</div>
+  6229→                </div>
+  6230→                <div className="rounded-lg border p-3 text-center bg-amber-50 border-amber-200">
+  6231→                  <div className="text-2xl font-bold text-amber-700">{stats.medium}</div>
+  6232→                  <div className="text-[13px] text-amber-600">Prioritas Sedang</div>
+  6233→                </div>
+  6234→                <div className="rounded-lg border p-3 text-center bg-blue-50 border-blue-200">
+  6235→                  <div className="text-2xl font-bold text-blue-700">{stats.ignored}</div>
+  6236→                  <div className="text-[13px] text-blue-600">Terabaikan</div>
+  6237→                </div>
+  6238→              </div>
+  6239→            )}
+  6240→
+  6241→            {/* Priority filter */}
+  6242→            <div className="flex gap-2 items-center">
+  6243→              <span className="text-sm font-semibold text-muted-foreground">Filter Prioritas:</span>
+  6244→              <Button size="sm" variant={filterPriority === '' ? 'default' : 'outline'} className="h-7 text-xs" onClick={() => { setFilterPriority(''); if (scanResult) loadComplaints(scanResult.id) }}>Semua</Button>
+  6245→              <Button size="sm" variant={filterPriority === 'HIGH' ? 'default' : 'outline'} className="h-7 text-xs bg-red-600 hover:bg-red-700 text-white" onClick={() => { setFilterPriority('HIGH'); if (scanResult) loadComplaints(scanResult.id) }}>Tinggi</Button>
+  6246→              <Button size="sm" variant={filterPriority === 'MEDIUM' ? 'default' : 'outline'} className="h-7 text-xs bg-amber-600 hover:bg-amber-700 text-white" onClick={() => { setFilterPriority('MEDIUM'); if (scanResult) loadComplaints(scanResult.id) }}>Sedang</Button>
+  6247→              <Button size="sm" variant={filterPriority === 'LOW' ? 'default' : 'outline'} className="h-7 text-xs bg-blue-600 hover:bg-blue-700 text-white" onClick={() => { setFilterPriority('LOW'); if (scanResult) loadComplaints(scanResult.id) }}>Rendah</Button>
+  6248→            </div>
+  6249→
+  6250→            {/* Complaints list with priority */}
+  6251→            {loadingDetail ? (
+  6252→              <div className="text-center py-8"><Loader2 className="w-8 h-8 animate-spin text-red-600 mx-auto" /></div>
+  6253→            ) : complaints.length === 0 ? (
+  6254→              <EmptyState icon={ShieldCheck} title="Tidak ada keluhan" description="Tidak ditemukan keluhan pada filter ini." />
+  6255→            ) : (
+  6256→              <div className="space-y-2">
+  6257→                {complaints.map((c, i) => {
+  6258→                  const priColor = c.priority === 'HIGH' ? 'border-l-red-500 bg-red-50/30' : c.priority === 'MEDIUM' ? 'border-l-amber-500 bg-amber-50/30' : 'border-l-blue-500 bg-blue-50/30'
+  6259→                  const priBadge = c.priority === 'HIGH' ? 'bg-red-100 text-red-800 border-red-300' : c.priority === 'MEDIUM' ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-blue-100 text-blue-800 border-blue-300'
+  6260→                  const platformIcon = c.platform === 'FACEBOOK' ? '📘' : c.platform === 'INSTAGRAM' ? '📷' : c.platform === 'TIKTOK' ? '🎵' : c.platform === 'TWITTER_X' ? '🐦' : '🔍'
+  6261→                  return (
+  6262→                    <div key={c.id} className={`rounded-xl border-l-4 p-3 ${priColor}`}>
+  6263→                      <div className="flex items-start gap-3">
+  6264→                        <div className="flex-1 min-w-0">
+  6265→                          <div className="flex items-center gap-2 flex-wrap mb-1">
+  6266→                            <Badge className={`text-[13px] ${priBadge}`}>{c.priority}</Badge>
+  6267→                            <Badge variant="outline" className="text-[13px]">{platformIcon} {c.platform}</Badge>
+  6268→                            <Badge variant="outline" className="text-[13px] bg-emerald-50 text-emerald-700 border-emerald-200">
+  6269→                              <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1" />REAL
+  6270→                            </Badge>
+  6271→                            <Badge variant="outline" className={`text-[13px] ${c.sentiment === 'NEGATIVE' ? 'bg-red-50 text-red-700' : c.sentiment === 'POSITIVE' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-50 text-slate-700'}`}>
+  6272→                              {c.sentiment}
+  6273→                            </Badge>
+  6274→                            <Badge variant="outline" className="text-[13px] bg-purple-50 text-purple-700">{c.category}</Badge>
+  6275→                            {c.regencyName && <Badge variant="outline" className="text-[13px] bg-blue-50 text-blue-700"><MapPin className="w-2.5 h-2.5 mr-0.5" />{c.regencyName}</Badge>}
+  6276→                            {c.provinceName && !c.regencyName && <Badge variant="outline" className="text-[13px] bg-blue-50 text-blue-700"><MapPin className="w-2.5 h-2.5 mr-0.5" />{c.provinceName}</Badge>}
+  6277→                            <Badge variant="outline" className={`text-[13px] ${c.responseStatus === 'IGNORED' ? 'bg-red-50 text-red-700' : c.responseStatus === 'RESPONDED' ? 'bg-emerald-50 text-emerald-700' : c.responseStatus === 'IN_PROGRESS' ? 'bg-amber-50 text-amber-700' : 'bg-slate-50 text-slate-500'}`}>
+  6278→                              {c.responseStatus === 'IGNORED' ? '⚠ TERABAIKAN' : c.responseStatus === 'RESPONDED' ? '✓ Direspon' : c.responseStatus === 'IN_PROGRESS' ? '⏳ Proses' : 'ℹ Info (No Response Needed)'}
+  6279→                            </Badge>
+  6280→                          </div>
+  6281→                          <div className="text-sm font-semibold flex items-center gap-2">
+  6282→                            <span className="text-blue-600">{c.author}</span>
+  6283→                            {c.authorHandle && c.authorHandle !== '@rss' && <span className="text-xs text-muted-foreground font-normal">{c.authorHandle}</span>}
+  6284→                          </div>
+  6285→                          <p className="text-xs text-muted-foreground mt-1 line-clamp-3 whitespace-pre-wrap">{c.content}</p>
+  6286→                          {c.aiRecommendation && (
+  6287→                            <div className="mt-2 p-2 rounded bg-white border text-xs">
+  6288→                              <Lightbulb className="w-3 h-3 inline mr-1 text-amber-500" />
+  6289→                              <strong>AI Rekomendasi:</strong> {c.aiRecommendation}
+  6290→                            </div>
+  6291→                          )}
+  6292→                          <div className="flex items-center gap-3 mt-2 text-[13px] text-muted-foreground">
+  6293→                            <span>📅 {formatDateTimeID(c.publishedAt)}</span>
+  6294→                            <span>💬 {c.engagementCount} engagement</span>
+  6295→                            <span>⚡ Urgency: {c.urgencyScore}/100</span>
+  6296→                          </div>
+  6297→                        </div>
+  6298→                        <div className="flex flex-col gap-1 shrink-0">
+  6299→                          {c.responseStatus === 'IGNORED' && (
+  6300→                            <>
+  6301→                              <Button size="sm" variant="outline" className="h-7 text-xs text-emerald-700 border-emerald-300" onClick={() => handleRespond(c.id, 'IN_PROGRESS', 'ACKNOWLEDGMENT')}>
+  6302→                                <CheckCircle2 className="w-3 h-3 mr-1" /> Tandai Proses
+  6303→                              </Button>
+  6304→                              <Button size="sm" variant="outline" className="h-7 text-xs text-blue-700 border-blue-300" onClick={() => handleRespond(c.id, 'RESPONDED', 'CLARIFICATION')}>
+  6305→                                <Send className="w-3 h-3 mr-1" /> Sudah Respon
+  6306→                              </Button>
+  6307→                            </>
+  6308→                          )}
+  6309→                          <a href={c.url} target="_blank" rel="noopener noreferrer">
+  6310→                            <Button size="sm" variant="ghost" className="h-7 text-xs w-full"><ExternalLink className="w-3 h-3 mr-1" /> Buka Post</Button>
+  6311→                          </a>
+  6312→                        </div>
+  6313→                      </div>
+  6314→                    </div>
+  6315→                  )
+  6316→                })}
+  6317→              </div>
+  6318→            )}
+  6319→
+  6320→            {/* Daftar Keluhan Terabaikan per Wilayah */}
+  6321→            {ignoredByWilayah.length > 0 && (
+  6322→              <Card className="border-red-200">
+  6323→                <CardHeader>
+  6324→                  <CardTitle className="flex items-center gap-2 text-sm text-red-700">
+  6325→                    <AlertTriangle className="w-4 h-4" /> Daftar Keluhan Terabaikan per Wilayah
+  6326→                  </CardTitle>
+  6327→                  <CardDescription>Wilayah yang pasif/lambat merespon keluhan warganet</CardDescription>
+  6328→                </CardHeader>
+  6329→                <CardContent>
+  6330→                  <Table>
+  6331→                    <TableHeader>
+  6332→                      <TableRow>
+  6333→                        <TableHead>Provinsi</TableHead>
+  6334→                        <TableHead>Kab/Kota</TableHead>
+  6335→                        <TableHead className="text-center">Total</TableHead>
+  6336→                        <TableHead className="text-center text-red-600">Tinggi</TableHead>
+  6337→                        <TableHead className="text-center text-amber-600">Sedang</TableHead>
+  6338→                        <TableHead className="text-center text-blue-600">Rendah</TableHead>
+  6339→                        <TableHead>Status</TableHead>
+  6340→                      </TableRow>
+  6341→                    </TableHeader>
+  6342→                    <TableBody>
+  6343→                      {ignoredByWilayah.map((w, i) => (
+  6344→                        <TableRow key={i} className={w.high > 0 ? 'bg-red-50/50' : ''}>
+  6345→                          <TableCell className="text-sm font-medium">{w.provinceName}</TableCell>
+  6346→                          <TableCell className="text-sm">{w.regencyName}</TableCell>
+  6347→                          <TableCell className="text-center font-bold">{w.total}</TableCell>
+  6348→                          <TableCell className="text-center text-red-700 font-bold">{w.high}</TableCell>
+  6349→                          <TableCell className="text-center text-amber-700">{w.medium}</TableCell>
+  6350→                          <TableCell className="text-center text-blue-700">{w.low}</TableCell>
+  6351→                          <TableCell>
+  6352→                            {w.high > 0 ? <Badge className="bg-red-100 text-red-800 text-[13px]">⚠ KRITIS - Wajib Respon</Badge> :
+  6353→                             w.medium > 0 ? <Badge className="bg-amber-100 text-amber-800 text-[13px]">⚠ Perlu Perhatian</Badge> :
+  6354→                             <Badge variant="outline" className="text-[13px]">Monitor</Badge>}
+  6355→                          </TableCell>
+  6356→                        </TableRow>
+  6357→                      ))}
+  6358→                    </TableBody>
+  6359→                  </Table>
+  6360→                </CardContent>
+  6361→              </Card>
+  6362→            )}
+  6363→
+  6364→            {/* Re-scan button */}
+  6365→            <div className="flex justify-end">
+  6366→              <Button onClick={handleScan} disabled={scanning} variant="outline">
+  6367→                <Loader2 className={`w-4 h-4 mr-1 ${scanning ? 'animate-spin' : 'hidden'}`} /> Scan Ulang
+  6368→              </Button>
+  6369→            </div>
+  6370→          </div>
+  6371→        )}
+  6372→
+  6373→        <DialogFooter>
+  6374→          <Button variant="outline" onClick={() => onOpenChange(false)}>Tutup</Button>
+  6375→        </DialogFooter>
+  6376→      </DialogContent>
+  6377→    </Dialog>
+  6378→  )
+  6379→}
+  6380→

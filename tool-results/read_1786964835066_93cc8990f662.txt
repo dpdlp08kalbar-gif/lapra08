@@ -1,0 +1,1147 @@
+     1→// LAPRA 08 - Pusat Admin (v1.0)
+     2→// Menu terpadu yang menggabungkan Dashboard Admin + Pengaturan User + Saklar Keamanan
+     3→// jadi 1 menu ringkas & padat.
+     4→//
+     5→// Struktur:
+     6→// 1. Header + Last Updated timestamp
+     7→// 2. KPI Cards (4 buku) — Anggota / Event / User / Kas
+     8→// 3. Callout Alert (pending verifikasi — clickable ke Membership)
+     9→// 4. Quick Actions (4 tombol shortcut ke menu terkait)
+    10→// 5. Manajemen User (inline dengan search + filter + pagination + action per-row)
+    11→// 6. Saklar Keamanan (accordion, SUPERADMIN only)
+    12→//
+    13→// Performance: useMemo + useCallback, debounce search, server-side pagination untuk user list
+    14→'use client'
+    15→
+    16→import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+    17→import { api } from '@/lib/api-client'
+    18→import { useToastStore, useAuthStore, useNavStore } from '@/lib/store'
+    19→import { PageHeader, LoadingState, EmptyState, ErrorState } from '@/components/ui-helpers'
+    20→import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+    21→import { Badge } from '@/components/ui/badge'
+    22→import { Button } from '@/components/ui/button'
+    23→import { Input } from '@/components/ui/input'
+    24→import { Label } from '@/components/ui/label'
+    25→import {
+    26→  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+    27→} from '@/components/ui/dialog'
+    28→import {
+    29→  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+    30→} from '@/components/ui/select'
+    31→import {
+    32→  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+    33→  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+    34→} from '@/components/ui/alert-dialog'
+    35→import {
+    36→  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+    37→} from '@/components/ui/table'
+    38→import {
+    39→  Accordion, AccordionContent, AccordionItem, AccordionTrigger,
+    40→} from '@/components/ui/accordion'
+    41→import { Switch } from '@/components/ui/switch'
+    42→import {
+    43→  Users, UserCog, CalendarClock, Wallet, AlertTriangle, ArrowRight, Plus,
+    44→  Edit, Trash2, Search, RefreshCw, Loader2, Shield, ShieldCheck, Lock, Unlock,
+    45→  KeyRound, UserPlus, CalendarDays, Briefcase, ChevronLeft, ChevronRight,
+    46→  CheckCircle2, XCircle, Clock, Building2, MapPin, User as UserIcon,
+    47→} from 'lucide-react'
+    48→import { formatDateTimeID } from '@/lib/format'
+    49→
+    50→// ============================================================
+    51→// TYPES
+    52→// ============================================================
+    53→interface StatsData {
+    54→  members: {
+    55→    total: number
+    56→    active: number
+    57→    pending: number
+    58→    verified: number
+    59→    rejected: number
+    60→    byLevel: { dpn: number; dpd: number; dpc: number }
+    61→  }
+    62→  perTerritory: any[]
+    63→  global: {
+    64→    totalDomestic: number
+    65→    totalInternational: number
+    66→    totalProvinces: number
+    67→    totalRegencies: number
+    68→  }
+    69→  finance: { totalIncome: number; totalExpense: number; balance: number }
+    70→  events: { upcoming: number; total: number }
+    71→  assets: { total: number }
+    72→  organization: { totalPositions: number }
+    73→  users: { total: number }
+    74→  scope: {
+    75→    isGlobal: boolean
+    76→    role: string
+    77→    territoryName: string
+    78→    territoryCode: string
+    79→  }
+    80→}
+    81→
+    82→interface UserItem {
+    83→  id: string
+    84→  username: string
+    85→  fullName: string
+    86→  email?: string | null
+    87→  phone?: string | null
+    88→  role: string
+    89→  isActive: boolean
+    90→  lastLogin?: string | null
+    91→  createdAt?: string
+    92→  territory: { id: string; name: string; code: string }
+    93→}
+    94→
+    95→interface Territory {
+    96→  id: string
+    97→  name: string
+    98→  code: string
+    99→  level: string
+   100→}
+   101→
+   102→interface SecuritySetting {
+   103→  id: string
+   104→  key: string
+   105→  value: string
+   106→  description?: string | null
+   107→  isActive: boolean
+   108→}
+   109→
+   110→// ============================================================
+   111→// CONSTANTS (module-level)
+   112→// ============================================================
+   113→const ROLE_LABELS: Record<string, string> = {
+   114→  SUPERADMIN: 'Super Admin',
+   115→  ADMIN_DPN: 'Admin DPN',
+   116→  ADMIN_DPD: 'Admin DPD',
+   117→  ADMIN_DPC: 'Admin DPC',
+   118→}
+   119→
+   120→const ROLE_COLORS: Record<string, string> = {
+   121→  SUPERADMIN: 'bg-red-100 text-red-700 border-red-300',
+   122→  ADMIN_DPN: 'bg-orange-100 text-orange-700 border-orange-300',
+   123→  ADMIN_DPD: 'bg-blue-100 text-blue-700 border-blue-300',
+   124→  ADMIN_DPC: 'bg-emerald-100 text-emerald-700 border-emerald-300',
+   125→}
+   126→
+   127→const PAGE_SIZE = 10
+   128→
+   129→// ============================================================
+   130→// MAIN MENU
+   131→// ============================================================
+   132→export function PusatAdminMenu() {
+   133→  const user = useAuthStore((s) => s.user)
+   134→  const setNav = useNavStore((s) => s.setActiveMenu)
+   135→  const [stats, setStats] = useState<StatsData | null>(null)
+   136→  const [loadingStats, setLoadingStats] = useState(true)
+   137→  const [statsError, setStatsError] = useState<string | null>(null)
+   138→  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+   139→
+   140→  // Load stats
+   141→  const loadStats = useCallback(async () => {
+   142→    setLoadingStats(true)
+   143→    setStatsError(null)
+   144→    try {
+   145→      const data = await api('/api/stats')
+   146→      setStats(data as StatsData)
+   147→      setLastUpdated(new Date())
+   148→    } catch (e: any) {
+   149→      console.error('[PusatAdmin] stats load failed:', e)
+   150→      setStatsError(e.message || 'Gagal memuat statistik')
+   151→    } finally {
+   152→      setLoadingStats(false)
+   153→    }
+   154→  }, [])
+   155→
+   156→  useEffect(() => { loadStats() }, [loadStats])
+   157→
+   158→  return (
+   159→    <div className="space-y-6">
+   160→      {/* Header dengan tombol refresh + timestamp */}
+   161→      <div className="flex items-start justify-between gap-4 flex-wrap">
+   162→        <PageHeader
+   163→          title="Pusat Admin"
+   164→          description="Ringkasan operasional & manajemen pengguna sistem"
+   165→          icon={ShieldCheck}
+   166→        />
+   167→        <div className="flex items-center gap-2">
+   168→          {lastUpdated && (
+   169→            <span className="text-xs text-muted-foreground">
+   170→              Diperbarui: {lastUpdated.toLocaleTimeString('id-ID')}
+   171→            </span>
+   172→          )}
+   173→          <Button variant="outline" size="sm" onClick={loadStats} disabled={loadingStats} className="gap-1">
+   174→            <RefreshCw className={`w-3 h-3 ${loadingStats ? 'animate-spin' : ''}`} /> Refresh
+   175→          </Button>
+   176→        </div>
+   177→      </div>
+   178→
+   179→      {/* KPI Cards (4) — ringkasan kilat */}
+   180→      {loadingStats ? (
+   181→        <LoadingState message="Memuat ringkasan..." />
+   182→      ) : statsError ? (
+   183→        <ErrorState message={statsError} />
+   184→      ) : stats ? (
+   185→        <>
+   186→          <KpiCards stats={stats} />
+   187→          <AlertCallout stats={stats} onNavigate={setNav} />
+   188→          <QuickActions onNavigate={setNav} />
+   189→        </>
+   190→      ) : null}
+   191→
+   192→      {/* Manajemen User — inline, bukan tab */}
+   193→      <UsersManager />
+   194→
+   195→      {/* Saklar Keamanan — SUPERADMIN only, accordion */}
+   196→      {user?.role === 'SUPERADMIN' && <SecurityManager />}
+   197→    </div>
+   198→  )
+   199→}
+   200→
+   201→// ============================================================
+   202→// KPI CARDS — 4 ringkasan utama
+   203→// ============================================================
+   204→function KpiCards({ stats }: { stats: StatsData }) {
+   205→  const cards = [
+   206→    {
+   207→      label: 'Total Anggota',
+   208→      value: stats.members.total,
+   209→      sub: `${stats.members.active} aktif · ${stats.members.pending} pending`,
+   210→      icon: Users,
+   211→      color: 'from-blue-500 to-indigo-600',
+   212→    },
+   213→    {
+   214→      label: 'Event Mendatang',
+   215→      value: stats.events.upcoming,
+   216→      sub: `${stats.events.total} total event`,
+   217→      icon: CalendarClock,
+   218→      color: 'from-purple-500 to-pink-600',
+   219→    },
+   220→    {
+   221→      label: 'User Aktif',
+   222→      value: stats.users.total,
+   223→      sub: `${stats.members.byLevel.dpn} DPN · ${stats.members.byLevel.dpd} DPD · ${stats.members.byLevel.dpc} DPC`,
+   224→      icon: UserCog,
+   225→      color: 'from-emerald-500 to-teal-600',
+   226→    },
+   227→    {
+   228→      label: 'Kas Saldo',
+   229→      value: formatIDRShort(stats.finance.balance),
+   230→      sub: `+${formatIDRShort(stats.finance.totalIncome)} · -${formatIDRShort(stats.finance.totalExpense)}`,
+   231→      icon: Wallet,
+   232→      color: 'from-orange-500 to-red-600',
+   233→    },
+   234→  ]
+   235→
+   236→  return (
+   237→    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+   238→      {cards.map((c, i) => (
+   239→        <Card key={i} className="overflow-hidden">
+   240→          <div className={`bg-gradient-to-br ${c.color} p-3 text-white`}>
+   241→            <div className="flex items-center justify-between">
+   242→              <c.icon className="w-5 h-5" />
+   243→              <span className="text-[10px] uppercase opacity-80 tracking-wide">{c.label}</span>
+   244→            </div>
+   245→            <div className="text-2xl font-bold mt-1">{c.value}</div>
+   246→          </div>
+   247→          <CardContent className="p-2">
+   248→            <div className="text-xs text-muted-foreground truncate" title={c.sub}>{c.sub}</div>
+   249→          </CardContent>
+   250→        </Card>
+   251→      ))}
+   252→    </div>
+   253→  )
+   254→}
+   255→
+   256→// Helper format IDR singkat (1.2M, 500K, dll)
+   257→function formatIDRShort(value: number): string {
+   258→  if (!value) return 'Rp 0'
+   259→  const abs = Math.abs(value)
+   260→  if (abs >= 1_000_000_000) return `Rp ${(value / 1_000_000_000).toFixed(1)}M`
+   261→  if (abs >= 1_000_000) return `Rp ${(value / 1_000_000).toFixed(1)}jt`
+   262→  if (abs >= 1_000) return `Rp ${(value / 1_000).toFixed(0)}K`
+   263→  return `Rp ${value}`
+   264→}
+   265→
+   266→// ============================================================
+   267→// ALERT CALLOUT — pending verifikasi (clickable)
+   268→// ============================================================
+   269→function AlertCallout({ stats, onNavigate }: { stats: StatsData; onNavigate: (menu: string) => void }) {
+   270→  const pending = stats.members.pending
+   271→  const rejected = stats.members.rejected
+   272→  if (pending === 0 && rejected === 0) return null
+   273→
+   274→  return (
+   275→    <Card className="border-orange-300 bg-orange-50">
+   276→      <CardContent className="p-3 flex items-center gap-3 flex-wrap">
+   277→        <AlertTriangle className="w-5 h-5 text-orange-600 shrink-0" />
+   278→        <div className="flex-1 min-w-0">
+   279→          <div className="text-sm font-medium text-orange-900">
+   280→            {pending > 0 && `${pending} anggota menunggu verifikasi`}
+   281→            {pending > 0 && rejected > 0 && ' · '}
+   282→            {rejected > 0 && `${rejected} anggota ditolak`}
+   283→          </div>
+   284→          <div className="text-xs text-orange-700">Klik untuk membuka menu Keanggotaan</div>
+   285→        </div>
+   286→        <Button size="sm" variant="outline" onClick={() => onNavigate('membership')} className="gap-1">
+   287→          Buka <ArrowRight className="w-3 h-3" />
+   288→        </Button>
+   289→      </CardContent>
+   290→    </Card>
+   291→  )
+   292→}
+   293→
+   294→// ============================================================
+   295→// QUICK ACTIONS — 4 tombol shortcut
+   296→// ============================================================
+   297→function QuickActions({ onNavigate }: { onNavigate: (menu: string) => void }) {
+   298→  const actions = [
+   299→    { label: 'Tambah Anggota', icon: UserPlus, menu: 'membership', color: 'text-blue-600 hover:bg-blue-50' },
+   300→    { label: 'Buat Event', icon: CalendarDays, menu: 'events', color: 'text-purple-600 hover:bg-purple-50' },
+   301→    { label: 'Input Keuangan', icon: Wallet, menu: 'finance', color: 'text-orange-600 hover:bg-orange-50' },
+   302→    { label: 'Tambah Atribut', icon: Briefcase, menu: 'logistics', color: 'text-emerald-600 hover:bg-emerald-50' },
+   303→  ]
+   304→
+   305→  return (
+   306→    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+   307→      {actions.map((a, i) => (
+   308→        <button
+   309→          key={i}
+   310→          type="button"
+   311→          onClick={() => onNavigate(a.menu)}
+   312→          className={`flex items-center gap-2 p-3 rounded-lg border transition-colors ${a.color}`}
+   313→        >
+   314→          <a.icon className="w-4 h-4" />
+   315→          <span className="text-sm font-medium">{a.label}</span>
+   316→          <ArrowRight className="w-3 h-3 ml-auto" />
+   317→        </button>
+   318→      ))}
+   319→    </div>
+   320→  )
+   321→}
+   322→
+   323→// ============================================================
+   324→// USERS MANAGER — inline dengan search + filter + pagination + action
+   325→// ============================================================
+   326→function UsersManager() {
+   327→  const addToast = useToastStore((s) => s.addToast)
+   328→  const user = useAuthStore((s) => s.user)
+   329→  const [users, setUsers] = useState<UserItem[]>([])
+   330→  const [territories, setTerritories] = useState<Territory[]>([])
+   331→  const [loading, setLoading] = useState(true)
+   332→  const [error, setError] = useState<string | null>(null)
+   333→  const [search, setSearch] = useState('')
+   334→  const [searchDebounced, setSearchDebounced] = useState('')
+   335→  const [roleFilter, setRoleFilter] = useState<string>('ALL')
+   336→  const [statusFilter, setStatusFilter] = useState<string>('ALL')
+   337→  const [page, setPage] = useState(1)
+   338→  const [addOpen, setAddOpen] = useState(false)
+   339→  const [editUser, setEditUser] = useState<UserItem | null>(null)
+   340→  const [deleteUser, setDeleteUser] = useState<UserItem | null>(null)
+   341→  const [resetPasswordUser, setResetPasswordUser] = useState<UserItem | null>(null)
+   342→
+   343→  // Debounce search
+   344→  useEffect(() => {
+   345→    const t = setTimeout(() => {
+   346→      setSearchDebounced(search)
+   347→      setPage(1)
+   348→    }, 250)
+   349→    return () => clearTimeout(t)
+   350→  }, [search])
+   351→
+   352→  // Load users + territories
+   353→  const loadData = useCallback(async () => {
+   354→    setLoading(true)
+   355→    setError(null)
+   356→    try {
+   357→      const [u, t] = await Promise.all([
+   358→        api('/api/users').catch(() => []),
+   359→        api('/api/territory').catch(() => []),
+   360→      ])
+   361→      setUsers(u as UserItem[])
+   362→      setTerritories(t as Territory[])
+   363→    } catch (e: any) {
+   364→      setError(e.message || 'Gagal memuat data user')
+   365→    } finally {
+   366→      setLoading(false)
+   367→    }
+   368→  }, [])
+   369→
+   370→  useEffect(() => { loadData() }, [loadData])
+   371→
+   372→  // Filtered + paginated users
+   373→  const filtered = useMemo(() => {
+   374→    let result = users
+   375→    if (searchDebounced) {
+   376→      const q = searchDebounced.toLowerCase()
+   377→      result = result.filter(u =>
+   378→        u.username.toLowerCase().includes(q) ||
+   379→        u.fullName.toLowerCase().includes(q) ||
+   380→        u.territory?.name?.toLowerCase().includes(q)
+   381→      )
+   382→    }
+   383→    if (roleFilter !== 'ALL') {
+   384→      result = result.filter(u => u.role === roleFilter)
+   385→    }
+   386→    if (statusFilter !== 'ALL') {
+   387→      const wantActive = statusFilter === 'ACTIVE'
+   388→      result = result.filter(u => u.isActive === wantActive)
+   389→    }
+   390→    return result
+   391→  }, [users, searchDebounced, roleFilter, statusFilter])
+   392→
+   393→  const paginated = useMemo(() => {
+   394→    const start = (page - 1) * PAGE_SIZE
+   395→    return filtered.slice(start, start + PAGE_SIZE)
+   396→  }, [filtered, page])
+   397→
+   398→  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+   399→
+   400→  // Cek role boleh tambah user
+   401→  const canAddUser = user?.role === 'SUPERADMIN' || user?.role === 'ADMIN_DPN' || user?.role === 'ADMIN_DPD'
+   402→  const canEditUser = (target: UserItem) => {
+   403→    if (!user) return false
+   404→    if (user.id === target.id) return true // self edit
+   405→    if (user.role === 'SUPERADMIN' || user.role === 'ADMIN_DPN') return true
+   406→    if (user.role === 'ADMIN_DPD' && target.role === 'ADMIN_DPC') return true
+   407→    return false
+   408→  }
+   409→  const canDeleteUser = user?.role === 'SUPERADMIN' || user?.role === 'ADMIN_DPN'
+   410→
+   411→  return (
+   412→    <Card>
+   413→      <CardHeader className="pb-3">
+   414→        <div className="flex items-center justify-between gap-2 flex-wrap">
+   415→          <div>
+   416→            <CardTitle className="text-base flex items-center gap-2">
+   417→              <UserCog className="w-4 h-4" /> Manajemen User
+   418→            </CardTitle>
+   419→            <CardDescription className="text-xs">
+   420→              {filtered.length} user{filtered.length !== users.length && ` dari ${users.length} total`}
+   421→            </CardDescription>
+   422→          </div>
+   423→          {canAddUser && (
+   424→            <Button size="sm" onClick={() => setAddOpen(true)} className="gap-1">
+   425→              <Plus className="w-4 h-4" /> Tambah User
+   426→            </Button>
+   427→          )}
+   428→        </div>
+   429→      </CardHeader>
+   430→      <CardContent className="space-y-3">
+   431→        {/* Filter bar */}
+   432→        <div className="flex flex-wrap gap-2">
+   433→          <div className="relative flex-1 min-w-48">
+   434→            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+   435→            <Input
+   436→              placeholder="Cari username / nama / wilayah..."
+   437→              value={search}
+   438→              onChange={(e) => setSearch(e.target.value)}
+   439→              className="pl-9 h-9"
+   440→            />
+   441→            {search && (
+   442→              <button
+   443→                type="button"
+   444→                onClick={() => setSearch('')}
+   445→                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground"
+   446→              >
+   447→                <XCircle className="w-3 h-3" />
+   448→              </button>
+   449→            )}
+   450→          </div>
+   451→          <Select value={roleFilter} onValueChange={(v) => { setRoleFilter(v); setPage(1) }}>
+   452→            <SelectTrigger className="w-36 h-9"><SelectValue placeholder="Role" /></SelectTrigger>
+   453→            <SelectContent>
+   454→              <SelectItem value="ALL">Semua Role</SelectItem>
+   455→              <SelectItem value="SUPERADMIN">Super Admin</SelectItem>
+   456→              <SelectItem value="ADMIN_DPN">Admin DPN</SelectItem>
+   457→              <SelectItem value="ADMIN_DPD">Admin DPD</SelectItem>
+   458→              <SelectItem value="ADMIN_DPC">Admin DPC</SelectItem>
+   459→            </SelectContent>
+   460→          </Select>
+   461→          <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1) }}>
+   462→            <SelectTrigger className="w-32 h-9"><SelectValue placeholder="Status" /></SelectTrigger>
+   463→            <SelectContent>
+   464→              <SelectItem value="ALL">Semua</SelectItem>
+   465→              <SelectItem value="ACTIVE">Aktif</SelectItem>
+   466→              <SelectItem value="INACTIVE">Nonaktif</SelectItem>
+   467→            </SelectContent>
+   468→          </Select>
+   469→        </div>
+   470→
+   471→        {/* Error state */}
+   472→        {error && <ErrorState message={error} />}
+   473→
+   474→        {/* Loading */}
+   475→        {loading && !error && <LoadingState message="Memuat user..." />}
+   476→
+   477→        {/* Empty state */}
+   478→        {!loading && !error && paginated.length === 0 && (
+   479→          <EmptyState
+   480→            icon={UserCog}
+   481→            title={search || roleFilter !== 'ALL' || statusFilter !== 'ALL' ? 'Tidak ada user cocok' : 'Belum ada user'}
+   482→            description={search || roleFilter !== 'ALL' || statusFilter !== 'ALL' ? 'Coba ubah filter' : 'Tambah user baru untuk mulai.'}
+   483→          />
+   484→        )}
+   485→
+   486→        {/* Tabel user */}
+   487→        {!loading && !error && paginated.length > 0 && (
+   488→          <div className="rounded-lg border overflow-x-auto">
+   489→            <Table>
+   490→              <TableHeader>
+   491→                <TableRow>
+   492→                  <TableHead className="w-32">Username</TableHead>
+   493→                  <TableHead>Nama</TableHead>
+   494→                  <TableHead className="w-28">Role</TableHead>
+   495→                  <TableHead className="w-40">Wilayah</TableHead>
+   496→                  <TableHead className="w-20">Status</TableHead>
+   497→                  <TableHead className="w-32">Login Terakhir</TableHead>
+   498→                  <TableHead className="w-28 text-right">Aksi</TableHead>
+   499→                </TableRow>
+   500→              </TableHeader>
+   501→              <TableBody>
+   502→                {paginated.map(u => (
+   503→                  <TableRow key={u.id} className={!u.isActive ? 'opacity-60' : ''}>
+   504→                    <TableCell className="font-mono text-xs">{u.username}</TableCell>
+   505→                    <TableCell className="font-medium text-sm">{u.fullName}</TableCell>
+   506→                    <TableCell>
+   507→                      <Badge variant="outline" className={`text-[10px] ${ROLE_COLORS[u.role] || ''}`}>
+   508→                        {ROLE_LABELS[u.role] || u.role}
+   509→                      </Badge>
+   510→                    </TableCell>
+   511→                    <TableCell className="text-xs">{u.territory?.name || '-'}</TableCell>
+   512→                    <TableCell>
+   513→                      {u.isActive ? (
+   514→                        <span className="flex items-center gap-1 text-xs text-green-600">
+   515→                          <CheckCircle2 className="w-3 h-3" /> Aktif
+   516→                        </span>
+   517→                      ) : (
+   518→                        <span className="flex items-center gap-1 text-xs text-red-600">
+   519→                          <XCircle className="w-3 h-3" /> Nonaktif
+   520→                        </span>
+   521→                      )}
+   522→                    </TableCell>
+   523→                    <TableCell className="text-xs text-muted-foreground">
+   524→                      {u.lastLogin ? formatDateTimeID(u.lastLogin) : 'Belum pernah'}
+   525→                    </TableCell>
+   526→                    <TableCell>
+   527→                      <div className="flex gap-1 justify-end">
+   528→                        {canEditUser(u) && (
+   529→                          <>
+   530→                            <Button
+   531→                              variant="ghost" size="sm"
+   532→                              className="h-7 w-7 p-0 text-blue-600 hover:bg-blue-50"
+   533→                              onClick={() => setEditUser(u)}
+   534→                              aria-label="Edit user"
+   535→                              title="Edit"
+   536→                            >
+   537→                              <Edit className="w-3.5 h-3.5" />
+   538→                            </Button>
+   539→                            <Button
+   540→                              variant="ghost" size="sm"
+   541→                              className="h-7 w-7 p-0 text-amber-600 hover:bg-amber-50"
+   542→                              onClick={() => setResetPasswordUser(u)}
+   543→                              aria-label="Reset password"
+   544→                              title="Reset Password"
+   545→                            >
+   546→                              <KeyRound className="w-3.5 h-3.5" />
+   547→                            </Button>
+   548→                          </>
+   549→                        )}
+   550→                        {canDeleteUser && user?.id !== u.id && (
+   551→                          <Button
+   552→                            variant="ghost" size="sm"
+   553→                            className="h-7 w-7 p-0 text-red-600 hover:bg-red-50"
+   554→                            onClick={() => setDeleteUser(u)}
+   555→                            aria-label="Hapus user"
+   556→                            title="Hapus"
+   557→                          >
+   558→                            <Trash2 className="w-3.5 h-3.5" />
+   559→                          </Button>
+   560→                        )}
+   561→                      </div>
+   562→                    </TableCell>
+   563→                  </TableRow>
+   564→                ))}
+   565→              </TableBody>
+   566→            </Table>
+   567→          </div>
+   568→        )}
+   569→
+   570→        {/* Pagination */}
+   571→        {!loading && !error && totalPages > 1 && (
+   572→          <div className="flex items-center justify-between gap-2 pt-1">
+   573→            <span className="text-xs text-muted-foreground">
+   574→              Halaman {page} dari {totalPages}
+   575→            </span>
+   576→            <div className="flex gap-2">
+   577→              <Button
+   578→                variant="outline" size="sm"
+   579→                disabled={page === 1}
+   580→                onClick={() => setPage(p => Math.max(1, p - 1))}
+   581→                className="gap-1 h-8"
+   582→              >
+   583→                <ChevronLeft className="w-3 h-3" /> Prev
+   584→              </Button>
+   585→              <Button
+   586→                variant="outline" size="sm"
+   587→                disabled={page >= totalPages}
+   588→                onClick={() => setPage(p => p + 1)}
+   589→                className="gap-1 h-8"
+   590→              >
+   591→                Next <ChevronRight className="w-3 h-3" />
+   592→              </Button>
+   593→            </div>
+   594→          </div>
+   595→        )}
+   596→      </CardContent>
+   597→
+   598→      {/* Dialogs */}
+   599→      {addOpen && (
+   600→        <AddUserDialog
+   601→          open={addOpen}
+   602→          onOpenChange={setAddOpen}
+   603→          territories={territories}
+   604→          onSuccess={() => { setAddOpen(false); loadData() }}
+   605→        />
+   606→      )}
+   607→      {editUser && (
+   608→        <EditUserDialog
+   609→          user={editUser}
+   610→          territories={territories}
+   611→          open={!!editUser}
+   612→          onOpenChange={(o) => !o && setEditUser(null)}
+   613→          onSuccess={() => { setEditUser(null); loadData() }}
+   614→        />
+   615→      )}
+   616→      {resetPasswordUser && (
+   617→        <ResetPasswordDialog
+   618→          user={resetPasswordUser}
+   619→          open={!!resetPasswordUser}
+   620→          onOpenChange={(o) => !o && setResetPasswordUser(null)}
+   621→          onSuccess={() => setResetPasswordUser(null)}
+   622→        />
+   623→      )}
+   624→      {deleteUser && (
+   625→        <AlertDialog open={!!deleteUser} onOpenChange={(o) => !o && setDeleteUser(null)}>
+   626→          <AlertDialogContent>
+   627→            <AlertDialogHeader>
+   628→              <AlertDialogTitle>Hapus user "{deleteUser.fullName}"?</AlertDialogTitle>
+   629→              <AlertDialogDescription>
+   630→                User akan dihapus permanen. Pastikan user ini tidak memiliki data terkait (anggota/event/dll).
+   631→                Untuk penonaktifan sementara, gunakan tombol Edit → Nonaktifkan.
+   632→              </AlertDialogDescription>
+   633→            </AlertDialogHeader>
+   634→            <AlertDialogFooter>
+   635→              <AlertDialogCancel>Batal</AlertDialogCancel>
+   636→              <AlertDialogAction
+   637→                onClick={async () => {
+   638→                  try {
+   639→                    await api(`/api/users/${deleteUser.id}`, { method: 'DELETE' })
+   640→                    addToast(`User "${deleteUser.fullName}" dihapus`, 'success')
+   641→                    setDeleteUser(null)
+   642→                    loadData()
+   643→                  } catch (e: any) {
+   644→                    addToast(`Gagal hapus: ${e.message}`, 'error')
+   645→                  }
+   646→                }}
+   647→                className="bg-red-600 hover:bg-red-700"
+   648→              >
+   649→                Hapus Permanen
+   650→              </AlertDialogAction>
+   651→            </AlertDialogFooter>
+   652→          </AlertDialogContent>
+   653→        </AlertDialog>
+   654→      )}
+   655→    </Card>
+   656→  )
+   657→}
+   658→
+   659→// ============================================================
+   660→// ADD USER DIALOG
+   661→// ============================================================
+   662→function AddUserDialog({
+   663→  open, onOpenChange, territories, onSuccess,
+   664→}: {
+   665→  open: boolean
+   666→  onOpenChange: (o: boolean) => void
+   667→  territories: Territory[]
+   668→  onSuccess: () => void
+   669→}) {
+   670→  const addToast = useToastStore((s) => s.addToast)
+   671→  const currentUser = useAuthStore((s) => s.user)
+   672→  const [form, setForm] = useState({
+   673→    username: '', password: '', fullName: '', email: '', phone: '',
+   674→    role: 'ADMIN_DPC' as string, territoryId: '',
+   675→  })
+   676→  const [saving, setSaving] = useState(false)
+   677→
+   678→  useEffect(() => {
+   679→    if (open) {
+   680→      setForm({
+   681→        username: '', password: '', fullName: '', email: '', phone: '',
+   682→        role: 'ADMIN_DPC', territoryId: '',
+   683→      })
+   684→    }
+   685→  }, [open])
+   686→
+   687→  // Available roles berdasarkan creator
+   688→  const availableRoles = useMemo(() => {
+   689→    if (!currentUser) return []
+   690→    if (currentUser.role === 'SUPERADMIN' || currentUser.role === 'ADMIN_DPN') {
+   691→      return [
+   692→        { value: 'ADMIN_DPN', label: 'Admin DPN' },
+   693→        { value: 'ADMIN_DPD', label: 'Admin DPD' },
+   694→        { value: 'ADMIN_DPC', label: 'Admin DPC' },
+   695→      ]
+   696→    }
+   697→    if (currentUser.role === 'ADMIN_DPD') {
+   698→      return [{ value: 'ADMIN_DPC', label: 'Admin DPC' }]
+   699→    }
+   700→    return []
+   701→  }, [currentUser])
+   702→
+   703→  // Filter territories berdasarkan role yang dipilih
+   704→  const availableTerritories = useMemo(() => {
+   705→    if (form.role === 'ADMIN_DPN') {
+   706→      return territories.filter(t => t.level === 'COUNTRY')
+   707→    }
+   708→    if (form.role === 'ADMIN_DPD') {
+   709→      return territories.filter(t => t.level === 'PROVINCE')
+   710→    }
+   711→    if (form.role === 'ADMIN_DPC') {
+   712→      return territories.filter(t => t.level === 'REGENCY')
+   713→    }
+   714→    return territories
+   715→  }, [territories, form.role])
+   716→
+   717→  const handleSubmit = async () => {
+   718→    if (!form.username || !form.password || !form.fullName || !form.role || !form.territoryId) {
+   719→      addToast('Semua field wajib diisi', 'error')
+   720→      return
+   721→    }
+   722→    if (form.password.length < 6) {
+   723→      addToast('Password minimal 6 karakter', 'error')
+   724→      return
+   725→    }
+   726→    setSaving(true)
+   727→    try {
+   728→      await api('/api/users', {
+   729→        method: 'POST',
+   730→        body: JSON.stringify(form),
+   731→      })
+   732→      addToast('User baru berhasil dibuat', 'success')
+   733→      onSuccess()
+   734→    } catch (e: any) {
+   735→      addToast(`Gagal tambah user: ${e.message}`, 'error')
+   736→    } finally {
+   737→      setSaving(false)
+   738→    }
+   739→  }
+   740→
+   741→  return (
+   742→    <Dialog open={open} onOpenChange={onOpenChange}>
+   743→      <DialogContent className="max-w-lg">
+   744→        <DialogHeader>
+   745→          <DialogTitle>Tambah User Baru</DialogTitle>
+   746→          <DialogDescription>Buat akun untuk pengurus sistem LAPRA 08</DialogDescription>
+   747→        </DialogHeader>
+   748→        <div className="space-y-3 py-2">
+   749→          <div className="grid grid-cols-2 gap-3">
+   750→            <div className="space-y-1.5">
+   751→              <Label>Username *</Label>
+   752→              <Input
+   753→                value={form.username}
+   754→                onChange={(e) => setForm({ ...form, username: e.target.value.toLowerCase().replace(/\s/g, '') })}
+   755→                placeholder="mis. budi.santoso"
+   756→                className="font-mono"
+   757→              />
+   758→            </div>
+   759→            <div className="space-y-1.5">
+   760→              <Label>Password *</Label>
+   761→              <Input
+   762→                type="password"
+   763→                value={form.password}
+   764→                onChange={(e) => setForm({ ...form, password: e.target.value })}
+   765→                placeholder="Min. 6 karakter"
+   766→              />
+   767→            </div>
+   768→          </div>
+   769→          <div className="space-y-1.5">
+   770→            <Label>Nama Lengkap *</Label>
+   771→            <Input
+   772→              value={form.fullName}
+   773→              onChange={(e) => setForm({ ...form, fullName: e.target.value })}
+   774→              placeholder="Nama lengkap pengurus"
+   775→            />
+   776→          </div>
+   777→          <div className="grid grid-cols-2 gap-3">
+   778→            <div className="space-y-1.5">
+   779→              <Label>Email</Label>
+   780→              <Input
+   781→                type="email"
+   782→                value={form.email}
+   783→                onChange={(e) => setForm({ ...form, email: e.target.value })}
+   784→                placeholder="opsional"
+   785→              />
+   786→            </div>
+   787→            <div className="space-y-1.5">
+   788→              <Label>WhatsApp</Label>
+   789→              <Input
+   790→                value={form.phone}
+   791→                onChange={(e) => setForm({ ...form, phone: e.target.value })}
+   792→                placeholder="62xxx"
+   793→              />
+   794→            </div>
+   795→          </div>
+   796→          <div className="grid grid-cols-2 gap-3">
+   797→            <div className="space-y-1.5">
+   798→              <Label>Role *</Label>
+   799→              <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v, territoryId: '' })}>
+   800→                <SelectTrigger><SelectValue /></SelectTrigger>
+   801→                <SelectContent>
+   802→                  {availableRoles.map(r => (
+   803→                    <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+   804→                  ))}
+   805→                </SelectContent>
+   806→              </Select>
+   807→            </div>
+   808→            <div className="space-y-1.5">
+   809→              <Label>Wilayah *</Label>
+   810→              <Select value={form.territoryId} onValueChange={(v) => setForm({ ...form, territoryId: v })}>
+   811→                <SelectTrigger><SelectValue placeholder="Pilih wilayah" /></SelectTrigger>
+   812→                <SelectContent>
+   813→                  {availableTerritories.map(t => (
+   814→                    <SelectItem key={t.id} value={t.id}>{t.name} ({t.code})</SelectItem>
+   815→                  ))}
+   816→                </SelectContent>
+   817→              </Select>
+   818→            </div>
+   819→          </div>
+   820→        </div>
+   821→        <DialogFooter>
+   822→          <Button variant="outline" onClick={() => onOpenChange(false)}>Batal</Button>
+   823→          <Button onClick={handleSubmit} disabled={saving} className="gap-1">
+   824→            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+   825→            Buat User
+   826→          </Button>
+   827→        </DialogFooter>
+   828→      </DialogContent>
+   829→    </Dialog>
+   830→  )
+   831→}
+   832→
+   833→// ============================================================
+   834→// EDIT USER DIALOG
+   835→// ============================================================
+   836→function EditUserDialog({
+   837→  user, territories, open, onOpenChange, onSuccess,
+   838→}: {
+   839→  user: UserItem
+   840→  territories: Territory[]
+   841→  open: boolean
+   842→  onOpenChange: (o: boolean) => void
+   843→  onSuccess: () => void
+   844→}) {
+   845→  const addToast = useToastStore((s) => s.addToast)
+   846→  const currentUser = useAuthStore((s) => s.user)
+   847→  const [form, setForm] = useState({
+   848→    fullName: user.fullName,
+   849→    email: user.email || '',
+   850→    phone: user.phone || '',
+   851→    role: user.role,
+   852→    territoryId: user.territory?.id || '',
+   853→    isActive: user.isActive,
+   854→  })
+   855→  const [saving, setSaving] = useState(false)
+   856→
+   857→  const availableRoles = useMemo(() => {
+   858→    if (!currentUser) return []
+   859→    if (currentUser.role === 'SUPERADMIN' || currentUser.role === 'ADMIN_DPN') {
+   860→      return [
+   861→        { value: 'ADMIN_DPN', label: 'Admin DPN' },
+   862→        { value: 'ADMIN_DPD', label: 'Admin DPD' },
+   863→        { value: 'ADMIN_DPC', label: 'Admin DPC' },
+   864→      ]
+   865→    }
+   866→    if (currentUser.role === 'ADMIN_DPD') {
+   867→      return [{ value: 'ADMIN_DPC', label: 'Admin DPC' }]
+   868→    }
+   869→    return []
+   870→  }, [currentUser])
+   871→
+   872→  const availableTerritories = useMemo(() => {
+   873→    if (form.role === 'ADMIN_DPN') return territories.filter(t => t.level === 'COUNTRY')
+   874→    if (form.role === 'ADMIN_DPD') return territories.filter(t => t.level === 'PROVINCE')
+   875→    if (form.role === 'ADMIN_DPC') return territories.filter(t => t.level === 'REGENCY')
+   876→    return territories
+   877→  }, [territories, form.role])
+   878→
+   879→  const handleSubmit = async () => {
+   880→    if (!form.fullName || !form.role || !form.territoryId) {
+   881→      addToast('Field wajib tidak boleh kosong', 'error')
+   882→      return
+   883→    }
+   884→    setSaving(true)
+   885→    try {
+   886→      await api(`/api/users/${user.id}`, {
+   887→        method: 'PATCH',
+   888→        body: JSON.stringify(form),
+   889→      })
+   890→      addToast('User berhasil diperbarui', 'success')
+   891→      onSuccess()
+   892→    } catch (e: any) {
+   893→      addToast(`Gagal update: ${e.message}`, 'error')
+   894→    } finally {
+   895→      setSaving(false)
+   896→    }
+   897→  }
+   898→
+   899→  return (
+   900→    <Dialog open={open} onOpenChange={onOpenChange}>
+   901→      <DialogContent className="max-w-lg">
+   902→        <DialogHeader>
+   903→          <DialogTitle>Edit User — {user.fullName}</DialogTitle>
+   904→          <DialogDescription>@{user.username}</DialogDescription>
+   905→        </DialogHeader>
+   906→        <div className="space-y-3 py-2">
+   907→          <div className="space-y-1.5">
+   908→            <Label>Nama Lengkap *</Label>
+   909→            <Input value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} />
+   910→          </div>
+   911→          <div className="grid grid-cols-2 gap-3">
+   912→            <div className="space-y-1.5">
+   913→              <Label>Email</Label>
+   914→              <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+   915→            </div>
+   916→            <div className="space-y-1.5">
+   917→              <Label>WhatsApp</Label>
+   918→              <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+   919→            </div>
+   920→          </div>
+   921→          <div className="grid grid-cols-2 gap-3">
+   922→            <div className="space-y-1.5">
+   923→              <Label>Role *</Label>
+   924→              <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v, territoryId: '' })}>
+   925→                <SelectTrigger><SelectValue /></SelectTrigger>
+   926→                <SelectContent>
+   927→                  {availableRoles.map(r => (
+   928→                    <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+   929→                  ))}
+   930→                </SelectContent>
+   931→              </Select>
+   932→            </div>
+   933→            <div className="space-y-1.5">
+   934→              <Label>Wilayah *</Label>
+   935→              <Select value={form.territoryId} onValueChange={(v) => setForm({ ...form, territoryId: v })}>
+   936→                <SelectTrigger><SelectValue /></SelectTrigger>
+   937→                <SelectContent>
+   938→                  {availableTerritories.map(t => (
+   939→                    <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+   940→                  ))}
+   941→                </SelectContent>
+   942→              </Select>
+   943→            </div>
+   944→          </div>
+   945→          <div className="flex items-center justify-between p-3 rounded-lg border">
+   946→            <div>
+   947→              <Label className="font-medium">Status Akun</Label>
+   948→              <p className="text-xs text-muted-foreground">
+   949→                {form.isActive ? 'Akun aktif, user bisa login' : 'Akun nonaktif, user tidak bisa login'}
+   950→              </p>
+   951→            </div>
+   952→            <Switch
+   953→              checked={form.isActive}
+   954→              onCheckedChange={(checked) => setForm({ ...form, isActive: checked })}
+   955→            />
+   956→          </div>
+   957→        </div>
+   958→        <DialogFooter>
+   959→          <Button variant="outline" onClick={() => onOpenChange(false)}>Batal</Button>
+   960→          <Button onClick={handleSubmit} disabled={saving} className="gap-1">
+   961→            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Edit className="w-4 h-4" />}
+   962→            Simpan
+   963→          </Button>
+   964→        </DialogFooter>
+   965→      </DialogContent>
+   966→    </Dialog>
+   967→  )
+   968→}
+   969→
+   970→// ============================================================
+   971→// RESET PASSWORD DIALOG
+   972→// ============================================================
+   973→function ResetPasswordDialog({
+   974→  user, open, onOpenChange, onSuccess,
+   975→}: {
+   976→  user: UserItem
+   977→  open: boolean
+   978→  onOpenChange: (o: boolean) => void
+   979→  onSuccess: () => void
+   980→}) {
+   981→  const addToast = useToastStore((s) => s.addToast)
+   982→  const [newPassword, setNewPassword] = useState('')
+   983→  const [confirmPassword, setConfirmPassword] = useState('')
+   984→  const [saving, setSaving] = useState(false)
+   985→
+   986→  useEffect(() => {
+   987→    if (open) {
+   988→      setNewPassword('')
+   989→      setConfirmPassword('')
+   990→    }
+   991→  }, [open])
+   992→
+   993→  const handleSubmit = async () => {
+   994→    if (newPassword.length < 6) {
+   995→      addToast('Password minimal 6 karakter', 'error')
+   996→      return
+   997→    }
+   998→    if (newPassword !== confirmPassword) {
+   999→      addToast('Konfirmasi password tidak cocok', 'error')
+  1000→      return
+  1001→    }
+  1002→    setSaving(true)
+  1003→    try {
+  1004→      await api(`/api/users/${user.id}`, {
+  1005→        method: 'PATCH',
+  1006→        body: JSON.stringify({ action: 'reset_password', newPassword }),
+  1007→      })
+  1008→      addToast(`Password "${user.fullName}" berhasil direset`, 'success')
+  1009→      onSuccess()
+  1010→    } catch (e: any) {
+  1011→      addToast(`Gagal reset password: ${e.message}`, 'error')
+  1012→    } finally {
+  1013→      setSaving(false)
+  1014→    }
+  1015→  }
+  1016→
+  1017→  return (
+  1018→    <Dialog open={open} onOpenChange={onOpenChange}>
+  1019→      <DialogContent className="max-w-md">
+  1020→        <DialogHeader>
+  1021→          <DialogTitle>Reset Password — {user.fullName}</DialogTitle>
+  1022→          <DialogDescription>@{user.username} akan dipaksa login ulang dengan password baru</DialogDescription>
+  1023→        </DialogHeader>
+  1024→        <div className="space-y-3 py-2">
+  1025→          <div className="space-y-1.5">
+  1026→            <Label>Password Baru *</Label>
+  1027→            <Input
+  1028→              type="password"
+  1029→              value={newPassword}
+  1030→              onChange={(e) => setNewPassword(e.target.value)}
+  1031→              placeholder="Min. 6 karakter"
+  1032→            />
+  1033→          </div>
+  1034→          <div className="space-y-1.5">
+  1035→            <Label>Konfirmasi Password *</Label>
+  1036→            <Input
+  1037→              type="password"
+  1038→              value={confirmPassword}
+  1039→              onChange={(e) => setConfirmPassword(e.target.value)}
+  1040→            />
+  1041→          </div>
+  1042→        </div>
+  1043→        <DialogFooter>
+  1044→          <Button variant="outline" onClick={() => onOpenChange(false)}>Batal</Button>
+  1045→          <Button onClick={handleSubmit} disabled={saving} className="gap-1">
+  1046→            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <KeyRound className="w-4 h-4" />}
+  1047→            Reset Password
+  1048→          </Button>
+  1049→        </DialogFooter>
+  1050→      </DialogContent>
+  1051→    </Dialog>
+  1052→  )
+  1053→}
+  1054→
+  1055→// ============================================================
+  1056→// SECURITY MANAGER — accordion, SUPERADMIN only
+  1057→// ============================================================
+  1058→function SecurityManager() {
+  1059→  const addToast = useToastStore((s) => s.addToast)
+  1060→  const [settings, setSettings] = useState<SecuritySetting[]>([])
+  1061→  const [loading, setLoading] = useState(true)
+  1062→
+  1063→  const loadData = useCallback(async () => {
+  1064→    setLoading(true)
+  1065→    try {
+  1066→      const data = await api('/api/security')
+  1067→      setSettings(data as SecuritySetting[])
+  1068→    } catch (e: any) {
+  1069→      addToast(`Gagal memuat security settings: ${e.message}`, 'error')
+  1070→    } finally {
+  1071→      setLoading(false)
+  1072→    }
+  1073→  }, [])
+  1074→
+  1075→  useEffect(() => { loadData() }, [loadData])
+  1076→
+  1077→  const handleToggle = async (setting: SecuritySetting) => {
+  1078→    try {
+  1079→      await api('/api/security', {
+  1080→        method: 'PATCH',
+  1081→        body: JSON.stringify({ key: setting.key, isActive: !setting.isActive }),
+  1082→      })
+  1083→      addToast(`Sakla "${setting.key}" ${!setting.isActive ? 'diaktifkan' : 'dimatikan'}`, 'success')
+  1084→      loadData()
+  1085→    } catch (e: any) {
+  1086→      addToast(`Gagal toggle: ${e.message}`, 'error')
+  1087→    }
+  1088→  }
+  1089→
+  1090→  const activeCount = settings.filter(s => s.isActive).length
+  1091→  const totalCount = settings.length
+  1092→
+  1093→  return (
+  1094→    <Accordion type="single" collapsible>
+  1095→      <AccordionItem value="security" className="border rounded-lg px-4">
+  1096→        <AccordionTrigger className="hover:no-underline">
+  1097→          <div className="flex items-center gap-3 w-full">
+  1098→            <Shield className="w-5 h-5 text-red-600" />
+  1099→            <div className="text-left flex-1">
+  1100→              <div className="text-sm font-medium">Saklar Keamanan Sistem</div>
+  1101→              <div className="text-xs text-muted-foreground">
+  1102→                {activeCount} dari {totalCount} saklar aktif
+  1103→                {activeCount < totalCount && (
+  1104→                  <span className="ml-2 text-amber-600 font-medium">
+  1105→                    ⚠ Beberapa saklar dimatikan
+  1106→                  </span>
+  1107→                )}
+  1108→              </div>
+  1109→            </div>
+  1110→          </div>
+  1111→        </AccordionTrigger>
+  1112→        <AccordionContent>
+  1113→          {loading ? (
+  1114→            <div className="text-center py-4">
+  1115→              <Loader2 className="w-5 h-5 animate-spin mx-auto" />
+  1116→            </div>
+  1117→          ) : settings.length === 0 ? (
+  1118→            <p className="text-sm text-muted-foreground py-4">Belum ada saklar keamanan terdaftar.</p>
+  1119→          ) : (
+  1120→            <div className="grid gap-2 pt-2">
+  1121→              {settings.map(s => (
+  1122→                <div key={s.id} className="flex items-center gap-3 p-3 rounded-lg border">
+  1123→                  {s.isActive ? (
+  1124→                    <Unlock className="w-4 h-4 text-green-600" />
+  1125→                  ) : (
+  1126→                    <Lock className="w-4 h-4 text-red-600" />
+  1127→                  )}
+  1128→                  <div className="flex-1 min-w-0">
+  1129→                    <div className="text-sm font-medium font-mono">{s.key}</div>
+  1130→                    {s.description && (
+  1131→                      <div className="text-xs text-muted-foreground">{s.description}</div>
+  1132→                    )}
+  1133→                  </div>
+  1134→                  <Switch
+  1135→                    checked={s.isActive}
+  1136→                    onCheckedChange={() => handleToggle(s)}
+  1137→                  />
+  1138→                </div>
+  1139→              ))}
+  1140→            </div>
+  1141→          )}
+  1142→        </AccordionContent>
+  1143→      </AccordionItem>
+  1144→    </Accordion>
+  1145→  )
+  1146→}
+  1147→

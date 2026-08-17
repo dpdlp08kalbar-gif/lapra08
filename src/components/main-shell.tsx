@@ -119,11 +119,11 @@ export function MainShell({ children }: { children: React.ReactNode }) {
         {menus.filter(m => ['pusat-admin','dashboard','pusat-data','logistics','communication','finance','users','events','territory','membership','organization','keanggotaan-struktur','help'].includes(m.key)).map((menu) => {
           // Mapping key lama → key baru (untuk backward compat menu DB yang belum di-reseed)
           // 'dashboard' & 'users' → 'pusat-admin' (sudah digabung)
-          // 'events' & 'finance' & 'logistics' → 'pusat-admin' (sudah dihapus, redirect ke pusat admin)
-          // 'membership' & 'organization' → 'keanggotaan-struktur' (sudah digabung)
+          // 'events' & 'finance' & 'logistics' → 'pusat-admin' (sudah dihapus)
+          // 'membership' & 'organization' & 'territory' → 'keanggotaan-struktur' (sudah digabung)
           const effectiveKey = ['dashboard', 'users', 'events', 'finance', 'logistics'].includes(menu.key)
             ? 'pusat-admin'
-            : ['membership', 'organization'].includes(menu.key)
+            : ['membership', 'organization', 'territory'].includes(menu.key)
             ? 'keanggotaan-struktur'
             : menu.key
           const Icon = ICON_MAP[menu.icon] || LayoutDashboard

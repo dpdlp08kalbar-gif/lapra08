@@ -1,0 +1,702 @@
+   360→  const [loading, setLoading] = useState(true)
+   361→  const [error, setError] = useState<string | null>(null)
+   362→  const [editOpen, setEditOpen] = useState(false)
+   363→
+   364→  useEffect(() => {
+   365→    let cancelled = false
+   366→    api('/api/profile-content')
+   367→      .then((data: any[]) => {
+   368→        if (cancelled) return
+   369→        const item = (data || []).find((d) => d.key === 'profil.tentang')
+   370→        if (item && item.value && typeof item.value === 'object') {
+   371→          setContent({ ...DEFAULT_TENTANG_CONTENT, ...item.value })
+   372→        }
+   373→      })
+   374→      .catch((e) => !cancelled && setError(e.message || 'Gagal memuat konten'))
+   375→      .finally(() => !cancelled && setLoading(false))
+   376→    return () => { cancelled = true }
+   377→  }, [])
+   378→
+   379→  if (loading) return <LoadingState message="Memuat konten Tentang LAPRA 08..." />
+   380→  if (error) return <ErrorState message={error} />
+   381→
+   382→  return (
+   383→    <div className="space-y-6">
+   384→      <div className="flex items-center justify-between">
+   385→        <div className="flex items-center gap-2">
+   386→          <div className="h-6 w-1 rounded-full bg-gradient-to-b from-orange-500 to-red-600" />
+   387→          <h3 className="text-base font-bold">Tentang LAPRA 08</h3>
+   388→        </div>
+   389→        {isSuperAdmin && <EditButton onClick={() => setEditOpen(true)} />}
+   390→      </div>
+   391→
+   392→      {/* Hero card — dark gradient */}
+   393→      <div className="relative overflow-hidden rounded-2xl shadow-lg">
+   394→        <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-orange-900" />
+   395→        <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 20% 30%, white 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
+   396→        <div className="absolute top-0 right-0 opacity-5">
+   397→          <Crown className="w-56 h-56 -mr-8 -mt-8" />
+   398→        </div>
+   399→        <div className="relative z-10 p-6 lg:p-8 flex items-start gap-6">
+   400→          {/* Logo LAPRA 08 */}
+   401→          <div className="w-20 h-20 lg:w-24 lg:h-24 rounded-2xl bg-white/10 backdrop-blur-sm flex items-center justify-center shrink-0 overflow-hidden border border-white/20">
+   402→            <img src="/logo-lapra08.png" alt="Logo LAPRA 08" className="w-full h-full object-contain p-2" />
+   403→          </div>
+   404→          <div className="flex-1 min-w-0">
+   405→            <Badge className="bg-orange-500/20 text-orange-200 border border-orange-400/30 mb-3">
+   406→              <ShieldCheck className="w-3 h-3 mr-1" /> Periode 2024-2029
+   407→            </Badge>
+   408→            <h2 className="text-3xl lg:text-4xl font-black text-white mb-2">{content.heroTitle}</h2>
+   409→            <p className="text-orange-200 font-medium mb-3">{content.heroSubtitle}</p>
+   410→            <p className="text-white/70 max-w-3xl leading-relaxed">{content.heroDescription}</p>
+   411→          </div>
+   412→        </div>
+   413→      </div>
+   414→
+   415→      {/* Misi Strategis card */}
+   416→      <Card>
+   417→        <CardHeader>
+   418→          <CardTitle className="flex items-center gap-2 text-base">
+   419→            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center">
+   420→              <Briefcase className="w-4 h-4 text-white" />
+   421→            </div>
+   422→            Misi Strategis
+   423→          </CardTitle>
+   424→        </CardHeader>
+   425→        <CardContent className="grid gap-3 sm:grid-cols-2">
+   426→          <div className="flex items-start gap-3 p-4 rounded-xl bg-orange-50 border border-orange-100">
+   427→            <CheckCircle2 className="w-5 h-5 text-orange-600 mt-0.5 shrink-0" />
+   428→            <p className="text-sm">{content.misiStrategis1}</p>
+   429→          </div>
+   430→          <div className="flex items-start gap-3 p-4 rounded-xl bg-rose-50 border border-rose-100">
+   431→            <CheckCircle2 className="w-5 h-5 text-rose-600 mt-0.5 shrink-0" />
+   432→            <p className="text-sm">{content.misiStrategis2}</p>
+   433→          </div>
+   434→        </CardContent>
+   435→      </Card>
+   436→
+   437→      {/* Eksistensi & Legalitas card */}
+   438→      <Card>
+   439→        <CardHeader>
+   440→          <CardTitle className="flex items-center gap-2 text-base">
+   441→            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
+   442→              <Award className="w-4 h-4 text-white" />
+   443→            </div>
+   444→            Eksistensi & Legalitas
+   445→          </CardTitle>
+   446→        </CardHeader>
+   447→        <CardContent>
+   448→          <div className="grid gap-4 sm:grid-cols-3">
+   449→            <div className="flex items-start gap-3">
+   450→              <CalendarDays className="w-5 h-5 text-emerald-600 mt-0.5 shrink-0" />
+   451→              <div>
+   452→                <div className="text-sm text-muted-foreground">Tanggal Pelantikan</div>
+   453→                <div className="text-sm font-semibold">{content.pelantikanDate}</div>
+   454→              </div>
+   455→            </div>
+   456→            <div className="flex items-start gap-3">
+   457→              <MapPin className="w-5 h-5 text-emerald-600 mt-0.5 shrink-0" />
+   458→              <div>
+   459→                <div className="text-sm text-muted-foreground">Tempat Pelantikan</div>
+   460→                <div className="text-sm font-semibold">{content.pelantikanTempat}</div>
+   461→              </div>
+   462→            </div>
+   463→            <div className="flex items-start gap-3">
+   464→              <Users className="w-5 h-5 text-emerald-600 mt-0.5 shrink-0" />
+   465→              <div>
+   466→                <div className="text-sm text-muted-foreground">Dilantik oleh</div>
+   467→                <div className="text-sm font-semibold">{content.pelantik}</div>
+   468→              </div>
+   469→            </div>
+   470→          </div>
+   471→          <div className="mt-4 p-4 rounded-xl bg-emerald-50 border border-emerald-100 text-sm">
+   472→            <span className="font-semibold text-emerald-700">Ketua Umum:</span>{' '}
+   473→            <span className="text-emerald-900">{content.ketuaUmum}</span>
+   474→          </div>
+   475→        </CardContent>
+   476→      </Card>
+   477→
+   478→      {/* Pilar Gerakan — 3 cards */}
+   479→      <div>
+   480→        <div className="flex items-center gap-2 mb-3">
+   481→          <div className="h-5 w-1 rounded-full bg-gradient-to-b from-purple-500 to-pink-600" />
+   482→          <h3 className="text-base font-bold">Pilar Gerakan</h3>
+   483→        </div>
+   484→        <div className="grid gap-4 sm:grid-cols-3">
+   485→          {[
+   486→            { title: content.pilar1Title, desc: content.pilar1Desc, icon: Users, grad: 'from-orange-500 to-amber-600' },
+   487→            { title: content.pilar2Title, desc: content.pilar2Desc, icon: HandHeart, grad: 'from-rose-500 to-pink-600' },
+   488→            { title: content.pilar3Title, desc: content.pilar3Desc, icon: ShieldCheck, grad: 'from-emerald-500 to-teal-600' },
+   489→          ].map((p, i) => (
+   490→            <Card key={i} className="overflow-hidden">
+   491→              <CardContent className="p-5">
+   492→                <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${p.grad} flex items-center justify-center mb-3`}>
+   493→                  <p.icon className="w-5 h-5 text-white" />
+   494→                </div>
+   495→                <div className="font-semibold mb-1">{p.title}</div>
+   496→                <p className="text-sm text-muted-foreground">{p.desc}</p>
+   497→              </CardContent>
+   498→            </Card>
+   499→          ))}
+   500→        </div>
+   501→      </div>
+   502→
+   503→      {/* Struktur Hierarki */}
+   504→      <Card>
+   505→        <CardHeader>
+   506→          <CardTitle className="flex items-center gap-2 text-base">
+   507→            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-slate-600 to-slate-800 flex items-center justify-center">
+   508→              <Building2 className="w-4 h-4 text-white" />
+   509→            </div>
+   510→            Struktur Hierarki Organisasi
+   511→          </CardTitle>
+   512→        </CardHeader>
+   513→        <CardContent>
+   514→          <div className="flex flex-col lg:flex-row items-stretch gap-3">
+   515→            <div className="flex-1 p-4 rounded-xl bg-gradient-to-br from-slate-800 to-slate-900 text-white">
+   516→              <Badge className="bg-yellow-400/20 text-yellow-200 border border-yellow-400/30 mb-2">DPN</Badge>
+   517→              <div className="font-bold">Dewan Pengurus Nasional</div>
+   518→              <p className="text-xs text-white/70 mt-1">Pusat Nasional — Jakarta</p>
+   519→            </div>
+   520→            <div className="hidden lg:flex items-center justify-center text-slate-300">
+   521→              <ChevronRight className="w-6 h-6" />
+   522→            </div>
+   523→            <div className="flex-1 p-4 rounded-xl bg-gradient-to-br from-purple-600 to-indigo-700 text-white">
+   524→              <Badge className="bg-white/15 text-white border border-white/20 mb-2">DPD</Badge>
+   525→              <div className="font-bold">Dewan Pengurus Daerah</div>
+   526→              <p className="text-xs text-white/70 mt-1">39 domestik + 5 luar negeri</p>
+   527→            </div>
+   528→            <div className="hidden lg:flex items-center justify-center text-slate-300">
+   529→              <ChevronRight className="w-6 h-6" />
+   530→            </div>
+   531→            <div className="flex-1 p-4 rounded-xl bg-gradient-to-br from-orange-600 to-red-700 text-white">
+   532→              <Badge className="bg-white/15 text-white border border-white/20 mb-2">DPC</Badge>
+   533→              <div className="font-bold">Dewan Pengurus Cabang</div>
+   534→              <p className="text-xs text-white/70 mt-1">514 Kabupaten/Kota</p>
+   535→            </div>
+   536→          </div>
+   537→        </CardContent>
+   538→      </Card>
+   539→
+   540→      <TentangEditDialog
+   541→        open={editOpen}
+   542→        onOpenChange={setEditOpen}
+   543→        content={content}
+   544→        onSaved={(c) => setContent(c)}
+   545→        addToast={addToast}
+   546→      />
+   547→    </div>
+   548→  )
+   549→}
+   550→
+   551→// --- Dialog edit untuk Tentang LAPRA 08 (15 fields) ---
+   552→function TentangEditDialog({
+   553→  open, onOpenChange, content, onSaved, addToast,
+   554→}: {
+   555→  open: boolean
+   556→  onOpenChange: (v: boolean) => void
+   557→  content: any
+   558→  onSaved: (c: any) => void
+   559→  addToast: (msg: string, type?: 'success' | 'error' | 'info' | 'warning') => void
+   560→}) {
+   561→  const [form, setForm] = useState<any>(content)
+   562→  const [saving, setSaving] = useState(false)
+   563→
+   564→  useEffect(() => { if (open) setForm(content) }, [open, content])
+   565→
+   566→  const fields: { key: string; label: string; multiline?: boolean }[] = [
+   567→    { key: 'heroTitle', label: 'Hero: Judul' },
+   568→    { key: 'heroSubtitle', label: 'Hero: Subtitle' },
+   569→    { key: 'heroDescription', label: 'Hero: Deskripsi', multiline: true },
+   570→    { key: 'misiStrategis1', label: 'Misi Strategis #1', multiline: true },
+   571→    { key: 'misiStrategis2', label: 'Misi Strategis #2', multiline: true },
+   572→    { key: 'pelantikanDate', label: 'Tanggal Pelantikan' },
+   573→    { key: 'pelantikanTempat', label: 'Tempat Pelantikan' },
+   574→    { key: 'pelantik', label: 'Pelantik' },
+   575→    { key: 'ketuaUmum', label: 'Ketua Umum' },
+   576→    { key: 'pilar1Title', label: 'Pilar 1: Judul' },
+   577→    { key: 'pilar1Desc', label: 'Pilar 1: Deskripsi', multiline: true },
+   578→    { key: 'pilar2Title', label: 'Pilar 2: Judul' },
+   579→    { key: 'pilar2Desc', label: 'Pilar 2: Deskripsi', multiline: true },
+   580→    { key: 'pilar3Title', label: 'Pilar 3: Judul' },
+   581→    { key: 'pilar3Desc', label: 'Pilar 3: Deskripsi', multiline: true },
+   582→  ]
+   583→
+   584→  const handleSave = async () => {
+   585→    setSaving(true)
+   586→    try {
+   587→      const res = await fetch('/api/profile-content', {
+   588→        method: 'POST',
+   589→        headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+   590→        body: JSON.stringify({ key: 'profil.tentang', value: form }),
+   591→      })
+   592→      const data = await res.json()
+   593→      if (!data.success) throw new Error(data.error || 'Gagal menyimpan')
+   594→      onSaved(form)
+   595→      addToast('Konten Tentang LAPRA 08 berhasil disimpan', 'success')
+   596→      onOpenChange(false)
+   597→    } catch (e: any) {
+   598→      addToast(e.message || 'Gagal menyimpan', 'error')
+   599→    } finally {
+   600→      setSaving(false)
+   601→    }
+   602→  }
+   603→
+   604→  return (
+   605→    <Dialog open={open} onOpenChange={onOpenChange}>
+   606→      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+   607→        <DialogHeader>
+   608→          <DialogTitle>Edit Konten — Tentang LAPRA 08</DialogTitle>
+   609→          <DialogDescription>Perbarui informasi profil organisasi.</DialogDescription>
+   610→        </DialogHeader>
+   611→        <div className="grid gap-3 py-2">
+   612→          {fields.map((f) => (
+   613→            <div key={f.key} className="space-y-1">
+   614→              <Label className="text-xs">{f.label}</Label>
+   615→              {f.multiline ? (
+   616→                <Textarea
+   617→                  value={form[f.key] || ''}
+   618→                  onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
+   619→                  rows={2}
+   620→                />
+   621→              ) : (
+   622→                <Input
+   623→                  value={form[f.key] || ''}
+   624→                  onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
+   625→                />
+   626→              )}
+   627→            </div>
+   628→          ))}
+   629→        </div>
+   630→        <DialogFooter>
+   631→          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Batal</Button>
+   632→          <Button onClick={handleSave} disabled={saving} className="gap-2">
+   633→            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+   634→            Simpan Perubahan
+   635→          </Button>
+   636→        </DialogFooter>
+   637→      </DialogContent>
+   638→    </Dialog>
+   639→  )
+   640→}
+   641→
+   642→// --- Section: Visi & Misi ---
+   643→function VisiMisiSection() {
+   644→  const isSuperAdmin = useIsSuperAdmin()
+   645→  const addToast = useToastStore((s) => s.addToast)
+   646→  const [content, setContent] = useState<any>(DEFAULT_VISI_MISI)
+   647→  const [loading, setLoading] = useState(true)
+   648→  const [error, setError] = useState<string | null>(null)
+   649→  const [editOpen, setEditOpen] = useState(false)
+   650→
+   651→  useEffect(() => {
+   652→    let cancelled = false
+   653→    api('/api/profile-content')
+   654→      .then((data: any[]) => {
+   655→        if (cancelled) return
+   656→        const item = (data || []).find((d) => d.key === 'profil.visi-misi')
+   657→        if (item && item.value && typeof item.value === 'object') {
+   658→          setContent({ ...DEFAULT_VISI_MISI, ...item.value })
+   659→        }
+   660→      })
+   661→      .catch((e) => !cancelled && setError(e.message || 'Gagal memuat konten'))
+   662→      .finally(() => !cancelled && setLoading(false))
+   663→    return () => { cancelled = true }
+   664→  }, [])
+   665→
+   666→  if (loading) return <LoadingState message="Memuat Visi & Misi..." />
+   667→  if (error) return <ErrorState message={error} />
+   668→
+   669→  return (
+   670→    <div className="space-y-6">
+   671→      <div className="flex items-center justify-between">
+   672→        <div className="flex items-center gap-2">
+   673→          <div className="h-6 w-1 rounded-full bg-gradient-to-b from-orange-500 to-red-600" />
+   674→          <h3 className="text-base font-bold">Visi & Misi</h3>
+   675→        </div>
+   676→        {isSuperAdmin && <EditButton onClick={() => setEditOpen(true)} />}
+   677→      </div>
+   678→
+   679→      {/* Visi card */}
+   680→      <Card className="overflow-hidden">
+   681→        <div className="relative">
+   682→          <div className="absolute inset-0 bg-gradient-to-br from-orange-50 to-amber-100" />
+   683→          <div className="relative z-10 p-6">
+   684→            <div className="flex items-center gap-2 mb-3">
+   685→              <Globe className="w-5 h-5 text-orange-600" />
+   686→              <Badge className="bg-orange-600 text-white">Visi</Badge>
+   687→            </div>
+   688→            <p className="text-lg font-semibold text-slate-800 leading-relaxed">{content.visi}</p>
+   689→          </div>
+   690→        </div>
+   691→      </Card>
+   692→
+   693→      {/* Misi card */}
+   694→      <Card>
+   695→        <CardHeader>
+   696→          <CardTitle className="flex items-center gap-2 text-base">
+   697→            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-rose-500 to-pink-600 flex items-center justify-center">
+   698→              <Briefcase className="w-4 h-4 text-white" />
+   699→            </div>
+   700→            Misi
+   701→          </CardTitle>
+   702→        </CardHeader>
+   703→        <CardContent>
+   704→          <ul className="space-y-3">
+   705→            {(content.misi || []).map((m: string, i: number) => (
+   706→              <li key={i} className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200">
+   707→                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-orange-500 to-red-600 text-white text-sm font-bold flex items-center justify-center shrink-0">
+   708→                  {i + 1}
+   709→                </div>
+   710→                <p className="text-sm pt-1">{m}</p>
+   711→              </li>
+   712→            ))}
+   713→          </ul>
+   714→        </CardContent>
+   715→      </Card>
+   716→
+   717→      <VisiMisiEditDialog
+   718→        open={editOpen}
+   719→        onOpenChange={setEditOpen}
+   720→        content={content}
+   721→        onSaved={(c) => setContent(c)}
+   722→        addToast={addToast}
+   723→      />
+   724→    </div>
+   725→  )
+   726→}
+   727→
+   728→// --- Dialog edit untuk Visi & Misi (dynamic list) ---
+   729→function VisiMisiEditDialog({
+   730→  open, onOpenChange, content, onSaved, addToast,
+   731→}: {
+   732→  open: boolean
+   733→  onOpenChange: (v: boolean) => void
+   734→  content: any
+   735→  onSaved: (c: any) => void
+   736→  addToast: (msg: string, type?: 'success' | 'error' | 'info' | 'warning') => void
+   737→}) {
+   738→  const [form, setForm] = useState<any>(content)
+   739→  const [saving, setSaving] = useState(false)
+   740→
+   741→  useEffect(() => { if (open) setForm(content) }, [open, content])
+   742→
+   743→  const updateMisi = (i: number, v: string) => {
+   744→    const newMisi = [...(form.misi || [])]
+   745→    newMisi[i] = v
+   746→    setForm({ ...form, misi: newMisi })
+   747→  }
+   748→  const addMisi = () => setForm({ ...form, misi: [...(form.misi || []), ''] })
+   749→  const removeMisi = (i: number) =>
+   750→    setForm({ ...form, misi: (form.misi || []).filter((_: any, idx: number) => idx !== i) })
+   751→
+   752→  const handleSave = async () => {
+   753→    setSaving(true)
+   754→    try {
+   755→      const res = await fetch('/api/profile-content', {
+   756→        method: 'POST',
+   757→        headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+   758→        body: JSON.stringify({ key: 'profil.visi-misi', value: form }),
+   759→      })
+   760→      const data = await res.json()
+   761→      if (!data.success) throw new Error(data.error || 'Gagal menyimpan')
+   762→      onSaved(form)
+   763→      addToast('Visi & Misi berhasil disimpan', 'success')
+   764→      onOpenChange(false)
+   765→    } catch (e: any) {
+   766→      addToast(e.message || 'Gagal menyimpan', 'error')
+   767→    } finally {
+   768→      setSaving(false)
+   769→    }
+   770→  }
+   771→
+   772→  return (
+   773→    <Dialog open={open} onOpenChange={onOpenChange}>
+   774→      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+   775→        <DialogHeader>
+   776→          <DialogTitle>Edit Visi & Misi</DialogTitle>
+   777→          <DialogDescription>Perbarui visi dan daftar misi organisasi.</DialogDescription>
+   778→        </DialogHeader>
+   779→        <div className="space-y-4 py-2">
+   780→          <div className="space-y-1">
+   781→            <Label className="text-xs">Visi</Label>
+   782→            <Textarea
+   783→              value={form.visi || ''}
+   784→              onChange={(e) => setForm({ ...form, visi: e.target.value })}
+   785→              rows={3}
+   786→            />
+   787→          </div>
+   788→          <div className="space-y-2">
+   789→            <div className="flex items-center justify-between">
+   790→              <Label className="text-xs">Misi</Label>
+   791→              <Button size="sm" variant="outline" onClick={addMisi} className="gap-1 h-7 text-xs">
+   792→                <Plus className="w-3 h-3" /> Tambah Misi
+   793→              </Button>
+   794→            </div>
+   795→            <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+   796→              {(form.misi || []).map((m: string, i: number) => (
+   797→                <div key={i} className="flex items-start gap-2">
+   798→                  <div className="w-7 h-7 rounded-full bg-orange-100 text-orange-700 text-xs font-bold flex items-center justify-center shrink-0 mt-1">
+   799→                    {i + 1}
+   800→                  </div>
+   801→                  <Textarea
+   802→                    value={m}
+   803→                    onChange={(e) => updateMisi(i, e.target.value)}
+   804→                    rows={2}
+   805→                    className="flex-1"
+   806→                  />
+   807→                  <Button size="icon" variant="ghost" onClick={() => removeMisi(i)} className="text-red-500 hover:text-red-600 h-8 w-8">
+   808→                    <Trash2 className="w-4 h-4" />
+   809→                  </Button>
+   810→                </div>
+   811→              ))}
+   812→              {(!form.misi || form.misi.length === 0) && (
+   813→                <p className="text-xs text-muted-foreground text-center py-3">
+   814→                  Belum ada misi. Klik &quot;Tambah Misi&quot; untuk menambahkan.
+   815→                </p>
+   816→              )}
+   817→            </div>
+   818→          </div>
+   819→        </div>
+   820→        <DialogFooter>
+   821→          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Batal</Button>
+   822→          <Button onClick={handleSave} disabled={saving} className="gap-2">
+   823→            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+   824→            Simpan Perubahan
+   825→          </Button>
+   826→        </DialogFooter>
+   827→      </DialogContent>
+   828→    </Dialog>
+   829→  )
+   830→}
+   831→
+   832→// --- Section: Document upload & list (AD/ART & LEGALITAS) ---
+   833→// FIX: Sebelumnya tombol "Buka" pakai <a href={data:base64}> → browser blank page
+   834→// Sekarang: pakai fetch + blob URL (kirim x-user-id header untuk auth)
+   835→// FITUR TAMBAHAN: search, filter format, statistik, dialog preview PDF inline, tombol Download
+   836→function ProfileDocumentSection({ type }: { type: 'AD_ART' | 'LEGALITAS' }) {
+   837→  const isSuperAdmin = useIsSuperAdmin()
+   838→  const addToast = useToastStore((s) => s.addToast)
+   839→  const user = useAuthStore((s) => s.user)
+   840→  const [docs, setDocs] = useState<any[]>([])
+   841→  const [loading, setLoading] = useState(true)
+   842→  const [error, setError] = useState<string | null>(null)
+   843→  const [uploadOpen, setUploadOpen] = useState(false)
+   844→  const [deleteTarget, setDeleteTarget] = useState<any | null>(null)
+   845→  // === State baru untuk fitur enhanced ===
+   846→  const [search, setSearch] = useState('')
+   847→  const [filterFormat, setFilterFormat] = useState('ALL') // ALL | PDF | IMAGE | DOC
+   848→  const [viewLoading, setViewLoading] = useState<string | null>(null) // docId yang sedang di-fetch
+   849→  const [previewDoc, setPreviewDoc] = useState<any | null>(null) // dialog preview
+   850→
+   851→  const meta = type === 'AD_ART'
+   852→    ? {
+   853→        icon: FileText,
+   854→        title: 'Anggaran Dasar / Anggaran Rumah Tangga (AD/ART)',
+   855→        emptyTitle: 'Belum ada dokumen AD/ART',
+   856→        emptyDesc: 'Dokumen AD/ART LAPRA 08 akan ditampilkan di sini.',
+   857→        grad: 'from-blue-500 to-cyan-600',
+   858→      }
+   859→    : {
+   860→        icon: Scale,
+   861→        title: 'Landasan Hukum & Legalitas Organisasi',
+   862→        emptyTitle: 'Belum ada dokumen legalitas',
+   863→        emptyDesc: 'SK Kepengurusan, Nota Kesepahaman, dan dokumen legal lainnya.',
+   864→        grad: 'from-emerald-500 to-teal-600',
+   865→      }
+   866→
+   867→  const load = () => {
+   868→    setLoading(true)
+   869→    api(`/api/profile-documents?type=${type}`)
+   870→      .then((data: any[]) => setDocs(data || []))
+   871→      .catch((e) => setError(e.message || 'Gagal memuat dokumen'))
+   872→      .finally(() => setLoading(false))
+   873→  }
+   874→
+   875→  useEffect(() => { load() }, [type])
+   876→
+   877→  const handleDelete = async (doc: any) => {
+   878→    try {
+   879→      const res = await fetch(`/api/profile-documents/${doc.id}`, {
+   880→        method: 'DELETE',
+   881→        headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+   882→      })
+   883→      const data = await res.json()
+   884→      if (!data.success) throw new Error(data.error || 'Gagal menghapus')
+   885→      addToast('Dokumen berhasil dihapus', 'success')
+   886→      setDeleteTarget(null)
+   887→      load()
+   888→    } catch (e: any) {
+   889→      addToast(e.message || 'Gagal menghapus dokumen', 'error')
+   890→    }
+   891→  }
+   892→
+   893→  const formatSize = (bytes: number) => {
+   894→    if (!bytes) return '-'
+   895→    if (bytes < 1024) return `${bytes} B`
+   896→    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+   897→    return `${(bytes / 1024 / 1024).toFixed(2)} MB`
+   898→  }
+   899→
+   900→  // === Helper: deteksi kategori format file ===
+   901→  const getFileCategory = (fileType: string): 'PDF' | 'IMAGE' | 'DOC' | 'FILE' => {
+   902→    const ft = (fileType || '').toLowerCase()
+   903→    if (ft === 'pdf') return 'PDF'
+   904→    if (['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ft)) return 'IMAGE'
+   905→    if (['doc', 'docx'].includes(ft)) return 'DOC'
+   906→    return 'FILE'
+   907→  }
+   908→
+   909→  const formatIcons: Record<string, any> = {
+   910→    PDF: FileText,
+   911→    IMAGE: ImageIcon,
+   912→    DOC: FileText,
+   913→    FILE: FileText,
+   914→  }
+   915→
+   916→  const formatColors: Record<string, string> = {
+   917→    PDF: 'bg-red-50 text-red-700 border-red-200',
+   918→    IMAGE: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+   919→    DOC: 'bg-blue-50 text-blue-700 border-blue-200',
+   920→    FILE: 'bg-slate-50 text-slate-700 border-slate-200',
+   921→  }
+   922→
+   923→  // === Filter + search ===
+   924→  const filtered = docs.filter(doc => {
+   925→    const matchSearch = !search ||
+   926→      doc.title?.toLowerCase().includes(search.toLowerCase()) ||
+   927→      doc.description?.toLowerCase().includes(search.toLowerCase()) ||
+   928→      doc.uploadedBy?.toLowerCase().includes(search.toLowerCase())
+   929→    const matchFormat = filterFormat === 'ALL' || getFileCategory(doc.fileType) === filterFormat
+   930→    return matchSearch && matchFormat
+   931→  })
+   932→
+   933→  // === Statistik ===
+   934→  const stats = {
+   935→    total: docs.length,
+   936→    pdf: docs.filter(d => getFileCategory(d.fileType) === 'PDF').length,
+   937→    image: docs.filter(d => getFileCategory(d.fileType) === 'IMAGE').length,
+   938→    doc: docs.filter(d => getFileCategory(d.fileType) === 'DOC').length,
+   939→    totalSize: docs.reduce((sum, d) => sum + (d.fileSize || 0), 0),
+   940→  }
+   941→
+   942→  // === Handler: Buka dokumen via authenticated fetch + blob URL ===
+   943→  // FIX BUG: sebelumnya pakai <a href={data:base64}> → browser blank page
+   944→  // Sekarang: fetch /api/profile-documents/[id]/view → blob → window.open
+   945→  const handleViewDoc = async (doc: any) => {
+   946→    setViewLoading(doc.id)
+   947→    try {
+   948→      const userId = user?.id || ''
+   949→      const res = await fetch(`/api/profile-documents/${doc.id}/view`, {
+   950→        headers: { 'x-user-id': userId },
+   951→      })
+   952→      if (!res.ok) {
+   953→        const errData = await res.json().catch(() => null)
+   954→        throw new Error(errData?.error || `HTTP ${res.status}`)
+   955→      }
+   956→      const blob = await res.blob()
+   957→      const blobUrl = URL.createObjectURL(blob)
+   958→      window.open(blobUrl, '_blank')
+   959→      setTimeout(() => URL.revokeObjectURL(blobUrl), 60000)
+   960→    } catch (e: any) {
+   961→      addToast(`Gagal membuka dokumen: ${e.message}`, 'error')
+   962→    } finally {
+   963→      setViewLoading(null)
+   964→    }
+   965→  }
+   966→
+   967→  // === Handler: Preview PDF inline di dialog ===
+   968→  const handlePreviewDoc = async (doc: any) => {
+   969→    setViewLoading(doc.id)
+   970→    try {
+   971→      const userId = user?.id || ''
+   972→      const res = await fetch(`/api/profile-documents/${doc.id}/view`, {
+   973→        headers: { 'x-user-id': userId },
+   974→      })
+   975→      if (!res.ok) {
+   976→        const errData = await res.json().catch(() => null)
+   977→        throw new Error(errData?.error || `HTTP ${res.status}`)
+   978→      }
+   979→      const blob = await res.blob()
+   980→      const blobUrl = URL.createObjectURL(blob)
+   981→      setPreviewDoc({ ...doc, blobUrl })
+   982→    } catch (e: any) {
+   983→      addToast(`Gagal preview dokumen: ${e.message}`, 'error')
+   984→    } finally {
+   985→      setViewLoading(null)
+   986→    }
+   987→  }
+   988→
+   989→  // === Handler: Download dokumen ===
+   990→  const handleDownloadDoc = async (doc: any) => {
+   991→    setViewLoading(doc.id)
+   992→    try {
+   993→      const userId = user?.id || ''
+   994→      const res = await fetch(`/api/profile-documents/${doc.id}/view`, {
+   995→        headers: { 'x-user-id': userId },
+   996→      })
+   997→      if (!res.ok) {
+   998→        const errData = await res.json().catch(() => null)
+   999→        throw new Error(errData?.error || `HTTP ${res.status}`)
+  1000→      }
+  1001→      const blob = await res.blob()
+  1002→      const blobUrl = URL.createObjectURL(blob)
+  1003→      // Trigger download dengan anchor + download attribute
+  1004→      const a = document.createElement('a')
+  1005→      a.href = blobUrl
+  1006→      a.download = doc.fileName || `${doc.title}.pdf`
+  1007→      document.body.appendChild(a)
+  1008→      a.click()
+  1009→      document.body.removeChild(a)
+  1010→      setTimeout(() => URL.revokeObjectURL(blobUrl), 30000)
+  1011→    } catch (e: any) {
+  1012→      addToast(`Gagal download dokumen: ${e.message}`, 'error')
+  1013→    } finally {
+  1014→      setViewLoading(null)
+  1015→    }
+  1016→  }
+  1017→
+  1018→  return (
+  1019→    <div className="space-y-4">
+  1020→      {/* === Header + tombol Upload === */}
+  1021→      <div className="flex items-center justify-between flex-wrap gap-2">
+  1022→        <div className="flex items-center gap-2">
+  1023→          <div className={`w-9 h-9 rounded-lg bg-gradient-to-br ${meta.grad} flex items-center justify-center`}>
+  1024→            <meta.icon className="w-5 h-5 text-white" />
+  1025→          </div>
+  1026→          <div>
+  1027→            <h3 className="text-base font-bold">{meta.title}</h3>
+  1028→            <p className="text-sm text-muted-foreground">{stats.total} dokumen • {formatSize(stats.totalSize)}</p>
+  1029→          </div>
+  1030→        </div>
+  1031→        {isSuperAdmin && (
+  1032→          <Button size="sm" onClick={() => setUploadOpen(true)} className="gap-2">
+  1033→            <Upload className="w-4 h-4" /> Upload Dokumen
+  1034→          </Button>
+  1035→        )}
+  1036→      </div>
+  1037→
+  1038→      {/* === Statistik cards === */}
+  1039→      {docs.length > 0 && (
+  1040→        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+  1041→          <div className="rounded-lg border bg-white p-2 text-center">
+  1042→            <div className="text-lg font-bold text-slate-700">{stats.total}</div>
+  1043→            <div className="text-[11px] text-muted-foreground">Total Dokumen</div>
+  1044→          </div>
+  1045→          <div className="rounded-lg border bg-red-50 p-2 text-center">
+  1046→            <div className="text-lg font-bold text-red-700">{stats.pdf}</div>
+  1047→            <div className="text-[11px] text-red-700/70">PDF</div>
+  1048→          </div>
+  1049→          <div className="rounded-lg border bg-emerald-50 p-2 text-center">
+  1050→            <div className="text-lg font-bold text-emerald-700">{stats.image}</div>
+  1051→            <div className="text-[11px] text-emerald-700/70">Gambar</div>
+  1052→          </div>
+  1053→          <div className="rounded-lg border bg-blue-50 p-2 text-center">
+  1054→            <div className="text-lg font-bold text-blue-700">{stats.doc}</div>
+  1055→            <div className="text-[11px] text-blue-700/70">DOC/DOCX</div>
+  1056→          </div>
+  1057→        </div>
+  1058→      )}
+  1059→
+
+[showing lines 360-1059 of 6380; use offset=1060 with limit to continue reading]

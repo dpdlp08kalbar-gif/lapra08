@@ -1,0 +1,562 @@
+  5082→function PengaduanManager() {
+  5083→  const addToast = useToastStore((s) => s.addToast)
+  5084→  const [form, setForm] = useState({ name: '', email: '', phone: '', category: '', subject: '', description: '', anonymous: false })
+  5085→  const [complaints, setComplaints] = useState<any[]>([])
+  5086→  const [loading, setLoading] = useState(true)
+  5087→  const [submitting, setSubmitting] = useState(false)
+  5088→
+  5089→  useEffect(() => {
+  5090→    api('/api/sekretariat/messages?category=PENGADUAN').then((data: any[]) => {
+  5091→      setComplaints(data || [])
+  5092→      setLoading(false)
+  5093→    }).catch(() => setLoading(false))
+  5094→  }, [])
+  5095→
+  5096→  const handleSubmit = async (e: React.FormEvent) => {
+  5097→    e.preventDefault()
+  5098→    if (!form.subject || !form.description) { addToast('Subjek dan deskripsi wajib diisi', 'error'); return }
+  5099→    setSubmitting(true)
+  5100→    try {
+  5101→      const res = await fetch('/api/sekretariat/messages', {
+  5102→        method: 'POST',
+  5103→        headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+  5104→        body: JSON.stringify({
+  5105→          name: form.anonymous ? 'Anonim' : form.name,
+  5106→          email: form.anonymous ? 'anonim@lapra08.id' : form.email,
+  5107→          phone: form.anonymous ? '' : form.phone,
+  5108→          subject: `[PENGADUAN] ${form.subject}`,
+  5109→          message: `Kategori: ${form.category}\n\n${form.description}`,
+  5110→          priority: 'NORMAL',
+  5111→          category: 'PENGADUAN',
+  5112→        }),
+  5113→      })
+  5114→      const data = await res.json()
+  5115→      if (!res.ok || !data.success) throw new Error(data.error || 'Gagal mengirim')
+  5116→      addToast('Pengaduan Anda terkirim. Akan ditindaklanjuti dalam 1x24 jam.', 'success')
+  5117→      setForm({ name: '', email: '', phone: '', category: '', subject: '', description: '', anonymous: false })
+  5118→      api('/api/sekretariat/messages?category=PENGADUAN').then(setComplaints).catch(() => {})
+  5119→    } catch (e: any) { addToast(e.message, 'error') }
+  5120→    finally { setSubmitting(false) }
+  5121→  }
+  5122→
+  5123→  const categories = [
+  5124→    { value: 'PELANGGARAN_ANGGOTA', label: 'Pelanggaran Anggota' },
+  5125→    { value: 'KEUANGAN', label: 'Keuangan / Iuran' },
+  5126→    { value: 'PEMILIHAN_PENGURUS', label: 'Pemilihan Pengurus' },
+  5127→    { value: 'PROGRAM_KERJA', label: 'Program Kerja' },
+  5128→    { value: 'PELAYANAN_DPC', label: 'Pelayanan DPC' },
+  5129→    { value: 'LAINNYA', label: 'Lainnya' },
+  5130→  ]
+  5131→
+  5132→  return (
+  5133→    <div className="grid gap-6 lg:grid-cols-2">
+  5134→      <Card>
+  5135→        <CardHeader>
+  5136→          <CardTitle className="flex items-center gap-2 text-base"><MessageSquare className="w-4 h-4 text-emerald-600" /> Form Pengaduan & Aspirasi</CardTitle>
+  5137→          <CardDescription>Salurkan pengaduan, kritik, dan aspirasi untuk perbaikan organisasi</CardDescription>
+  5138→        </CardHeader>
+  5139→        <CardContent>
+  5140→          <form onSubmit={handleSubmit} className="space-y-3">
+  5141→            <div className="flex items-center gap-2">
+  5142→              <input type="checkbox" id="anon" checked={form.anonymous} onChange={(e) => setForm({ ...form, anonymous: e.target.checked })} />
+  5143→              <Label htmlFor="anon" className="text-sm">Kirim sebagai anonim</Label>
+  5144→            </div>
+  5145→            {!form.anonymous && (
+  5146→              <div className="grid grid-cols-2 gap-3">
+  5147→                <div className="space-y-2"><Label>Nama</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Nama Anda" /></div>
+  5148→                <div className="space-y-2"><Label>Email</Label><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="email@example.com" /></div>
+  5149→              </div>
+  5150→            )}
+  5151→            <div className="grid grid-cols-2 gap-3">
+  5152→              {!form.anonymous && <div className="space-y-2"><Label>Telepon</Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+62 812-xxxx-xxxx" /></div>}
+  5153→              <div className="space-y-2"><Label>Kategori *</Label>
+  5154→                <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}>
+  5155→                  <SelectTrigger><SelectValue placeholder="Pilih kategori" /></SelectTrigger>
+  5156→                  <SelectContent>{categories.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent>
+  5157→                </Select>
+  5158→              </div>
+  5159→            </div>
+  5160→            <div className="space-y-2"><Label>Subjek *</Label><Input value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} placeholder="cth: Laporan ketidaksesuaian iuran" required /></div>
+  5161→            <div className="space-y-2"><Label>Deskripsi *</Label><Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={5} placeholder="Jelaskan pengaduan secara detail dan faktual..." required /></div>
+  5162→            <Button type="submit" disabled={submitting} className="w-full bg-gradient-to-r from-orange-600 to-red-600 text-white">
+  5163→              {submitting ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Send className="w-4 h-4 mr-1" />} Kirim Pengaduan
+  5164→            </Button>
+  5165→          </form>
+  5166→        </CardContent>
+  5167→      </Card>
+  5168→      <Card>
+  5169→        <CardHeader>
+  5170→          <CardTitle className="flex items-center gap-2 text-base"><Mail className="w-4 h-4 text-blue-600" /> Riwayat Pengaduan ({complaints.length})</CardTitle>
+  5171→        </CardHeader>
+  5172→        <CardContent>
+  5173→          {loading ? <LoadingState /> : complaints.length === 0 ? (
+  5174→            <EmptyState icon={MessageSquare} title="Belum ada pengaduan" description="Pengaduan yang Anda kirim akan muncul di sini." />
+  5175→          ) : (
+  5176→            <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2">
+  5177→              {complaints.map((c) => (
+  5178→                <div key={c.id} className="rounded-xl border p-3 bg-white">
+  5179→                  <div className="font-semibold text-sm">{c.subject}</div>
+  5180→                  <p className="text-xs text-muted-foreground mt-1 line-clamp-3">{c.message}</p>
+  5181→                  <div className="flex items-center justify-between mt-2">
+  5182→                    <Badge variant={c.status === 'RESOLVED' ? 'default' : 'outline'} className={`text-[13px] ${c.status === 'RESOLVED' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+  5183→                      {c.status === 'RESOLVED' ? 'Selesai' : c.status === 'READ' ? 'Dibaca' : 'Baru'}
+  5184→                    </Badge>
+  5185→                    <span className="text-[13px] text-muted-foreground">{formatDateTimeID(c.createdAt)}</span>
+  5186→                  </div>
+  5187→                </div>
+  5188→              ))}
+  5189→            </div>
+  5190→          )}
+  5191→        </CardContent>
+  5192→      </Card>
+  5193→    </div>
+  5194→  )
+  5195→}
+  5196→
+  5197→// ----- Bantuan Hukum -----
+  5198→function BantuanHukumManager() {
+  5199→  const addToast = useToastStore((s) => s.addToast)
+  5200→  const [form, setForm] = useState({ name: '', email: '', phone: '', caseType: '', caseDesc: '', urgency: 'NORMAL' })
+  5201→  const [submitting, setSubmitting] = useState(false)
+  5202→
+  5203→  const handleSubmit = async (e: React.FormEvent) => {
+  5204→    e.preventDefault()
+  5205→    if (!form.name || !form.email || !form.caseType || !form.caseDesc) { addToast('Lengkapi semua field wajib', 'error'); return }
+  5206→    setSubmitting(true)
+  5207→    try {
+  5208→      const res = await fetch('/api/sekretariat/messages', {
+  5209→        method: 'POST',
+  5210→        headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+  5211→        body: JSON.stringify({
+  5212→          name: form.name, email: form.email, phone: form.phone,
+  5213→          subject: `[BANTUAN_HUKUM] ${form.caseType}`,
+  5214→          message: `Urgensi: ${form.urgency}\n\n${form.caseDesc}`,
+  5215→          priority: form.urgency === 'URGENT' ? 'URGENT' : form.urgency === 'TINGGI' ? 'TINGGI' : 'NORMAL',
+  5216→          category: 'BANTUAN_HUKUM',
+  5217→        }),
+  5218→      })
+  5219→      const data = await res.json()
+  5220→      if (!res.ok || !data.success) throw new Error(data.error || 'Gagal mengirim')
+  5221→      addToast('Permohonan bantuan hukum terkirim. Tim advokasi akan menghubungi Anda dalam 1x24 jam.', 'success')
+  5222→      setForm({ name: '', email: '', phone: '', caseType: '', caseDesc: '', urgency: 'NORMAL' })
+  5223→    } catch (e: any) { addToast(e.message, 'error') }
+  5224→    finally { setSubmitting(false) }
+  5225→  }
+  5226→
+  5227→  const caseTypes = [
+  5228→    { value: 'PIDANA', label: 'Hukum Pidana' },
+  5229→    { value: 'PERDATA', label: 'Hukum Perdata' },
+  5230→    { value: 'TATA_USAHA', label: 'Hukum Tata Usaha Negara' },
+  5231→    { value: 'Ketenagakerjaan', label: 'Ketenagakerjaan' },
+  5232→    { value: 'KONSUMEN', label: 'Perlindungan Konsumen' },
+  5233→    { value: 'LAINNYA', label: 'Lainnya' },
+  5234→  ]
+  5235→
+  5236→  return (
+  5237→    <div className="grid gap-6 lg:grid-cols-3">
+  5238→      <Card className="lg:col-span-2">
+  5239→        <CardHeader>
+  5240→          <CardTitle className="flex items-center gap-2 text-base"><Scale className="w-4 h-4 text-emerald-600" /> Formulir Bantuan Hukum</CardTitle>
+  5241→          <CardDescription>Ajukan permohonan bantuan hukum untuk anggota LAPRA 08</CardDescription>
+  5242→        </CardHeader>
+  5243→        <CardContent>
+  5244→          <form onSubmit={handleSubmit} className="space-y-3">
+  5245→            <div className="grid grid-cols-2 gap-3">
+  5246→              <div className="space-y-2"><Label>Nama Lengkap *</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Nama Anda" required /></div>
+  5247→              <div className="space-y-2"><Label>Email *</Label><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="email@example.com" required /></div>
+  5248→            </div>
+  5249→            <div className="grid grid-cols-2 gap-3">
+  5250→              <div className="space-y-2"><Label>Telepon / WA *</Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+62 812-xxxx-xxxx" /></div>
+  5251→              <div className="space-y-2"><Label>Urgensi</Label>
+  5252→                <Select value={form.urgency} onValueChange={(v) => setForm({ ...form, urgency: v })}>
+  5253→                  <SelectTrigger><SelectValue /></SelectTrigger>
+  5254→                  <SelectContent>
+  5255→                    <SelectItem value="RENDAH">Rendah</SelectItem>
+  5256→                    <SelectItem value="NORMAL">Normal</SelectItem>
+  5257→                    <SelectItem value="TINGGI">Tinggi</SelectItem>
+  5258→                    <SelectItem value="URGENT">Urgent</SelectItem>
+  5259→                  </SelectContent>
+  5260→                </Select>
+  5261→              </div>
+  5262→            </div>
+  5263→            <div className="space-y-2"><Label>Jenis Kasus *</Label>
+  5264→              <Select value={form.caseType} onValueChange={(v) => setForm({ ...form, caseType: v })}>
+  5265→                <SelectTrigger><SelectValue placeholder="Pilih jenis kasus" /></SelectTrigger>
+  5266→                <SelectContent>{caseTypes.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent>
+  5267→              </Select>
+  5268→            </div>
+  5269→            <div className="space-y-2"><Label>Deskripsi Kasus *</Label><Textarea value={form.caseDesc} onChange={(e) => setForm({ ...form, caseDesc: e.target.value })} rows={5} placeholder="Jelaskan kronologi singkat kasus, status hukum saat ini, dan bantuan yang dibutuhkan..." required /></div>
+  5270→            <Button type="submit" disabled={submitting} className="w-full bg-gradient-to-r from-orange-600 to-red-600 text-white">
+  5271→              {submitting ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Send className="w-4 h-4 mr-1" />} Kirim Permohonan
+  5272→            </Button>
+  5273→          </form>
+  5274→        </CardContent>
+  5275→      </Card>
+  5276→      <Card>
+  5277→        <CardHeader>
+  5278→          <CardTitle className="flex items-center gap-2 text-base"><ShieldCheck className="w-4 h-4 text-blue-600" /> Informasi Layanan</CardTitle>
+  5279→        </CardHeader>
+  5280→        <CardContent className="space-y-3 text-sm">
+  5281→          <div className="rounded-lg bg-emerald-50 p-3 border border-emerald-200">
+  5282→            <div className="font-semibold text-emerald-800 mb-1">Konsultasi Awal - GRATIS</div>
+  5283→            <p className="text-xs text-emerald-700">Anggota LAPRA 08 mendapatkan konsultasi hukum awal gratis untuk assessment kasus.</p>
+  5284→          </div>
+  5285→          <div className="rounded-lg bg-blue-50 p-3 border border-blue-200">
+  5286→            <div className="font-semibold text-blue-800 mb-1">Tim Advokasi DPN</div>
+  5287→            <p className="text-xs text-blue-700">Ditangani oleh tim advokasi DPN berpengalaman dengan jaringan pengacara mitra di seluruh Indonesia.</p>
+  5288→          </div>
+  5289→          <div className="rounded-lg bg-orange-50 p-3 border border-orange-200">
+  5290→            <div className="font-semibold text-orange-800 mb-1">Tarif Khusus Anggota</div>
+  5291→            <p className="text-xs text-orange-700">Untuk kasus yang membutuhkan pendampingan lanjutan, anggota mendapatkan tarif diskon 30-50% dari pengacara mitra.</p>
+  5292→          </div>
+  5293→          <div className="rounded-lg bg-slate-50 p-3 border">
+  5294→            <div className="font-semibold text-slate-800 mb-1">Hotline 24/7</div>
+  5295→            <p className="text-xs text-slate-700 font-mono">+62 811-9090-08</p>
+  5296→          </div>
+  5297→        </CardContent>
+  5298→      </Card>
+  5299→    </div>
+  5300→  )
+  5301→}
+  5302→
+  5303→// ============================================================
+  5304→// 6. KONTAK & SEKRETARIAT — Lokasi, Hubungi, FAQ (Full Implementation)
+  5305→// ============================================================
+  5306→export function KontakSekretariatMenu() {
+  5307→  const [tab, setTab] = useState('lokasi')
+  5308→  const tabs = [
+  5309→    { key: 'lokasi', label: 'Lokasi Sekretariat', icon: MapIcon },
+  5310→    { key: 'hubungi', label: 'Hubungi Kami', icon: Mail },
+  5311→    { key: 'faq', label: 'FAQ', icon: HelpCircle },
+  5312→  ]
+  5313→  return (
+  5314→    <div className="space-y-6">
+  5315→      <PageHeader title="Kontak & Sekretariat" description="Lokasi sekretariat, form kontak, dan FAQ" icon={MapIcon} />
+  5316→      <div className="flex flex-wrap gap-2">
+  5317→        {tabs.map((t) => (
+  5318→          <button key={t.key} onClick={() => setTab(t.key)}
+  5319→            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${tab === t.key ? 'bg-gradient-to-r from-orange-600 to-red-600 text-white shadow-sm' : 'border hover:bg-accent'}`}>
+  5320→            <t.icon className="w-4 h-4" /> {t.label}
+  5321→          </button>
+  5322→        ))}
+  5323→      </div>
+  5324→      {tab === 'lokasi' ? <LokasiSekretariatManager /> : tab === 'hubungi' ? <HubungiKamiManager /> : <FaqManager />}
+  5325→    </div>
+  5326→  )
+  5327→}
+  5328→
+  5329→// ----- Lokasi Sekretariat — Struktur Hierarki DPN/DPD/DPC (seperti Pusat Data Organisasi) -----
+  5330→function LokasiSekretariatManager() {
+  5331→  const isSuperAdmin = useIsSuperAdmin()
+  5332→  const [view, setView] = useState<'home' | 'dpn' | 'dpd-list' | 'dpd-detail' | 'dpc-list' | 'dpc-detail'>('home')
+  5333→  const [territories, setTerritories] = useState<any[]>([])
+  5334→  const [regencies, setRegencies] = useState<any[]>([])
+  5335→  const [selectedProv, setSelectedProv] = useState<any>(null)
+  5336→  const [selectedRegency, setSelectedRegency] = useState<any>(null)
+  5337→  const [locations, setLocations] = useState<any[]>([])
+  5338→  const [loading, setLoading] = useState(true)
+  5339→  const [addOpen, setAddOpen] = useState(false)
+  5340→  const [editItem, setEditItem] = useState<any>(null)
+  5341→  const [deleteItem, setDeleteItem] = useState<any>(null)
+  5342→  const [form, setForm] = useState<any>({ name: '', level: 'DPC', address: '', city: '', province: '', postalCode: '', phone: '', email: '', hours: '', lat: 0, lng: 0, mapUrl: '' })
+  5343→
+  5344→  useEffect(() => {
+  5345→    Promise.all([
+  5346→      api('/api/territory').then((all: any[]) => {
+  5347→        setTerritories(all.filter(t => t.level === 'PROVINCE'))
+  5348→        setRegencies(all.filter(t => t.level === 'REGENCY'))
+  5349→      }).catch(() => {}),
+  5350→      api('/api/sekretariat').then((data: any[]) => setLocations(data || [])).catch(() => {}),
+  5351→    ]).finally(() => setLoading(false))
+  5352→  }, [])
+  5353→
+  5354→  const reloadLocations = () => {
+  5355→    api('/api/sekretariat').then((data: any[]) => setLocations(data || [])).catch(() => {})
+  5356→  }
+  5357→
+  5358→  // Filter locations by level
+  5359→  const dpnLocations = locations.filter(l => l.level === 'DPN')
+  5360→  const dpdLocations = locations.filter(l => l.level === 'DPD')
+  5361→  const dpcLocations = locations.filter(l => l.level === 'DPC')
+  5362→
+  5363→  // Filter DPD locations by selected province
+  5364→  const dpdFiltered = selectedProv ? dpdLocations.filter(l => l.province === selectedProv.name || l.territoryCode === selectedProv.code) : []
+  5365→
+  5366→  // Filter DPC locations by selected regency
+  5367→  const dpcFiltered = selectedRegency ? dpcLocations.filter(l => l.city === selectedRegency.name || l.territoryCode === selectedRegency.code) : []
+  5368→
+  5369→  // Filter regencies by selected province
+  5370→  const filteredRegencies = selectedProv
+  5371→    ? regencies.filter(r => { const prov = territories.find(p => p.code === selectedProv.code); return prov && r.parentId === prov.id })
+  5372→    : []
+  5373→
+  5374→  const handleSave = async (e: React.FormEvent) => {
+  5375→    e.preventDefault()
+  5376→    const userId = useAuthStore.getState().user?.id || ''
+  5377→    const method = editItem ? 'PUT' : 'POST'
+  5378→    const url = editItem ? `/api/sekretariat/${editItem.id}` : '/api/sekretariat'
+  5379→    try {
+  5380→      const res = await fetch(url, {
+  5381→        method, headers: { 'Content-Type': 'application/json', 'x-user-id': userId },
+  5382→        body: JSON.stringify(form),
+  5383→      })
+  5384→      const data = await res.json()
+  5385→      if (!res.ok || !data.success) throw new Error(data.error)
+  5386→      useToastStore.getState().addToast(editItem ? 'Sekretariat diperbarui' : 'Sekretariat ditambahkan', 'success')
+  5387→      setAddOpen(false); setEditItem(null); reloadLocations()
+  5388→    } catch (e: any) { useToastStore.getState().addToast(e.message, 'error') }
+  5389→  }
+  5390→
+  5391→  const handleDelete = async () => {
+  5392→    if (!deleteItem) return
+  5393→    try {
+  5394→      await fetch(`/api/sekretariat/${deleteItem.id}`, { method: 'DELETE', headers: { 'x-user-id': useAuthStore.getState().user?.id || '' } })
+  5395→      useToastStore.getState().addToast('Sekretariat dihapus', 'success')
+  5396→      setDeleteItem(null); reloadLocations()
+  5397→    } catch (e: any) { useToastStore.getState().addToast(e.message, 'error') }
+  5398→  }
+  5399→
+  5400→  const openEditor = (item?: any) => {
+  5401→    if (item) { setEditItem(item); setForm({ ...item }) }
+  5402→    else { setEditItem(null); setForm({ name: '', level: view === 'dpn' ? 'DPN' : view === 'dpd-detail' ? 'DPD' : 'DPC', address: '', city: '', province: selectedProv?.name || '', postalCode: '', phone: '', email: '', hours: '', lat: 0, lng: 0, mapUrl: '' }) }
+  5403→    setAddOpen(true)
+  5404→  }
+  5405→
+  5406→  if (loading) return <LoadingState />
+  5407→
+  5408→  const levelConfig: Record<string, { label: string; color: string }> = {
+  5409→    DPN: { label: 'DPN Pusat', color: 'bg-purple-100 text-purple-700 border-purple-200' },
+  5410→    KOORWIL: { label: 'Koorwil', color: 'bg-purple-100 text-purple-700 border-purple-200' },
+  5411→    DPD: { label: 'DPD Provinsi', color: 'bg-blue-100 text-blue-700 border-blue-200' },
+  5412→    DPC: { label: 'DPC Kab/Kota', color: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
+  5413→  }
+  5414→
+  5415→  const SekretariatCard = ({ loc }: { loc: any }) => {
+  5416→    const lc = levelConfig[loc.level] || levelConfig.DPC
+  5417→    return (
+  5418→      <div className="rounded-xl border p-4 hover:shadow-md transition-all bg-white">
+  5419→        <div className="flex items-start gap-3 mb-3">
+  5420→          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center shrink-0">
+  5421→            <MapIcon className="w-5 h-5 text-white" />
+  5422→          </div>
+  5423→          <div className="flex-1 min-w-0">
+  5424→            <div className="font-bold text-sm leading-tight">{loc.name}</div>
+  5425→            <Badge variant="outline" className={`text-[13px] mt-1 ${lc.color}`}>{lc.label}</Badge>
+  5426→          </div>
+  5427→          {isSuperAdmin && (
+  5428→            <div className="flex gap-1">
+  5429→              <Button size="icon" variant="ghost" className="h-7 w-7 text-blue-600 hover:bg-blue-50" onClick={() => openEditor(loc)}>
+  5430→                <Edit className="w-3.5 h-3.5" />
+  5431→              </Button>
+  5432→              <Button size="icon" variant="ghost" className="h-7 w-7 text-red-600 hover:bg-red-50" onClick={() => setDeleteItem(loc)}>
+  5433→                <Trash2 className="w-3.5 h-3.5" />
+  5434→              </Button>
+  5435→            </div>
+  5436→          )}
+  5437→        </div>
+  5438→        <div className="space-y-2 text-xs text-muted-foreground">
+  5439→          {loc.address && <div className="flex items-start gap-2"><MapPin className="w-3.5 h-3.5 text-red-500 mt-0.5 shrink-0" /><span>{loc.address}, {loc.city}, {loc.province} {loc.postalCode}</span></div>}
+  5440→          {loc.phone && <div className="flex items-center gap-2"><PhoneCall className="w-3.5 h-3.5 text-blue-500 shrink-0" /><span>{loc.phone}</span></div>}
+  5441→          {loc.email && <div className="flex items-center gap-2"><Mail className="w-3.5 h-3.5 text-emerald-500 shrink-0" /><span className="truncate">{loc.email}</span></div>}
+  5442→          {loc.hours && <div className="flex items-center gap-2"><Clock className="w-3.5 h-3.5 text-amber-500 shrink-0" /><span>{loc.hours}</span></div>}
+  5443→        </div>
+  5444→        {loc.mapUrl && <a href={loc.mapUrl} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-800">
+  5445→          <ExternalLink className="w-3 h-3" /> Lihat di Google Maps
+  5446→        </a>}
+  5447→      </div>
+  5448→    )
+  5449→  }
+  5450→
+  5451→  // === Render view content based on view state ===
+  5452→  let viewContent: React.ReactNode = null
+  5453→
+  5454→  // HOME VIEW: 3 Kartu DPN/DPD/DPC
+  5455→  if (view === 'home') {
+  5456→    const cards = [
+  5457→      { key: 'dpn', title: 'DPN', subtitle: 'Pusat Nasional', desc: 'Sekretariat DPN LAPRA 08', count: dpnLocations.length, icon: Building2, grad: 'from-red-500 to-orange-600' },
+  5458→      { key: 'dpd', title: 'DPD', subtitle: 'Provinsi', desc: 'Daftar sekretariat DPD se-Indonesia + LN', count: dpdLocations.length, icon: Globe, grad: 'from-blue-500 to-cyan-600' },
+  5459→      { key: 'dpc', title: 'DPC', subtitle: 'Kabupaten/Kota', desc: 'Daftar sekretariat DPC per DPD', count: dpcLocations.length, icon: MapPin, grad: 'from-emerald-500 to-teal-600' },
+  5460→    ]
+  5461→    viewContent = (
+  5462→      <div className="space-y-4">
+  5463→        <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-2 text-xs text-emerald-800">
+  5464→          <strong>Hierarki:</strong> DPN (Pusat Nasional) → DPD (Provinsi) → DPC (Kabupaten/Kota).
+  5465→          Pilih tingkat untuk melihat sekretariat masing-masing wilayah.
+  5466→        </div>
+  5467→        <div className="grid gap-4 md:grid-cols-3">
+  5468→          {cards.map(c => (
+  5469→            <div key={c.key} className="rounded-2xl border-2 hover:shadow-lg transition-all cursor-pointer overflow-hidden"
+  5470→              onClick={() => { setView(c.key === 'dpn' ? 'dpn' : c.key === 'dpd' ? 'dpd-list' : 'dpc-list'); setSelectedProv(null); setSelectedRegency(null) }}>
+  5471→              <div className={`bg-gradient-to-br ${c.grad} p-5 text-white`}>
+  5472→                <c.icon className="w-8 h-8 mb-2" />
+  5473→                <div className="text-xl font-bold">{c.title}</div>
+  5474→                <div className="text-sm opacity-90">{c.subtitle}</div>
+  5475→              </div>
+  5476→              <div className="p-4 bg-white">
+  5477→                <div className="text-sm text-muted-foreground mb-2">{c.desc}</div>
+  5478→                <div className="flex items-center justify-between">
+  5479→                  <Badge variant="outline" className="text-[13px]">{c.count} sekretariat</Badge>
+  5480→                  <span className="text-xs font-medium text-blue-600">Buka <ChevronRight className="w-4 h-4 inline" /></span>
+  5481→                </div>
+  5482→              </div>
+  5483→            </div>
+  5484→          ))}
+  5485→        </div>
+  5486→      </div>
+  5487→    )
+  5488→  }
+  5489→
+  5490→  // DPN VIEW
+  5491→  else if (view === 'dpn') {
+  5492→    viewContent = (
+  5493→      <div className="space-y-4">
+  5494→        <Button variant="ghost" size="sm" onClick={() => setView('home')}><ChevronRight className="w-4 h-4 rotate-180" /> Kembali</Button>
+  5495→        <div className="flex items-center justify-between">
+  5496→          <h3 className="text-base font-bold flex items-center gap-2"><Building2 className="w-5 h-5 text-red-600" /> Sekretariat DPN (Pusat Nasional)</h3>
+  5497→          {isSuperAdmin && <Button size="sm" onClick={() => openEditor()} className="bg-gradient-to-r from-orange-600 to-red-600 text-white"><Plus className="w-4 h-4 mr-1" /> Tambah</Button>}
+  5498→        </div>
+  5499→        {dpnLocations.length === 0 ? <EmptyState icon={MapIcon} title="Belum ada sekretariat DPN" /> : (
+  5500→          <div className="grid gap-4 md:grid-cols-2">{dpnLocations.map(loc => <SekretariatCard key={loc.id} loc={loc} />)}</div>
+  5501→        )}
+  5502→      </div>
+  5503→    )
+  5504→  }
+  5505→
+  5506→  // DPD LIST VIEW
+  5507→  else if (view === 'dpd-list') {
+  5508→    viewContent = (
+  5509→      <div className="space-y-4">
+  5510→        <Button variant="ghost" size="sm" onClick={() => setView('home')}><ChevronRight className="w-4 h-4 rotate-180" /> Kembali</Button>
+  5511→        <h3 className="text-base font-bold flex items-center gap-2"><Globe className="w-5 h-5 text-blue-600" /> Pilih DPD (Provinsi)</h3>
+  5512→        <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+  5513→          {territories.map(prov => {
+  5514→            const count = dpdLocations.filter(l => l.province === prov.name || l.territoryCode === prov.code).length
+  5515→            return (
+  5516→              <button key={prov.code} onClick={() => { setSelectedProv(prov); setView('dpd-detail') }}
+  5517→                className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent transition-all text-left">
+  5518→                <span className="text-sm font-medium">{prov.name}</span>
+  5519→                <Badge variant="outline" className="text-[13px]">{count > 0 ? `${count} lokasi` : 'Kosong'}</Badge>
+  5520→              </button>
+  5521→            )
+  5522→          })}
+  5523→        </div>
+  5524→      </div>
+  5525→    )
+  5526→  }
+  5527→
+  5528→  // DPD DETAIL VIEW
+  5529→  else if (view === 'dpd-detail' && selectedProv) {
+  5530→    viewContent = (
+  5531→      <div className="space-y-4">
+  5532→        <Button variant="ghost" size="sm" onClick={() => setView('dpd-list')}><ChevronRight className="w-4 h-4 rotate-180" /> Kembali ke daftar DPD</Button>
+  5533→        <div className="flex items-center justify-between">
+  5534→          <h3 className="text-base font-bold flex items-center gap-2"><Globe className="w-5 h-5 text-blue-600" /> Sekretariat DPD {selectedProv.name}</h3>
+  5535→          {isSuperAdmin && <Button size="sm" onClick={() => openEditor()} className="bg-gradient-to-r from-orange-600 to-red-600 text-white"><Plus className="w-4 h-4 mr-1" /> Tambah</Button>}
+  5536→        </div>
+  5537→        {dpdFiltered.length === 0 ? <EmptyState icon={MapIcon} title={`Belum ada sekretariat DPD ${selectedProv.name}`} description="Klik 'Tambah' untuk menambah sekretariat DPD." /> : (
+  5538→          <div className="grid gap-4 md:grid-cols-2">{dpdFiltered.map(loc => <SekretariatCard key={loc.id} loc={loc} />)}</div>
+  5539→        )}
+  5540→      </div>
+  5541→    )
+  5542→  }
+  5543→
+  5544→  // DPC LIST VIEW (pilih provinsi dulu)
+  5545→  else if (view === 'dpc-list') {
+  5546→    viewContent = (
+  5547→      <div className="space-y-4">
+  5548→        <Button variant="ghost" size="sm" onClick={() => setView('home')}><ChevronRight className="w-4 h-4 rotate-180" /> Kembali</Button>
+  5549→        <h3 className="text-base font-bold flex items-center gap-2"><MapPin className="w-5 h-5 text-emerald-600" /> Pilih DPD (Provinsi) untuk lihat DPC</h3>
+  5550→        <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+  5551→          {territories.map(prov => {
+  5552→            const count = dpcLocations.filter(l => l.province === prov.name || l.territoryCode === prov.code).length
+  5553→            return (
+  5554→              <button key={prov.code} onClick={() => { setSelectedProv(prov); setView('dpc-detail'); setSelectedRegency(null) }}
+  5555→                className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent transition-all text-left">
+  5556→                <span className="text-sm font-medium">{prov.name}</span>
+  5557→                <Badge variant="outline" className="text-[13px]">{count > 0 ? `${count} DPC` : 'Kosong'}</Badge>
+  5558→              </button>
+  5559→            )
+  5560→          })}
+  5561→        </div>
+  5562→      </div>
+  5563→    )
+  5564→  }
+  5565→
+  5566→  // DPC DETAIL VIEW (list kab/kota di provinsi terpilih)
+  5567→  else if (view === 'dpc-detail' && selectedProv) {
+  5568→    viewContent = (
+  5569→      <div className="space-y-4">
+  5570→        <Button variant="ghost" size="sm" onClick={() => setView('dpc-list')}><ChevronRight className="w-4 h-4 rotate-180" /> Kembali ke daftar provinsi</Button>
+  5571→        <h3 className="text-base font-bold flex items-center gap-2"><MapPin className="w-5 h-5 text-emerald-600" /> DPC di {selectedProv.name}</h3>
+  5572→        <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+  5573→          {filteredRegencies.map(reg => {
+  5574→            const count = dpcLocations.filter(l => l.city === reg.name || l.territoryCode === reg.code).length
+  5575→            return (
+  5576→              <button key={reg.code} onClick={() => setSelectedRegency(reg)}
+  5577→                className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent transition-all text-left">
+  5578→                <span className="text-sm font-medium">{reg.name}</span>
+  5579→                <Badge variant="outline" className="text-[13px]">{count > 0 ? `${count} lokasi` : 'Kosong'}</Badge>
+  5580→              </button>
+  5581→            )
+  5582→          })}
+  5583→        </div>
+  5584→        {selectedRegency && (
+  5585→          <div className="space-y-2 mt-4">
+  5586→            <div className="flex items-center justify-between">
+  5587→              <h4 className="font-semibold text-sm">Sekretariat DPC {selectedRegency.name}</h4>
+  5588→              {isSuperAdmin && <Button size="sm" onClick={() => openEditor()} className="bg-gradient-to-r from-orange-600 to-red-600 text-white"><Plus className="w-4 h-4 mr-1" /> Tambah</Button>}
+  5589→            </div>
+  5590→            {dpcFiltered.length === 0 ? <EmptyState icon={MapIcon} title={`Belum ada sekretariat DPC ${selectedRegency.name}`} /> : (
+  5591→              <div className="grid gap-4 md:grid-cols-2">{dpcFiltered.map(loc => <SekretariatCard key={loc.id} loc={loc} />)}</div>
+  5592→            )}
+  5593→          </div>
+  5594→        )}
+  5595→      </div>
+  5596→    )
+  5597→  }
+  5598→
+  5599→  // === Final return: view content + always-rendered dialogs ===
+  5600→  return (
+  5601→    <>
+  5602→      {viewContent}
+  5603→
+  5604→      {/* Dialog: Tambah / Edit Sekretariat */}
+  5605→      <Dialog open={addOpen} onOpenChange={(o) => { setAddOpen(o); if (!o) setEditItem(null) }}>
+  5606→        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+  5607→          <DialogHeader>
+  5608→            <DialogTitle className="flex items-center gap-2">
+  5609→              <MapIcon className="w-4 h-4 text-orange-600" />
+  5610→              {editItem ? 'Edit Sekretariat' : 'Tambah Sekretariat'}
+  5611→            </DialogTitle>
+  5612→            <DialogDescription>
+  5613→              {editItem ? `Perbarui informasi lokasi: ${editItem.name}` : 'Lengkapi informasi lokasi sekretariat.'}
+  5614→            </DialogDescription>
+  5615→          </DialogHeader>
+  5616→          <form onSubmit={handleSave} className="space-y-3 py-2">
+  5617→            <div className="grid gap-3 md:grid-cols-2">
+  5618→              <div className="space-y-1 md:col-span-2">
+  5619→                <Label className="text-[13px]">Nama Sekretariat <span className="text-red-500">*</span></Label>
+  5620→                <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Mis. Sekretariat DPN LAPRA 08" required className="text-[14px]" />
+  5621→              </div>
+  5622→              <div className="space-y-1">
+  5623→                <Label className="text-[13px]">Tingkat</Label>
+  5624→                <Select value={form.level} onValueChange={(v) => setForm({ ...form, level: v })}>
+  5625→                  <SelectTrigger className="text-[14px]"><SelectValue /></SelectTrigger>
+  5626→                  <SelectContent>
+  5627→                    <SelectItem value="DPN">DPN — Pusat Nasional</SelectItem>
+  5628→                    <SelectItem value="KOORWIL">Koorwil</SelectItem>
+  5629→                    <SelectItem value="DPD">DPD — Provinsi</SelectItem>
+  5630→                    <SelectItem value="DPC">DPC — Kabupaten/Kota</SelectItem>
+  5631→                  </SelectContent>
+  5632→                </Select>
+  5633→              </div>
+  5634→              <div className="space-y-1">
+  5635→                <Label className="text-[13px]">Kode Wilayah</Label>
+  5636→                <Input value={form.territoryCode || ''} onChange={(e) => setForm({ ...form, territoryCode: e.target.value })} placeholder="Mis. 6171" className="text-[14px]" />
+  5637→              </div>
+  5638→              <div className="space-y-1 md:col-span-2">
+  5639→                <Label className="text-[13px]">Alamat Lengkap</Label>
+  5640→                <Textarea value={form.address || ''} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="Jalan, nomor, RT/RW, kelurahan" rows={2} className="text-[14px]" />
+  5641→              </div>
+
+[showing lines 5082-5641 of 6380; use offset=5642 with limit to continue reading]
