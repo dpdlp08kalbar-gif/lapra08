@@ -9,13 +9,12 @@ import { PusatMediaMenu } from '@/components/menus/pusat-media-menu'
 import { ProgramKegiatanMenu } from '@/components/menus/program-kegiatan-menu'
 import { LayananAdvokasiMenu } from '@/components/menus/layanan-advokasi-menu'
 import { KontakSekretariatMenu } from '@/components/menus/kontak-sekretariat-menu'
-import { DashboardMenu } from '@/components/menus/dashboard-menu'
+import { PusatAdminMenu } from '@/components/menus/pusat-admin-menu'
 import { PusatDataMenu } from '@/components/menus/pusat-data-menu'
 import { LogisticsMenu } from '@/components/menus/logistics-menu'
 import { EventsMenu } from '@/components/menus/events-menu'
 import { CommunicationMenu } from '@/components/menus/communication-menu'
 import { FinanceMenu } from '@/components/menus/finance-menu'
-import { UsersMenu } from '@/components/menus/users-menu'
 import { HelpMenu } from '@/components/menus/help-menu'
 import { Loader2, Shield } from 'lucide-react'
 
@@ -61,8 +60,12 @@ export default function Home() {
       case 'kontak':
         return <KontakSekretariatMenu />
       // Menu Admin Internal (accessible dari Beranda/Dashboard)
+      case 'pusat-admin':
       case 'dashboard':
-        return <DashboardMenu />
+        return <PusatAdminMenu />
+      case 'users':
+        // Backward compat: lama pakai 'users', sekarang redirect ke Pusat Admin
+        return <PusatAdminMenu />
       case 'pusat-data':
         return <PusatDataMenu />
       case 'logistics':

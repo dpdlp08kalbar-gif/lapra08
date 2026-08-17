@@ -58,9 +58,9 @@ export const KALBAR_REGENCIES = [
   { code: '06', name: 'Kabupaten Tayan', isCity: false },
 ] as const
 
-// Default 10 Menu
+// Default 9 Menu (dashboard + users digabung jadi pusat-admin)
 export const DEFAULT_MENUS = [
-  { key: 'dashboard', label: 'Dasbor Utama', icon: 'LayoutDashboard', order: 1, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_DPD,ADMIN_DPC' },
+  { key: 'pusat-admin', label: 'Pusat Admin', icon: 'ShieldCheck', order: 1, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_DPD,ADMIN_DPC' },
   { key: 'territory', label: 'Manajemen Wilayah', icon: 'Map', order: 2, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_DPD' },
   { key: 'membership', label: 'Data Keanggotaan', icon: 'Users', order: 3, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_DPD,ADMIN_DPC' },
   { key: 'organization', label: 'Struktur Pengurus & SK', icon: 'Building2', order: 4, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_DPD,ADMIN_DPC' },
@@ -68,8 +68,7 @@ export const DEFAULT_MENUS = [
   { key: 'events', label: 'Event & Mobilisasi', icon: 'CalendarDays', order: 6, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_DPD,ADMIN_DPC' },
   { key: 'communication', label: 'Komunikasi & Broadcast', icon: 'Megaphone', order: 7, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_DPD,ADMIN_DPC' },
   { key: 'finance', label: 'Kas & Keuangan', icon: 'Wallet', order: 8, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_DPD,ADMIN_DPC' },
-  { key: 'users', label: 'Pengaturan User', icon: 'UserCog', order: 9, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_DPD' },
-  { key: 'help', label: 'Pusat Bantuan', icon: 'LifeBuoy', order: 10, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_DPD,ADMIN_DPC' },
+  { key: 'help', label: 'Pusat Bantuan', icon: 'LifeBuoy', order: 9, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_DPD,ADMIN_DPC' },
 ] as const
 
 // Role labels (Bahasa Indonesia)
