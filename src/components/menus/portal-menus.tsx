@@ -1489,15 +1489,9 @@ export function ProfilMenu() {
   )
 }
 
-// Struktur Overview — interaktif, klik kartu DPN/DPD/DPC untuk drill-down
-// Tidak redirect ke menu lain — tetap di Profil, tapi tampilkan detail pengurus per tingkat
-function StrukturOverviewSection() {
-  const [selectedLevel, setSelectedLevel] = useState<'DPN' | 'DPD' | 'DPC' | null>(null)
-  const [selectedProvCode, setSelectedProvCode] = useState<string | null>(null)
-  const [selectedRegencyCode, setSelectedRegencyCode] = useState<string | null>(null)
-
-  // Helper back button lokal (tidak import dari puset-data-menu untuk avoid circular dep)
-  const LocalBackButton = ({ onClick, label }: { onClick: () => void; label: string }) => (
+// Helper back button untuk Struktur Overview (module-level, supaya bisa dipakai sub-components)
+function StrukturBackButton({ onClick, label }: { onClick: () => void; label: string }) {
+  return (
     <button
       type="button"
       onClick={onClick}
@@ -1506,6 +1500,13 @@ function StrukturOverviewSection() {
       <ChevronRight className="w-4 h-4 rotate-180" /> {label}
     </button>
   )
+}
+
+// Struktur Overview — interaktif, klik kartu DPN/DPD/DPC untuk drill-down
+// Tidak redirect ke menu lain — tetap di Profil, tapi tampilkan detail pengurus per tingkat
+function StrukturOverviewSection() {
+  const [selectedLevel, setSelectedLevel] = useState<'DPN' | 'DPD' | 'DPC' | null>(null)
+  const [selectedProvCode, setSelectedProvCode] = useState<string | null>(null)
 
   // Kalau level dipilih, tampilkan detail pengurus per tingkat
   if (selectedLevel === 'DPN') {
@@ -1632,7 +1633,7 @@ function StrukturDetailPanel({
   if (loading) {
     return (
       <div className="space-y-3">
-        <LocalBackButton onClick={onBack} label="Kembali ke Struktur" />
+        <StrukturBackButton onClick={onBack} label="Kembali ke Struktur" />
         <div className="space-y-2 animate-pulse">
           <div className="h-20 bg-slate-200 rounded-xl" />
           <div className="h-20 bg-slate-200 rounded-xl" />
@@ -1643,7 +1644,7 @@ function StrukturDetailPanel({
   if (error) {
     return (
       <div className="space-y-3">
-        <LocalBackButton onClick={onBack} label="Kembali ke Struktur" />
+        <StrukturBackButton onClick={onBack} label="Kembali ke Struktur" />
         <Card className="border-amber-200 bg-amber-50">
           <CardContent className="p-4">
             <div className="text-sm font-medium text-amber-900">Gagal memuat pengurus</div>
@@ -1664,7 +1665,7 @@ function StrukturDetailPanel({
 
   return (
     <div className="space-y-3">
-      <LocalBackButton onClick={onBack} label="Kembali ke Struktur" />
+      <StrukturBackButton onClick={onBack} label="Kembali ke Struktur" />
       <h3 className="text-base font-bold flex items-center gap-2">
         <Building2 className="w-5 h-5 text-orange-600" />
         Pengurus {territoryName}
@@ -1749,7 +1750,7 @@ function StrukturDPDList({
   if (loading) {
     return (
       <div className="space-y-3">
-        <LocalBackButton onClick={onBack} label="Kembali ke Struktur" />
+        <StrukturBackButton onClick={onBack} label="Kembali ke Struktur" />
         <div className="grid gap-2 md:grid-cols-3 animate-pulse">
           {[1,2,3,4,5,6].map(i => <div key={i} className="h-16 bg-slate-200 rounded-lg" />)}
         </div>
@@ -1759,7 +1760,7 @@ function StrukturDPDList({
   if (error) {
     return (
       <div className="space-y-3">
-        <LocalBackButton onClick={onBack} label="Kembali ke Struktur" />
+        <StrukturBackButton onClick={onBack} label="Kembali ke Struktur" />
         <Card className="border-amber-200 bg-amber-50">
           <CardContent className="p-4 text-sm text-amber-700">Gagal memuat: {error}</CardContent>
         </Card>
@@ -1782,7 +1783,7 @@ function StrukturDPDList({
 
   return (
     <div className="space-y-3">
-      <LocalBackButton onClick={onBack} label="Kembali ke Struktur" />
+      <StrukturBackButton onClick={onBack} label="Kembali ke Struktur" />
       <h3 className="text-base font-bold flex items-center gap-2">
         <Building2 className="w-5 h-5 text-blue-600" />
         Pilih DPD (Provinsi)
@@ -1842,7 +1843,7 @@ function StrukturDPCList({
   if (loading) {
     return (
       <div className="space-y-3">
-        <LocalBackButton onClick={onBack} label="Kembali ke Struktur" />
+        <StrukturBackButton onClick={onBack} label="Kembali ke Struktur" />
         <div className="grid gap-2 md:grid-cols-3 animate-pulse">
           {[1,2,3,4,5,6].map(i => <div key={i} className="h-16 bg-slate-200 rounded-lg" />)}
         </div>
@@ -1852,7 +1853,7 @@ function StrukturDPCList({
   if (error) {
     return (
       <div className="space-y-3">
-        <LocalBackButton onClick={onBack} label="Kembali ke Struktur" />
+        <StrukturBackButton onClick={onBack} label="Kembali ke Struktur" />
         <Card className="border-amber-200 bg-amber-50">
           <CardContent className="p-4 text-sm text-amber-700">Gagal memuat: {error}</CardContent>
         </Card>
@@ -1879,7 +1880,7 @@ function StrukturDPCList({
     const provRegencies = regencies.filter(r => r.parentId === prov?.id)
     return (
       <div className="space-y-3">
-        <LocalBackButton onClick={() => setSelectedProvCode('')} label={`Kembali ke ${prov?.name || 'Provinsi'}`} />
+        <StrukturBackButton onClick={() => setSelectedProvCode('')} label={`Kembali ke ${prov?.name || 'Provinsi'}`} />
         <h3 className="text-base font-bold flex items-center gap-2">
           <MapPin className="w-5 h-5 text-emerald-600" />
           DPC di {prov?.name}
@@ -1911,7 +1912,7 @@ function StrukturDPCList({
   // Default: tampilkan list provinsi
   return (
     <div className="space-y-3">
-      <LocalBackButton onClick={onBack} label="Kembali ke Struktur" />
+      <StrukturBackButton onClick={onBack} label="Kembali ke Struktur" />
       <h3 className="text-base font-bold flex items-center gap-2">
         <MapPin className="w-5 h-5 text-emerald-600" />
         Pilih DPD (Provinsi) untuk lihat DPC
