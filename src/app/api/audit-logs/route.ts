@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
-    if (!canViewAuditLog(user)) {
+    if (!await canViewAuditLog(user)) {
       // Log denied access
       await logAccess({
         actor: user, action: 'DENIED', resource: 'MEMBER',

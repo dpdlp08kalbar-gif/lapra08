@@ -352,21 +352,42 @@ export async function logAccess(params: {
 
 /**
  * Cek apakah user adalah DPO (Data Protection Officer)
- * DPO bisa: lihat audit log, handle data access request, export data untuk compliance
+ * DPO assignments disimpan di SystemSetting key='dpo_assignments' (JSON array of userIds)
+ * SUPERADMIN selalu dianggap DPO
  */
-export function isDPO(user: AuthUser | null | undefined): boolean {
+export async function isDPO(user: AuthUser | null | undefined): Promise<boolean> {
   if (!user) return false
-  return Boolean((user as any).isDPO) || user.role === 'SUPERADMIN'
+  if (user.role === 'SUPERADMIN') return true
+  try {
+    const setting = await db.systemSetting.findUnique({
+      where: { key: 'dpo_assignments' },
+      select: { value: true },
+    })
+    if (!setting) return false
+    const dpoIds: string[] = JSON.parse(setting.value)
+    return dpoIds.includes(user.id)
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Sync version untuk kasus yang tidak bisa await (misal di conditional render)
+ * Hanya cek SUPERADMIN role — untuk DPO asli, gunakan isDPO() async
+ */
+export function isDPOSync(user: AuthUser | null | undefined): boolean {
+  if (!user) return false
+  return user.role === 'SUPERADMIN'
 }
 
 /**
  * Cek apakah user boleh akses audit log
  * Hanya DPO + SUPERADMIN + ADMIN_DPN yang boleh
  */
-export function canViewAuditLog(user: AuthUser | null | undefined): boolean {
+export async function canViewAuditLog(user: AuthUser | null | undefined): Promise<boolean> {
   if (!user) return false
   if (user.role === 'SUPERADMIN' || user.role === 'ADMIN_DPN') return true
-  return isDPO(user)
+  return await isDPO(user)
 }
 
 /**

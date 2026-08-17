@@ -65,7 +65,6 @@ model User {
   territoryId   String
   territory     Territory @relation(fields: [territoryId], references: [id])
   isActive      Boolean  @default(true)
-  isDPO         Boolean  @default(false) // Data Protection Officer (UU PDP No. 27/2022)
   lastLogin     DateTime?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -91,10 +90,9 @@ model User {
   essayPollsCreated EssayPoll[]
   opinionLinksReviewed PublicOpinionLink[] @relation("OpinionReviewer")
   programDocumentsUploaded ProgramDocument[]
-  // === UU PDP No. 27/2022 ===
-  auditLogsPerformed AuditLog[]       @relation("AuditLogActor")     // aksi yang dilakukan user ini
-  dataAccessRequests DataAccessRequest[] @relation("DataAccessRequestor") // permintaan akses/hapus data
-  dataAccessHandled  DataAccessRequest[] @relation("DataAccessHandler")  // permintaan yang ditangani DPO
+  // NOTE: isDPO & audit/DAR relations dihapus dari schema untuk avoid DB migration
+  // DPO assignments disimpan di SystemSetting (key='dpo_assignments')
+  // AuditLog & DataAccessRequest tidak pakai FK relation, pakai raw userId string
 }
 
 // ============================================================
@@ -643,9 +641,8 @@ model ProgramDocument {
 // ============================================================
 model AuditLog {
   id            String   @id @default(cuid())
-  // Actor: siapa yang melakukan aksi
+  // Actor: siapa yang melakukan aksi (raw userId, no FK relation untuk avoid migration)
   actorId       String
-  actor         User     @relation("AuditLogActor", fields: [actorId], references: [id])
   actorRole     String   // SUPERADMIN | ADMIN_DPN | ADMIN_DPD | ADMIN_DPC | MEMBER_SELF
   actorName     String   // snapshot untuk audit trail (kalau user dihapus, log tetap bermakna)
   actorTerritory String? // kode wilayah actor saat aksi
@@ -674,13 +671,13 @@ model AuditLog {
 // DATA ACCESS REQUEST — UU PDP No. 27/2022 Pasal 5-13
 // Anggota bisa ajukan permintaan: lihat data / koreksi / hapus data mereka
 // DPO (Data Protection Officer) yang handle
+// NOTE: Tidak pakai FK relation ke User — raw userId string untuk avoid DB migration
 // ============================================================
 model DataAccessRequest {
   id              String   @id @default(cuid())
   requestNumber   String   @unique // DAR-YYYYMMDD-XXX
   // Requestor: anggota yang ajukan
   requestorId     String
-  requestor       User     @relation("DataAccessRequestor", fields: [requestorId], references: [id])
   requestorName   String
   requestorPhone  String?
   requestorEmail  String?
@@ -691,7 +688,6 @@ model DataAccessRequest {
   status          String   @default("PENDING") // PENDING | IN_REVIEW | APPROVED | DENIED | COMPLETED
   // Handler (DPO)
   handlerId       String?
-  handler         User?    @relation("DataAccessHandler", fields: [handlerId], references: [id])
   handlerNotes   String?
   // Response (kalau APPROVED/COMPLETED)
   response        String?  // JSON: data yang diberikan / aksi yang dilakukan

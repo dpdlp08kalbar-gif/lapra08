@@ -1,7 +1,6 @@
--- AlterTable: tambah kolom isDPO di User
-ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "isDPO" BOOLEAN NOT NULL DEFAULT false;
-
--- CreateTable: AuditLog
+-- CreateTable: AuditLog (UU PDP No. 27/2022 Pasal 17)
+-- NOTE: Tidak ada ALTER TABLE User karena isDPO field dihapus dari schema
+-- DPO assignments disimpan di SystemSetting key='dpo_assignments'
 CREATE TABLE IF NOT EXISTS "AuditLog" (
     "id" TEXT NOT NULL,
     "actorId" TEXT NOT NULL,
@@ -27,10 +26,8 @@ CREATE INDEX IF NOT EXISTS "AuditLog_action_idx" ON "AuditLog"("action");
 CREATE INDEX IF NOT EXISTS "AuditLog_createdAt_idx" ON "AuditLog"("createdAt");
 CREATE INDEX IF NOT EXISTS "AuditLog_status_idx" ON "AuditLog"("status");
 
-ALTER TABLE "AuditLog" ADD CONSTRAINT "AuditLog_actorId_fkey"
-    FOREIGN KEY ("actorId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- CreateTable: DataAccessRequest
+-- CreateTable: DataAccessRequest (UU PDP No. 27/2022 Pasal 5-13)
+-- NOTE: Tidak ada FK relation ke User — raw userId string untuk avoid migration complexity
 CREATE TABLE IF NOT EXISTS "DataAccessRequest" (
     "id" TEXT NOT NULL,
     "requestNumber" TEXT NOT NULL,
@@ -57,8 +54,3 @@ CREATE INDEX IF NOT EXISTS "DataAccessRequest_requestorId_idx" ON "DataAccessReq
 CREATE INDEX IF NOT EXISTS "DataAccessRequest_handlerId_idx" ON "DataAccessRequest"("handlerId");
 CREATE INDEX IF NOT EXISTS "DataAccessRequest_status_idx" ON "DataAccessRequest"("status");
 CREATE INDEX IF NOT EXISTS "DataAccessRequest_type_idx" ON "DataAccessRequest"("type");
-
-ALTER TABLE "DataAccessRequest" ADD CONSTRAINT "DataAccessRequest_requestorId_fkey"
-    FOREIGN KEY ("requestorId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "DataAccessRequest" ADD CONSTRAINT "DataAccessRequest_handlerId_fkey"
-    FOREIGN KEY ("handlerId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;

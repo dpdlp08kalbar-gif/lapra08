@@ -1158,8 +1158,9 @@ function PrivacyDPOManager({ currentUser }: { currentUser: any }) {
   const addToast = useToastStore((s) => s.addToast)
   const [tab, setTab] = useState<'dpo' | 'audit' | 'dar'>('dpo')
 
-  // Cek akses
-  const canView = currentUser?.role === 'SUPERADMIN' || currentUser?.role === 'ADMIN_DPN' || currentUser?.isDPO
+  // Cek akses — DPO non-admin bisa akses via API, tapi UI section ini untuk DPN+SuperAdmin
+  // (DPO assignment sendiri hanya SuperAdmin yang bisa)
+  const canView = currentUser?.role === 'SUPERADMIN' || currentUser?.role === 'ADMIN_DPN'
   if (!canView) return null
 
   return (
@@ -1284,7 +1285,7 @@ function DPOTab({ currentUser }: { currentUser: any }) {
         <div>
           <div className="text-xs font-medium text-muted-foreground mb-2 mt-4">Tunjuk DPO Baru</div>
           <div className="space-y-1 max-h-48 overflow-y-auto">
-            {users.filter(u => !u.isDPO && u.isActive).map(u => (
+            {users.filter(u => !dpos.some(d => d.id === u.id) && u.isActive).map(u => (
               <div key={u.id} className="flex items-center justify-between p-2 rounded border text-xs">
                 <div>
                   <div className="font-medium">{u.fullName} <span className="text-muted-foreground">({u.username})</span></div>
@@ -1421,7 +1422,8 @@ function DataAccessRequestTab({ currentUser }: { currentUser: any }) {
   const [form, setForm] = useState({ type: 'ACCESS', description: '' })
   const [saving, setSaving] = useState(false)
 
-  const isDPOView = currentUser?.role === 'SUPERADMIN' || currentUser?.role === 'ADMIN_DPN' || currentUser?.isDPO
+  // DPO view = SuperAdmin atau DPN (DPO non-admin bisa via API tapi UI section ini untuk DPN+)
+  const isDPOView = currentUser?.role === 'SUPERADMIN' || currentUser?.role === 'ADMIN_DPN'
 
   const loadData = useCallback(async () => {
     setLoading(true)

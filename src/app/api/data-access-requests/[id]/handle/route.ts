@@ -27,7 +27,7 @@ export async function PATCH(
     if (!user) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
-    if (!isDPO(user)) {
+    if (!await isDPO(user)) {
       return NextResponse.json(
         { success: false, error: 'Akses ditolak. Hanya DPO yang bisa handle permintaan data.' },
         { status: 403 }

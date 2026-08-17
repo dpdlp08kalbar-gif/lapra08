@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
 
     const where: any = {}
     // RBAC: user biasa hanya lihat DAR sendiri
-    if (!isDPO(user) && user.role !== 'ADMIN_DPN') {
+    if (!(await isDPO(user)) && user.role !== 'ADMIN_DPN') {
       where.requestorId = user.id
     }
     if (status) where.status = status
@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
 
     // Stats untuk DPO dashboard
     let stats = null
-    if (isDPO(user) || user.role === 'ADMIN_DPN') {
+    if ((await isDPO(user)) || user.role === 'ADMIN_DPN') {
       const all = await db.dataAccessRequest.groupBy({
         by: ['status'],
         _count: { status: true },
@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
       success: true,
       data: requests,
       stats,
-      isDPOView: isDPO(user) || user.role === 'ADMIN_DPN',
+      isDPOView: (await isDPO(user)) || user.role === 'ADMIN_DPN',
     })
   } catch (e: any) {
     console.error('[DataAccessRequest GET] Error:', e)
