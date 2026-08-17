@@ -116,13 +116,15 @@ export function MainShell({ children }: { children: React.ReactNode }) {
         )}
 
         {/* Menu Admin Internal */}
-        {menus.filter(m => ['dashboard','pusat-data','logistics','communication','finance','users'].includes(m.key)).map((menu) => {
+        {menus.filter(m => ['pusat-admin','dashboard','pusat-data','logistics','communication','finance','users','events','territory','membership','organization','help'].includes(m.key)).map((menu) => {
+          // Mapping key lama → key baru (untuk backward compat menu DB yang belum di-reseed)
+          const effectiveKey = menu.key === 'dashboard' || menu.key === 'users' ? 'pusat-admin' : menu.key
           const Icon = ICON_MAP[menu.icon] || LayoutDashboard
-          const isActive = activeMenu === menu.key
+          const isActive = activeMenu === effectiveKey || activeMenu === menu.key
           return (
             <button
               key={menu.id}
-              onClick={() => { setActiveMenu(menu.key); setMobileOpen(false) }}
+              onClick={() => { setActiveMenu(effectiveKey); setMobileOpen(false) }}
               className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 group ${
                 isActive
                   ? 'bg-gradient-to-r from-orange-600 to-red-600 text-white shadow-lg shadow-orange-600/30'
