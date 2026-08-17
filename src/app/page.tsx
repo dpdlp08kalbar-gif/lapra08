@@ -12,9 +12,7 @@ import { KontakSekretariatMenu } from '@/components/menus/kontak-sekretariat-men
 import { PusatAdminMenu } from '@/components/menus/pusat-admin-menu'
 import { PusatDataMenu } from '@/components/menus/pusat-data-menu'
 import { LogisticsMenu } from '@/components/menus/logistics-menu'
-import { EventsMenu } from '@/components/menus/events-menu'
 import { CommunicationMenu } from '@/components/menus/communication-menu'
-import { FinanceMenu } from '@/components/menus/finance-menu'
 import { HelpMenu } from '@/components/menus/help-menu'
 import { Loader2, Shield } from 'lucide-react'
 
@@ -66,18 +64,16 @@ export default function Home() {
       case 'users':
         // Backward compat: lama pakai 'users', sekarang redirect ke Pusat Admin
         return <PusatAdminMenu />
+      case 'events':
+      case 'finance':
+        // Menu sudah dihapus, redirect ke Pusat Admin
+        return <PusatAdminMenu />
       case 'pusat-data':
         return <PusatDataMenu />
       case 'logistics':
         return <LogisticsMenu />
-      case 'events':
-        return <EventsMenu />
       case 'communication':
         return <CommunicationMenu />
-      case 'finance':
-        return <FinanceMenu />
-      case 'users':
-        return <UsersMenu />
       case 'help':
         return <HelpMenu />
       default:

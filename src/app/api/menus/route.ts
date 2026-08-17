@@ -9,11 +9,14 @@ export const runtime = 'nodejs'
 // Hindari cache statis — selalu fresh
 export const dynamic = 'force-dynamic'
 
-// === AUTO-MIGRATE: kalau menu lama (dashboard/users) masih ada di DB, ganti ke pusat-admin ===
+// === AUTO-MIGRATE: kalau menu lama (dashboard/users/events/finance) masih ada di DB, hapus + ganti ke pusat-admin ===
 // Idempotent: cek dulu apakah 'pusat-admin' sudah ada; kalau belum, jalankan migrasi
 // Cache in-memory 5 menit supaya tidak query terus setiap GET
 let _migrationCache: { ts: number; migrated: boolean } | null = null
 const MIGRATION_CACHE_TTL = 5 * 60 * 1000
+
+// Menu yang sudah tidak dipakai (akan dihapus dari DB saat auto-migrate)
+const DEPRECATED_MENU_KEYS = ['dashboard', 'users', 'events', 'finance']
 
 async function autoMigrateMenus(): Promise<void> {
   // Cek cache — kalau sudah di-migrate dalam 5 menit, skip
@@ -28,16 +31,30 @@ async function autoMigrateMenus(): Promise<void> {
       select: { key: true },
     })
     if (hasPusatAdmin) {
-      _migrationCache = { ts: Date.now(), migrated: false }
+      // Pusat-admin sudah ada, tapi tetap cek apakah ada menu deprecated yang belum dihapus
+      const deprecated = await db.menuItem.findMany({
+        where: { key: { in: DEPRECATED_MENU_KEYS } },
+        select: { key: true },
+      })
+      if (deprecated.length === 0) {
+        _migrationCache = { ts: Date.now(), migrated: false }
+        return
+      }
+      // Hapus menu deprecated yang tersisa
+      console.log(`[Menus] Cleaning up ${deprecated.length} deprecated menu items:`, deprecated.map(d => d.key).join(', '))
+      await db.menuItem.deleteMany({
+        where: { key: { in: DEPRECATED_MENU_KEYS } },
+      })
+      _migrationCache = { ts: Date.now(), migrated: true }
       return
     }
 
-    // Kalau belum ada, jalankan migrasi
-    console.log('[Menus] Auto-migrating: dashboard+users → pusat-admin')
+    // Kalau belum ada pusat-admin, jalankan migrasi penuh
+    console.log('[Menus] Auto-migrating: dashboard+users+events+finance → pusat-admin')
 
     // Hapus menu lama kalau masih ada
     await db.menuItem.deleteMany({
-      where: { key: { in: ['dashboard', 'users'] } },
+      where: { key: { in: DEPRECATED_MENU_KEYS } },
     })
 
     // Upsert semua menu dari DEFAULT_MENUS
