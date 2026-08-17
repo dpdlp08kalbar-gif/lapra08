@@ -1,0 +1,643 @@
+     1→'use client'
+     2→
+     3→import { useState, useEffect } from 'react'
+     4→import { api } from '@/lib/api-client'
+     5→import { useAuthStore } from '@/lib/store'
+     6→import { PageHeader, LoadingState, ErrorState, EmptyState, StatCard } from '@/components/ui-helpers'
+     7→import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+     8→import { Badge } from '@/components/ui/badge'
+     9→import { Button } from '@/components/ui/button'
+    10→import { Input } from '@/components/ui/input'
+    11→import { Label } from '@/components/ui/label'
+    12→import { Textarea } from '@/components/ui/textarea'
+    13→import {
+    14→  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+    15→} from '@/components/ui/dialog'
+    16→import {
+    17→  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+    18→} from '@/components/ui/alert-dialog'
+    19→import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+    20→import {
+    21→  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+    22→} from '@/components/ui/table'
+    23→import { useToastStore } from '@/lib/store'
+    24→import { formatDateTimeID } from '@/lib/format'
+    25→import {
+    26→  LifeBuoy, Plus, BookOpen, Ticket, MessageSquare, Bug, Lightbulb,
+    27→  CheckCircle2, Clock, AlertCircle, BookMarked, Printer, FileText,
+    28→  ChevronRight, Loader2,
+    29→} from 'lucide-react'
+    30→
+    31→interface Ticket {
+    32→  id: string
+    33→  ticketNumber: string
+    34→  title: string
+    35→  description: string
+    36→  category: string
+    37→  priority: string
+    38→  status: string
+    39→  reporter: { id: string; fullName: string; territory: { name: string } }
+    40→  createdAt: string
+    41→  replies: Array<{
+    42→    id: string
+    43→    message: string
+    44→    userId: string
+    45→    user: { id: string; fullName: string; territory: { name: string } }
+    46→    createdAt: string
+    47→  }>
+    48→}
+    49→
+    50→const CATEGORY_LABELS: Record<string, string> = {
+    51→  BUG: 'Bug / Error',
+    52→  QUESTION: 'Pertanyaan',
+    53→  FEATURE_REQUEST: 'Permintaan Fitur',
+    54→  OTHER: 'Lainnya',
+    55→}
+    56→
+    57→const PRIORITY_LABELS: Record<string, string> = {
+    58→  LOW: 'Rendah',
+    59→  MEDIUM: 'Sedang',
+    60→  HIGH: 'Tinggi',
+    61→  URGENT: 'Mendesak',
+    62→}
+    63→
+    64→const PRIORITY_COLORS: Record<string, string> = {
+    65→  LOW: 'bg-blue-50 text-blue-700 border-blue-200',
+    66→  MEDIUM: 'bg-amber-50 text-amber-700 border-amber-200',
+    67→  HIGH: 'bg-orange-50 text-orange-700 border-orange-200',
+    68→  URGENT: 'bg-red-50 text-red-700 border-red-200',
+    69→}
+    70→
+    71→const STATUS_LABELS: Record<string, string> = {
+    72→  OPEN: 'Terbuka',
+    73→  IN_PROGRESS: 'Diproses',
+    74→  RESOLVED: 'Selesai',
+    75→  CLOSED: 'Ditutup',
+    76→}
+    77→
+    78→const STATUS_COLORS: Record<string, string> = {
+    79→  OPEN: 'bg-amber-50 text-amber-700 border-amber-200',
+    80→  IN_PROGRESS: 'bg-blue-50 text-blue-700 border-blue-200',
+    81→  RESOLVED: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    82→  CLOSED: 'bg-gray-50 text-gray-700 border-gray-200',
+    83→}
+    84→
+    85→export function HelpMenu() {
+    86→  const [tab, setTab] = useState('manual')
+    87→
+    88→  return (
+    89→    <div className="space-y-6">
+    90→      <PageHeader
+    91→        title="Pusat Bantuan & Panduan"
+    92→        description="User manual sistem dan layanan tiket laporan error"
+    93→        icon={LifeBuoy}
+    94→      />
+    95→      <div className="flex gap-2 border-b">
+    96→        <button
+    97→          onClick={() => setTab('manual')}
+    98→          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+    99→            tab === 'manual' ? 'border-orange-600 text-orange-600' : 'border-transparent text-muted-foreground hover:text-foreground'
+   100→          }`}
+   101→        >
+   102→          <BookOpen className="w-4 h-4 inline mr-2" />
+   103→          User Manual
+   104→        </button>
+   105→        <button
+   106→          onClick={() => setTab('tickets')}
+   107→          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+   108→            tab === 'tickets' ? 'border-orange-600 text-orange-600' : 'border-transparent text-muted-foreground hover:text-foreground'
+   109→          }`}
+   110→        >
+   111→          <Ticket className="w-4 h-4 inline mr-2" />
+   112→          Tiket Laporan
+   113→        </button>
+   114→      </div>
+   115→      {tab === 'manual' && <ManualTab />}
+   116→      {tab === 'tickets' && <TicketsTab />}
+   117→    </div>
+   118→  )
+   119→}
+   120→
+   121→function ManualTab() {
+   122→  const manuals = [
+   123→    {
+   124→      icon: BookMarked,
+   125→      title: '1. Memulai Sistem',
+   126→      content: 'Sistem LAPRA 08 menggunakan login username & password standar. Pilih akun sesuai level wilayah Anda (DPN/DPD/DPC). Setelah login, sidebar kiri berisi 10 menu utama yang bisa diklik untuk navigasi.',
+   127→    },
+   128→    {
+   129→      icon: Bug,
+   130→      title: '2. Manajemen Wilayah',
+   131→      content: 'Menu "Manajemen Wilayah" menampilkan hierarki Negara → Provinsi → Kabupaten/Kota. Admin DPN dapat menambah wilayah baru (domestik atau internasional) dengan klik "Tambah Wilayah". Sistem 100% dinamis - tidak ada batasan hardcoded.',
+   132→    },
+   133→    {
+   134→      icon: Lightbulb,
+   135→      title: '3. Input Anggota & KTA Otomatis',
+   136→      content: 'Di menu "Data Keanggotaan", klik "Input Anggota". Pilih skema Domestik (Kalbar) atau Internasional. Nomor KTA dihasilkan otomatis dengan format: LAPRA08.[NEGARA].[PROVINSI].[KAB/KOTA].[TAHUN].[URUT]. Contoh: LAPRA08.ID.61.71.26.00001 untuk anggota Kota Pontianak.',
+   137→    },
+   138→    {
+   139→      icon: AlertCircle,
+   140→      title: '4. Verifikasi Anggota',
+   141→      content: 'Anggota baru berstatus "Menunggu Verifikasi". Buka tab "Antrean Verifikasi" di menu Keanggotaan, lalu klik tombol Verifikasi atau Aktifkan pada setiap anggota untuk mengubah statusnya menjadi AKTIF.',
+   142→    },
+   143→    {
+   144→      icon: CheckCircle2,
+   145→      title: '5. Isolasi Data Wilayah',
+   146→      content: 'Admin DPC hanya bisa melihat data di wilayahnya sendiri. Admin DPD bisa melihat data di provinsi dan semua DPC di bawahnya. Admin DPN (Pusat) bisa melihat semua data global. Ini memastikan isolasi data yang aman.',
+   147→    },
+   148→    {
+   149→      icon: LifeBuoy,
+   150→      title: '6. Melaporkan Error & Cetak Bukti',
+   151→      content: 'Jika menemui kendala teknis, buka tab "Tiket Laporan" → klik "Buat Tiket" → isi judul, kategori, prioritas, dan deskripsi. Setelah tiket dibuat, Anda akan dapat: (1) Menerima nomor tiket unik (TK-YYYYMMDD-XXX); (2) Membalas/followup tiket Anda; (3) Mencetak/mengunduh Bukti Laporan dalam format PDF untuk arsip atau dokumen pendukung.',
+   152→    },
+   153→  ]
+   154→
+   155→  return (
+   156→    <div className="space-y-4">
+   157→      <Card className="border-orange-200 bg-orange-50/30">
+   158→        <CardContent className="p-4 flex items-start gap-3">
+   159→          <BookOpen className="w-5 h-5 text-orange-600 shrink-0 mt-0.5" />
+   160→          <div className="text-sm">
+   161→            <div className="font-semibold">Panduan Singkat Sistem LAPRA 08</div>
+   162→            <p className="text-muted-foreground mt-1">
+   163→              Berikut adalah panduan operasional singkat untuk menggunakan sistem informasi internal LAPRA 08.
+   164→              Setiap menu di sidebar memiliki fungsi spesifik yang dijelaskan di bawah.
+   165→            </p>
+   166→          </div>
+   167→        </CardContent>
+   168→      </Card>
+   169→
+   170→      <div className="grid gap-3 md:grid-cols-2">
+   171→        {manuals.map((m, i) => (
+   172→          <Card key={i}>
+   173→            <CardContent className="p-4">
+   174→              <div className="flex items-start gap-3">
+   175→                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center shrink-0">
+   176→                  <m.icon className="w-5 h-5 text-white" />
+   177→                </div>
+   178→                <div>
+   179→                  <div className="font-semibold text-sm">{m.title}</div>
+   180→                  <p className="text-sm text-muted-foreground mt-1 leading-relaxed">{m.content}</p>
+   181→                </div>
+   182→              </div>
+   183→            </CardContent>
+   184→          </Card>
+   185→        ))}
+   186→      </div>
+   187→
+   188→      <Card>
+   189→        <CardHeader>
+   190→          <CardTitle className="text-base flex items-center gap-2">
+   191→            <Bug className="w-4 h-4 text-orange-600" />
+   192→            Tips & Trik
+   193→          </CardTitle>
+   194→        </CardHeader>
+   195→        <CardContent className="space-y-2 text-sm">
+   196→          <div className="flex items-start gap-2">
+   197→            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+   198→            <span>Gunakan fitur pencarian di menu Keanggotaan untuk mencari anggota berdasarkan nama, NIK, atau nomor KTA.</span>
+   199→          </div>
+   200→          <div className="flex items-start gap-2">
+   201→            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+   202→            <span>Stok atribut akan otomatis berkurang di wilayah asal dan bertambah di wilayah tujuan saat membuat distribusi logistik.</span>
+   203→          </div>
+   204→          <div className="flex items-start gap-2">
+   205→            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+   206→            <span>Broadcast WhatsApp mendukung filter per wilayah - pilih DPC tujuan untuk kirim pesan targeted.</span>
+   207→          </div>
+   208→          <div className="flex items-start gap-2">
+   209→            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+   210→            <span>Setiap tiket laporan punya nomor unik. Simpan nomor tiket untuk tracking dan cetak Bukti Laporan PDF sebagai arsip.</span>
+   211→          </div>
+   212→        </CardContent>
+   213→      </Card>
+   214→    </div>
+   215→  )
+   216→}
+   217→
+   218→function TicketsTab() {
+   219→  const addToast = useToastStore((s) => s.addToast)
+   220→  const user = useAuthStore((s) => s.user)
+   221→  const [tickets, setTickets] = useState<Ticket[]>([])
+   222→  const [loading, setLoading] = useState(true)
+   223→  const [error, setError] = useState('')
+   224→  const [addOpen, setAddOpen] = useState(false)
+   225→  const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null)
+   226→  const [filterStatus, setFilterStatus] = useState('ALL')
+   227→  const [search, setSearch] = useState('')
+   228→  const [pdfLoading, setPdfLoading] = useState(false)
+   229→
+   230→  const loadData = () => {
+   231→    setLoading(true)
+   232→    api('/api/tickets')
+   233→      .then(setTickets)
+   234→      .catch((e) => setError(e.message))
+   235→      .finally(() => setLoading(false))
+   236→  }
+   237→
+   238→  useEffect(() => { loadData() }, [])
+   239→
+   240→  if (loading) return <LoadingState />
+   241→  if (error) return <ErrorState message={error} />
+   242→
+   243→  const openCount = tickets.filter((t) => t.status === 'OPEN').length
+   244→  const resolvedCount = tickets.filter((t) => t.status === 'RESOLVED').length
+   245→  const inProgressCount = tickets.filter((t) => t.status === 'IN_PROGRESS').length
+   246→
+   247→  // === Filter + search ===
+   248→  const filtered = tickets.filter((t) => {
+   249→    const matchStatus = filterStatus === 'ALL' || t.status === filterStatus
+   250→    const matchSearch = !search ||
+   251→      t.ticketNumber.toLowerCase().includes(search.toLowerCase()) ||
+   252→      t.title.toLowerCase().includes(search.toLowerCase()) ||
+   253→      t.reporter.fullName.toLowerCase().includes(search.toLowerCase())
+   254→    return matchStatus && matchSearch
+   255→  })
+   256→
+   257→  // === Handler: Cetak Bukti PDF ===
+   258→  const handlePrintPdf = async (ticketId: string) => {
+   259→    setPdfLoading(true)
+   260→    try {
+   261→      const userId = user?.id || ''
+   262→      const res = await fetch(`/api/tickets/${ticketId}/pdf`, {
+   263→        headers: { 'x-user-id': userId },
+   264→      })
+   265→      if (!res.ok) {
+   266→        const errData = await res.json().catch(() => null)
+   267→        throw new Error(errData?.error || `HTTP ${res.status}`)
+   268→      }
+   269→      const html = await res.text()
+   270→      // Buka HTML di tab baru untuk print/save as PDF
+   271→      const blob = new Blob([html], { type: 'text/html' })
+   272→      const blobUrl = URL.createObjectURL(blob)
+   273→      window.open(blobUrl, '_blank')
+   274→      setTimeout(() => URL.revokeObjectURL(blobUrl), 60000)
+   275→    } catch (e: any) {
+   276→      addToast(`Gagal mencetak PDF: ${e.message}`, 'error')
+   277→    } finally {
+   278→      setPdfLoading(false)
+   279→    }
+   280→  }
+   281→
+   282→  return (
+   283→    <div className="space-y-4">
+   284→      <div className="grid gap-4 md:grid-cols-4">
+   285→        <StatCard label="Total Tiket" value={tickets.length} icon={Ticket} color="orange" />
+   286→        <StatCard label="Terbuka" value={openCount} icon={Clock} color="amber" />
+   287→        <StatCard label="Diproses" value={inProgressCount} icon={Loader2} color="blue" />
+   288→        <StatCard label="Selesai" value={resolvedCount} icon={CheckCircle2} color="emerald" />
+   289→      </div>
+   290→
+   291→      <div className="flex justify-between items-center flex-wrap gap-2">
+   292→        <div className="flex gap-2 flex-wrap">
+   293→          <Input placeholder="Cari nomor/judul/pelapor..." value={search} onChange={(e) => setSearch(e.target.value)} className="max-w-xs" />
+   294→          <Select value={filterStatus} onValueChange={setFilterStatus}>
+   295→            <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+   296→            <SelectContent>
+   297→              <SelectItem value="ALL">Semua Status</SelectItem>
+   298→              <SelectItem value="OPEN">Terbuka</SelectItem>
+   299→              <SelectItem value="IN_PROGRESS">Diproses</SelectItem>
+   300→              <SelectItem value="RESOLVED">Selesai</SelectItem>
+   301→              <SelectItem value="CLOSED">Ditutup</SelectItem>
+   302→            </SelectContent>
+   303→          </Select>
+   304→        </div>
+   305→        <Button onClick={() => setAddOpen(true)} className="bg-gradient-to-r from-orange-600 to-red-600 text-white">
+   306→          <Plus className="w-4 h-4 mr-2" /> Buat Tiket
+   307→        </Button>
+   308→      </div>
+   309→
+   310→      {filtered.length === 0 ? (
+   311→        <EmptyState icon={Ticket} title={tickets.length === 0 ? "Belum ada tiket" : "Tidak ada tiket cocok"} description={tickets.length === 0 ? "Laporkan kendala teknis dengan membuat tiket baru." : "Coba ubah filter atau kata kunci pencarian."} />
+   312→      ) : (
+   313→        <Card>
+   314→          <CardContent className="p-0">
+   315→            <Table>
+   316→              <TableHeader>
+   317→                <TableRow>
+   318→                  <TableHead>Nomor</TableHead>
+   319→                  <TableHead>Judul</TableHead>
+   320→                  <TableHead>Kategori</TableHead>
+   321→                  <TableHead>Prioritas</TableHead>
+   322→                  <TableHead>Status</TableHead>
+   323→                  <TableHead>Pelapor</TableHead>
+   324→                  <TableHead>Dibuat</TableHead>
+   325→                  <TableHead className="text-right">Aksi</TableHead>
+   326→                </TableRow>
+   327→              </TableHeader>
+   328→              <TableBody>
+   329→                {filtered.map((t) => (
+   330→                  <TableRow key={t.id} className="cursor-pointer hover:bg-accent/50" onClick={() => setSelectedTicket(t)}>
+   331→                    <TableCell><code className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{t.ticketNumber}</code></TableCell>
+   332→                    <TableCell className="font-medium">{t.title}</TableCell>
+   333→                    <TableCell>
+   334→                      <Badge variant="outline" className="text-xs">{CATEGORY_LABELS[t.category]}</Badge>
+   335→                    </TableCell>
+   336→                    <TableCell>
+   337→                      <Badge variant="outline" className={`text-xs ${PRIORITY_COLORS[t.priority]}`}>{PRIORITY_LABELS[t.priority]}</Badge>
+   338→                    </TableCell>
+   339→                    <TableCell>
+   340→                      <Badge variant="outline" className={`text-xs ${STATUS_COLORS[t.status]}`}>{STATUS_LABELS[t.status]}</Badge>
+   341→                    </TableCell>
+   342→                    <TableCell className="text-xs">
+   343→                      <div>{t.reporter.fullName}</div>
+   344→                      <div className="text-muted-foreground">{t.reporter.territory.name}</div>
+   345→                    </TableCell>
+   346→                    <TableCell className="text-xs text-muted-foreground">{formatDateTimeID(t.createdAt)}</TableCell>
+   347→                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+   348→                      {/* === Tombol Cetak Bukti PDF === */}
+   349→                      <Button
+   350→                        variant="ghost"
+   351→                        size="sm"
+   352→                        className="h-7 w-7 p-0 text-orange-600 hover:bg-orange-50"
+   353→                        disabled={pdfLoading}
+   354→                        onClick={() => handlePrintPdf(t.id)}
+   355→                        title="Cetak/Download Bukti Laporan (PDF)">
+   356→                        {pdfLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Printer className="w-3.5 h-3.5" />}
+   357→                      </Button>
+   358→                    </TableCell>
+   359→                  </TableRow>
+   360→                ))}
+   361→              </TableBody>
+   362→            </Table>
+   363→          </CardContent>
+   364→        </Card>
+   365→      )}
+   366→
+   367→      <AddTicketDialog
+   368→        open={addOpen}
+   369→        onOpenChange={setAddOpen}
+   370→        onSuccess={() => { loadData(); setAddOpen(false) }}
+   371→      />
+   372→
+   373→      <TicketDetailDialog
+   374→        ticket={selectedTicket}
+   375→        onClose={() => setSelectedTicket(null)}
+   376→        onReply={() => loadData()}
+   377→        onPrintPdf={handlePrintPdf}
+   378→      />
+   379→    </div>
+   380→  )
+   381→}
+   382→
+   383→function AddTicketDialog({
+   384→  open, onOpenChange, onSuccess,
+   385→}: {
+   386→  open: boolean; onOpenChange: (o: boolean) => void; onSuccess: () => void
+   387→}) {
+   388→  const addToast = useToastStore((s) => s.addToast)
+   389→  const [form, setForm] = useState({
+   390→    title: '', description: '', category: 'BUG', priority: 'MEDIUM',
+   391→  })
+   392→  const [loading, setLoading] = useState(false)
+   393→
+   394→  const handleSubmit = async (e: React.FormEvent) => {
+   395→    e.preventDefault()
+   396→    setLoading(true)
+   397→    try {
+   398→      const result = await api('/api/tickets', {
+   399→        method: 'POST',
+   400→        body: JSON.stringify(form),
+   401→      })
+   402→      addToast(`Tiket berhasil dibuat. Nomor: ${result.ticketNumber}. Simpan nomor ini untuk tracking.`, 'success')
+   403→      setForm({ title: '', description: '', category: 'BUG', priority: 'MEDIUM' })
+   404→      onSuccess()
+   405→    } catch (e: any) {
+   406→      addToast(e.message, 'error')
+   407→    } finally {
+   408→      setLoading(false)
+   409→    }
+   410→  }
+   411→
+   412→  return (
+   413→    <Dialog open={open} onOpenChange={onOpenChange}>
+   414→      <DialogContent className="max-w-lg">
+   415→        <DialogHeader>
+   416→          <DialogTitle>Buat Tiket Laporan</DialogTitle>
+   417→          <DialogDescription>Laporkan kendala teknis atau ajukan pertanyaan</DialogDescription>
+   418→        </DialogHeader>
+   419→        <form onSubmit={handleSubmit} className="space-y-3">
+   420→          <div className="space-y-2">
+   421→            <Label>Judul *</Label>
+   422→            <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Ringkasan masalah" required />
+   423→          </div>
+   424→          <div className="grid grid-cols-2 gap-3">
+   425→            <div className="space-y-2">
+   426→              <Label>Kategori</Label>
+   427→              <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}>
+   428→                <SelectTrigger><SelectValue /></SelectTrigger>
+   429→                <SelectContent>
+   430→                  {Object.entries(CATEGORY_LABELS).map(([k, v]) => (
+   431→                    <SelectItem key={k} value={k}>{v}</SelectItem>
+   432→                  ))}
+   433→                </SelectContent>
+   434→              </Select>
+   435→            </div>
+   436→            <div className="space-y-2">
+   437→              <Label>Prioritas</Label>
+   438→              <Select value={form.priority} onValueChange={(v) => setForm({ ...form, priority: v })}>
+   439→                <SelectTrigger><SelectValue /></SelectTrigger>
+   440→                <SelectContent>
+   441→                  {Object.entries(PRIORITY_LABELS).map(([k, v]) => (
+   442→                    <SelectItem key={k} value={k}>{v}</SelectItem>
+   443→                  ))}
+   444→                </SelectContent>
+   445→              </Select>
+   446→            </div>
+   447→          </div>
+   448→          <div className="space-y-2">
+   449→            <Label>Deskripsi *</Label>
+   450→            <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={5} placeholder="Jelaskan masalah atau pertanyaan Anda secara detail..." required />
+   451→          </div>
+   452→          <DialogFooter>
+   453→            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Batal</Button>
+   454→            <Button type="submit" disabled={loading}>{loading ? 'Mengirim...' : 'Kirim Tiket'}</Button>
+   455→          </DialogFooter>
+   456→        </form>
+   457→      </DialogContent>
+   458→    </Dialog>
+   459→  )
+   460→}
+   461→
+   462→function TicketDetailDialog({
+   463→  ticket, onClose, onReply, onPrintPdf,
+   464→}: {
+   465→  ticket: Ticket | null; onClose: () => void; onReply: () => void; onPrintPdf: (id: string) => void
+   466→}) {
+   467→  const addToast = useToastStore((s) => s.addToast)
+   468→  const user = useAuthStore((s) => s.user)
+   469→  const [reply, setReply] = useState('')
+   470→  const [replyLoading, setReplyLoading] = useState(false)
+   471→  const [statusUpdateOpen, setStatusUpdateOpen] = useState(false)
+   472→  const [newStatus, setNewStatus] = useState('')
+   473→
+   474→  if (!ticket) return null
+   475→
+   476→  const isAdmin = user?.role === 'SUPERADMIN' || user?.role === 'ADMIN_DPN'
+   477→  const isReporter = ticket.reporter.id === user?.id
+   478→
+   479→  const handleReply = async (e: React.FormEvent) => {
+   480→    e.preventDefault()
+   481→    if (!reply.trim()) return
+   482→    setReplyLoading(true)
+   483→    try {
+   484→      // === FIX: panggil API reply yang benar (sebelumnya hanya simulasi) ===
+   485→      await api(`/api/tickets/${ticket.id}/reply`, {
+   486→        method: 'POST',
+   487→        body: JSON.stringify({ message: reply }),
+   488→      })
+   489→      addToast('Balasan terkirim dan tersimpan', 'success')
+   490→      setReply('')
+   491→      onReply()
+   492→      onClose() // tutup dialog untuk refresh data
+   493→    } catch (e: any) {
+   494→      addToast(e.message, 'error')
+   495→    } finally {
+   496→      setReplyLoading(false)
+   497→    }
+   498→  }
+   499→
+   500→  // === Handler: Update status tiket (admin only) ===
+   501→  const handleUpdateStatus = async () => {
+   502→    if (!newStatus || newStatus === ticket.status) {
+   503→      setStatusUpdateOpen(false)
+   504→      return
+   505→    }
+   506→    try {
+   507→      await api(`/api/tickets/${ticket.id}/status`, {
+   508→        method: 'PATCH',
+   509→        body: JSON.stringify({ status: newStatus }),
+   510→      })
+   511→      addToast(`Status tiket diubah ke ${STATUS_LABELS[newStatus]}`, 'success')
+   512→      setStatusUpdateOpen(false)
+   513→      setNewStatus('')
+   514→      onReply()
+   515→      onClose()
+   516→    } catch (e: any) {
+   517→      addToast(e.message, 'error')
+   518→    }
+   519→  }
+   520→
+   521→  return (
+   522→    <>
+   523→      <Dialog open={!!ticket} onOpenChange={(o) => !o && onClose()}>
+   524→        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+   525→          <DialogHeader>
+   526→            <DialogTitle className="flex items-center gap-2 flex-wrap">
+   527→              <code className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{ticket.ticketNumber}</code>
+   528→              <span className="flex-1">{ticket.title}</span>
+   529→            </DialogTitle>
+   530→            <div className="flex flex-wrap gap-2 mt-2">
+   531→              <Badge variant="outline" className={`text-xs ${STATUS_COLORS[ticket.status]}`}>
+   532→                {STATUS_LABELS[ticket.status]}
+   533→              </Badge>
+   534→              <Badge variant="outline" className={`text-xs ${PRIORITY_COLORS[ticket.priority]}`}>
+   535→                {PRIORITY_LABELS[ticket.priority]}
+   536→              </Badge>
+   537→              <Badge variant="outline" className="text-xs">{CATEGORY_LABELS[ticket.category]}</Badge>
+   538→            </div>
+   539→          </DialogHeader>
+   540→
+   541→          <div className="space-y-4">
+   542→            <div>
+   543→              <div className="text-xs text-muted-foreground mb-1">Deskripsi</div>
+   544→              <div className="text-sm bg-muted/50 p-3 rounded-lg whitespace-pre-wrap">{ticket.description}</div>
+   545→            </div>
+   546→
+   547→            <div>
+   548→              <div className="text-xs text-muted-foreground mb-2">Balasan & Tindak Lanjut ({ticket.replies.length})</div>
+   549→              <div className="space-y-2 max-h-64 overflow-y-auto">
+   550→                {ticket.replies.length === 0 ? (
+   551→                  <div className="text-xs text-muted-foreground italic">Belum ada balasan. Admin akan segera merespons tiket Anda.</div>
+   552→                ) : (
+   553→                  ticket.replies.map((r) => {
+   554→                    const replyIsReporter = r.userId === ticket.reporter.id
+   555→                    return (
+   556→                      <div key={r.id} className={`border rounded-lg p-3 ${replyIsReporter ? 'border-l-4 border-l-blue-300 bg-blue-50/30' : 'border-l-4 border-l-orange-400 bg-orange-50/30'}`}>
+   557→                        <div className="flex items-center justify-between text-xs mb-1">
+   558→                          <span className="font-medium">
+   559→                            {r.user.fullName}
+   560→                            <Badge variant="outline" className="ml-2 text-[10px]">
+   561→                              {replyIsReporter ? 'Pelapor' : 'Admin'}
+   562→                            </Badge>
+   563→                          </span>
+   564→                          <span className="text-muted-foreground">{formatDateTimeID(r.createdAt)}</span>
+   565→                        </div>
+   566→                        <div className="text-sm whitespace-pre-wrap">{r.message}</div>
+   567→                      </div>
+   568→                    )
+   569→                  })
+   570→                )}
+   571→              </div>
+   572→            </div>
+   573→
+   574→            <form onSubmit={handleReply} className="space-y-2">
+   575→              <Label>Tambah Balasan / Tindak Lanjut {isAdmin && '(sebagai Admin)'}</Label>
+   576→              <Textarea value={reply} onChange={(e) => setReply(e.target.value)} rows={3}
+   577→                placeholder={isAdmin ? "Tulis respons atau update tindak lanjut untuk pelapor..." : "Tulis klarifikasi atau info tambahan untuk admin..."} />
+   578→              <div className="flex gap-2 flex-wrap">
+   579→                <Button type="submit" size="sm" disabled={!reply.trim() || replyLoading}>
+   580→                  {replyLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <MessageSquare className="w-4 h-4 mr-2" />}
+   581→                  {replyLoading ? 'Mengirim...' : 'Kirim Balasan'}
+   582→                </Button>
+   583→                {/* === Tombol Cetak Bukti PDF === */}
+   584→                <Button type="button" size="sm" variant="outline" onClick={() => onPrintPdf(ticket.id)} className="border-orange-300 text-orange-700 hover:bg-orange-50">
+   585→                  <Printer className="w-4 h-4 mr-2" /> Cetak Bukti (PDF)
+   586→                </Button>
+   587→                {/* === Tombol Ubah Status (admin only) === */}
+   588→                {isAdmin && (
+   589→                  <Button type="button" size="sm" variant="outline" onClick={() => { setNewStatus(ticket.status); setStatusUpdateOpen(true) }}>
+   590→                    <CheckCircle2 className="w-4 h-4 mr-2" /> Ubah Status
+   591→                  </Button>
+   592→                )}
+   593→              </div>
+   594→            </form>
+   595→          </div>
+   596→        </DialogContent>
+   597→      </Dialog>
+   598→
+   599→      {/* === Dialog Ubah Status (admin only) === */}
+   600→      <AlertDialog open={statusUpdateOpen} onOpenChange={setStatusUpdateOpen}>
+   601→        <AlertDialogContent>
+   602→          <AlertDialogHeader>
+   603→            <AlertDialogTitle>Ubah Status Tiket</AlertDialogTitle>
+   604→            <AlertDialogDescription>
+   605→              Tiket: <code className="text-xs bg-muted px-1.5 py-0.5 rounded">{ticket.ticketNumber}</code>
+   606→              <br />
+   607→              <span className="text-sm font-medium mt-2 block">{ticket.title}</span>
+   608→              <br />
+   609→              Pilih status baru:
+   610→            </AlertDialogDescription>
+   611→          </AlertDialogHeader>
+   612→          <div className="space-y-2 py-2">
+   613→            {Object.entries(STATUS_LABELS).map(([key, label]) => (
+   614→              <button
+   615→                key={key}
+   616→                type="button"
+   617→                onClick={() => setNewStatus(key)}
+   618→                className={`w-full p-3 rounded-lg border-2 text-left transition-all ${newStatus === key ? 'border-orange-500 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
+   619→                <div className="flex items-center justify-between">
+   620→                  <span className="font-medium text-sm">{label}</span>
+   621→                  {newStatus === key && <CheckCircle2 className="w-4 h-4 text-orange-600" />}
+   622→                </div>
+   623→                <p className="text-xs text-muted-foreground mt-1">
+   624→                  {key === 'OPEN' && 'Tiket baru dibuat, menunggu respon admin'}
+   625→                  {key === 'IN_PROGRESS' && 'Admin sedang menangani tiket'}
+   626→                  {key === 'RESOLVED' && 'Masalah sudah diselesaikan'}
+   627→                  {key === 'CLOSED' && 'Tiket ditutup, tidak ada tindakan lanjutan'}
+   628→                </p>
+   629→              </button>
+   630→            ))}
+   631→          </div>
+   632→          <AlertDialogFooter>
+   633→            <AlertDialogCancel>Batal</AlertDialogCancel>
+   634→            <AlertDialogAction onClick={handleUpdateStatus} className="bg-orange-600 hover:bg-orange-700">
+   635→              Simpan Status
+   636→            </AlertDialogAction>
+   637→          </AlertDialogFooter>
+   638→        </AlertDialogContent>
+   639→      </AlertDialog>
+   640→    </>
+   641→  )
+   642→}
+   643→

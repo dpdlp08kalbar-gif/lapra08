@@ -47,6 +47,7 @@ model Territory {
   voterContacts VoterContact[]
   contacts      Contact[]
   essayPolls    EssayPoll[]
+  programDocuments ProgramDocument[]
 }
 
 // ============================================================
@@ -88,6 +89,7 @@ model User {
   auditScans     AuditScan[]
   essayPollsCreated EssayPoll[]
   opinionLinksReviewed PublicOpinionLink[] @relation("OpinionReviewer")
+  programDocumentsUploaded ProgramDocument[]
 }
 
 // ============================================================
@@ -584,6 +586,49 @@ model SystemSetting {
   category      String   @default("GENERAL")
   description   String?
   updatedAt     DateTime @updatedAt
+}
+
+// ============================================================
+// PROGRAM DOCUMENT — Dokumen Program & Kegiatan
+// Storage: fileData (base64) tetap inline untuk kompatibilitas Vercel Free
+// RBAC: tingkat di enforce server-side, bukan rely di client
+// ============================================================
+model ProgramDocument {
+  id            String   @id @default(cuid())
+  // Bisnis key (untuk dedup & sharing)
+  docKey        String   @unique // format: progdoc_<timestamp>_<random>
+  // Metadata
+  title         String
+  description   String?
+  category      String   // PROGRAM_KERJA | AKSI_SOSIAL | KEMITRAAN | AGENDA
+  level         String   // DPN | DPD | DPC
+  territoryId   String?
+  territory     Territory? @relation(fields: [territoryId], references: [id])
+  territoryCode String?
+  territoryName String?
+  location      String?
+  eventDate     DateTime?
+  status        String   @default("DIRENCANAKAN") // DIRENCANAKAN | BERJALAN | SELESAI | DITUNDA
+  // File info (terstruktur supaya list query tidak load base64)
+  fileName      String?
+  fileType      String?  // ekstensi upper-case
+  fileMimeType  String?
+  fileSize      Int      @default(0)
+  fileHash      String?  // SHA-256 hex (untuk dedup deteksi)
+  fileData      String?  // base64 data URL — HANYA di-load saat view, tidak di list query
+  // Audit
+  uploadedById  String
+  uploadedBy    User     @relation(fields: [uploadedById], references: [id])
+  uploadedAt    DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  deletedAt     DateTime? // soft delete
+
+  @@index([category, level])
+  @@index([territoryId])
+  @@index([uploadedById])
+  @@index([status])
+  @@index([fileHash])
+  @@index([category, level, status])
 }
 
 // ============================================================

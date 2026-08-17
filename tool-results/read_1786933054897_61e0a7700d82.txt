@@ -1,0 +1,1049 @@
+     1→'use client'
+     2→
+     3→import { useState, useEffect } from 'react'
+     4→import { api } from '@/lib/api-client'
+     5→import { PageHeader, LoadingState, ErrorState, EmptyState, StatCard } from '@/components/ui-helpers'
+     6→import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+     7→import { Badge } from '@/components/ui/badge'
+     8→import { Button } from '@/components/ui/button'
+     9→import { Input } from '@/components/ui/input'
+    10→import { Label } from '@/components/ui/label'
+    11→import { Textarea } from '@/components/ui/textarea'
+    12→import {
+    13→  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+    14→} from '@/components/ui/dialog'
+    15→import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+    16→import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+    17→import {
+    18→  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+    19→} from '@/components/ui/table'
+    20→import { useToastStore, useAuthStore } from '@/lib/store'
+    21→import { formatDateTimeID } from '@/lib/format'
+    22→import {
+    23→  CalendarDays, Plus, Calendar, CheckSquare, FileText, Users, MapPin, Activity,
+    24→  Zap, Upload, Loader2,
+    25→} from 'lucide-react'
+    26→
+    27→interface EventItem {
+    28→  id: string
+    29→  title: string
+    30→  description: string | null
+    31→  type: string
+    32→  startDate: string
+    33→  endDate: string | null
+    34→  location: string | null
+    35→  territoryId: string
+    36→  territory: { id: string; name: string; code: string }
+    37→  status: string
+    38→  targetAttendance: number | null
+    39→  _count: { attendance: number; reports: number }
+    40→  createdAt: string
+    41→}
+    42→
+    43→interface Territory {
+    44→  id: string
+    45→  code: string
+    46→  name: string
+    47→  level: string
+    48→  category: string
+    49→  parentId: string | null
+    50→  isActive: boolean
+    51→}
+    52→
+    53→const TYPE_LABELS: Record<string, string> = {
+    54→  PELANTIKAN: 'Pelantikan',
+    55→  MOBILISASI: 'Mobilisasi Massa',
+    56→  RAPAT: 'Rapat',
+    57→  SOSIAL: 'Sosial',
+    58→  LAINNYA: 'Lainnya',
+    59→}
+    60→
+    61→const STATUS_LABELS: Record<string, string> = {
+    62→  SCHEDULED: 'Terjadwal',
+    63→  ONGOING: 'Berlangsung',
+    64→  COMPLETED: 'Selesai',
+    65→  CANCELLED: 'Dibatalkan',
+    66→}
+    67→
+    68→export function EventsMenu() {
+    69→  const [tab, setTab] = useState('agenda')
+    70→
+    71→  return (
+    72→    <div className="space-y-6">
+    73→      <PageHeader
+    74→        title="Event & Mobilisasi"
+    75→        description="Manajemen agenda kegiatan, absensi lapangan, dan laporan kegiatan"
+    76→        icon={CalendarDays}
+    77→      />
+    78→      <Tabs value={tab} onValueChange={setTab}>
+    79→        <TabsList>
+    80→          <TabsTrigger value="agenda">
+    81→            <Calendar className="w-4 h-4 mr-2" /> Agenda Kegiatan
+    82→          </TabsTrigger>
+    83→          <TabsTrigger value="attendance">
+    84→            <CheckSquare className="w-4 h-4 mr-2" /> Absensi Lapangan
+    85→          </TabsTrigger>
+    86→          <TabsTrigger value="reports">
+    87→            <FileText className="w-4 h-4 mr-2" /> Laporan Kegiatan
+    88→          </TabsTrigger>
+    89→        </TabsList>
+    90→        <TabsContent value="agenda" className="mt-4"><AgendaTab /></TabsContent>
+    91→        <TabsContent value="attendance" className="mt-4"><AttendanceTab /></TabsContent>
+    92→        <TabsContent value="reports" className="mt-4"><ReportsTab /></TabsContent>
+    93→      </Tabs>
+    94→    </div>
+    95→  )
+    96→}
+    97→
+    98→function AgendaTab() {
+    99→  const addToast = useToastStore((s) => s.addToast)
+   100→  const [events, setEvents] = useState<EventItem[]>([])
+   101→  const [territories, setTerritories] = useState<Territory[]>([])
+   102→  const [loading, setLoading] = useState(true)
+   103→  const [error, setError] = useState('')
+   104→  const [addOpen, setAddOpen] = useState(false)
+   105→
+   106→  const loadData = () => {
+   107→    setLoading(true)
+   108→    Promise.all([api('/api/events'), api('/api/territory')])
+   109→      .then(([e, t]) => { setEvents(e); setTerritories(t) })
+   110→      .catch((err) => setError(err.message))
+   111→      .finally(() => setLoading(false))
+   112→  }
+   113→
+   114→  useEffect(() => { loadData() }, [])
+   115→
+   116→  if (loading) return <LoadingState />
+   117→  if (error) return <ErrorState message={error} />
+   118→
+   119→  const upcoming = events.filter((e) => e.status === 'SCHEDULED')
+   120→  const completed = events.filter((e) => e.status === 'COMPLETED')
+   121→
+   122→  return (
+   123→    <div className="space-y-4">
+   124→      <div className="grid gap-4 md:grid-cols-3">
+   125→        <StatCard label="Total Event" value={events.length} icon={CalendarDays} color="blue" />
+   126→        <StatCard label="Mendatang" value={upcoming.length} icon={Activity} color="orange" />
+   127→        <StatCard label="Selesai" value={completed.length} icon={CheckSquare} color="emerald" />
+   128→      </div>
+   129→
+   130→      <div className="flex justify-end">
+   131→        <Button onClick={() => setAddOpen(true)} className="bg-gradient-to-r from-orange-600 to-red-600 text-white">
+   132→          <Plus className="w-4 h-4 mr-2" /> Buat Event Baru
+   133→        </Button>
+   134→      </div>
+   135→
+   136→      {events.length === 0 ? (
+   137→        <EmptyState icon={CalendarDays} title="Belum ada event" description="Buat agenda kegiatan organisasi." />
+   138→      ) : (
+   139→        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+   140→          {events.map((e) => (
+   141→            <Card key={e.id} className="hover:shadow-md transition-shadow">
+   142→              <CardContent className="p-4">
+   143→                <div className="flex items-start justify-between gap-2 mb-2">
+   144→                  <Badge variant="outline" className="text-xs bg-orange-50 text-orange-700 border-orange-200">
+   145→                    {TYPE_LABELS[e.type] || e.type}
+   146→                  </Badge>
+   147→                  <Badge variant="outline" className={`text-xs ${
+   148→                    e.status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+   149→                    e.status === 'ONGOING' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+   150→                    e.status === 'CANCELLED' ? 'bg-red-50 text-red-700 border-red-200' :
+   151→                    'bg-amber-50 text-amber-700 border-amber-200'
+   152→                  }`}>
+   153→                    {STATUS_LABELS[e.status] || e.status}
+   154→                  </Badge>
+   155→                </div>
+   156→                <div className="font-bold text-sm mb-2 line-clamp-2">{e.title}</div>
+   157→                {e.description && (
+   158→                  <p className="text-xs text-muted-foreground mb-3 line-clamp-2">{e.description}</p>
+   159→                )}
+   160→                <div className="space-y-1 text-xs text-muted-foreground">
+   161→                  <div className="flex items-center gap-1.5">
+   162→                    <Calendar className="w-3 h-3" />
+   163→                    {formatDateTimeID(e.startDate)}
+   164→                  </div>
+   165→                  {e.location && (
+   166→                    <div className="flex items-center gap-1.5">
+   167→                      <MapPin className="w-3 h-3" />
+   168→                      {e.location}
+   169→                    </div>
+   170→                  )}
+   171→                  <div className="flex items-center gap-1.5">
+   172→                    <Users className="w-3 h-3" />
+   173→                    {e._count.attendance} hadir / {e.targetAttendance || '?'} target
+   174→                  </div>
+   175→                  <div className="flex items-center gap-1.5">
+   176→                    <FileText className="w-3 h-3" />
+   177→                    {e._count.reports} laporan
+   178→                  </div>
+   179→                </div>
+   180→              </CardContent>
+   181→            </Card>
+   182→          ))}
+   183→        </div>
+   184→      )}
+   185→
+   186→      <AddEventDialog
+   187→        open={addOpen}
+   188→        onOpenChange={setAddOpen}
+   189→        territories={territories}
+   190→        onSuccess={() => { loadData(); setAddOpen(false) }}
+   191→      />
+   192→    </div>
+   193→  )
+   194→}
+   195→
+   196→function AddEventDialog({
+   197→  open, onOpenChange, territories, onSuccess,
+   198→}: {
+   199→  open: boolean; onOpenChange: (o: boolean) => void
+   200→  territories: Territory[]; onSuccess: () => void
+   201→}) {
+   202→  const addToast = useToastStore((s) => s.addToast)
+   203→  const [form, setForm] = useState({
+   204→    title: '', description: '', type: 'PELANTIKAN',
+   205→    startDate: '', endDate: '', location: '', territoryId: '', targetAttendance: 0,
+   206→  })
+   207→  const [loading, setLoading] = useState(false)
+   208→
+   209→  const handleSubmit = async (e: React.FormEvent) => {
+   210→    e.preventDefault()
+   211→    setLoading(true)
+   212→    try {
+   213→      await api('/api/events', {
+   214→        method: 'POST',
+   215→        body: JSON.stringify({
+   216→          ...form,
+   217→          startDate: new Date(form.startDate).toISOString(),
+   218→          endDate: form.endDate ? new Date(form.endDate).toISOString() : undefined,
+   219→          targetAttendance: parseInt(form.targetAttendance.toString()) || undefined,
+   220→        }),
+   221→      })
+   222→      addToast('Event baru berhasil dibuat', 'success')
+   223→      setForm({ title: '', description: '', type: 'PELANTIKAN', startDate: '', endDate: '', location: '', territoryId: '', targetAttendance: 0 })
+   224→      onSuccess()
+   225→    } catch (e: any) {
+   226→      addToast(e.message, 'error')
+   227→    } finally {
+   228→      setLoading(false)
+   229→    }
+   230→  }
+   231→
+   232→  return (
+   233→    <Dialog open={open} onOpenChange={onOpenChange}>
+   234→      <DialogContent className="max-w-lg">
+   235→        <DialogHeader>
+   236→          <DialogTitle>Buat Event Baru</DialogTitle>
+   237→        </DialogHeader>
+   238→        <form onSubmit={handleSubmit} className="space-y-3">
+   239→          <div className="space-y-2">
+   240→            <Label>Judul Event *</Label>
+   241→            <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required />
+   242→          </div>
+   243→          <div className="grid grid-cols-2 gap-3">
+   244→            <div className="space-y-2">
+   245→              <Label>Tipe *</Label>
+   246→              <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v })}>
+   247→                <SelectTrigger><SelectValue /></SelectTrigger>
+   248→                <SelectContent>
+   249→                  {Object.entries(TYPE_LABELS).map(([k, v]) => (
+   250→                    <SelectItem key={k} value={k}>{v}</SelectItem>
+   251→                  ))}
+   252→                </SelectContent>
+   253→              </Select>
+   254→            </div>
+   255→            <div className="space-y-2">
+   256→              <Label>Target Hadir</Label>
+   257→              <Input type="number" value={form.targetAttendance} onChange={(e) => setForm({ ...form, targetAttendance: parseInt(e.target.value) || 0 })} />
+   258→            </div>
+   259→          </div>
+   260→          <div className="grid grid-cols-2 gap-3">
+   261→            <div className="space-y-2">
+   262→              <Label>Tanggal Mulai *</Label>
+   263→              <Input type="datetime-local" value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} required />
+   264→            </div>
+   265→            <div className="space-y-2">
+   266→              <Label>Tanggal Selesai</Label>
+   267→              <Input type="datetime-local" value={form.endDate} onChange={(e) => setForm({ ...form, endDate: e.target.value })} />
+   268→            </div>
+   269→          </div>
+   270→          <div className="space-y-2">
+   271→            <Label>Lokasi</Label>
+   272→            <Input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} placeholder="cth: Aula Kantor Walikota" />
+   273→          </div>
+   274→          <div className="space-y-2">
+   275→            <Label>Wilayah *</Label>
+   276→            <Select value={form.territoryId} onValueChange={(v) => setForm({ ...form, territoryId: v })}>
+   277→              <SelectTrigger><SelectValue placeholder="Pilih wilayah..." /></SelectTrigger>
+   278→              <SelectContent>
+   279→                {territories.map((t) => (
+   280→                  <SelectItem key={t.id} value={t.id}>{t.name} ({t.code})</SelectItem>
+   281→                ))}
+   282→              </SelectContent>
+   283→            </Select>
+   284→          </div>
+   285→          <div className="space-y-2">
+   286→            <Label>Deskripsi</Label>
+   287→            <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} />
+   288→          </div>
+   289→          <DialogFooter>
+   290→            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Batal</Button>
+   291→            <Button type="submit" disabled={loading}>{loading ? 'Menyimpan...' : 'Simpan Event'}</Button>
+   292→          </DialogFooter>
+   293→        </form>
+   294→      </DialogContent>
+   295→    </Dialog>
+   296→  )
+   297→}
+   298→
+   299→function AttendanceTab() {
+   300→  const addToast = useToastStore((s) => s.addToast)
+   301→  const user = useAuthStore((s: any) => s.user)
+   302→  const [mode, setMode] = useState<'scheduled' | 'quick' | 'manual' | 'csv'>('scheduled')
+   303→  const [events, setEvents] = useState<EventItem[]>([])
+   304→  const [members, setMembers] = useState<any[]>([])
+   305→  const [selectedEvent, setSelectedEvent] = useState<string>('')
+   306→  const [attendance, setAttendance] = useState<any[]>([])
+   307→  const [loading, setLoading] = useState(true)
+   308→  const [submitting, setSubmitting] = useState(false)
+   309→
+   310→  // === Quick Event form state ===
+   311→  const [quickForm, setQuickForm] = useState({
+   312→    title: '',
+   313→    date: new Date().toISOString().slice(0, 16),
+   314→    location: '',
+   315→    type: 'LAINNYA',
+   316→    notes: '',
+   317→  })
+   318→
+   319→  // === Manual names textarea ===
+   320→  const [namesText, setNamesText] = useState('')
+   321→
+   322→  // === CSV upload state ===
+   323→  const [csvFile, setCsvFile] = useState<File | null>(null)
+   324→  const [csvPreview, setCsvPreview] = useState<any[]>([])
+   325→
+   326→  useEffect(() => {
+   327→    api('/api/events').then((e) => {
+   328→      setEvents(e)
+   329→      setLoading(false)
+   330→    }).catch(() => setLoading(false))
+   331→  }, [])
+   332→
+   333→  useEffect(() => {
+   334→    if (selectedEvent) {
+   335→      api(`/api/members?status=ACTIVE`).then(setMembers).catch(() => {})
+   336→      api(`/api/attendance?eventId=${selectedEvent}`).then(setAttendance).catch(() => {})
+   337→    }
+   338→  }, [selectedEvent])
+   339→
+   340→  const handleMarkAttendance = async (memberId: string, status: string) => {
+   341→    if (!selectedEvent) return
+   342→    try {
+   343→      await api('/api/attendance', {
+   344→        method: 'POST',
+   345→        body: JSON.stringify({ eventId: selectedEvent, memberIds: [memberId], status }),
+   346→      })
+   347→      api(`/api/attendance?eventId=${selectedEvent}`).then(setAttendance)
+   348→      addToast(`Kehadiran dicatat: ${status}`, 'success')
+   349→    } catch (e: any) {
+   350→      addToast(e.message, 'error')
+   351→    }
+   352→  }
+   353→
+   354→  // === Submit Quick Event + Attendees (manual names) ===
+   355→  const handleQuickEventSubmit = async () => {
+   356→    if (!quickForm.title || !quickForm.date) {
+   357→      addToast('Nama acara dan tanggal wajib diisi', 'error')
+   358→      return
+   359→    }
+   360→    const names = namesText.split('\n').map((n) => n.trim()).filter((n) => n.length >= 2)
+   361→    if (names.length === 0) {
+   362→      addToast('Daftar peserta wajib diisi (minimal 1 nama, satu per baris)', 'error')
+   363→      return
+   364→    }
+   365→
+   366→    setSubmitting(true)
+   367→    try {
+   368→      const res = await fetch('/api/attendance/bulk', {
+   369→        method: 'POST',
+   370→        headers: { 'Content-Type': 'application/json', 'x-user-id': user?.id || '' },
+   371→        body: JSON.stringify({
+   372→          mode: 'quick_event',
+   373→          event: {
+   374→            title: quickForm.title,
+   375→            date: quickForm.date,
+   376→            location: quickForm.location,
+   377→            type: quickForm.type,
+   378→            notes: quickForm.notes,
+   379→          },
+   380→          attendees: names.map((n) => ({ name: n, status: 'PRESENT' })),
+   381→        }),
+   382→      })
+   383→      const data = await res.json()
+   384→      if (!res.ok || !data.success) throw new Error(data.error)
+   385→
+   386→      addToast(data.message, 'success')
+   387→      // Reset form
+   388→      setQuickForm({ title: '', date: new Date().toISOString().slice(0, 16), location: '', type: 'LAINNYA', notes: '' })
+   389→      setNamesText('')
+   390→      // Reload events list
+   391→      api('/api/events').then(setEvents).catch(() => {})
+   392→      setMode('scheduled')
+   393→    } catch (e: any) {
+   394→      addToast(e.message, 'error')
+   395→    } finally {
+   396→      setSubmitting(false)
+   397→    }
+   398→  }
+   399→
+   400→  // === Submit Manual Names (for existing event) ===
+   401→  const handleManualNamesSubmit = async () => {
+   402→    if (!selectedEvent) {
+   403→      addToast('Pilih event dulu', 'error')
+   404→      return
+   405→    }
+   406→    const names = namesText.split('\n').map((n) => n.trim()).filter((n) => n.length >= 2)
+   407→    if (names.length === 0) {
+   408→      addToast('Daftar nama wajib diisi (minimal 1 nama, satu per baris)', 'error')
+   409→      return
+   410→    }
+   411→
+   412→    setSubmitting(true)
+   413→    try {
+   414→      const res = await fetch('/api/attendance/bulk', {
+   415→        method: 'POST',
+   416→        headers: { 'Content-Type': 'application/json', 'x-user-id': user?.id || '' },
+   417→        body: JSON.stringify({
+   418→          mode: 'manual_names',
+   419→          eventId: selectedEvent,
+   420→          namesText,
+   421→          status: 'PRESENT',
+   422→        }),
+   423→      })
+   424→      const data = await res.json()
+   425→      if (!res.ok || !data.success) throw new Error(data.error)
+   426→
+   427→      addToast(data.message, 'success')
+   428→      setNamesText('')
+   429→      // Reload attendance
+   430→      api(`/api/attendance?eventId=${selectedEvent}`).then(setAttendance).catch(() => {})
+   431→    } catch (e: any) {
+   432→      addToast(e.message, 'error')
+   433→    } finally {
+   434→      setSubmitting(false)
+   435→    }
+   436→  }
+   437→
+   438→  // === Parse CSV file client-side ===
+   439→  const handleCsvFileChange = async (file: File | null) => {
+   440→    if (!file) {
+   441→      setCsvFile(null)
+   442→      setCsvPreview([])
+   443→      return
+   444→    }
+   445→    setCsvFile(file)
+   446→    try {
+   447→      const text = await file.text()
+   448→      const lines = text.split(/\r?\n/).filter((l) => l.trim())
+   449→      const rows = lines.map((line) => {
+   450→        // Parse CSV (handle quoted values)
+   451→        const cols = line.match(/("([^"]*)"|([^,]*)),?/g)?.map((c) => c.replace(/,$/, '').replace(/^"|"$/g, '')) || []
+   452→        return {
+   453→          name: cols[0] || '',
+   454→          phone: cols[1] || '',
+   455→          territoryName: cols[2] || '',
+   456→        }
+   457→      }).filter((r) => r.name.length >= 2)
+   458→      setCsvPreview(rows.slice(0, 10)) // Preview first 10
+   459→    } catch (e: any) {
+   460→      addToast(`Gagal parse CSV: ${e.message}`, 'error')
+   461→    }
+   462→  }
+   463→
+   464→  // === Submit CSV Upload ===
+   465→  const handleCsvSubmit = async () => {
+   466→    if (!selectedEvent) {
+   467→      addToast('Pilih event dulu', 'error')
+   468→      return
+   469→    }
+   470→    if (!csvFile || csvPreview.length === 0) {
+   471→      addToast('Pilih file CSV dulu', 'error')
+   472→      return
+   473→    }
+   474→
+   475→    setSubmitting(true)
+   476→    try {
+   477→      // Parse full CSV (not just preview)
+   478→      const text = await csvFile.text()
+   479→      const lines = text.split(/\r?\n/).filter((l) => l.trim())
+   480→      const rows = lines.map((line) => {
+   481→        const cols = line.match(/("([^"]*)"|([^,]*)),?/g)?.map((c) => c.replace(/,$/, '').replace(/^"|"$/g, '')) || []
+   482→        return {
+   483→          name: cols[0] || '',
+   484→          phone: cols[1] || '',
+   485→          territoryName: cols[2] || '',
+   486→        }
+   487→      }).filter((r) => r.name.length >= 2)
+   488→
+   489→      const res = await fetch('/api/attendance/bulk', {
+   490→        method: 'POST',
+   491→        headers: { 'Content-Type': 'application/json', 'x-user-id': user?.id || '' },
+   492→        body: JSON.stringify({
+   493→          mode: 'csv_upload',
+   494→          eventId: selectedEvent,
+   495→          rows,
+   496→        }),
+   497→      })
+   498→      const data = await res.json()
+   499→      if (!res.ok || !data.success) throw new Error(data.error)
+   500→
+   501→      addToast(data.message, 'success')
+   502→      setCsvFile(null)
+   503→      setCsvPreview([])
+   504→      api(`/api/attendance?eventId=${selectedEvent}`).then(setAttendance).catch(() => {})
+   505→    } catch (e: any) {
+   506→      addToast(e.message, 'error')
+   507→    } finally {
+   508→      setSubmitting(false)
+   509→    }
+   510→  }
+   511→
+   512→  if (loading) return <LoadingState />
+   513→
+   514→  const getMemberStatus = (memberId: string) => {
+   515→    const rec = attendance.find((a) => a.memberId === memberId)
+   516→    return rec?.status || null
+   517→  }
+   518→
+   519→  // Stats for selected event
+   520→  const presentCount = attendance.filter((a) => a.status === 'PRESENT').length
+   521→  const absentCount = attendance.filter((a) => a.status === 'ABSENT').length
+   522→  const excusedCount = attendance.filter((a) => a.status === 'EXCUSED').length
+   523→
+   524→  return (
+   525→    <div className="space-y-4">
+   526→      {/* Mode selector */}
+   527→      <div className="flex flex-wrap gap-2 p-3 rounded-lg bg-muted/30 border">
+   528→        <Button
+   529→          size="sm"
+   530→          variant={mode === 'scheduled' ? 'default' : 'outline'}
+   531→          className={mode === 'scheduled' ? 'bg-orange-600 hover:bg-orange-700 text-white' : ''}
+   532→          onClick={() => setMode('scheduled')}
+   533→        >
+   534→          <CheckSquare className="w-4 h-4 mr-1" /> Acara Terjadwal
+   535→        </Button>
+   536→        <Button
+   537→          size="sm"
+   538→          variant={mode === 'quick' ? 'default' : 'outline'}
+   539→          className={mode === 'quick' ? 'bg-orange-600 hover:bg-orange-700 text-white' : ''}
+   540→          onClick={() => setMode('quick')}
+   541→        >
+   542→          <Zap className="w-4 h-4 mr-1" /> Acara Dadakan
+   543→        </Button>
+   544→        <Button
+   545→          size="sm"
+   546→          variant={mode === 'manual' ? 'default' : 'outline'}
+   547→          className={mode === 'manual' ? 'bg-orange-600 hover:bg-orange-700 text-white' : ''}
+   548→          onClick={() => setMode('manual')}
+   549→        >
+   550→          <FileText className="w-4 h-4 mr-1" /> Ketik Manual
+   551→        </Button>
+   552→        <Button
+   553→          size="sm"
+   554→          variant={mode === 'csv' ? 'default' : 'outline'}
+   555→          className={mode === 'csv' ? 'bg-orange-600 hover:bg-orange-700 text-white' : ''}
+   556→          onClick={() => setMode('csv')}
+   557→        >
+   558→          <Upload className="w-4 h-4 mr-1" /> Upload CSV
+   559→        </Button>
+   560→      </div>
+   561→
+   562→      {/* === MODE 1: SCHEDULED — Existing dropdown event + table === */}
+   563→      {mode === 'scheduled' && (
+   564→        <>
+   565→          <div className="space-y-2 max-w-md">
+   566→            <Label>Pilih Event untuk Absensi</Label>
+   567→            <Select value={selectedEvent} onValueChange={setSelectedEvent}>
+   568→              <SelectTrigger><SelectValue placeholder="Pilih event..." /></SelectTrigger>
+   569→              <SelectContent>
+   570→                {events.length === 0 ? (
+   571→                  <SelectItem value="_empty" disabled>Tidak ada event — buat di tab Agenda atau gunakan mode Acara Dadakan</SelectItem>
+   572→                ) : (
+   573→                  events.map((e) => (
+   574→                    <SelectItem key={e.id} value={e.id}>{e.title} - {formatDateTimeID(e.startDate)}</SelectItem>
+   575→                  ))
+   576→                )}
+   577→              </SelectContent>
+   578→            </Select>
+   579→            {events.length === 0 && (
+   580→              <p className="text-xs text-muted-foreground">
+   581→                Belum ada event terdaftar. Gunakan mode <strong>Acara Dadakan</strong> untuk absensi cepat tanpa perlu buat event terjadwal.
+   582→              </p>
+   583→            )}
+   584→          </div>
+   585→
+   586→          {!selectedEvent ? (
+   587→            <EmptyState icon={CheckSquare} title="Pilih event dulu" description="Pilih event dari dropdown di atas untuk mulai mencatat absensi, atau gunakan mode Acara Dadakan / Ketik Manual / Upload CSV." />
+   588→          ) : (
+   589→            <>
+   590→              {/* Stats summary */}
+   591→              <div className="grid grid-cols-3 gap-2">
+   592→                <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-center">
+   593→                  <div className="text-2xl font-bold text-emerald-700">{presentCount}</div>
+   594→                  <div className="text-xs text-emerald-700">Hadir</div>
+   595→                </div>
+   596→                <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-center">
+   597→                  <div className="text-2xl font-bold text-red-700">{absentCount}</div>
+   598→                  <div className="text-xs text-red-700">Tidak Hadir</div>
+   599→                </div>
+   600→                <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-center">
+   601→                  <div className="text-2xl font-bold text-amber-700">{excusedCount}</div>
+   602→                  <div className="text-xs text-amber-700">Izin</div>
+   603→                </div>
+   604→              </div>
+   605→
+   606→              <Card>
+   607→                <CardHeader>
+   608→                  <CardTitle className="text-base">Daftar Anggota untuk Absensi ({members.length})</CardTitle>
+   609→                </CardHeader>
+   610→                <CardContent className="p-0">
+   611→                  <Table>
+   612→                    <TableHeader>
+   613→                      <TableRow>
+   614→                        <TableHead>Nama</TableHead>
+   615→                        <TableHead>WhatsApp</TableHead>
+   616→                        <TableHead>Wilayah</TableHead>
+   617→                        <TableHead className="text-center">Status Kehadiran</TableHead>
+   618→                      </TableRow>
+   619→                    </TableHeader>
+   620→                    <TableBody>
+   621→                      {members.length === 0 ? (
+   622→                        <TableRow>
+   623→                          <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+   624→                            Belum ada anggota. Tambahkan anggota di menu Pusat Data Organisasi.
+   625→                          </TableCell>
+   626→                        </TableRow>
+   627→                      ) : (
+   628→                        members.map((m) => {
+   629→                          const status = getMemberStatus(m.id)
+   630→                          return (
+   631→                            <TableRow key={m.id}>
+   632→                              <TableCell className="font-medium">{m.fullName}</TableCell>
+   633→                              <TableCell>{m.phone}</TableCell>
+   634→                              <TableCell><Badge variant="outline" className="text-xs">{m.territory?.name}</Badge></TableCell>
+   635→                              <TableCell>
+   636→                                <div className="flex gap-1 justify-center">
+   637→                                  <Button
+   638→                                    size="sm"
+   639→                                    variant={status === 'PRESENT' ? 'default' : 'outline'}
+   640→                                    className={`h-7 text-xs ${status === 'PRESENT' ? 'bg-emerald-600' : ''}`}
+   641→                                    onClick={() => handleMarkAttendance(m.id, 'PRESENT')}
+   642→                                  >
+   643→                                    Hadir
+   644→                                  </Button>
+   645→                                  <Button
+   646→                                    size="sm"
+   647→                                    variant={status === 'ABSENT' ? 'default' : 'outline'}
+   648→                                    className={`h-7 text-xs ${status === 'ABSENT' ? 'bg-red-600' : ''}`}
+   649→                                    onClick={() => handleMarkAttendance(m.id, 'ABSENT')}
+   650→                                  >
+   651→                                    Tidak
+   652→                                  </Button>
+   653→                                  <Button
+   654→                                    size="sm"
+   655→                                    variant={status === 'EXCUSED' ? 'default' : 'outline'}
+   656→                                    className={`h-7 text-xs ${status === 'EXCUSED' ? 'bg-amber-600' : ''}`}
+   657→                                    onClick={() => handleMarkAttendance(m.id, 'EXCUSED')}
+   658→                                  >
+   659→                                    Izin
+   660→                                  </Button>
+   661→                                </div>
+   662→                              </TableCell>
+   663→                            </TableRow>
+   664→                          )
+   665→                        })
+   666→                      )}
+   667→                    </TableBody>
+   668→                  </Table>
+   669→                </CardContent>
+   670→              </Card>
+   671→            </>
+   672→          )}
+   673→        </>
+   674→      )}
+   675→
+   676→      {/* === MODE 2: QUICK EVENT (Acara Dadakan) === */}
+   677→      {mode === 'quick' && (
+   678→        <Card>
+   679→          <CardHeader>
+   680→            <CardTitle className="flex items-center gap-2 text-base">
+   681→              <Zap className="w-4 h-4 text-orange-600" /> Acara Dadakan + Absensi Cepat
+   682→            </CardTitle>
+   683→            <CardDescription>
+   684→              Untuk acara impromptu yang belum terjadwal. Isi nama acara, tanggal, lokasi, lalu ketik nama peserta hadir (satu per baris). Sistem akan otomatis membuat event + mencatat absensi sekaligus.
+   685→            </CardDescription>
+   686→          </CardHeader>
+   687→          <CardContent className="space-y-4">
+   688→            <div className="grid gap-3 md:grid-cols-2">
+   689→              <div className="space-y-1 md:col-span-2">
+   690→                <Label className="text-xs">Nama Acara *</Label>
+   691→                <Input
+   692→                  value={quickForm.title}
+   693→                  onChange={(e) => setQuickForm({ ...quickForm, title: e.target.value })}
+   694→                  placeholder="Mis. Pertemuan Koordinasi DPC Pontianak"
+   695→                  className="text-sm"
+   696→                />
+   697→              </div>
+   698→              <div className="space-y-1">
+   699→                <Label className="text-xs">Tanggal & Waktu *</Label>
+   700→                <Input
+   701→                  type="datetime-local"
+   702→                  value={quickForm.date}
+   703→                  onChange={(e) => setQuickForm({ ...quickForm, date: e.target.value })}
+   704→                  className="text-sm"
+   705→                />
+   706→              </div>
+   707→              <div className="space-y-1">
+   708→                <Label className="text-xs">Lokasi</Label>
+   709→                <Input
+   710→                  value={quickForm.location}
+   711→                  onChange={(e) => setQuickForm({ ...quickForm, location: e.target.value })}
+   712→                  placeholder="Mis. Sekretariat DPC Pontianak"
+   713→                  className="text-sm"
+   714→                />
+   715→              </div>
+   716→              <div className="space-y-1">
+   717→                <Label className="text-xs">Jenis Acara</Label>
+   718→                <Select value={quickForm.type} onValueChange={(v) => setQuickForm({ ...quickForm, type: v })}>
+   719→                  <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
+   720→                  <SelectContent>
+   721→                    <SelectItem value="PELANTIKAN">Pelantikan</SelectItem>
+   722→                    <SelectItem value="MOBILISASI">Mobilisasi Massa</SelectItem>
+   723→                    <SelectItem value="RAPAT">Rapat</SelectItem>
+   724→                    <SelectItem value="SOSIAL">Aksi Sosial</SelectItem>
+   725→                    <SelectItem value="LAINNYA">Lainnya</SelectItem>
+   726→                  </SelectContent>
+   727→                </Select>
+   728→              </div>
+   729→              <div className="space-y-1">
+   730→                <Label className="text-xs">Catatan (opsional)</Label>
+   731→                <Input
+   732→                  value={quickForm.notes}
+   733→                  onChange={(e) => setQuickForm({ ...quickForm, notes: e.target.value })}
+   734→                  placeholder="Mis. Pertemuan mendadak untuk bahas persiapan HUT"
+   735→                  className="text-sm"
+   736→                />
+   737→              </div>
+   738→            </div>
+   739→
+   740→            <div className="space-y-1">
+   741→              <Label className="text-xs">Daftar Peserta Hadir (satu nama per baris) *</Label>
+   742→              <Textarea
+   743→                value={namesText}
+   744→                onChange={(e) => setNamesText(e.target.value)}
+   745→                rows={8}
+   746→                placeholder={'Budi Santoso\nSiti Aminah\nAhmad Yani\nDewi Lestari\n...'}
+   747→                className="font-mono text-sm"
+   748→              />
+   749→              <p className="text-xs text-muted-foreground">
+   750→                {namesText.split('\n').filter((n) => n.trim().length >= 2).length} nama terdeteksi. Anggota yang belum terdaftar akan otomatis dibuat (status ACTIVE) — perlu dilengkapi data WA & NIK nanti di menu Pusat Data Organisasi.
+   751→              </p>
+   752→            </div>
+   753→
+   754→            <Button
+   755→              onClick={handleQuickEventSubmit}
+   756→              disabled={submitting}
+   757→              className="w-full bg-gradient-to-r from-orange-600 to-red-600 text-white"
+   758→            >
+   759→              {submitting ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Zap className="w-4 h-4 mr-1" />}
+   760→              {submitting ? 'Memproses...' : 'Buat Acara + Catat Absensi'}
+   761→            </Button>
+   762→          </CardContent>
+   763→        </Card>
+   764→      )}
+   765→
+   766→      {/* === MODE 3: MANUAL NAMES (untuk event existing) === */}
+   767→      {mode === 'manual' && (
+   768→        <Card>
+   769→          <CardHeader>
+   770→            <CardTitle className="flex items-center gap-2 text-base">
+   771→              <FileText className="w-4 h-4 text-blue-600" /> Ketik Manual — Tambah Peserta Hadir
+   772→            </CardTitle>
+   773→            <CardDescription>
+   774→              Untuk event yang sudah dipilih. Ketik nama peserta yang hadir (satu per baris). Cocok untuk absensi massal tanpa perlu klik satu-satu.
+   775→            </CardDescription>
+   776→          </CardHeader>
+   777→          <CardContent className="space-y-4">
+   778→            <div className="space-y-1 max-w-md">
+   779→              <Label className="text-xs">Pilih Event *</Label>
+   780→              <Select value={selectedEvent} onValueChange={setSelectedEvent}>
+   781→                <SelectTrigger className="text-sm"><SelectValue placeholder="Pilih event..." /></SelectTrigger>
+   782→                <SelectContent>
+   783→                  {events.length === 0 ? (
+   784→                    <SelectItem value="_empty" disabled>Tidak ada event — gunakan mode Acara Dadakan</SelectItem>
+   785→                  ) : (
+   786→                    events.map((e) => (
+   787→                      <SelectItem key={e.id} value={e.id}>{e.title} - {formatDateTimeID(e.startDate)}</SelectItem>
+   788→                    ))
+   789→                  )}
+   790→                </SelectContent>
+   791→              </Select>
+   792→            </div>
+   793→
+   794→            <div className="space-y-1">
+   795→              <Label className="text-xs">Daftar Peserta Hadir (satu nama per baris) *</Label>
+   796→              <Textarea
+   797→                value={namesText}
+   798→                onChange={(e) => setNamesText(e.target.value)}
+   799→                rows={10}
+   800→                placeholder={'Budi Santoso\nSiti Aminah\nAhmad Yani\n...'}
+   801→                className="font-mono text-sm"
+   802→              />
+   803→              <p className="text-xs text-muted-foreground">
+   804→                {namesText.split('\n').filter((n) => n.trim().length >= 2).length} nama terdeteksi. Semua akan di-set "Hadir".
+   805→                Anggota yang belum terdaftar akan otomatis dibuat (status ACTIVE).
+   806→              </p>
+   807→            </div>
+   808→
+   809→            <Button
+   810→              onClick={handleManualNamesSubmit}
+   811→              disabled={submitting || !selectedEvent}
+   812→              className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white"
+   813→            >
+   814→              {submitting ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <FileText className="w-4 h-4 mr-1" />}
+   815→              {submitting ? 'Memproses...' : 'Catat Absensi Massal'}
+   816→            </Button>
+   817→          </CardContent>
+   818→        </Card>
+   819→      )}
+   820→
+   821→      {/* === MODE 4: CSV UPLOAD === */}
+   822→      {mode === 'csv' && (
+   823→        <Card>
+   824→          <CardHeader>
+   825→            <CardTitle className="flex items-center gap-2 text-base">
+   826→              <Upload className="w-4 h-4 text-emerald-600" /> Upload CSV — Import Peserta
+   827→            </CardTitle>
+   828→            <CardDescription>
+   829→              Upload file CSV/Excel berisi daftar peserta. Format kolom: <strong>Nama, WhatsApp, Wilayah</strong> (dipisah koma). Semua akan di-set "Hadir".
+   830→            </CardDescription>
+   831→          </CardHeader>
+   832→          <CardContent className="space-y-4">
+   833→            <div className="space-y-1 max-w-md">
+   834→              <Label className="text-xs">Pilih Event *</Label>
+   835→              <Select value={selectedEvent} onValueChange={setSelectedEvent}>
+   836→                <SelectTrigger className="text-sm"><SelectValue placeholder="Pilih event..." /></SelectTrigger>
+   837→                <SelectContent>
+   838→                  {events.length === 0 ? (
+   839→                    <SelectItem value="_empty" disabled>Tidak ada event — gunakan mode Acara Dadakan</SelectItem>
+   840→                  ) : (
+   841→                    events.map((e) => (
+   842→                      <SelectItem key={e.id} value={e.id}>{e.title} - {formatDateTimeID(e.startDate)}</SelectItem>
+   843→                    ))
+   844→                  )}
+   845→                </SelectContent>
+   846→              </Select>
+   847→            </div>
+   848→
+   849→            <div className="space-y-2">
+   850→              <div className="flex gap-2">
+   851→                <Input
+   852→                  type="file"
+   853→                  accept=".csv,.txt"
+   854→                  onChange={(e) => handleCsvFileChange(e.target.files?.[0] || null)}
+   855→                  className="text-sm"
+   856→                />
+   857→                <a
+   858→                  href="data:text/csv;charset=utf-8,Nama,WhatsApp,Wilayah%0ABudi Santoso,081234567890,Pontianak%0ASiti Aminah,081298765432,Sambas"
+   859→                  download="template-absensi.csv"
+   860→                  className="inline-flex items-center gap-1 px-3 py-2 text-xs border rounded-md hover:bg-accent whitespace-nowrap"
+   861→                >
+   862→                  <FileText className="w-3 h-3" /> Download Template
+   863→                </a>
+   864→              </div>
+   865→              <p className="text-xs text-muted-foreground">
+   866→                Format: <code className="bg-muted px-1 rounded text-[11px]">Nama,WhatsApp,Wilayah</code> — header opsional, dipisah koma.
+   867→              </p>
+   868→            </div>
+   869→
+   870→            {/* CSV Preview */}
+   871→            {csvPreview.length > 0 && (
+   872→              <div className="space-y-2">
+   873→                <Label className="text-xs">Preview (10 baris pertama):</Label>
+   874→                <div className="rounded border overflow-hidden">
+   875→                  <Table>
+   876→                    <TableHeader>
+   877→                      <TableRow>
+   878→                        <TableHead className="text-xs">#</TableHead>
+   879→                        <TableHead className="text-xs">Nama</TableHead>
+   880→                        <TableHead className="text-xs">WhatsApp</TableHead>
+   881→                        <TableHead className="text-xs">Wilayah</TableHead>
+   882→                      </TableRow>
+   883→                    </TableHeader>
+   884→                    <TableBody>
+   885→                      {csvPreview.map((row, i) => (
+   886→                        <TableRow key={i}>
+   887→                          <TableCell className="text-xs text-muted-foreground">{i + 1}</TableCell>
+   888→                          <TableCell className="text-xs font-medium">{row.name}</TableCell>
+   889→                          <TableCell className="text-xs">{row.phone || '-'}</TableCell>
+   890→                          <TableCell className="text-xs">{row.territoryName || '-'}</TableCell>
+   891→                        </TableRow>
+   892→                      ))}
+   893→                    </TableBody>
+   894→                  </Table>
+   895→                </div>
+   896→                <p className="text-xs text-muted-foreground">
+   897→                  Total: {csvFile ? 'File dipilih' : 'Belum ada file'}
+   898→                </p>
+   899→              </div>
+   900→            )}
+   901→
+   902→            <Button
+   903→              onClick={handleCsvSubmit}
+   904→              disabled={submitting || !selectedEvent || !csvFile}
+   905→              className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 text-white"
+   906→            >
+   907→              {submitting ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Upload className="w-4 h-4 mr-1" />}
+   908→              {submitting ? 'Mengimpor...' : 'Import & Catat Absensi'}
+   909→            </Button>
+   910→          </CardContent>
+   911→        </Card>
+   912→      )}
+   913→    </div>
+   914→  )
+   915→}
+   916→
+   917→function ReportsTab() {
+   918→  const addToast = useToastStore((s) => s.addToast)
+   919→  const [events, setEvents] = useState<EventItem[]>([])
+   920→  const [reports, setReports] = useState<any[]>([])
+   921→  const [selectedEvent, setSelectedEvent] = useState<string>('')
+   922→  const [addOpen, setAddOpen] = useState(false)
+   923→  const [loading, setLoading] = useState(true)
+   924→
+   925→  const loadData = () => {
+   926→    api('/api/events').then((e) => { setEvents(e); setLoading(false) }).catch(() => setLoading(false))
+   927→  }
+   928→
+   929→  useEffect(() => { loadData() }, [])
+   930→
+   931→  useEffect(() => {
+   932→    if (selectedEvent) {
+   933→      api(`/api/reports?eventId=${selectedEvent}`).then(setReports).catch(() => {})
+   934→    } else {
+   935→      api('/api/reports').then(setReports).catch(() => {})
+   936→    }
+   937→  }, [selectedEvent])
+   938→
+   939→  const [form, setForm] = useState({
+   940→    eventId: '', title: '', content: '', notes: '',
+   941→  })
+   942→  const [submitLoading, setSubmitLoading] = useState(false)
+   943→
+   944→  const handleSubmit = async (e: React.FormEvent) => {
+   945→    e.preventDefault()
+   946→    setSubmitLoading(true)
+   947→    try {
+   948→      await api('/api/reports', {
+   949→        method: 'POST',
+   950→        body: JSON.stringify({ ...form, eventId: form.eventId || selectedEvent }),
+   951→      })
+   952→      addToast('Laporan kegiatan berhasil ditambahkan', 'success')
+   953→      setForm({ eventId: '', title: '', content: '', notes: '' })
+   954→      setAddOpen(false)
+   955→      if (selectedEvent) {
+   956→        api(`/api/reports?eventId=${selectedEvent}`).then(setReports)
+   957→      } else {
+   958→        api('/api/reports').then(setReports)
+   959→      }
+   960→    } catch (e: any) {
+   961→      addToast(e.message, 'error')
+   962→    } finally {
+   963→      setSubmitLoading(false)
+   964→    }
+   965→  }
+   966→
+   967→  if (loading) return <LoadingState />
+   968→
+   969→  return (
+   970→    <div className="space-y-4">
+   971→      <div className="flex flex-col sm:flex-row gap-2 sm:items-center justify-between">
+   972→        <div className="space-y-2 sm:w-72">
+   973→          <Select value={selectedEvent} onValueChange={setSelectedEvent}>
+   974→            <SelectTrigger><SelectValue placeholder="Semua event..." /></SelectTrigger>
+   975→            <SelectContent>
+   976→              {events.map((e) => (
+   977→                <SelectItem key={e.id} value={e.id}>{e.title}</SelectItem>
+   978→              ))}
+   979→            </SelectContent>
+   980→          </Select>
+   981→        </div>
+   982→        <Button onClick={() => { setForm({ ...form, eventId: selectedEvent }); setAddOpen(true) }} className="bg-gradient-to-r from-orange-600 to-red-600 text-white">
+   983→          <Plus className="w-4 h-4 mr-2" /> Buat Laporan
+   984→        </Button>
+   985→      </div>
+   986→
+   987→      {reports.length === 0 ? (
+   988→        <EmptyState icon={FileText} title="Belum ada laporan" description="Buat laporan kegiatan setelah acara selesai." />
+   989→      ) : (
+   990→        <div className="grid gap-3 md:grid-cols-2">
+   991→          {reports.map((r) => (
+   992→            <Card key={r.id}>
+   993→              <CardContent className="p-4">
+   994→                <div className="font-bold text-sm mb-1">{r.title}</div>
+   995→                <div className="text-xs text-muted-foreground mb-2">
+   996→                  {r.event?.title} - {formatDateTimeID(r.createdAt)}
+   997→                </div>
+   998→                <p className="text-sm line-clamp-3">{r.content}</p>
+   999→                {r.notes && (
+  1000→                  <div className="mt-2 text-xs italic text-muted-foreground border-t pt-2">
+  1001→                    Catatan: {r.notes}
+  1002→                  </div>
+  1003→                )}
+  1004→              </CardContent>
+  1005→            </Card>
+  1006→          ))}
+  1007→        </div>
+  1008→      )}
+  1009→
+  1010→      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+  1011→        <DialogContent className="max-w-lg">
+  1012→          <DialogHeader>
+  1013→            <DialogTitle>Buat Laporan Kegiatan</DialogTitle>
+  1014→          </DialogHeader>
+  1015→          <form onSubmit={handleSubmit} className="space-y-3">
+  1016→            <div className="space-y-2">
+  1017→              <Label>Event *</Label>
+  1018→              <Select value={form.eventId} onValueChange={(v) => setForm({ ...form, eventId: v })}>
+  1019→                <SelectTrigger><SelectValue placeholder="Pilih event..." /></SelectTrigger>
+  1020→                <SelectContent>
+  1021→                  {events.map((e) => (
+  1022→                    <SelectItem key={e.id} value={e.id}>{e.title}</SelectItem>
+  1023→                  ))}
+  1024→                </SelectContent>
+  1025→              </Select>
+  1026→            </div>
+  1027→            <div className="space-y-2">
+  1028→              <Label>Judul Laporan *</Label>
+  1029→              <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required />
+  1030→            </div>
+  1031→            <div className="space-y-2">
+  1032→              <Label>Isi Laporan *</Label>
+  1033→              <Textarea value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} rows={5} required />
+  1034→            </div>
+  1035→            <div className="space-y-2">
+  1036→              <Label>Catatan Tambahan</Label>
+  1037→              <Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} />
+  1038→            </div>
+  1039→            <DialogFooter>
+  1040→              <Button type="button" variant="outline" onClick={() => setAddOpen(false)}>Batal</Button>
+  1041→              <Button type="submit" disabled={submitLoading}>{submitLoading ? 'Menyimpan...' : 'Simpan Laporan'}</Button>
+  1042→            </DialogFooter>
+  1043→          </form>
+  1044→        </DialogContent>
+  1045→      </Dialog>
+  1046→    </div>
+  1047→  )
+  1048→}
+  1049→
