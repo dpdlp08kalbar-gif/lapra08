@@ -353,26 +353,44 @@ function TentangLAPRASection() {
   const addToast = useToastStore((s) => s.addToast)
   const [content, setContent] = useState<any>(DEFAULT_TENTANG_CONTENT)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [syncStatus, setSyncStatus] = useState<'loading' | 'synced' | 'fallback' | 'error'>('loading')
   const [editOpen, setEditOpen] = useState(false)
 
   useEffect(() => {
     let cancelled = false
+    setSyncStatus('loading')
     api('/api/profile-content')
       .then((data: any[]) => {
         if (cancelled) return
         const item = (data || []).find((d) => d.key === 'profil.tentang')
         if (item && item.value && typeof item.value === 'object') {
           setContent({ ...DEFAULT_TENTANG_CONTENT, ...item.value })
+          setSyncStatus('synced')
+        } else {
+          // Tidak ada di DB → pakai default
+          setSyncStatus('fallback')
         }
       })
-      .catch((e) => !cancelled && setError(e.message || 'Gagal memuat konten'))
+      .catch((e) => {
+        if (cancelled) return
+        console.error('[TentangLAPRASection] load failed:', e.message)
+        // Tetap pakai default content, jangan block UI
+        setSyncStatus('error')
+      })
       .finally(() => !cancelled && setLoading(false))
     return () => { cancelled = true }
   }, [])
 
-  if (loading) return <LoadingState message="Memuat konten Tentang LAPRA 08..." />
-  if (error) return <ErrorState message={error} />
+  // Selalu render default content — loading cuma untuk skeleton pertama
+  if (loading) {
+    return (
+      <div className="space-y-4 animate-pulse">
+        <div className="h-32 bg-slate-200 rounded-2xl" />
+        <div className="h-24 bg-slate-200 rounded-xl" />
+        <div className="h-24 bg-slate-200 rounded-xl" />
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -383,6 +401,18 @@ function TentangLAPRASection() {
         </div>
         {isSuperAdmin && <EditButton onClick={() => setEditOpen(true)} />}
       </div>
+
+      {/* Banner sync status — tampil kalau fallback atau error */}
+      {syncStatus === 'fallback' && (
+        <div className="rounded-lg bg-blue-50 border border-blue-200 p-2 text-xs text-blue-700">
+          ℹ Menampilkan konten default. Super Admin bisa edit untuk personalisasi.
+        </div>
+      )}
+      {syncStatus === 'error' && (
+        <div className="rounded-lg bg-amber-50 border border-amber-200 p-2 text-xs text-amber-700">
+          ⚠ Gagal memuat dari server, menampilkan konten default. Cek koneksi atau coba refresh.
+        </div>
+      )}
 
       {/* Hero card — dark gradient */}
       <div className="relative overflow-hidden rounded-2xl shadow-lg">
@@ -640,26 +670,40 @@ function VisiMisiSection() {
   const addToast = useToastStore((s) => s.addToast)
   const [content, setContent] = useState<any>(DEFAULT_VISI_MISI)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [syncStatus, setSyncStatus] = useState<'loading' | 'synced' | 'fallback' | 'error'>('loading')
   const [editOpen, setEditOpen] = useState(false)
 
   useEffect(() => {
     let cancelled = false
+    setSyncStatus('loading')
     api('/api/profile-content')
       .then((data: any[]) => {
         if (cancelled) return
         const item = (data || []).find((d) => d.key === 'profil.visi-misi')
         if (item && item.value && typeof item.value === 'object') {
           setContent({ ...DEFAULT_VISI_MISI, ...item.value })
+          setSyncStatus('synced')
+        } else {
+          setSyncStatus('fallback')
         }
       })
-      .catch((e) => !cancelled && setError(e.message || 'Gagal memuat konten'))
+      .catch((e) => {
+        if (cancelled) return
+        console.error('[VisiMisiSection] load failed:', e.message)
+        setSyncStatus('error')
+      })
       .finally(() => !cancelled && setLoading(false))
     return () => { cancelled = true }
   }, [])
 
-  if (loading) return <LoadingState message="Memuat Visi & Misi..." />
-  if (error) return <ErrorState message={error} />
+  if (loading) {
+    return (
+      <div className="space-y-4 animate-pulse">
+        <div className="h-32 bg-slate-200 rounded-xl" />
+        <div className="h-48 bg-slate-200 rounded-xl" />
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -670,6 +714,18 @@ function VisiMisiSection() {
         </div>
         {isSuperAdmin && <EditButton onClick={() => setEditOpen(true)} />}
       </div>
+
+      {/* Banner sync status */}
+      {syncStatus === 'fallback' && (
+        <div className="rounded-lg bg-blue-50 border border-blue-200 p-2 text-xs text-blue-700">
+          ℹ Menampilkan konten default. Super Admin bisa edit untuk personalisasi.
+        </div>
+      )}
+      {syncStatus === 'error' && (
+        <div className="rounded-lg bg-amber-50 border border-amber-200 p-2 text-xs text-amber-700">
+          ⚠ Gagal memuat dari server, menampilkan konten default. Cek koneksi atau coba refresh.
+        </div>
+      )}
 
       {/* Visi card */}
       <Card className="overflow-hidden">
@@ -861,13 +917,69 @@ function ProfileDocumentSection({ type }: { type: 'AD_ART' | 'LEGALITAS' }) {
 
   const load = () => {
     setLoading(true)
+    setError(null)
     api(`/api/profile-documents?type=${type}`)
       .then((data: any[]) => setDocs(data || []))
-      .catch((e) => setError(e.message || 'Gagal memuat dokumen'))
+      .catch((e) => {
+        console.error('[ProfileDocumentSection] load failed:', e.message)
+        setError(e.message || 'Gagal memuat dokumen')
+        setDocs([]) // pastikan empty state, bukan crash
+      })
       .finally(() => setLoading(false))
   }
 
   useEffect(() => { load() }, [type])
+
+  // === Render: Loading skeleton ===
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="h-6 w-1 rounded-full bg-gradient-to-b from-orange-500 to-red-600" />
+            <h3 className="text-base font-bold">{meta.title}</h3>
+          </div>
+        </div>
+        <div className="space-y-2 animate-pulse">
+          <div className="h-16 bg-slate-200 rounded-xl" />
+          <div className="h-16 bg-slate-200 rounded-xl" />
+        </div>
+      </div>
+    )
+  }
+
+  // === Render: Error state dengan tombol retry ===
+  if (error) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="h-6 w-1 rounded-full bg-gradient-to-b from-orange-500 to-red-600" />
+            <h3 className="text-base font-bold">{meta.title}</h3>
+          </div>
+          {isSuperAdmin && (
+            <Button size="sm" onClick={() => setUploadOpen(true)} className={`gap-1 bg-gradient-to-r ${meta.grad} text-white`}>
+              <Plus className="w-4 h-4" /> Upload Dokumen
+            </Button>
+          )}
+        </div>
+        <Card className="border-amber-200 bg-amber-50">
+          <CardContent className="p-4 space-y-2">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+              <div className="text-sm">
+                <div className="font-medium text-amber-900">Gagal memuat dokumen dari server</div>
+                <div className="text-xs text-amber-700 mt-1">Error: {error}</div>
+              </div>
+            </div>
+            <Button size="sm" variant="outline" onClick={load} className="gap-1">
+              <RefreshCw className="w-3 h-3" /> Coba Lagi
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   const handleDelete = async (doc: any) => {
     try {

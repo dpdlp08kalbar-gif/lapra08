@@ -1,4 +1,4 @@
-// LAPRA 08 - API: Profile Content (Sejarah, Visi-Misi, dll)
+// LAPRA 08 - API: Profile Content (Tentang, Visi-Misi, dll)
 // Stored in SystemSetting category=PROFILE_CONTENT
 //
 // GET    /api/profile-content             - list all profile content
@@ -8,52 +8,63 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getUserFromRequest } from '@/lib/server-helpers'
 
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
 // GET - List all profile content
 export async function GET(request: NextRequest) {
-  const user = await getUserFromRequest(request)
-  if (!user) {
-    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+  try {
+    const user = await getUserFromRequest(request)
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const items = await db.systemSetting.findMany({
+      where: { category: 'PROFILE_CONTENT' },
+      orderBy: { key: 'asc' },
+    })
+
+    const contents = items.map((item) => {
+      let value: any = item.value
+      try {
+        value = JSON.parse(item.value)
+      } catch {
+        // keep as raw string
+      }
+      return {
+        id: item.id,
+        key: item.key,
+        value,
+        description: item.description || null,
+        updatedAt: item.updatedAt,
+      }
+    })
+
+    return NextResponse.json({ success: true, data: contents })
+  } catch (e: any) {
+    console.error('[Profile Content GET] Error:', e)
+    return NextResponse.json(
+      { success: false, error: `Gagal memuat konten profil: ${e.message}` },
+      { status: 500 }
+    )
   }
-
-  const items = await db.systemSetting.findMany({
-    where: { category: 'PROFILE_CONTENT' },
-    orderBy: { key: 'asc' },
-  })
-
-  const contents = items.map((item) => {
-    let value: any = item.value
-    try {
-      value = JSON.parse(item.value)
-    } catch {
-      // keep as raw string
-    }
-    return {
-      id: item.id,
-      key: item.key,
-      value,
-      description: item.description || null,
-      updatedAt: item.updatedAt,
-    }
-  })
-
-  return NextResponse.json({ success: true, data: contents })
 }
 
 // POST - Create or update content (SUPERADMIN only)
 export async function POST(request: NextRequest) {
-  const user = await getUserFromRequest(request)
-  if (!user) {
-    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
-  }
-
-  if (user.role !== 'SUPERADMIN') {
-    return NextResponse.json(
-      { success: false, error: 'Hanya Super Admin yang dapat mengelola profile content' },
-      { status: 403 }
-    )
-  }
-
   try {
+    const user = await getUserFromRequest(request)
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+    }
+
+    if (user.role !== 'SUPERADMIN') {
+      return NextResponse.json(
+        { success: false, error: 'Hanya Super Admin yang dapat mengelola profile content' },
+        { status: 403 }
+      )
+    }
+
     const body = await request.json()
     const { key, value, description } = body
 
@@ -106,26 +117,29 @@ export async function POST(request: NextRequest) {
       message: 'Profile content disimpan',
     })
   } catch (e: any) {
-    console.error('[Profile Content POST Error]', e)
-    return NextResponse.json({ success: false, error: e.message }, { status: 500 })
+    console.error('[Profile Content POST] Error:', e)
+    return NextResponse.json(
+      { success: false, error: `Gagal menyimpan: ${e.message}` },
+      { status: 500 }
+    )
   }
 }
 
 // DELETE - Delete content by key
 export async function DELETE(request: NextRequest) {
-  const user = await getUserFromRequest(request)
-  if (!user) {
-    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
-  }
-
-  if (user.role !== 'SUPERADMIN') {
-    return NextResponse.json(
-      { success: false, error: 'Hanya Super Admin yang dapat menghapus profile content' },
-      { status: 403 }
-    )
-  }
-
   try {
+    const user = await getUserFromRequest(request)
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+    }
+
+    if (user.role !== 'SUPERADMIN') {
+      return NextResponse.json(
+        { success: false, error: 'Hanya Super Admin yang dapat menghapus profile content' },
+        { status: 403 }
+      )
+    }
+
     const { searchParams } = new URL(request.url)
     const key = searchParams.get('key')
 
@@ -151,7 +165,10 @@ export async function DELETE(request: NextRequest) {
       message: `Profile content "${key}" berhasil dihapus`,
     })
   } catch (e: any) {
-    console.error('[Profile Content DELETE Error]', e)
-    return NextResponse.json({ success: false, error: e.message }, { status: 500 })
+    console.error('[Profile Content DELETE] Error:', e)
+    return NextResponse.json(
+      { success: false, error: `Gagal menghapus: ${e.message}` },
+      { status: 500 }
+    )
   }
 }

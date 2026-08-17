@@ -10,6 +10,9 @@ import { getUserFromRequest } from '@/lib/server-helpers'
 import * as fs from 'fs'
 import * as path from 'path'
 
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
 const MAX_SIZE = 20 * 1024 * 1024 // 20MB
 
 const ALLOWED_MIME = [
@@ -35,58 +38,81 @@ function getExtFromName(name: string): string {
 
 // GET - list documents by type
 export async function GET(request: NextRequest) {
-  const user = await getUserFromRequest(request)
-  if (!user) {
-    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const { searchParams } = new URL(request.url)
-  const type = searchParams.get('type') // AD_ART | LEGALITAS
-
-  const where: any = { category: 'PROFILE_DOCUMENT' }
-  // We also filter by docType stored in the JSON value (post-fetch filter below)
-  const items = await db.systemSetting.findMany({
-    where,
-    orderBy: { updatedAt: 'desc' },
-  })
-
-  let docs = items.map((item) => {
-    try {
-      const parsed = JSON.parse(item.value)
-      return {
-        id: item.id,
-        key: item.key,
-        ...parsed,
-        description: item.description,
-        updatedAt: item.updatedAt,
-      }
-    } catch {
-      return null
+  try {
+    const user = await getUserFromRequest(request)
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
-  }).filter(Boolean)
 
-  if (type) {
-    docs = docs.filter((d: any) => d.docType === type)
+    const { searchParams } = new URL(request.url)
+    const type = searchParams.get('type') // AD_ART | LEGALITAS
+
+    const where: any = { category: 'PROFILE_DOCUMENT' }
+    const items = await db.systemSetting.findMany({
+      where,
+      orderBy: { updatedAt: 'desc' },
+    })
+
+    let docs = items.map((item) => {
+      try {
+        const parsed = JSON.parse(item.value)
+        return {
+          id: item.id,
+          key: item.key,
+          ...parsed,
+          description: item.description,
+          updatedAt: item.updatedAt,
+        }
+      } catch {
+        return null
+      }
+    }).filter(Boolean)
+
+    if (type) {
+      docs = docs.filter((d: any) => d.docType === type)
+    }
+
+    // Strip fileUrl (base64) dari response list supaya tidak berat
+    // fileUrl hanya di-load saat view via /api/profile-documents/[id]/view
+    const lightDocs = docs.map((d: any) => ({
+      id: d.id,
+      key: d.key,
+      docType: d.docType,
+      title: d.title,
+      description: d.description,
+      fileName: d.fileName,
+      fileType: d.fileType,
+      fileSize: d.fileSize,
+      uploadedBy: d.uploadedBy,
+      uploadedAt: d.uploadedAt,
+      updatedAt: d.updatedAt,
+    }))
+
+    return NextResponse.json({ success: true, data: lightDocs })
+  } catch (e: any) {
+    console.error('[Profile Documents GET] Error:', e)
+    return NextResponse.json(
+      { success: false, error: `Gagal memuat dokumen: ${e.message}` },
+      { status: 500 }
+    )
   }
-
-  return NextResponse.json({ success: true, data: docs })
 }
 
 // POST - upload document (FormData)
 export async function POST(request: NextRequest) {
-  const user = await getUserFromRequest(request)
-  if (!user) {
-    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
-  }
-
-  if (user.role !== 'SUPERADMIN') {
-    return NextResponse.json(
-      { success: false, error: 'Hanya Super Admin yang dapat mengupload dokumen profil' },
-      { status: 403 }
-    )
-  }
-
   try {
+    const user = await getUserFromRequest(request)
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+    }
+
+    if (user.role !== 'SUPERADMIN') {
+      return NextResponse.json(
+        { success: false, error: 'Hanya Super Admin yang dapat mengupload dokumen profil' },
+        { status: 403 }
+      )
+    }
+
     const formData = await request.formData()
     const file = formData.get('file') as File | null
     const title = (formData.get('title') as string | null) || ''
