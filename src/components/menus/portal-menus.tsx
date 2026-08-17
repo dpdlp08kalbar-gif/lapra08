@@ -3605,7 +3605,10 @@ function AnnouncementManager({
 // ============================================================
 // 4. PROGRAM & KEGIATAN — Full Events + Absensi + Laporan
 // ============================================================
-export function ProgramKegiatanMenu() {
+// DEPRECATED: Versi baru ada di src/components/menus/program-kegiatan-menu.tsx
+// dengan struktur 4 tabs x 3 level (DPN/DPD/DPC) + upload multi-format.
+// Function di-rename supaya tidak conflict dengan versi baru.
+function _ProgramKegiatanMenuLegacy() {
   const [tab, setTab] = useState('program')
   const tabs = [
     { key: 'program', label: 'Program Kerja', icon: Briefcase },
