@@ -11,6 +11,7 @@ import { LayananAdvokasiMenu } from '@/components/menus/layanan-advokasi-menu'
 import { KontakSekretariatMenu } from '@/components/menus/kontak-sekretariat-menu'
 import { PusatAdminMenu } from '@/components/menus/pusat-admin-menu'
 import { PusatDataMenu } from '@/components/menus/pusat-data-menu'
+import { KeanggotaanStrukturMenu } from '@/components/menus/keanggotaan-struktur-menu'
 import { CommunicationMenu } from '@/components/menus/communication-menu'
 import { HelpMenu } from '@/components/menus/help-menu'
 import { Loader2, Shield } from 'lucide-react'
@@ -68,6 +69,12 @@ export default function Home() {
       case 'logistics':
         // Menu sudah dihapus, redirect ke Pusat Admin
         return <PusatAdminMenu />
+      case 'keanggotaan-struktur':
+        return <KeanggotaanStrukturMenu />
+      case 'membership':
+      case 'organization':
+        // Menu sudah digabung ke Keanggotaan & Pengurus
+        return <KeanggotaanStrukturMenu />
       case 'pusat-data':
         return <PusatDataMenu />
       case 'communication':

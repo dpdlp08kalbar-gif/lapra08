@@ -16,7 +16,7 @@ let _migrationCache: { ts: number; migrated: boolean } | null = null
 const MIGRATION_CACHE_TTL = 5 * 60 * 1000
 
 // Menu yang sudah tidak dipakai (akan dihapus dari DB saat auto-migrate)
-const DEPRECATED_MENU_KEYS = ['dashboard', 'users', 'events', 'finance', 'logistics']
+const DEPRECATED_MENU_KEYS = ['dashboard', 'users', 'events', 'finance', 'logistics', 'membership', 'organization']
 
 async function autoMigrateMenus(): Promise<void> {
   // Cek cache — kalau sudah di-migrate dalam 5 menit, skip

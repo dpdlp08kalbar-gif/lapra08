@@ -1,0 +1,497 @@
+  1501→    'Bidang Sekretariat', 'Wakil Bidang Sekretariat',
+  1502→    'Bidang Humas', 'Wakil Bidang Humas',
+  1503→    'Bidang Antar Lembaga', 'Wakil Bidang Antar Lembaga',
+  1504→    'Bidang Lembaga Pemerintahan', 'Bidang Non Pemerintah/Swasta',
+  1505→    'Bidang Lembaga Luar Negeri',
+  1506→    'Bidang Program Internal', 'Bidang Program Eksternal',
+  1507→    'Bidang Pemberdayaan Perempuan',
+  1508→    'Bidang Kerukunan Antar Agama',
+  1509→    'Bidang Kaderisasi & Organisasi',
+  1510→    'Bidang Etik', 'Bidang Advokasi & Hukum', 'Bidang Litigasi', 'Bidang Non Litigasi',
+  1511→    'Bidang Ketenagakerjaan', 'Bidang Kepemudaan', 'Bidang Ekonomi Kreatif',
+  1512→    'Penasihat', 'Pembina', 'Dewan Penasihat',
+  1513→    'Staf', 'Anggota',
+  1514→  ]
+  1515→
+  1516→  return (
+  1517→    <Dialog open={open} onOpenChange={onOpenChange}>
+  1518→      <DialogContent className="max-w-md">
+  1519→        <DialogHeader><DialogTitle>Tambah Pengurus {defaultLevel}</DialogTitle></DialogHeader>
+  1520→        <form onSubmit={handleSubmit} className="space-y-3">
+  1521→          <div className="space-y-2">
+  1522→            <Label>Nama Lengkap *</Label>
+  1523→            <Input value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} placeholder="Nama lengkap pengurus" required />
+  1524→          </div>
+  1525→          <div className="space-y-2">
+  1526→            <Label>Jabatan *</Label>
+  1527→            <Select value={form.positionName} onValueChange={(v) => setForm({ ...form, positionName: v === '__custom' ? '' : v })}>
+  1528→              <SelectTrigger><SelectValue placeholder="Pilih atau ketik jabatan..." /></SelectTrigger>
+  1529→              <SelectContent>
+  1530→                {COMMON_POSITIONS.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+  1531→                <SelectItem value="__custom">+ Ketik Jabatan Lain...</SelectItem>
+  1532→              </SelectContent>
+  1533→            </Select>
+  1534→            {/* Input manual muncul jika pilih "Ketik Jabatan Lain" atau jika positionName kosong */}
+  1535→            {(form.positionName === '' || form.positionName === '__custom') && (
+  1536→              <Input
+  1537→                value={form.positionName === '__custom' ? '' : form.positionName}
+  1538→                onChange={(e) => setForm({ ...form, positionName: e.target.value })}
+  1539→                placeholder="Ketik jabatan custom..."
+  1540→                className="mt-1"
+  1541→                required
+  1542→              />
+  1543→            )}
+  1544→          </div>
+  1545→          {!territoryId && (
+  1546→            <div className="space-y-2">
+  1547→              <Label>Wilayah *</Label>
+  1548→              <Select value={form.territoryId} onValueChange={(v) => setForm({ ...form, territoryId: v })}>
+  1549→                <SelectTrigger><SelectValue placeholder="Pilih wilayah..." /></SelectTrigger>
+  1550→                <SelectContent>{territories.map((t) => <SelectItem key={t.id} value={t.id}>{t.name} ({t.code})</SelectItem>)}</SelectContent>
+  1551→              </Select>
+  1552→            </div>
+  1553→          )}
+  1554→          <div className="grid grid-cols-2 gap-3">
+  1555→            <div className="space-y-2"><Label>WhatsApp</Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="08xxx" /></div>
+  1556→            <div className="space-y-2"><Label>Email</Label><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
+  1557→          </div>
+  1558→          <DialogFooter>
+  1559→            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Batal</Button>
+  1560→            <Button type="submit" disabled={loading} className="bg-gradient-to-r from-orange-600 to-red-600 text-white">{loading ? 'Menyimpan...' : 'Simpan'}</Button>
+  1561→          </DialogFooter>
+  1562→        </form>
+  1563→      </DialogContent>
+  1564→    </Dialog>
+  1565→  )
+  1566→}
+  1567→
+  1568→function EditPositionDialog({ position, onOpenChange, onSuccess }: any) {
+  1569→  const addToast = useToastStore((s) => s.addToast)
+  1570→  const [form, setForm] = useState<any>({})
+  1571→  const [loading, setLoading] = useState(false)
+  1572→  const [useCustomPosition, setUseCustomPosition] = useState(false)
+  1573→  const [ktaFile, setKtaFile] = useState<File | null>(null)
+  1574→  const [biodataFile, setBiodataFile] = useState<File | null>(null)
+  1575→
+  1576→  useEffect(() => {
+  1577→    if (position) {
+  1578→      setForm({
+  1579→        fullName: position.fullName, positionName: position.positionName,
+  1580→        phone: position.phone || '', email: position.email || '',
+  1581→        ktaPhotoUrl: position.ktaPhotoUrl || null,
+  1582→        ktaNumber: position.ktaNumber || '',
+  1583→        biodataUrl: position.biodataUrl || null,
+  1584→        isActive: position.isActive,
+  1585→      })
+  1586→      setUseCustomPosition(false)
+  1587→      setKtaFile(null)
+  1588→      setBiodataFile(null)
+  1589→    }
+  1590→  }, [position])
+  1591→
+  1592→  if (!position) return null
+  1593→
+  1594→  const handleSubmit = async (e: React.FormEvent) => {
+  1595→    e.preventDefault(); setLoading(true)
+  1596→    try {
+  1597→      const payload = { ...form }
+  1598→      // Upload KTA
+  1599→      if (ktaFile) {
+  1600→        const buf = Buffer.from(await ktaFile.arrayBuffer())
+  1601→        const mime = ktaFile.type || 'image/jpeg'
+  1602→        payload.ktaPhotoUrl = `data:${mime};base64,${buf.toString('base64')}`
+  1603→      }
+  1604→      // Upload Biodata
+  1605→      if (biodataFile) {
+  1606→        const buf = Buffer.from(await biodataFile.arrayBuffer())
+  1607→        const mime = biodataFile.type || (biodataFile.name.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg')
+  1608→        payload.biodataUrl = `data:${mime};base64,${buf.toString('base64')}`
+  1609→      }
+  1610→      await api(`/api/organization/${position.id}`, { method: 'PUT', body: JSON.stringify(payload) })
+  1611→      onSuccess()
+  1612→    } catch (e: any) { addToast(e.message, 'error') }
+  1613→    finally { setLoading(false) }
+  1614→  }
+  1615→
+  1616→  const COMMON_POSITIONS = [
+  1617→    'Ketua', 'Ketua Harian', 'Wakil Ketua I', 'Wakil Ketua II', 'Wakil Ketua III', 'Wakil Ketua IV',
+  1618→    'Sekretaris', 'Wakil Sekretaris I', 'Wakil Sekretaris II',
+  1619→    'Bendahara', 'Wakil Bendahara I', 'Wakil Bendahara II',
+  1620→    'Bidang Sekretariat', 'Wakil Bidang Sekretariat',
+  1621→    'Bidang Humas', 'Wakil Bidang Humas',
+  1622→    'Bidang Antar Lembaga', 'Wakil Bidang Antar Lembaga',
+  1623→    'Bidang Lembaga Pemerintahan', 'Bidang Non Pemerintah/Swasta',
+  1624→    'Bidang Lembaga Luar Negeri',
+  1625→    'Bidang Program Internal', 'Bidang Program Eksternal',
+  1626→    'Bidang Pemberdayaan Perempuan',
+  1627→    'Bidang Kerukunan Antar Agama',
+  1628→    'Bidang Kaderisasi & Organisasi',
+  1629→    'Bidang Etik', 'Bidang Advokasi & Hukum', 'Bidang Litigasi', 'Bidang Non Litigasi',
+  1630→    'Bidang Ketenagakerjaan', 'Bidang Kepemudaan', 'Bidang Ekonomi Kreatif',
+  1631→    'Penasihat', 'Pembina', 'Dewan Penasihat',
+  1632→    'Staf', 'Anggota',
+  1633→  ]
+  1634→
+  1635→  // Check if current positionName is in common list
+  1636→  const isCustomPosition = !COMMON_POSITIONS.includes(form.positionName) && !useCustomPosition
+  1637→
+  1638→  return (
+  1639→    <Dialog open={!!position} onOpenChange={(o) => !o && onOpenChange(false)}>
+  1640→      <DialogContent className="max-w-md">
+  1641→        <DialogHeader>
+  1642→          <DialogTitle className="flex items-center gap-2">
+  1643→            <Edit className="w-4 h-4 text-blue-600" /> Edit Pengurus
+  1644→          </DialogTitle>
+  1645→        </DialogHeader>
+  1646→        <form onSubmit={handleSubmit} className="space-y-3">
+  1647→          <div className="space-y-2">
+  1648→            <Label>Nama Lengkap *</Label>
+  1649→            <Input value={form.fullName || ''} onChange={(e) => setForm({ ...form, fullName: e.target.value })} required />
+  1650→          </div>
+  1651→          <div className="space-y-2">
+  1652→            <Label>Jabatan *</Label>
+  1653→            <Select
+  1654→              value={useCustomPosition || isCustomPosition ? '__custom' : form.positionName}
+  1655→              onValueChange={(v) => {
+  1656→                if (v === '__custom') {
+  1657→                  setUseCustomPosition(true)
+  1658→                  setForm({ ...form, positionName: '' })
+  1659→                } else {
+  1660→                  setUseCustomPosition(false)
+  1661→                  setForm({ ...form, positionName: v })
+  1662→                }
+  1663→              }}
+  1664→            >
+  1665→              <SelectTrigger><SelectValue placeholder="Pilih jabatan..." /></SelectTrigger>
+  1666→              <SelectContent>
+  1667→                {COMMON_POSITIONS.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+  1668→                <SelectItem value="__custom">+ Ketik Jabatan Lain...</SelectItem>
+  1669→              </SelectContent>
+  1670→            </Select>
+  1671→            {(useCustomPosition || isCustomPosition) && (
+  1672→              <Input
+  1673→                value={form.positionName || ''}
+  1674→                onChange={(e) => setForm({ ...form, positionName: e.target.value })}
+  1675→                placeholder="Ketik jabatan custom..."
+  1676→                className="mt-1"
+  1677→                required
+  1678→              />
+  1679→            )}
+  1680→          </div>
+  1681→          <div className="grid grid-cols-2 gap-3">
+  1682→            <div className="space-y-2"><Label>WhatsApp</Label><Input value={form.phone || ''} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="08xxx" /></div>
+  1683→            <div className="space-y-2"><Label>Email</Label><Input type="email" value={form.email || ''} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
+  1684→          </div>
+  1685→          <div className="space-y-2">
+  1686→            <Label>Nomor KTA</Label>
+  1687→            <Input value={form.ktaNumber || ''} onChange={(e) => setForm({ ...form, ktaNumber: e.target.value })} placeholder="LAPRA08.ID.61.71.26.00001" className="font-mono text-sm" />
+  1688→            <p className="text-xs text-muted-foreground">Format: LAPRA08.[NEGARA].[PROVINSI].[KAB/KOTA].[TAHUN].[URUT]</p>
+  1689→          </div>
+  1690→          <div className="space-y-2">
+  1691→            <Label>Status</Label>
+  1692→            <Select value={form.isActive ? 'true' : 'false'} onValueChange={(v) => setForm({ ...form, isActive: v === 'true' })}>
+  1693→              <SelectTrigger><SelectValue /></SelectTrigger>
+  1694→              <SelectContent>
+  1695→                <SelectItem value="true">Aktif</SelectItem>
+  1696→                <SelectItem value="false">Nonaktif</SelectItem>
+  1697→              </SelectContent>
+  1698→            </Select>
+  1699→          </div>
+  1700→          {/* Upload KTA Photo */}
+  1701→          <div className="space-y-2">
+  1702→            <Label>Foto KTA (Kartu Tanda Anggota)</Label>
+  1703→            <div className="flex items-center gap-2">
+  1704→              {form.ktaPhotoUrl ? (
+  1705→                <img src={form.ktaPhotoUrl} alt="KTA" className="w-24 h-24 rounded-xl object-cover border-2 border-orange-300 shadow-sm" />
+  1706→              ) : (
+  1707→                <div className="w-24 h-24 rounded-xl bg-muted flex items-center justify-center"><FileText className="w-8 h-8 text-muted-foreground" /></div>
+  1708→              )}
+  1709→              <label className="cursor-pointer text-xs text-blue-600 hover:underline">
+  1710→                {form.ktaPhotoUrl ? 'Ganti KTA' : 'Upload KTA'}
+  1711→                <input type="file" accept="image/jpeg,image/png" className="hidden" onChange={(e) => { setKtaFile(e.target.files?.[0] || null); if (e.target.files?.[0]) { const r = new FileReader(); r.onload = (ev) => setForm({ ...form, ktaPhotoUrl: ev.target?.result }); r.readAsDataURL(e.target.files[0]); } }} />
+  1712→              </label>
+  1713→              {ktaFile && <span className="text-xs text-muted-foreground">{ktaFile.name}</span>}
+  1714→            </div>
+  1715→            <p className="text-xs text-muted-foreground">Format: JPG/PNG, maksimal 2MB</p>
+  1716→          </div>
+  1717→          {/* Upload Biodata */}
+  1718→          <div className="space-y-2">
+  1719→            <Label>Biodata (PDF/JPG/PNG)</Label>
+  1720→            <div className="flex items-center gap-2">
+  1721→              {form.biodataUrl ? (
+  1722→                <a href={form.biodataUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">Lihat Biodata ↗</a>
+  1723→              ) : (
+  1724→                <span className="text-xs text-muted-foreground">Belum ada biodata</span>
+  1725→              )}
+  1726→              <label className="cursor-pointer text-xs text-emerald-600 hover:underline">
+  1727→                {form.biodataUrl ? 'Ganti Biodata' : 'Upload Biodata'}
+  1728→                <input type="file" accept=".pdf,image/jpeg,image/png" className="hidden" onChange={(e) => { setBiodataFile(e.target.files?.[0] || null); if (e.target.files?.[0]) { const r = new FileReader(); r.onload = (ev) => setForm({ ...form, biodataUrl: ev.target?.result }); r.readAsDataURL(e.target.files[0]); } }} />
+  1729→              </label>
+  1730→              {biodataFile && <span className="text-xs text-muted-foreground">{biodataFile.name}</span>}
+  1731→            </div>
+  1732→            <p className="text-xs text-muted-foreground">Format: PDF/JPG/PNG, maksimal 5MB</p>
+  1733→          </div>
+  1734→          <DialogFooter>
+  1735→            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Batal</Button>
+  1736→            <Button type="submit" disabled={loading} className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
+  1737→              {loading ? 'Menyimpan...' : 'Simpan Perubahan'}
+  1738→            </Button>
+  1739→          </DialogFooter>
+  1740→        </form>
+  1741→      </DialogContent>
+  1742→    </Dialog>
+  1743→  )
+  1744→}
+  1745→
+  1746→function AddMemberDialog({ open, onOpenChange, territoryId, onSuccess }: any) {
+  1747→  const addToast = useToastStore((s) => s.addToast)
+  1748→  const [form, setForm] = useState({ fullName: '', nik: '', phone: '', email: '', profession: '', gender: '', shirtSize: '', territoryId })
+  1749→  const [loading, setLoading] = useState(false)
+  1750→
+  1751→  const handleSubmit = async (e: React.FormEvent) => {
+  1752→    e.preventDefault(); setLoading(true)
+  1753→    try {
+  1754→      await api('/api/members', { method: 'POST', body: JSON.stringify({ ...form, status: 'PENDING' }) })
+  1755→      setForm({ fullName: '', nik: '', phone: '', email: '', profession: '', gender: '', shirtSize: '', territoryId })
+  1756→      onSuccess()
+  1757→    } catch (e: any) { addToast(e.message, 'error') } finally { setLoading(false) }
+  1758→  }
+  1759→
+  1760→  return (
+  1761→    <Dialog open={open} onOpenChange={onOpenChange}>
+  1762→      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+  1763→        <DialogHeader><DialogTitle>Tambah Anggota</DialogTitle><DialogDescription>Nomor KTA otomatis di-generate</DialogDescription></DialogHeader>
+  1764→        <form onSubmit={handleSubmit} className="space-y-3">
+  1765→          <div className="space-y-2"><Label>Nama Lengkap *</Label><Input value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} required /></div>
+  1766→          <div className="grid grid-cols-2 gap-3">
+  1767→            <div className="space-y-2"><Label>NIK (16 digit)</Label><Input value={form.nik} onChange={(e) => setForm({ ...form, nik: e.target.value.replace(/\D/g, '').slice(0, 16) })} placeholder="16 digit" /></div>
+  1768→            <div className="space-y-2"><Label>WhatsApp *</Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="628xxx" required /></div>
+  1769→          </div>
+  1770→          <div className="grid grid-cols-2 gap-3">
+  1771→            <div className="space-y-2"><Label>Jenis Kelamin</Label><Select value={form.gender} onValueChange={(v) => setForm({ ...form, gender: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="L">Laki-laki</SelectItem><SelectItem value="P">Perempuan</SelectItem></SelectContent></Select></div>
+  1772→            <div className="space-y-2"><Label>Ukuran Kemeja</Label><Select value={form.shirtSize} onValueChange={(v) => setForm({ ...form, shirtSize: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{['S', 'M', 'L', 'XL', 'XXL', 'XXXL'].map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select></div>
+  1773→          </div>
+  1774→          <div className="space-y-2"><Label>Profesi</Label><Input value={form.profession} onChange={(e) => setForm({ ...form, profession: e.target.value })} /></div>
+  1775→          <DialogFooter><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Batal</Button><Button type="submit" disabled={loading}>{loading ? 'Menyimpan...' : 'Simpan'}</Button></DialogFooter>
+  1776→        </form>
+  1777→      </DialogContent>
+  1778→    </Dialog>
+  1779→  )
+  1780→}
+  1781→
+  1782→function EditMemberDialog({ member, onOpenChange, onSuccess }: any) {
+  1783→  const addToast = useToastStore((s) => s.addToast)
+  1784→  const [form, setForm] = useState<any>({})
+  1785→  const [loading, setLoading] = useState(false)
+  1786→
+  1787→  useEffect(() => {
+  1788→    if (member) setForm({ fullName: member.fullName, nik: member.nik || '', phone: member.phone, email: member.email || '', profession: member.profession || '', status: member.status })
+  1789→  }, [member])
+  1790→
+  1791→  if (!member) return null
+  1792→
+  1793→  const handleSubmit = async (e: React.FormEvent) => {
+  1794→    e.preventDefault(); setLoading(true)
+  1795→    try { await api(`/api/members/${member.id}`, { method: 'PUT', body: JSON.stringify(form) }); onSuccess() }
+  1796→    catch (e: any) { addToast(e.message, 'error') } finally { setLoading(false) }
+  1797→  }
+  1798→
+  1799→  return (
+  1800→    <Dialog open={!!member} onOpenChange={(o) => !o && onOpenChange(false)}>
+  1801→      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+  1802→        <DialogHeader><DialogTitle>Edit Anggota</DialogTitle></DialogHeader>
+  1803→        <form onSubmit={handleSubmit} className="space-y-3">
+  1804→          <div className="space-y-2"><Label>Nama Lengkap *</Label><Input value={form.fullName || ''} onChange={(e) => setForm({ ...form, fullName: e.target.value })} required /></div>
+  1805→          <div className="grid grid-cols-2 gap-3">
+  1806→            <div className="space-y-2"><Label>NIK</Label><Input value={form.nik || ''} onChange={(e) => setForm({ ...form, nik: e.target.value })} /></div>
+  1807→            <div className="space-y-2"><Label>WhatsApp</Label><Input value={form.phone || ''} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
+  1808→          </div>
+  1809→          <div className="space-y-2"><Label>Status</Label><Select value={form.status || 'PENDING'} onValueChange={(v) => setForm({ ...form, status: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="PENDING">Menunggu</SelectItem><SelectItem value="ACTIVE">Aktif</SelectItem><SelectItem value="INACTIVE">Nonaktif</SelectItem></SelectContent></Select></div>
+  1810→          <DialogFooter><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Batal</Button><Button type="submit" disabled={loading}>{loading ? 'Menyimpan...' : 'Simpan'}</Button></DialogFooter>
+  1811→        </form>
+  1812→      </DialogContent>
+  1813→    </Dialog>
+  1814→  )
+  1815→}
+  1816→
+  1817→function UploadSKDialogSimple({ open, onOpenChange, territoryId, territoryFilter, onSuccess }: any) {
+  1818→  const addToast = useToastStore((s) => s.addToast)
+  1819→  const user = useAuthStore((s) => s.user)!
+  1820→  const [form, setForm] = useState({ skNumber: '', title: '', issuedAt: '', issuedBy: '' })
+  1821→  const [file, setFile] = useState<File | null>(null)
+  1822→  const [loading, setLoading] = useState(false)
+  1823→  const [territories, setTerritories] = useState<Territory[]>([])
+  1824→  const [selectedTerritory, setSelectedTerritory] = useState(territoryId || '')
+  1825→
+  1826→  useEffect(() => {
+  1827→    if (open && !territoryId) {
+  1828→      api('/api/territory').then((all) => {
+  1829→        const levelMap: Record<string, string> = { DPN: 'COUNTRY', DPD: 'PROVINCE', DPC: 'REGENCY' }
+  1830→        const targetLevel = territoryFilter ? levelMap[territoryFilter.level === 'COUNTRY' ? 'DPN' : territoryFilter.level === 'PROVINCE' ? 'DPD' : 'DPC'] : null
+  1831→        if (targetLevel) {
+  1832→          setTerritories(all.filter((t: Territory) => t.level === targetLevel && t.isActive))
+  1833→        }
+  1834→      }).catch(() => {})
+  1835→    }
+  1836→  }, [open])
+  1837→
+  1838→  const handleSubmit = async (e: React.FormEvent) => {
+  1839→    e.preventDefault()
+  1840→    const targetTerritory = territoryId || selectedTerritory
+  1841→    if (!targetTerritory) { addToast('Pilih wilayah dulu', 'error'); return }
+  1842→
+  1843→    setLoading(true)
+  1844→    try {
+  1845→      const formData = new FormData()
+  1846→      if (file) formData.append('file', file)
+  1847→      formData.append('territoryId', targetTerritory)
+  1848→      formData.append('skNumber', form.skNumber || `SK-${Date.now()}`)
+  1849→      formData.append('title', form.title)
+  1850→      formData.append('issuedAt', form.issuedAt || new Date().toISOString())
+  1851→      formData.append('issuedBy', form.issuedBy || 'Unknown')
+  1852→
+  1853→      const res = await fetch('/api/sk/upload', { method: 'POST', headers: { 'x-user-id': user?.id || '' }, body: formData })
+  1854→      const data = await res.json()
+  1855→      if (!res.ok || !data.success) throw new Error(data.error || 'Upload gagal')
+  1856→
+  1857→      addToast(data.message || 'SK berhasil diunggah', 'success')
+  1858→      setForm({ skNumber: '', title: '', issuedAt: '', issuedBy: '' }); setFile(null)
+  1859→      onSuccess()
+  1860→    } catch (e: any) { addToast(e.message, 'error') } finally { setLoading(false) }
+  1861→  }
+  1862→
+  1863→  return (
+  1864→    <Dialog open={open} onOpenChange={onOpenChange}>
+  1865→      <DialogContent className="max-w-lg">
+  1866→        <DialogHeader><DialogTitle>Upload SK</DialogTitle><DialogDescription>OCR otomatis akan mengekstrak teks & metadata</DialogDescription></DialogHeader>
+  1867→        <form onSubmit={handleSubmit} className="space-y-3">
+  1868→          <div className="border-2 border-dashed rounded-lg p-4 text-center">
+  1869→            <input type="file" className="hidden" id="sk-file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+  1870→            {file ? (
+  1871→              <div><FileCheck className="w-8 h-8 text-emerald-600 mx-auto mb-1" /><div className="text-sm font-medium">{file.name}</div><Button type="button" variant="link" size="sm" onClick={() => document.getElementById('sk-file')?.click()}>Ganti</Button></div>
+  1872→            ) : (
+  1873→              <div><Upload className="w-8 h-8 text-gray-400 mx-auto mb-1" /><div className="text-sm">Drag & drop atau <Button type="button" variant="link" className="p-0 h-auto" onClick={() => document.getElementById('sk-file')?.click()}>pilih file</Button></div><div className="text-xs text-muted-foreground">PDF, JPG, PNG, DOC</div></div>
+  1874→            )}
+  1875→          </div>
+  1876→          <div className="space-y-2"><Label>Judul SK *</Label><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required /></div>
+  1877→          <div className="grid grid-cols-2 gap-3">
+  1878→            <div className="space-y-2"><Label>Nomor SK</Label><Input value={form.skNumber} onChange={(e) => setForm({ ...form, skNumber: e.target.value })} /></div>
+  1879→            <div className="space-y-2"><Label>Tanggal</Label><Input type="date" value={form.issuedAt} onChange={(e) => setForm({ ...form, issuedAt: e.target.value })} /></div>
+  1880→          </div>
+  1881→          {!territoryId && territories.length > 0 && (
+  1882→            <div className="space-y-2"><Label>Wilayah</Label><Select value={selectedTerritory} onValueChange={setSelectedTerritory}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{territories.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent></Select></div>
+  1883→          )}
+  1884→          <div className="space-y-2"><Label>Penerbit</Label><Input value={form.issuedBy} onChange={(e) => setForm({ ...form, issuedBy: e.target.value })} /></div>
+  1885→          <DialogFooter><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Batal</Button><Button type="submit" disabled={loading}>{loading ? 'Uploading...' : 'Upload'}</Button></DialogFooter>
+  1886→        </form>
+  1887→      </DialogContent>
+  1888→    </Dialog>
+  1889→  )
+  1890→}
+  1891→
+  1892→function AddTerritoryDialog({ open, onOpenChange, level, parentId: defaultParentId, onSuccess }: any) {
+  1893→  const addToast = useToastStore((s) => s.addToast)
+  1894→  const [form, setForm] = useState({ code: '', name: '', level: level || 'PROVINCE', category: 'DOMESTIC', parentId: defaultParentId || '' })
+  1895→  const [loading, setLoading] = useState(false)
+  1896→  const [countries, setCountries] = useState<Territory[]>([])
+  1897→
+  1898→  useEffect(() => {
+  1899→    if (open) {
+  1900→      api('/api/territory?level=COUNTRY').then(setCountries).catch(() => {})
+  1901→      setForm((f) => ({ ...f, level: level || 'PROVINCE', parentId: defaultParentId || f.parentId }))
+  1902→    }
+  1903→  }, [open, level, defaultParentId])
+  1904→
+  1905→  const handleSubmit = async (e: React.FormEvent) => {
+  1906→    e.preventDefault(); setLoading(true)
+  1907→    try {
+  1908→      await api('/api/territory', { method: 'POST', body: JSON.stringify({ ...form, parentId: form.parentId || null }) })
+  1909→      setForm({ code: '', name: '', level: level || 'PROVINCE', category: 'DOMESTIC', parentId: defaultParentId || '' })
+  1910→      onSuccess()
+  1911→    } catch (e: any) { addToast(e.message, 'error') } finally { setLoading(false) }
+  1912→  }
+  1913→
+  1914→  const isDPC = (level || form.level) === 'REGENCY'
+  1915→
+  1916→  return (
+  1917→    <Dialog open={open} onOpenChange={onOpenChange}>
+  1918→      <DialogContent className="max-w-md">
+  1919→        <DialogHeader><DialogTitle>{isDPC ? 'Tambah DPC' : 'Tambah DPD'}</DialogTitle></DialogHeader>
+  1920→        <form onSubmit={handleSubmit} className="space-y-3">
+  1921→          <div className="grid grid-cols-2 gap-3">
+  1922→            <div className="space-y-2"><Label>Kode *</Label><Input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })} required /></div>
+  1923→            <div className="space-y-2"><Label>Nama *</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></div>
+  1924→          </div>
+  1925→          {/* Untuk DPD: pilih negara induk. Untuk DPC: parentId sudah di-set dari selectedDpdId */}
+  1926→          {!isDPC ? (
+  1927→            <div className="space-y-2"><Label>Negara Induk</Label><Select value={form.parentId || ''} onValueChange={(v) => setForm({ ...form, parentId: v })}><SelectTrigger><SelectValue placeholder="Pilih negara..." /></SelectTrigger><SelectContent>{countries.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent></Select></div>
+  1928→          ) : (
+  1929→            <div className="rounded-lg bg-blue-50 border border-blue-200 p-2 text-xs text-blue-800">
+  1930→              <strong>DPC akan otomatis terikat ke DPD yang dipilih.</strong> Kode DPC harus diawali kode DPD parent.
+  1931→            </div>
+  1932→          )}
+  1933→          <div className="space-y-2"><Label>Kategori</Label><Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="DOMESTIC">Domestik</SelectItem><SelectItem value="INTERNATIONAL">Internasional</SelectItem></SelectContent></Select></div>
+  1934→          <DialogFooter><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Batal</Button><Button type="submit" disabled={loading}>{loading ? 'Menyimpan...' : 'Simpan'}</Button></DialogFooter>
+  1935→        </form>
+  1936→      </DialogContent>
+  1937→    </Dialog>
+  1938→  )
+  1939→}
+  1940→
+  1941→// ============================================================
+  1942→// EDIT TERRITORY DIALOG - Modal async untuk edit DPD/DPC
+  1943→// ============================================================
+  1944→function EditTerritoryDialog({ territory, onOpenChange, onSuccess }: any) {
+  1945→  const addToast = useToastStore((s) => s.addToast)
+  1946→  const [form, setForm] = useState<any>({})
+  1947→  const [loading, setLoading] = useState(false)
+  1948→
+  1949→  useEffect(() => {
+  1950→    if (territory) {
+  1951→      setForm({
+  1952→        code: territory.code,
+  1953→        name: territory.name,
+  1954→        level: territory.level,
+  1955→        category: territory.category,
+  1956→        parentId: territory.parentId || '',
+  1957→        isActive: territory.isActive,
+  1958→      })
+  1959→    }
+  1960→  }, [territory])
+  1961→
+  1962→  if (!territory) return null
+  1963→
+  1964→  const handleSubmit = async (e: React.FormEvent) => {
+  1965→    e.preventDefault(); setLoading(true)
+  1966→    try {
+  1967→      await api(`/api/territory/${territory.id}`, {
+  1968→        method: 'PUT',
+  1969→        body: JSON.stringify(form),
+  1970→      })
+  1971→      onSuccess()
+  1972→    } catch (e: any) { addToast(e.message, 'error') } finally { setLoading(false) }
+  1973→  }
+  1974→
+  1975→  const label = territory.level === 'PROVINCE' ? 'DPD' : 'DPC'
+  1976→
+  1977→  return (
+  1978→    <Dialog open={!!territory} onOpenChange={(o) => !o && onOpenChange(false)}>
+  1979→      <DialogContent className="max-w-md">
+  1980→        <DialogHeader>
+  1981→          <DialogTitle>Edit {label}</DialogTitle>
+  1982→          <DialogDescription>Edit data wilayah <strong>{territory.name}</strong></DialogDescription>
+  1983→        </DialogHeader>
+  1984→        <form onSubmit={handleSubmit} className="space-y-3">
+  1985→          <div className="grid grid-cols-2 gap-3">
+  1986→            <div className="space-y-2"><Label>Kode</Label><Input value={form.code || ''} onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })} /></div>
+  1987→            <div className="space-y-2"><Label>Nama *</Label><Input value={form.name || ''} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></div>
+  1988→          </div>
+  1989→          <div className="space-y-2"><Label>Kategori</Label><Select value={form.category || 'DOMESTIC'} onValueChange={(v) => setForm({ ...form, category: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="DOMESTIC">Domestik</SelectItem><SelectItem value="INTERNATIONAL">Internasional</SelectItem></SelectContent></Select></div>
+  1990→          <div className="space-y-2"><Label>Status</Label><Select value={form.isActive ? 'true' : 'false'} onValueChange={(v) => setForm({ ...form, isActive: v === 'true' })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="true">Aktif</SelectItem><SelectItem value="false">Nonaktif</SelectItem></SelectContent></Select></div>
+  1991→          <DialogFooter><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Batal</Button><Button type="submit" disabled={loading}>{loading ? 'Menyimpan...' : 'Simpan Perubahan'}</Button></DialogFooter>
+  1992→        </form>
+  1993→      </DialogContent>
+  1994→    </Dialog>
+  1995→  )
+  1996→}
+  1997→

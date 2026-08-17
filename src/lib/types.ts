@@ -58,12 +58,11 @@ export const KALBAR_REGENCIES = [
   { code: '06', name: 'Kabupaten Tayan', isCity: false },
 ] as const
 
-// Default 6 Menu (events, finance, logistics dihapus sesuai permintaan user)
+// Default 5 Menu (membership + organization digabung jadi keanggotaan-struktur)
 export const DEFAULT_MENUS = [
   { key: 'pusat-admin', label: 'Pusat Admin', icon: 'ShieldCheck', order: 1, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_DPD,ADMIN_DPC' },
   { key: 'territory', label: 'Manajemen Wilayah', icon: 'Map', order: 2, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_DPD' },
-  { key: 'membership', label: 'Data Keanggotaan', icon: 'Users', order: 3, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_DPD,ADMIN_DPC' },
-  { key: 'organization', label: 'Struktur Pengurus & SK', icon: 'Building2', order: 4, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_DPD,ADMIN_DPC' },
+  { key: 'keanggotaan-struktur', label: 'Keanggotaan & Pengurus', icon: 'Users', order: 3, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_DPD,ADMIN_DPC' },
   { key: 'communication', label: 'Komunikasi & Broadcast', icon: 'Megaphone', order: 7, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_DPD,ADMIN_DPC' },
   { key: 'help', label: 'Pusat Bantuan', icon: 'LifeBuoy', order: 9, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_DPD,ADMIN_DPC' },
 ] as const

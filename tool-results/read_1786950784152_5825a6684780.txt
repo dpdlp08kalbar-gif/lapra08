@@ -1,0 +1,1997 @@
+     1→'use client'
+     2→
+     3→import { useState, useEffect, useRef } from 'react'
+     4→import { api } from '@/lib/api-client'
+     5→import { PageHeader, LoadingState, ErrorState, EmptyState, StatCard } from '@/components/ui-helpers'
+     6→import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+     7→import { Badge } from '@/components/ui/badge'
+     8→import { Button } from '@/components/ui/button'
+     9→import { Input } from '@/components/ui/input'
+    10→import { Label } from '@/components/ui/label'
+    11→import { Textarea } from '@/components/ui/textarea'
+    12→import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+    13→import {
+    14→  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+    15→} from '@/components/ui/dialog'
+    16→import {
+    17→  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+    18→} from '@/components/ui/select'
+    19→import {
+    20→  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+    21→} from '@/components/ui/dropdown-menu'
+    22→import {
+    23→  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+    24→  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+    25→} from '@/components/ui/alert-dialog'
+    26→import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+    27→import {
+    28→  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+    29→} from '@/components/ui/table'
+    30→import { useToastStore, useAuthStore } from '@/lib/store'
+    31→import { formatDateID, formatDateTimeID } from '@/lib/format'
+    32→import {
+    33→  Database, Crown, Building, MapPin, Users, FileText, Plus, Edit, Trash2,
+    34→  MoreVertical, Upload, Phone, Mail, User, ArrowLeft, Search, Building2,
+    35→  ShieldCheck, FileCheck, ScanText, Lock, ChevronRight, Layers, Loader2,
+    36→  Eye, Download, Clock,
+    37→} from 'lucide-react'
+    38→
+    39→// ============================================================
+    40→// TIPE DATA
+    41→// ============================================================
+    42→interface Territory {
+    43→  id: string; code: string; name: string; level: string; category: string
+    44→  parentId: string | null; isActive: boolean; canEdit?: boolean
+    45→  _count?: { children: number; members: number; users: number }
+    46→}
+    47→
+    48→interface OrgPosition {
+    49→  id: string; fullName: string; positionName: string; level: string
+    50→  territoryId: string; territory: { id: string; name: string; code: string }
+    51→  phone: string | null; email: string | null; photoUrl: string | null
+    52→  ktaPhotoUrl: string | null; ktaNumber: string | null; biodataUrl: string | null
+    53→  startDate: string | null; isActive: boolean; order: number
+    54→}
+    55→
+    56→interface Member {
+    57→  id: string; memberNumber: string; fullName: string; nik: string | null
+    58→  phone: string; email: string | null; shirtSize: string | null
+    59→  profession: string | null; gender: string | null
+    60→  territoryId: string; territory: { id: string; name: string; code: string }
+    61→  status: string; registeredAt: string; canEdit?: boolean
+    62→}
+    63→
+    64→interface SKDocument {
+    65→  id: string; skNumber: string; title: string; description: string | null
+    66→  fileUrl: string; fileName: string | null; fileType: string | null
+    67→  fileSize: number | null; ocrStatus: string; extractedText: string | null
+    68→  ocrMetadata: string | null; issuedAt: string; issuedBy: string
+    69→  territoryId: string; territory: { id: string; name: string; code: string }
+    70→}
+    71→
+    72→const LEVEL_LABELS: Record<string, string> = {
+    73→  DPN: 'DPN (Pusat Nasional)', DPD: 'DPD (Provinsi)', DPC: 'DPC (Kabupaten/Kota)',
+    74→}
+    75→const LEVEL_COLORS: Record<string, string> = {
+    76→  DPN: 'bg-purple-100 text-purple-700 border-purple-200',
+    77→  DPD: 'bg-blue-100 text-blue-700 border-blue-200',
+    78→  DPC: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+    79→}
+    80→
+    81→const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
+    82→  PENDING: { label: 'Menunggu', color: 'bg-amber-100 text-amber-700 border-amber-200' },
+    83→  VERIFIED: { label: 'Terverifikasi', color: 'bg-blue-100 text-blue-700 border-blue-200' },
+    84→  ACTIVE: { label: 'Aktif', color: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
+    85→  REJECTED: { label: 'Ditolak', color: 'bg-red-100 text-red-700 border-red-200' },
+    86→  INACTIVE: { label: 'Nonaktif', color: 'bg-gray-100 text-gray-700 border-gray-200' },
+    87→}
+    88→
+    89→// ============================================================
+    90→// KOMPONEN UTAMA - Landing page dengan 3 kartu menu
+    91→// ============================================================
+    92→export function PusatDataMenu() {
+    93→  const [page, setPage] = useState<'landing' | 'dpn' | 'dpd' | 'dpc'>('landing')
+    94→  const [selectedDpd, setSelectedDpd] = useState<Territory | null>(null)
+    95→  const [selectedDpc, setSelectedDpc] = useState<Territory | null>(null)
+    96→
+    97→  if (page === 'dpn') {
+    98→    return <DpnPage onBack={() => setPage('landing')} />
+    99→  }
+   100→  if (page === 'dpd') {
+   101→    if (selectedDpd) {
+   102→      return <DpdDetailPage dpd={selectedDpd} onBack={() => { setSelectedDpd(null); setPage('dpd') }} />
+   103→    }
+   104→    return <DpdListPage onBack={() => setPage('landing')} onSelectDpd={setSelectedDpd} />
+   105→  }
+   106→  if (page === 'dpc') {
+   107→    if (selectedDpc) {
+   108→      return <DpcDetailPage dpc={selectedDpc} onBack={() => { setSelectedDpc(null); setPage('dpc') }} />
+   109→    }
+   110→    return <DpcListPage onBack={() => setPage('landing')} onSelectDpc={setSelectedDpc} />
+   111→  }
+   112→
+   113→  // Landing page dengan 3 kartu besar
+   114→  return (
+   115→    <div className="space-y-6">
+   116→      <PageHeader
+   117→        title="Pusat Data Organisasi"
+   118→        description="Pilih tingkat kepengurusan untuk mengelola data wilayah, pengurus, anggota & SK"
+   119→        icon={Database}
+   120→      />
+   121→
+   122→      {/* 3 Kartu Menu Utama - BISA DIKLIK */}
+   123→      <div className="grid gap-4 md:grid-cols-3">
+   124→        <MenuCard
+   125→          title="DPN"
+   126→          subtitle="Pusat Nasional"
+   127→          description="Struktur Susunan Pengurus DPN + Upload SK"
+   128→          color="purple"
+   129→          icon={Crown}
+   130→          onClick={() => setPage('dpn')}
+   131→        />
+   132→        <MenuCard
+   133→          title="DPD"
+   134→          subtitle="Provinsi"
+   135→          description="Daftar DPD se-Indonesia + Luar Negeri"
+   136→          color="blue"
+   137→          icon={Building}
+   138→          onClick={() => setPage('dpd')}
+   139→        />
+   140→        <MenuCard
+   141→          title="DPC"
+   142→          subtitle="Kabupaten/Kota"
+   143→          description="Daftar DPC per DPD + Pengurus & Anggota"
+   144→          color="emerald"
+   145→          icon={MapPin}
+   146→          onClick={() => setPage('dpc')}
+   147→        />
+   148→      </div>
+   149→
+   150→      {/* Info anti-duplikasi */}
+   151→      <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-3">
+   152→        <div className="flex items-start gap-3">
+   153→          <Database className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+   154→          <div className="text-sm">
+   155→            <div className="font-semibold text-emerald-900">Sistem Anti-Duplikasi Aktif</div>
+   156→            <div className="text-emerald-700 mt-1">
+   157→              Hierarki: DPN (Pusat Nasional) → DPD (Provinsi) → DPC (Kabupaten/Kota).
+   158→              DPN membawahi semua DPD, setiap DPD membawahi DPC-DPC di provinsinya.
+   159→            </div>
+   160→          </div>
+   161→        </div>
+   162→      </div>
+   163→    </div>
+   164→  )
+   165→}
+   166→
+   167→// Kartu menu besar yang dapat diklik
+   168→function MenuCard({
+   169→  title, subtitle, description, color, icon: Icon, onClick,
+   170→}: {
+   171→  title: string; subtitle: string; description: string
+   172→  color: 'purple' | 'blue' | 'emerald'
+   173→  icon: React.ComponentType<{ className?: string }>
+   174→  onClick: () => void
+   175→}) {
+   176→  const colors = {
+   177→    purple: 'from-purple-500 to-purple-700 hover:from-purple-600 hover:to-purple-800',
+   178→    blue: 'from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800',
+   179→    emerald: 'from-emerald-500 to-emerald-700 hover:from-emerald-600 hover:to-emerald-800',
+   180→  }
+   181→  return (
+   182→    <button
+   183→      onClick={onClick}
+   184→      className={`group relative overflow-hidden rounded-xl bg-gradient-to-br ${colors[color]} p-6 text-left text-white shadow-lg transition-all hover:scale-105 hover:shadow-xl`}
+   185→    >
+   186→      <div className="absolute top-0 right-0 opacity-10">
+   187→        <Icon className="w-32 h-32 -mr-8 -mt-8" />
+   188→      </div>
+   189→      <div className="relative z-10">
+   190→        <div className="w-14 h-14 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center mb-4">
+   191→          <Icon className="w-7 h-7" />
+   192→        </div>
+   193→        <div className="text-2xl font-black tracking-tight">{title}</div>
+   194→        <div className="text-sm opacity-90 font-medium">{subtitle}</div>
+   195→        <div className="text-xs opacity-75 mt-2">{description}</div>
+   196→        <div className="mt-4 flex items-center gap-1 text-xs font-semibold opacity-90 group-hover:gap-2 transition-all">
+   197→          Buka <ChevronRight className="w-4 h-4" />
+   198→        </div>
+   199→      </div>
+   200→    </button>
+   201→  )
+   202→}
+   203→
+   204→// ============================================================
+   205→// HALAMAN DPN - Langsung tampilkan Struktur Pengurus DPN
+   206→// ============================================================
+   207→function DpnPage({ onBack }: { onBack: () => void }) {
+   208→  return (
+   209→    <div className="space-y-4">
+   210→      <BackButton onBack={onBack} label="DPN (Pusat Nasional)" />
+   211→      <PengurusSection level="DPN" territoryFilter={{ level: 'COUNTRY' }} />
+   212→      <SKSection level="DPN" territoryFilter={{ level: 'COUNTRY' }} />
+   213→    </div>
+   214→  )
+   215→}
+   216→
+   217→// ============================================================
+   218→// HALAMAN DPD LIST - Daftar semua DPD
+   219→// ============================================================
+   220→function DpdListPage({ onBack, onSelectDpd }: { onBack: () => void; onSelectDpd: (t: Territory) => void }) {
+   221→  const user = useAuthStore((s) => s.user)!
+   222→  const addToast = useToastStore((s) => s.addToast)
+   223→  const [dpds, setDpds] = useState<Territory[]>([])
+   224→  const [loading, setLoading] = useState(true)
+   225→  const [error, setError] = useState('')
+   226→  const [search, setSearch] = useState('')
+   227→  const [addOpen, setAddOpen] = useState(false)
+   228→  const [editDpd, setEditDpd] = useState<Territory | null>(null)
+   229→  const [deleteDpd, setDeleteDpd] = useState<Territory | null>(null)
+   230→
+   231→  const loadData = () => {
+   232→    setLoading(true)
+   233→    api('/api/territory?level=PROVINCE')
+   234→      .then(setDpds)
+   235→      .catch((e) => setError(e.message))
+   236→      .finally(() => setLoading(false))
+   237→  }
+   238→  useEffect(() => { loadData() }, [])
+   239→
+   240→  const handleDelete = async () => {
+   241→    if (!deleteDpd) return
+   242→    try {
+   243→      await api(`/api/territory/${deleteDpd.id}`, { method: 'DELETE' })
+   244→      addToast(`DPD "${deleteDpd.name}" berhasil dihapus`, 'success')
+   245→      setDeleteDpd(null); loadData()
+   246→    } catch (e: any) { addToast(e.message, 'error') }
+   247→  }
+   248→
+   249→  if (loading) return <><BackButton onBack={onBack} label="DPD (Provinsi)" /><LoadingState /></>
+   250→  if (error) return <><BackButton onBack={onBack} label="DPD (Provinsi)" /><ErrorState message={error} /></>
+   251→
+   252→  const filtered = dpds.filter((d) =>
+   253→    !search || d.name.toLowerCase().includes(search.toLowerCase()) || d.code.toLowerCase().includes(search.toLowerCase())
+   254→  )
+   255→  const domestic = filtered.filter((d) => d.category === 'DOMESTIC')
+   256→  const intl = filtered.filter((d) => d.category === 'INTERNATIONAL')
+   257→
+   258→  const canManage = user.role === 'SUPERADMIN' || user.role === 'ADMIN_DPN'
+   259→
+   260→  return (
+   261→    <div className="space-y-4">
+   262→      <BackButton onBack={onBack} label="DPD (Provinsi)" />
+   263→
+   264→      {/* Toolbar */}
+   265→      <div className="flex flex-col sm:flex-row gap-2 justify-between">
+   266→        <div className="relative flex-1 max-w-md">
+   267→          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+   268→          <Input placeholder="Cari DPD..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />
+   269→        </div>
+   270→        {canManage && (
+   271→          <Button onClick={() => setAddOpen(true)} className="bg-gradient-to-r from-orange-600 to-red-600 text-white">
+   272→            <Plus className="w-4 h-4 mr-2" /> Tambah DPD
+   273→          </Button>
+   274→        )}
+   275→      </div>
+   276→
+   277→      {/* DPD Domestik */}
+   278→      <Card>
+   279→        <CardHeader>
+   280→          <CardTitle className="flex items-center gap-2 text-base">
+   281→            <Building className="w-4 h-4 text-blue-600" />
+   282→            DPD Domestik ({domestic.length})
+   283→          </CardTitle>
+   284→        </CardHeader>
+   285→        <CardContent>
+   286→          <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+   287→            {domestic.map((d) => (
+   288→              <TerritoryCard key={d.id} territory={d} onClick={() => onSelectDpd(d)} canManage={canManage} onEdit={() => setEditDpd(d)} onDelete={() => setDeleteDpd(d)} />
+   289→            ))}
+   290→          </div>
+   291→        </CardContent>
+   292→      </Card>
+   293→
+   294→      {/* DPD Luar Negeri */}
+   295→      {intl.length > 0 && (
+   296→        <Card>
+   297→          <CardHeader>
+   298→            <CardTitle className="flex items-center gap-2 text-base">
+   299→              <Building className="w-4 h-4 text-pink-600" />
+   300→              DPD Luar Negeri ({intl.length})
+   301→            </CardTitle>
+   302→          </CardHeader>
+   303→          <CardContent>
+   304→            <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+   305→              {intl.map((d) => (
+   306→                <TerritoryCard key={d.id} territory={d} onClick={() => onSelectDpd(d)} canManage={canManage} onEdit={() => setEditDpd(d)} onDelete={() => setDeleteDpd(d)} />
+   307→              ))}
+   308→            </div>
+   309→          </CardContent>
+   310→        </Card>
+   311→      )}
+   312→
+   313→      {/* Dialogs */}
+   314→      <AddTerritoryDialog open={addOpen} onOpenChange={setAddOpen} level="PROVINCE" onSuccess={loadData} />
+   315→      <EditTerritoryDialog territory={editDpd} onOpenChange={(o) => !o && setEditDpd(null)} onSuccess={() => { loadData(); setEditDpd(null); addToast('DPD diperbarui', 'success') }} />
+   316→      <AlertDialog open={!!deleteDpd} onOpenChange={(o) => !o && setDeleteDpd(null)}>
+   317→        <AlertDialogContent>
+   318→          <AlertDialogHeader>
+   319→            <AlertDialogTitle>Hapus DPD?</AlertDialogTitle>
+   320→            <AlertDialogDescription>
+   321→              Yakin hapus <strong>{deleteDpd?.name}</strong> ({deleteDpd?.code})?
+   322→              DPD yang masih memiliki DPC atau anggota tidak bisa dihapus.
+   323→            </AlertDialogDescription>
+   324→          </AlertDialogHeader>
+   325→          <AlertDialogFooter>
+   326→            <AlertDialogCancel>Batal</AlertDialogCancel>
+   327→            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">Hapus</AlertDialogAction>
+   328→          </AlertDialogFooter>
+   329→        </AlertDialogContent>
+   330→      </AlertDialog>
+   331→    </div>
+   332→  )
+   333→}
+   334→
+   335→// Reusable card untuk DPD & DPC dengan ikon Edit & Hapus
+   336→function TerritoryCard({ territory, onClick, canManage, onEdit, onDelete }: {
+   337→  territory: Territory; onClick: () => void; canManage: boolean; onEdit: () => void; onDelete: () => void
+   338→}) {
+   339→  return (
+   340→    <div className="group relative rounded-lg border p-3 hover:shadow-md transition-all cursor-pointer" onClick={onClick}>
+   341→      <div className="flex items-start justify-between gap-2">
+   342→        <div className="flex-1 min-w-0">
+   343→          <div className="font-semibold text-sm truncate">{territory.name}</div>
+   344→          <code className="text-[13px] font-mono bg-muted px-1.5 py-0.5 rounded">{territory.code}</code>
+   345→          <div className="text-xs text-muted-foreground mt-1">
+   346→            {territory._count?.children || 0} DPC • {territory._count?.members || 0} anggota
+   347→          </div>
+   348→        </div>
+   349→        <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground" />
+   350→      </div>
+   351→      {/* Ikon Edit & Hapus di sudut kanan atas */}
+   352→      {canManage && (
+   353→        <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+   354→          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-blue-600 hover:bg-blue-50" onClick={onEdit} title="Edit">
+   355→            <Edit className="w-3.5 h-3.5" />
+   356→          </Button>
+   357→          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-600 hover:bg-red-50" onClick={onDelete} title="Hapus">
+   358→            <Trash2 className="w-3.5 h-3.5" />
+   359→          </Button>
+   360→        </div>
+   361→      )}
+   362→    </div>
+   363→  )
+   364→}
+   365→
+   366→// ============================================================
+   367→// HALAMAN DPD DETAIL - Struktur Pengurus DPD + CRUD + Upload SK
+   368→// ============================================================
+   369→function DpdDetailPage({ dpd, onBack }: { dpd: Territory; onBack: () => void }) {
+   370→  return (
+   371→    <div className="space-y-4">
+   372→      <BackButton onBack={onBack} label={`DPD ${dpd.name}`} />
+   373→      <PengurusSection level="DPD" territoryId={dpd.id} />
+   374→      <SKSection level="DPD" territoryId={dpd.id} />
+   375→    </div>
+   376→  )
+   377→}
+   378→
+   379→// ============================================================
+   380→// HALAMAN DPC LIST - Filter by DPD, lalu daftar DPC
+   381→// ============================================================
+   382→function DpcListPage({ onBack, onSelectDpc }: { onBack: () => void; onSelectDpc: (t: Territory) => void }) {
+   383→  const user = useAuthStore((s) => s.user)!
+   384→  const addToast = useToastStore((s) => s.addToast)
+   385→  const [dpds, setDpds] = useState<Territory[]>([])
+   386→  const [selectedDpdId, setSelectedDpdId] = useState<string>('')
+   387→  const [dpcs, setDpcs] = useState<Territory[]>([])
+   388→  const [loading, setLoading] = useState(true)
+   389→  const [addOpen, setAddOpen] = useState(false)
+   390→  const [editDpc, setEditDpc] = useState<Territory | null>(null)
+   391→  const [deleteDpc, setDeleteDpc] = useState<Territory | null>(null)
+   392→
+   393→  const loadDpds = () => {
+   394→    api('/api/territory?level=PROVINCE').then((d) => {
+   395→      setDpds(d)
+   396→      if (user.role === 'ADMIN_DPD') {
+   397→        setSelectedDpdId(user.territoryId)
+   398→      } else if (d.length > 0) {
+   399→        const kalbar = d.find((t: Territory) => t.code === '61')
+   400→        setSelectedDpdId(kalbar?.id || d[0].id)
+   401→      }
+   402→      setLoading(false)
+   403→    }).catch(() => setLoading(false))
+   404→  }
+   405→
+   406→  useEffect(() => { loadDpds() }, [])
+   407→
+   408→  const loadDpcs = () => {
+   409→    if (selectedDpdId) {
+   410→      api(`/api/territory?parentId=${selectedDpdId}`).then(setDpcs).catch(() => setDpcs([]))
+   411→    } else {
+   412→      setDpcs([])
+   413→    }
+   414→  }
+   415→
+   416→  useEffect(() => { loadDpcs() }, [selectedDpdId])
+   417→
+   418→  const handleDelete = async () => {
+   419→    if (!deleteDpc) return
+   420→    try {
+   421→      await api(`/api/territory/${deleteDpc.id}`, { method: 'DELETE' })
+   422→      addToast(`DPC "${deleteDpc.name}" berhasil dihapus`, 'success')
+   423→      setDeleteDpc(null); loadDpcs()
+   424→    } catch (e: any) { addToast(e.message, 'error') }
+   425→  }
+   426→
+   427→  if (loading) return <><BackButton onBack={onBack} label="DPC (Kabupaten/Kota)" /><LoadingState /></>
+   428→
+   429→  const canManage = user.role === 'SUPERADMIN' || user.role === 'ADMIN_DPN' || user.role === 'ADMIN_DPD'
+   430→
+   431→  return (
+   432→    <div className="space-y-4">
+   433→      <BackButton onBack={onBack} label="DPC (Kabupaten/Kota)" />
+   434→
+   435→      {/* Filter DPD */}
+   436→      <div className="space-y-2">
+   437→        <Label>Pilih DPD (Provinsi) untuk melihat DPC</Label>
+   438→        <Select value={selectedDpdId} onValueChange={setSelectedDpdId}>
+   439→          <SelectTrigger className="w-full max-w-md"><SelectValue placeholder="Pilih DPD..." /></SelectTrigger>
+   440→          <SelectContent>
+   441→            {dpds.map((d) => (
+   442→              <SelectItem key={d.id} value={d.id}>{d.name} ({d.code})</SelectItem>
+   443→            ))}
+   444→          </SelectContent>
+   445→        </Select>
+   446→      </div>
+   447→
+   448→      {selectedDpdId && (
+   449→        <Card>
+   450→          <CardHeader>
+   451→            <div className="flex items-center justify-between flex-wrap gap-2">
+   452→              <CardTitle className="flex items-center gap-2 text-base">
+   453→                <MapPin className="w-4 h-4 text-emerald-600" />
+   454→                Daftar DPC ({dpcs.length})
+   455→              </CardTitle>
+   456→              {canManage && (
+   457→                <Button onClick={() => setAddOpen(true)} size="sm" className="bg-gradient-to-r from-orange-600 to-red-600 text-white">
+   458→                  <Plus className="w-4 h-4 mr-1" /> Tambah DPC
+   459→                </Button>
+   460→              )}
+   461→            </div>
+   462→          </CardHeader>
+   463→          <CardContent>
+   464→            {dpcs.length === 0 ? (
+   465→              <EmptyState icon={MapPin} title="Belum ada DPC" description="Belum ada DPC di DPD ini." />
+   466→            ) : (
+   467→              <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+   468→                {dpcs.map((d) => (
+   469→                  <TerritoryCard key={d.id} territory={d} onClick={() => onSelectDpc(d)} canManage={canManage} onEdit={() => setEditDpc(d)} onDelete={() => setDeleteDpc(d)} />
+   470→                ))}
+   471→              </div>
+   472→            )}
+   473→          </CardContent>
+   474→        </Card>
+   475→      )}
+   476→
+   477→      {/* Dialogs */}
+   478→      <AddTerritoryDialog open={addOpen} onOpenChange={setAddOpen} level="REGENCY" parentId={selectedDpdId} onSuccess={() => { loadDpcs(); setAddOpen(false); addToast('DPC baru ditambahkan', 'success') }} />
+   479→      <EditTerritoryDialog territory={editDpc} onOpenChange={(o) => !o && setEditDpc(null)} onSuccess={() => { loadDpcs(); setEditDpc(null); addToast('DPC diperbarui', 'success') }} />
+   480→      <AlertDialog open={!!deleteDpc} onOpenChange={(o) => !o && setDeleteDpc(null)}>
+   481→        <AlertDialogContent>
+   482→          <AlertDialogHeader>
+   483→            <AlertDialogTitle>Hapus DPC?</AlertDialogTitle>
+   484→            <AlertDialogDescription>
+   485→              Yakin hapus <strong>{deleteDpc?.name}</strong> ({deleteDpc?.code})?
+   486→              DPC yang masih memiliki anggota tidak bisa dihapus.
+   487→            </AlertDialogDescription>
+   488→          </AlertDialogHeader>
+   489→          <AlertDialogFooter>
+   490→            <AlertDialogCancel>Batal</AlertDialogCancel>
+   491→            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">Hapus</AlertDialogAction>
+   492→          </AlertDialogFooter>
+   493→        </AlertDialogContent>
+   494→      </AlertDialog>
+   495→    </div>
+   496→  )
+   497→}
+   498→
+   499→// ============================================================
+   500→// HALAMAN DPC DETAIL - 2 Tab: Pengurus + Anggota
+   501→// ============================================================
+   502→function DpcDetailPage({ dpc, onBack }: { dpc: Territory; onBack: () => void }) {
+   503→  const [tab, setTab] = useState('pengurus')
+   504→
+   505→  return (
+   506→    <div className="space-y-4">
+   507→      <BackButton onBack={onBack} label={`DPC ${dpc.name}`} />
+   508→
+   509→      <Tabs value={tab} onValueChange={setTab}>
+   510→        <TabsList className="grid w-full max-w-md grid-cols-2">
+   511→          <TabsTrigger value="pengurus">
+   512→            <Building2 className="w-4 h-4 mr-2" /> Struktur Pengurus
+   513→          </TabsTrigger>
+   514→          <TabsTrigger value="anggota">
+   515→            <Users className="w-4 h-4 mr-2" /> Daftar Anggota
+   516→          </TabsTrigger>
+   517→        </TabsList>
+   518→
+   519→        <TabsContent value="pengurus" className="mt-4">
+   520→          <PengurusSection level="DPC" territoryId={dpc.id} />
+   521→        </TabsContent>
+   522→
+   523→        <TabsContent value="anggota" className="mt-4">
+   524→          <AnggotaSection territoryId={dpc.id} />
+   525→        </TabsContent>
+   526→      </Tabs>
+   527→
+   528→      {/* Arsip SK DPC - sama seperti DPD */}
+   529→      <SKSection level="DPC" territoryId={dpc.id} />
+   530→    </div>
+   531→  )
+   532→}
+   533→
+   534→// ============================================================
+   535→// SECTION PENGURUS (Reusable untuk DPN/DPD/DPC)
+   536→// ============================================================
+   537→function PengurusSection({ level, territoryId, territoryFilter }: {
+   538→  level: string; territoryId?: string; territoryFilter?: { level: string }
+   539→}) {
+   540→  const user = useAuthStore((s) => s.user)!
+   541→  const addToast = useToastStore((s) => s.addToast)
+   542→  const [positions, setPositions] = useState<OrgPosition[]>([])
+   543→  const [loading, setLoading] = useState(true)
+   544→  const [error, setError] = useState('')
+   545→  const [addOpen, setAddOpen] = useState(false)
+   546→  const [editPos, setEditPos] = useState<OrgPosition | null>(null)
+   547→  const [deletePos, setDeletePos] = useState<OrgPosition | null>(null)
+   548→
+   549→  const loadData = () => {
+   550→    setLoading(true)
+   551→    api('/api/organization').then((all) => {
+   552→      let filtered = all.filter((p: OrgPosition) => p.level === level)
+   553→      if (territoryId) {
+   554→        filtered = filtered.filter((p: OrgPosition) => p.territoryId === territoryId)
+   555→      } else if (territoryFilter) {
+   556→        filtered = filtered.filter((p: OrgPosition) => p.territory?.level === territoryFilter.level)
+   557→      }
+   558→      setPositions(filtered)
+   559→    }).catch((e) => setError(e.message)).finally(() => setLoading(false))
+   560→  }
+   561→  useEffect(() => { loadData() }, [])
+   562→
+   563→  // Listen for pengurus-updated event (from sync/bulk operations)
+   564→  useEffect(() => {
+   565→    const handler = () => loadData()
+   566→    window.addEventListener('pengurus-updated', handler)
+   567→    return () => window.removeEventListener('pengurus-updated', handler)
+   568→  }, [])
+   569→
+   570→  const handleDelete = async () => {
+   571→    if (!deletePos) return
+   572→    try {
+   573→      await api(`/api/organization/${deletePos.id}`, { method: 'DELETE' })
+   574→      addToast(`Pengurus "${deletePos.fullName}" berhasil dihapus`, 'success')
+   575→      setDeletePos(null); loadData()
+   576→    } catch (e: any) { addToast(e.message, 'error') }
+   577→  }
+   578→
+   579→  if (loading) return <LoadingState />
+   580→  if (error) return <ErrorState message={error} />
+   581→
+   582→  const canManage = user.role === 'SUPERADMIN' || user.role === 'ADMIN_DPN' ||
+   583→    (user.role === 'ADMIN_DPD' && (level === 'DPD' || level === 'DPC')) ||
+   584→    (user.role === 'ADMIN_DPC' && level === 'DPC')
+   585→
+   586→  // === Group pengurus by category ===
+   587→  const sorted = [...positions].sort((a, b) => (a.order || 0) - (b.order || 0))
+   588→
+   589→  const getCategory = (pos: string): string => {
+   590→    const p = pos.toLowerCase()
+   591→    if (p.includes('ketua') && !p.includes('wakil')) return 'PIMPINAN UTAMA'
+   592→    if (p.includes('wakil ketua')) return 'WAKIL KETUA'
+   593→    if (p.includes('sekretaris') || p.includes('bendahara')) return 'SEKRETARIAT & KEUANGAN'
+   594→    if (p.includes('bidang') || p.includes('humas') || p.includes('kaderisasi') ||
+   595→        p.includes('pemuda') || p.includes('pemberdayaan') || p.includes('ekonomi') ||
+   596→        p.includes('hukum') || p.includes('advokasi') || p.includes('litigasi') ||
+   597→        p.includes('etik') || p.includes('kerukunan') || p.includes('lembaga') ||
+   598→        p.includes('program') || p.includes('ketenagakerjaan') || p.includes('kepemudaan'))
+   599→      return 'BIDANG-BIDANG'
+   600→    if (p.includes('penasihat') || p.includes('pembina') || p.includes('pelindung'))
+   601→      return 'DEWAN PENASIHAT'
+   602→    return 'LAINNYA'
+   603→  }
+   604→
+   605→  const categoryOrder = ['PIMPINAN UTAMA', 'WAKIL KETUA', 'SEKRETARIAT & KEUANGAN', 'BIDANG-BIDANG', 'DEWAN PENASIHAT', 'LAINNYA']
+   606→  const categoryColors: Record<string, string> = {
+   607→    'PIMPINAN UTAMA': 'from-red-500 to-orange-600',
+   608→    'WAKIL KETUA': 'from-orange-400 to-amber-500',
+   609→    'SEKRETARIAT & KEUANGAN': 'from-blue-500 to-cyan-600',
+   610→    'BIDANG-BIDANG': 'from-emerald-500 to-teal-600',
+   611→    'DEWAN PENASIHAT': 'from-purple-500 to-indigo-600',
+   612→    'LAINNYA': 'from-slate-400 to-slate-500',
+   613→  }
+   614→
+   615→  const grouped: Record<string, OrgPosition[]> = {}
+   616→  for (const p of sorted) {
+   617→    const cat = getCategory(p.positionName)
+   618→    if (!grouped[cat]) grouped[cat] = []
+   619→    grouped[cat].push(p)
+   620→  }
+   621→
+   622→  // Helper: handle KTA photo upload (base64)
+   623→  const handleKtaUpload = async (positionId: string, file: File) => {
+   624→    if (!file.type.startsWith('image/')) { addToast('File KTA harus berupa gambar (JPG/PNG)', 'error'); return }
+   625→    if (file.size > 2 * 1024 * 1024) { addToast('Ukuran KTA maksimal 2MB', 'error'); return }
+   626→    try {
+   627→      const buf = Buffer.from(await file.arrayBuffer())
+   628→      const mime = file.type || 'image/jpeg'
+   629→      const dataUrl = `data:${mime};base64,${buf.toString('base64')}`
+   630→      await api(`/api/organization/${positionId}`, { method: 'PUT', body: JSON.stringify({ ktaPhotoUrl: dataUrl }) })
+   631→      addToast('Foto KTA berhasil diupload', 'success')
+   632→      loadData()
+   633→    } catch (e: any) { addToast(e.message, 'error') }
+   634→  }
+   635→
+   636→  // Helper: handle Biodata upload (base64)
+   637→  const handleBiodataUpload = async (positionId: string, file: File) => {
+   638→    const allowed = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg']
+   639→    if (!allowed.includes(file.type) && !file.name.match(/\.(pdf|jpg|jpeg|png)$/i)) {
+   640→      addToast('File biodata harus PDF/JPG/PNG', 'error'); return
+   641→    }
+   642→    if (file.size > 5 * 1024 * 1024) { addToast('Ukuran biodata maksimal 5MB', 'error'); return }
+   643→    try {
+   644→      const buf = Buffer.from(await file.arrayBuffer())
+   645→      const mime = file.type || (file.name.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg')
+   646→      const dataUrl = `data:${mime};base64,${buf.toString('base64')}`
+   647→      await api(`/api/organization/${positionId}`, { method: 'PUT', body: JSON.stringify({ biodataUrl: dataUrl }) })
+   648→      addToast('Biodata berhasil diupload', 'success')
+   649→      loadData()
+   650→    } catch (e: any) { addToast(e.message, 'error') }
+   651→  }
+   652→
+   653→  // PengurusCard component
+   654→  const PengurusCard = ({ p }: { p: OrgPosition }) => (
+   655→    <div className="group relative flex flex-col p-3 rounded-lg border hover:shadow-md transition-all bg-white">
+   656→      <div className="flex items-start gap-3">
+   657→        {/* Avatar: KTA photo if available, else initial */}
+   658→        <div className="relative shrink-0">
+   659→          {p.ktaPhotoUrl ? (
+   660→            <img src={p.ktaPhotoUrl} alt={p.fullName} className="w-20 h-20 rounded-xl object-cover border-2 border-orange-300 shadow-sm" />
+   661→          ) : (
+   662→            <div className="w-20 h-20 rounded-xl bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center text-white text-xl font-bold shadow-sm">
+   663→              {p.fullName !== '-' ? p.fullName.charAt(0).toUpperCase() : '?'}
+   664→            </div>
+   665→          )}
+   666→          {canManage && (
+   667→            <label className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-blue-600 hover:bg-blue-700 flex items-center justify-center cursor-pointer" title="Upload KTA">
+   668→              <Upload className="w-3 h-3 text-white" />
+   669→              <input type="file" accept="image/jpeg,image/png" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleKtaUpload(p.id, f); e.target.value = '' }} />
+   670→            </label>
+   671→          )}
+   672→        </div>
+   673→        <div className="flex-1 min-w-0">
+   674→          <div className="font-semibold text-sm truncate">{p.fullName}</div>
+   675→          <div className="text-xs text-orange-600 font-medium mt-0.5">{p.positionName}</div>
+   676→          {/* Nomor KTA — di bawah jabatan, di atas WA */}
+   677→          {p.ktaNumber && p.ktaNumber !== '-' && (
+   678→            <div className="flex items-center gap-1 mt-0.5 text-xs">
+   679→              <Badge variant="outline" className="text-[11px] bg-indigo-50 text-indigo-700 border-indigo-200 font-mono">
+   680→                KTA: {p.ktaNumber}
+   681→              </Badge>
+   682→            </div>
+   683→          )}
+   684→          {p.phone && (
+   685→            <a href={`https://wa.me/${p.phone.replace(/\D/g, '').replace(/^0/, '62')}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 mt-1 text-xs text-blue-600 hover:underline">
+   686→              <Phone className="w-3 h-3" /> {p.phone}
+   687→            </a>
+   688→          )}
+   689→          {p.email && p.email !== '-' && (
+   690→            <div className="flex items-center gap-1 mt-0.5 text-xs text-muted-foreground">
+   691→              <Mail className="w-3 h-3" /> {p.email}
+   692→            </div>
+   693→          )}
+   694→          {/* Upload Biodata button */}
+   695→          {canManage && (
+   696→            <label className="inline-flex items-center gap-1 mt-1.5 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded hover:bg-emerald-100 cursor-pointer" title="Upload Biodata (PDF/JPG/PNG, max 5MB)">
+   697→              <FileText className="w-3 h-3" />
+   698→              {p.biodataUrl ? 'Lihat Biodata' : 'Upload Biodata'}
+   699→              {p.biodataUrl && (
+   700→                <a href={p.biodataUrl} target="_blank" rel="noopener noreferrer" className="ml-1 text-blue-600 hover:underline" onClick={(e) => e.stopPropagation()}>↗</a>
+   701→              )}
+   702→              <input type="file" accept=".pdf,image/jpeg,image/png" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleBiodataUpload(p.id, f); e.target.value = '' }} />
+   703→            </label>
+   704→          )}
+   705→          {p.biodataUrl && !canManage && (
+   706→            <a href={p.biodataUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 mt-1.5 text-xs text-emerald-700 hover:underline">
+   707→              <FileText className="w-3 h-3" /> Lihat Biodata
+   708→            </a>
+   709→          )}
+   710→        </div>
+   711→        {canManage && (
+   712→          <div className="flex gap-1 shrink-0">
+   713→            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-blue-600 hover:bg-blue-50" onClick={() => setEditPos(p)} title="Edit Jabatan & Data">
+   714→              <Edit className="w-3.5 h-3.5" />
+   715→            </Button>
+   716→            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-600 hover:bg-red-50" onClick={() => setDeletePos(p)} title="Hapus Pengurus">
+   717→              <Trash2 className="w-3.5 h-3.5" />
+   718→            </Button>
+   719→          </div>
+   720→        )}
+   721→      </div>
+   722→    </div>
+   723→  )
+   724→
+   725→  return (
+   726→    <Card>
+   727→      <CardHeader>
+   728→        <div className="flex items-center justify-between flex-wrap gap-2">
+   729→          <CardTitle className="flex items-center gap-2 text-base">
+   730→            <Building2 className="w-4 h-4 text-orange-600" />
+   731→            Struktur Pengurus {level}
+   732→            <Badge variant="outline" className="text-xs">{positions.length} pengurus</Badge>
+   733→          </CardTitle>
+   734→          {canManage && (
+   735→            <Button onClick={() => setAddOpen(true)} size="sm" className="bg-gradient-to-r from-orange-600 to-red-600 text-white">
+   736→              <Plus className="w-4 h-4 mr-1" /> Tambah Pengurus
+   737→            </Button>
+   738→          )}
+   739→        </div>
+   740→      </CardHeader>
+   741→      <CardContent>
+   742→        {positions.length === 0 ? (
+   743→          <EmptyState icon={Building2} title="Belum ada pengurus" description={`Tambah pengurus ${level} baru, atau upload SK lalu klik "Sinkronkan ke Pengurus".`} />
+   744→        ) : (
+   745→          <div className="space-y-6">
+   746→            {categoryOrder.map((cat) => {
+   747→              const members = grouped[cat]
+   748→              if (!members || members.length === 0) return null
+   749→              const gradient = categoryColors[cat] || 'from-slate-400 to-slate-500'
+   750→
+   751→              // Special layout for PIMPINAN UTAMA (center, large cards)
+   752→              if (cat === 'PIMPINAN UTAMA') {
+   753→                return (
+   754→                  <div key={cat} className="space-y-2">
+   755→                    <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gradient-to-r ${gradient} text-white text-xs font-bold uppercase tracking-wide`}>
+   756→                      <Crown className="w-3 h-3" /> {cat}
+   757→                    </div>
+   758→                    <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+   759→                      {members.map((p) => (
+   760→                        <div key={p.id} className="group relative p-4 rounded-xl border-2 border-orange-200 bg-gradient-to-br from-orange-50 to-red-50 hover:shadow-lg transition-all">
+   761→                          <div className="flex items-center gap-3">
+   762→                            <div className="relative shrink-0">
+   763→                              {p.ktaPhotoUrl ? (
+   764→                                <img src={p.ktaPhotoUrl} alt={p.fullName} className="w-24 h-24 rounded-xl object-cover border-2 border-orange-300 shadow-md" />
+   765→                              ) : (
+   766→                                <div className="w-24 h-24 rounded-xl bg-gradient-to-br from-red-500 to-orange-600 flex items-center justify-center text-white text-2xl font-bold shadow-md">
+   767→                                  {p.fullName !== '-' ? p.fullName.charAt(0).toUpperCase() : '?'}
+   768→                                </div>
+   769→                              )}
+   770→                              {canManage && (
+   771→                                <label className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-blue-600 hover:bg-blue-700 flex items-center justify-center cursor-pointer" title="Upload KTA">
+   772→                                  <Upload className="w-3 h-3 text-white" />
+   773→                                  <input type="file" accept="image/jpeg,image/png" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleKtaUpload(p.id, f); e.target.value = '' }} />
+   774→                                </label>
+   775→                              )}
+   776→                            </div>
+   777→                            <div className="flex-1 min-w-0">
+   778→                              <div className="font-bold text-sm truncate">{p.fullName}</div>
+   779→                              <div className="text-xs text-orange-700 font-semibold mt-0.5">{p.positionName}</div>
+   780→                              {/* Nomor KTA — di bawah jabatan, di atas WA */}
+   781→                              {p.ktaNumber && p.ktaNumber !== '-' && (
+   782→                                <div className="flex items-center gap-1 mt-0.5">
+   783→                                  <Badge variant="outline" className="text-[11px] bg-indigo-50 text-indigo-700 border-indigo-200 font-mono">
+   784→                                    KTA: {p.ktaNumber}
+   785→                                  </Badge>
+   786→                                </div>
+   787→                              )}
+   788→                              {p.phone && (
+   789→                                <a href={`https://wa.me/${p.phone.replace(/\D/g, '').replace(/^0/, '62')}`}
+   790→                                   target="_blank" rel="noopener noreferrer"
+   791→                                   className="flex items-center gap-1 mt-1 text-xs text-blue-600 hover:underline">
+   792→                                  <Phone className="w-3 h-3" /> {p.phone}
+   793→                                </a>
+   794→                              )}
+   795→                              {p.email && p.email !== '-' && (
+   796→                                <div className="flex items-center gap-1 mt-0.5 text-xs text-muted-foreground">
+   797→                                  <Mail className="w-3 h-3" /> {p.email}
+   798→                                </div>
+   799→                              )}
+   800→                              {canManage && (
+   801→                                <label className="inline-flex items-center gap-1 mt-1.5 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded hover:bg-emerald-100 cursor-pointer" title="Upload Biodata">
+   802→                                  <FileText className="w-3 h-3" />
+   803→                                  {p.biodataUrl ? 'Lihat Biodata' : 'Upload Biodata'}
+   804→                                  {p.biodataUrl && (<a href={p.biodataUrl} target="_blank" rel="noopener noreferrer" className="ml-1 text-blue-600 hover:underline" onClick={(e) => e.stopPropagation()}>↗</a>)}
+   805→                                  <input type="file" accept=".pdf,image/jpeg,image/png" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleBiodataUpload(p.id, f); e.target.value = '' }} />
+   806→                                </label>
+   807→                              )}
+   808→                            </div>
+   809→                          </div>
+   810→                          {canManage && (
+   811→                            <div className="absolute top-2 right-2 flex gap-1">
+   812→                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-blue-600 hover:bg-blue-50" onClick={() => setEditPos(p)} title="Edit">
+   813→                                <Edit className="w-3.5 h-3.5" />
+   814→                              </Button>
+   815→                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-600 hover:bg-red-50" onClick={() => setDeletePos(p)} title="Hapus">
+   816→                                <Trash2 className="w-3.5 h-3.5" />
+   817→                              </Button>
+   818→                            </div>
+   819→                          )}
+   820→                        </div>
+   821→                      ))}
+   822→                    </div>
+   823→                  </div>
+   824→                )
+   825→              }
+   826→
+   827→              // Default layout for other categories
+   828→              return (
+   829→                <div key={cat} className="space-y-2">
+   830→                  <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gradient-to-r ${gradient} text-white text-xs font-bold uppercase tracking-wide`}>
+   831→                    {cat} <span className="opacity-80">({members.length})</span>
+   832→                  </div>
+   833→                  <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+   834→                    {members.map((p) => (
+   835→                      <PengurusCard key={p.id} p={p} />
+   836→                    ))}
+   837→                  </div>
+   838→                </div>
+   839→              )
+   840→            })}
+   841→          </div>
+   842→        )}
+   843→      </CardContent>
+   844→
+   845→      {/* Dialogs */}
+   846→      <AddPositionDialog
+   847→        open={addOpen} onOpenChange={setAddOpen}
+   848→        defaultLevel={level}
+   849→        territoryId={territoryId}
+   850→        territoryFilter={territoryFilter}
+   851→        onSuccess={() => { loadData(); setAddOpen(false); addToast('Pengurus baru ditambahkan', 'success') }}
+   852→      />
+   853→      <EditPositionDialog
+   854→        position={editPos}
+   855→        onOpenChange={(o) => !o && setEditPos(null)}
+   856→        onSuccess={() => { loadData(); setEditPos(null); addToast('Pengurus diperbarui', 'success') }}
+   857→      />
+   858→      <AlertDialog open={!!deletePos} onOpenChange={(o) => !o && setDeletePos(null)}>
+   859→        <AlertDialogContent>
+   860→          <AlertDialogHeader>
+   861→            <AlertDialogTitle className="flex items-center gap-2">
+   862→              <Trash2 className="w-5 h-5 text-red-600" /> Hapus Pengurus?
+   863→            </AlertDialogTitle>
+   864→            <AlertDialogDescription>
+   865→              Yakin hapus <strong>{deletePos?.fullName}</strong> dari jabatan <strong>{deletePos?.positionName}</strong>?
+   866→              <br />Tindakan ini tidak dapat dibatalkan.
+   867→            </AlertDialogDescription>
+   868→          </AlertDialogHeader>
+   869→          <AlertDialogFooter>
+   870→            <AlertDialogCancel>Batal</AlertDialogCancel>
+   871→            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">
+   872→              <Trash2 className="w-4 h-4 mr-1" /> Ya, Hapus
+   873→            </AlertDialogAction>
+   874→          </AlertDialogFooter>
+   875→        </AlertDialogContent>
+   876→      </AlertDialog>
+   877→    </Card>
+   878→  )
+   879→}
+   880→
+   881→// ============================================================
+   882→// SECTION ANGGOTA (Reusable untuk DPC)
+   883→// ============================================================
+   884→function AnggotaSection({ territoryId }: { territoryId: string }) {
+   885→  const user = useAuthStore((s) => s.user)!
+   886→  const addToast = useToastStore((s) => s.addToast)
+   887→  const [members, setMembers] = useState<Member[]>([])
+   888→  const [loading, setLoading] = useState(true)
+   889→  const [error, setError] = useState('')
+   890→  const [addOpen, setAddOpen] = useState(false)
+   891→  const [editMem, setEditMem] = useState<Member | null>(null)
+   892→  const [deleteMem, setDeleteMem] = useState<Member | null>(null)
+   893→  const [search, setSearch] = useState('')
+   894→
+   895→  const loadData = () => {
+   896→    setLoading(true)
+   897→    api(`/api/members?territoryId=${territoryId}`)
+   898→      .then(setMembers).catch((e) => setError(e.message)).finally(() => setLoading(false))
+   899→  }
+   900→  useEffect(() => { loadData() }, [territoryId])
+   901→
+   902→  const handleDelete = async () => {
+   903→    if (!deleteMem) return
+   904→    try {
+   905→      await api(`/api/members/${deleteMem.id}`, { method: 'DELETE' })
+   906→      addToast('Anggota dihapus', 'success'); setDeleteMem(null); loadData()
+   907→    } catch (e: any) { addToast(e.message, 'error') }
+   908→  }
+   909→
+   910→  if (loading) return <LoadingState />
+   911→  if (error) return <ErrorState message={error} />
+   912→
+   913→  const canManage = user.role === 'SUPERADMIN' || user.role === 'ADMIN_DPN' ||
+   914→    user.role === 'ADMIN_DPD' || user.role === 'ADMIN_DPC'
+   915→
+   916→  const filtered = members.filter((m) =>
+   917→    !search || m.fullName.toLowerCase().includes(search.toLowerCase()) ||
+   918→    m.memberNumber.toLowerCase().includes(search.toLowerCase()) ||
+   919→    (m.nik || '').includes(search)
+   920→  )
+   921→
+   922→  return (
+   923→    <Card>
+   924→      <CardHeader>
+   925→        <div className="flex items-center justify-between">
+   926→          <CardTitle className="flex items-center gap-2 text-base">
+   927→            <Users className="w-4 h-4 text-emerald-600" />
+   928→            Daftar Anggota
+   929→            <Badge variant="outline" className="text-xs">{members.length} anggota</Badge>
+   930→          </CardTitle>
+   931→          {canManage && (
+   932→            <Button onClick={() => setAddOpen(true)} size="sm" className="bg-gradient-to-r from-orange-600 to-red-600 text-white">
+   933→              <Plus className="w-4 h-4 mr-1" /> Tambah Anggota
+   934→            </Button>
+   935→          )}
+   936→        </div>
+   937→      </CardHeader>
+   938→      <CardContent className="space-y-3">
+   939→        <div className="relative max-w-md">
+   940→          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+   941→          <Input placeholder="Cari nama, NIK, atau nomor KTA..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />
+   942→        </div>
+   943→
+   944→        {filtered.length === 0 ? (
+   945→          <EmptyState icon={Users} title="Belum ada anggota" />
+   946→        ) : (
+   947→          <div className="overflow-x-auto">
+   948→            <Table>
+   949→              <TableHeader>
+   950→                <TableRow>
+   951→                  <TableHead>Nomor KTA</TableHead>
+   952→                  <TableHead>Nama</TableHead>
+   953→                  <TableHead>WhatsApp</TableHead>
+   954→                  <TableHead>Status</TableHead>
+   955→                  {canManage && <TableHead className="text-right">Aksi</TableHead>}
+   956→                </TableRow>
+   957→              </TableHeader>
+   958→              <TableBody>
+   959→                {filtered.map((m) => {
+   960→                  const status = STATUS_CONFIG[m.status] || STATUS_CONFIG.PENDING
+   961→                  return (
+   962→                    <TableRow key={m.id} className="group">
+   963→                      <TableCell><code className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{m.memberNumber}</code></TableCell>
+   964→                      <TableCell className="font-medium">
+   965→                        {m.fullName}
+   966→                        {m.nik && <div className="text-xs text-muted-foreground">NIK: {m.nik}</div>}
+   967→                      </TableCell>
+   968→                      <TableCell>{m.phone}</TableCell>
+   969→                      <TableCell><Badge variant="outline" className={`text-xs ${status.color}`}>{status.label}</Badge></TableCell>
+   970→                      {canManage && (
+   971→                        <TableCell className="text-right">
+   972→                          <DropdownMenu>
+   973→                            <DropdownMenuTrigger asChild>
+   974→                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+   975→                                <MoreVertical className="w-4 h-4" />
+   976→                              </Button>
+   977→                            </DropdownMenuTrigger>
+   978→                            <DropdownMenuContent align="end">
+   979→                              <DropdownMenuItem onClick={() => setEditMem(m)}>
+   980→                                <Edit className="w-4 h-4 mr-2" /> Edit Anggota
+   981→                              </DropdownMenuItem>
+   982→                              <DropdownMenuItem onClick={() => addToast('Upload foto/KTA - fitur coming soon', 'info')}>
+   983→                                <Upload className="w-4 h-4 mr-2" /> Upload Foto/KTA
+   984→                              </DropdownMenuItem>
+   985→                              <DropdownMenuSeparator />
+   986→                              <DropdownMenuItem onClick={() => setDeleteMem(m)} className="text-red-600">
+   987→                                <Trash2 className="w-4 h-4 mr-2" /> Hapus
+   988→                              </DropdownMenuItem>
+   989→                            </DropdownMenuContent>
+   990→                          </DropdownMenu>
+   991→                        </TableCell>
+   992→                      )}
+   993→                    </TableRow>
+   994→                  )
+   995→                })}
+   996→              </TableBody>
+   997→            </Table>
+   998→          </div>
+   999→        )}
+  1000→      </CardContent>
+  1001→
+  1002→      {/* Dialogs */}
+  1003→      <AddMemberDialog
+  1004→        open={addOpen} onOpenChange={setAddOpen}
+  1005→        territoryId={territoryId}
+  1006→        onSuccess={() => { loadData(); setAddOpen(false); addToast('Anggota baru ditambahkan', 'success') }}
+  1007→      />
+  1008→      <EditMemberDialog
+  1009→        member={editMem}
+  1010→        onOpenChange={(o) => !o && setEditMem(null)}
+  1011→        onSuccess={() => { loadData(); setEditMem(null); addToast('Anggota diperbarui', 'success') }}
+  1012→      />
+  1013→      <AlertDialog open={!!deleteMem} onOpenChange={(o) => !o && setDeleteMem(null)}>
+  1014→        <AlertDialogContent>
+  1015→          <AlertDialogHeader>
+  1016→            <AlertDialogTitle>Hapus Anggota?</AlertDialogTitle>
+  1017→            <AlertDialogDescription>Yakin hapus <strong>{deleteMem?.fullName}</strong>?</AlertDialogDescription>
+  1018→          </AlertDialogHeader>
+  1019→          <AlertDialogFooter>
+  1020→            <AlertDialogCancel>Batal</AlertDialogCancel>
+  1021→            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">Hapus</AlertDialogAction>
+  1022→          </AlertDialogFooter>
+  1023→        </AlertDialogContent>
+  1024→      </AlertDialog>
+  1025→    </Card>
+  1026→  )
+  1027→}
+  1028→
+  1029→// ============================================================
+  1030→// SECTION SK (Reusable untuk DPN/DPD/DPC)
+  1031→// ============================================================
+  1032→function SKSection({ level, territoryId, territoryFilter }: {
+  1033→  level: string; territoryId?: string; territoryFilter?: { level: string }
+  1034→}) {
+  1035→  const user = useAuthStore((s) => s.user)!
+  1036→  const addToast = useToastStore((s) => s.addToast)
+  1037→  const [docs, setDocs] = useState<SKDocument[]>([])
+  1038→  const [loading, setLoading] = useState(true)
+  1039→  const [uploadOpen, setUploadOpen] = useState(false)
+  1040→  const [deleteDoc, setDeleteDoc] = useState<SKDocument | null>(null)
+  1041→  // OCR auto-extract state
+  1042→  const [ocrLoading, setOcrLoading] = useState(false)
+  1043→  const [ocrPreview, setOcrPreview] = useState<any>(null)
+  1044→
+  1045→  const loadData = () => {
+  1046→    setLoading(true)
+  1047→    api('/api/sk').then((all) => {
+  1048→      let filtered = all
+  1049→      if (territoryId) {
+  1050→        filtered = all.filter((d: SKDocument) => d.territoryId === territoryId)
+  1051→      } else if (territoryFilter) {
+  1052→        filtered = all.filter((d: SKDocument) => d.territory.level === territoryFilter.level)
+  1053→      }
+  1054→      setDocs(filtered)
+  1055→    }).catch(() => {}).finally(() => setLoading(false))
+  1056→  }
+  1057→  useEffect(() => { loadData() }, [])
+  1058→
+  1059→  const handleDelete = async () => {
+  1060→    if (!deleteDoc) return
+  1061→    try {
+  1062→      await api(`/api/sk/${deleteDoc.id}`, { method: 'DELETE' })
+  1063→      addToast('SK dihapus', 'success'); setDeleteDoc(null); loadData()
+  1064→    } catch (e: any) { addToast(e.message, 'error') }
+  1065→  }
+  1066→
+  1067→  // === Handler: Sinkronkan SK yang sudah diupload ke Struktur Pengurus ===
+  1068→  // User klik tombol "Sinkronkan" per SK di daftar arsip
+  1069→  // → panggil /api/sk/[id]/sync-pengurus → dapat daftar pengurus
+  1070→  // → tampilkan OcrPreviewDialog → user klik tombol "Sinkronkan ke Struktur Pengurus"
+  1071→  const [syncLoading, setSyncLoading] = useState<string | null>(null)
+  1072→  const handleSyncPengurus = async (skId: string) => {
+  1073→    setSyncLoading(skId)
+  1074→    try {
+  1075→      const res = await fetch(`/api/sk/${skId}/sync-pengurus`, {
+  1076→        method: 'POST',
+  1077→        headers: { 'x-user-id': user?.id || '' },
+  1078→      })
+  1079→      const data = await res.json()
+  1080→      if (!res.ok || !data.success) {
+  1081→        throw new Error(data.error || 'Gagal sync pengurus')
+  1082→      }
+  1083→
+  1084→      if (data.data.pengurus && data.data.pengurus.length > 0) {
+  1085→        // Tampilkan dialog preview dengan daftar pengurus
+  1086→        setOcrPreview(data.data)
+  1087→        addToast(`Berhasil ekstrak ${data.data.pengurus.length} pengurus dari SK. Klik tombol hijau untuk sinkronkan.`, 'success')
+  1088→      } else {
+  1089→        addToast('OCR selesai, tidak ada pengurus terdeteksi dari SK ini.', 'info')
+  1090→      }
+  1091→    } catch (e: any) {
+  1092→      addToast(`Gagal sync: ${e.message}`, 'error')
+  1093→    } finally {
+  1094→      setSyncLoading(null)
+  1095→    }
+  1096→  }
+  1097→
+  1098→  if (loading) return <LoadingState />
+  1099→
+  1100→  const canManage = user.role === 'SUPERADMIN' || user.role === 'ADMIN_DPN' ||
+  1101→    (user.role === 'ADMIN_DPD' && (level === 'DPD' || level === 'DPC')) ||
+  1102→    (user.role === 'ADMIN_DPC' && level === 'DPC')
+  1103→
+  1104→  // Handler: Upload SK + OCR Extract Pengurus
+  1105→  const handleOcrExtract = async (file: File) => {
+  1106→    setOcrLoading(true)
+  1107→    try {
+  1108→      const formData = new FormData()
+  1109→      formData.append('file', file)
+  1110→      formData.append('territoryId', territoryId || '')
+  1111→      formData.append('level', level)
+  1112→
+  1113→      const res = await fetch('/api/sk/extract-pengurus', {
+  1114→        method: 'POST',
+  1115→        headers: { 'x-user-id': user?.id || '' },
+  1116→        body: formData,
+  1117→      })
+  1118→      const data = await res.json()
+  1119→      if (!res.ok || !data.success) throw new Error(data.error || 'OCR gagal')
+  1120→
+  1121→      if (data.data.pengurus.length > 0) {
+  1122→        setOcrPreview(data.data)
+  1123→        addToast(`Berhasil ekstrak ${data.data.pengurus.length} pengurus dari SK`, 'success')
+  1124→      } else {
+  1125→        addToast('OCR selesai, tidak ada pengurus terdeteksi. SK tersimpan sebagai arsip.', 'info')
+  1126→      }
+  1127→      loadData()
+  1128→    } catch (e: any) {
+  1129→      addToast(e.message, 'error')
+  1130→    } finally {
+  1131→      setOcrLoading(false)
+  1132→    }
+  1133→  }
+  1134→
+  1135→  // Handler: Confirm extracted pengurus → bulk create records (fast, single API call)
+  1136→  const handleConfirmExtract = async (pengurusList: any[]) => {
+  1137→    if (!territoryId) {
+  1138→      addToast('Territory ID tidak ditemukan. Pilih wilayah dulu.', 'error')
+  1139→      return
+  1140→    }
+  1141→    try {
+  1142→      // Build multiline text in format "Nama - Jabatan" for bulk API
+  1143→      const pengurusText = pengurusList
+  1144→        .map((p) => `${p.fullName || ''} - ${p.positionName || 'Pengurus'}`)
+  1145→        .join('\n')
+  1146→
+  1147→      // Call bulk endpoint with territoryId + level
+  1148→      const res = await fetch('/api/organization/bulk', {
+  1149→        method: 'POST',
+  1150→        headers: { 'Content-Type': 'application/json', 'x-user-id': user?.id || '' },
+  1151→        body: JSON.stringify({
+  1152→          territoryId,
+  1153→          level,
+  1154→          pengurusText,
+  1155→        }),
+  1156→      })
+  1157→      const data = await res.json()
+  1158→      if (!res.ok || !data.success) throw new Error(data.error)
+  1159→
+  1160→      const { totalCreated, totalSkipped, totalErrors } = data.data
+  1161→      addToast(
+  1162→        `✅ Sinkronisasi selesai! ${totalCreated} pengurus ${level} ditambahkan ke Struktur Pengurus. ${totalSkipped} duplikat di-skip. ${totalErrors} error.`,
+  1163→        'success'
+  1164→      )
+  1165→      setOcrPreview(null)
+  1166→      // Trigger reload of pengurus list di parent component
+  1167→      window.dispatchEvent(new Event('pengurus-updated'))
+  1168→    } catch (e: any) {
+  1169→      addToast(e.message, 'error')
+  1170→    }
+  1171→  }
+  1172→
+  1173→  return (
+  1174→    <Card>
+  1175→      <CardHeader>
+  1176→        <div className="flex items-center justify-between flex-wrap gap-2">
+  1177→          <CardTitle className="flex items-center gap-2 text-base">
+  1178→            <FileText className="w-4 h-4 text-indigo-600" />
+  1179→            Arsip SK {level}
+  1180→            <Badge variant="outline" className="text-xs">{docs.length} dokumen</Badge>
+  1181→          </CardTitle>
+  1182→          {canManage && (
+  1183→            <div className="flex gap-2 flex-wrap">
+  1184→              {/* Upload SK biasa */}
+  1185→              <Button onClick={() => setUploadOpen(true)} size="sm" variant="outline">
+  1186→                <Upload className="w-4 h-4 mr-1" /> Upload SK
+  1187→              </Button>
+  1188→              {/* Upload SK + Extract — auto-sync ke Struktur Pengurus */}
+  1189→              <OcrExtractButton onFileSelected={handleOcrExtract} loading={ocrLoading} level={level} />
+  1190→            </div>
+  1191→          )}
+  1192→        </div>
+  1193→      </CardHeader>
+  1194→      <CardContent>
+  1195→        {docs.length === 0 ? (
+  1196→          <EmptyState icon={FileText} title="Belum ada SK" description="Upload SK untuk arsip digital dengan OCR." />
+  1197→        ) : (
+  1198→          <div className="grid gap-2 md:grid-cols-2">
+  1199→            {docs.map((d) => (
+  1200→              <div key={d.id} className="group flex items-start gap-3 p-3 rounded-lg border">
+  1201→                <div className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center shrink-0">
+  1202→                  <FileText className="w-5 h-5 text-indigo-600" />
+  1203→                </div>
+  1204→                <div className="flex-1 min-w-0">
+  1205→                  <div className="font-medium text-sm truncate">{d.title}</div>
+  1206→                  <code className="text-[13px] font-mono bg-muted px-1 rounded">{d.skNumber}</code>
+  1207→                  <div className="text-xs text-muted-foreground mt-1">
+  1208→                    {d.issuedBy} • {formatDateID(d.issuedAt)}
+  1209→                    {d.fileSize && ` • ${(d.fileSize / 1024).toFixed(0)} KB`}
+  1210→                  </div>
+  1211→                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+  1212→                    <a
+  1213→                      href={`/api/sk/${d.id}/download`}
+  1214→                      target="_blank"
+  1215→                      rel="noopener noreferrer"
+  1216→                      className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 hover:underline"
+  1217→                    >
+  1218→                      <Eye className="w-3 h-3" /> Lihat
+  1219→                    </a>
+  1220→                    <a
+  1221→                      href={`/api/sk/${d.id}/download?download=1`}
+  1222→                      className="inline-flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-800 hover:underline"
+  1223→                    >
+  1224→                      <Download className="w-3 h-3" /> Unduh
+  1225→                    </a>
+  1226→                    {canManage && (
+  1227→                      <button
+  1228→                        onClick={() => handleSyncPengurus(d.id)}
+  1229→                        disabled={syncLoading === d.id}
+  1230→                        className="inline-flex items-center gap-1 text-xs text-orange-700 bg-orange-50 border border-orange-200 px-2 py-1 rounded hover:bg-orange-100 disabled:opacity-50 disabled:cursor-not-allowed"
+  1231→                        title="Ekstrak pengurus dari SK ini & sinkronkan ke Struktur Pengurus di atas"
+  1232→                      >
+  1233→                        {syncLoading === d.id ? (
+  1234→                          <><Loader2 className="w-3 h-3 animate-spin" /> Memproses...</>
+  1235→                        ) : (
+  1236→                          <><Users className="w-3 h-3" /> Sinkronkan ke Pengurus</>
+  1237→                        )}
+  1238→                      </button>
+  1239→                    )}
+  1240→                    {d.ocrStatus === 'COMPLETED' && (
+  1241→                      <Badge variant="outline" className="text-[13px] bg-emerald-50 text-emerald-700 border-emerald-200">
+  1242→                        <FileCheck className="w-3 h-3 mr-1" /> OCR Selesai
+  1243→                      </Badge>
+  1244→                    )}
+  1245→                    {d.ocrStatus === 'PENDING' && (
+  1246→                      <Badge variant="outline" className="text-[13px] bg-amber-50 text-amber-700 border-amber-200">
+  1247→                        <Clock className="w-3 h-3 mr-1" /> OCR Pending
+  1248→                      </Badge>
+  1249→                    )}
+  1250→                  </div>
+  1251→                </div>
+  1252→                {canManage && (
+  1253→                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 text-red-600" onClick={() => setDeleteDoc(d)}>
+  1254→                    <Trash2 className="w-4 h-4" />
+  1255→                  </Button>
+  1256→                )}
+  1257→              </div>
+  1258→            ))}
+  1259→          </div>
+  1260→        )}
+  1261→      </CardContent>
+  1262→
+  1263→      <UploadSKDialogSimple
+  1264→        open={uploadOpen} onOpenChange={setUploadOpen}
+  1265→        territoryId={territoryId}
+  1266→        territoryFilter={territoryFilter}
+  1267→        onSuccess={() => { loadData(); setUploadOpen(false); addToast('SK diupload, OCR diproses', 'success') }}
+  1268→      />
+  1269→      <AlertDialog open={!!deleteDoc} onOpenChange={(o) => !o && setDeleteDoc(null)}>
+  1270→        <AlertDialogContent>
+  1271→          <AlertDialogHeader>
+  1272→            <AlertDialogTitle>Hapus SK?</AlertDialogTitle>
+  1273→            <AlertDialogDescription>Yakin hapus <strong>{deleteDoc?.title}</strong>?</AlertDialogDescription>
+  1274→          </AlertDialogHeader>
+  1275→          <AlertDialogFooter>
+  1276→            <AlertDialogCancel>Batal</AlertDialogCancel>
+  1277→            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">Hapus</AlertDialogAction>
+  1278→          </AlertDialogFooter>
+  1279→        </AlertDialogContent>
+  1280→      </AlertDialog>
+  1281→
+  1282→      {/* OCR Preview Dialog - tampilkan hasil ekstrak pengurus dari SK */}
+  1283→      <OcrPreviewDialog
+  1284→        preview={ocrPreview}
+  1285→        onClose={() => setOcrPreview(null)}
+  1286→        onConfirm={handleConfirmExtract}
+  1287→      />
+  1288→    </Card>
+  1289→  )
+  1290→}
+  1291→
+  1292→// ============================================================
+  1293→// OCR EXTRACT BUTTON - Upload SK + auto-extract pengurus via OCR
+  1294→// ============================================================
+  1295→function OcrExtractButton({ onFileSelected, loading, level }: {
+  1296→  onFileSelected: (file: File) => void
+  1297→  loading: boolean
+  1298→  level: string
+  1299→}) {
+  1300→  const inputRef = useRef<HTMLInputElement>(null)
+  1301→
+  1302→  return (
+  1303→    <>
+  1304→      <input
+  1305→        ref={inputRef}
+  1306→        type="file"
+  1307→        className="hidden"
+  1308→        accept=".pdf,.jpg,.jpeg,.png,.webp,.tif,.tiff"
+  1309→        onChange={(e) => {
+  1310→          const f = e.target.files?.[0]
+  1311→          if (f) onFileSelected(f)
+  1312→          if (inputRef.current) inputRef.current.value = ''
+  1313→        }}
+  1314→      />
+  1315→      <Button
+  1316→        onClick={() => inputRef.current?.click()}
+  1317→        size="sm"
+  1318→        className="bg-gradient-to-r from-orange-600 to-red-600 text-white"
+  1319→        disabled={loading}
+  1320→      >
+  1321→        {loading ? (
+  1322→          <>
+  1323→            <Loader2 className="w-4 h-4 mr-1 animate-spin" /> OCR Processing...
+  1324→          </>
+  1325→        ) : (
+  1326→          <>
+  1327→            <ScanText className="w-4 h-4 mr-1" /> Upload SK + Extract
+  1328→          </>
+  1329→        )}
+  1330→      </Button>
+  1331→    </>
+  1332→  )
+  1333→}
+  1334→
+  1335→// ============================================================
+  1336→// OCR PREVIEW DIALOG - Preview extracted pengurus before saving
+  1337→// ============================================================
+  1338→function OcrPreviewDialog({ preview, onClose, onConfirm }: {
+  1339→  preview: any
+  1340→  onClose: () => void
+  1341→  onConfirm: (pengurus: any[]) => void
+  1342→}) {
+  1343→  const [editable, setEditable] = useState<any[]>([])
+  1344→  const addToast = useToastStore((s) => s.addToast)
+  1345→
+  1346→  useEffect(() => {
+  1347→    if (preview?.pengurus) {
+  1348→      setEditable(preview.pengurus.map((p: any, i: number) => ({ ...p, id: i, selected: true })))
+  1349→    }
+  1350→  }, [preview])
+  1351→
+  1352→  if (!preview) return null
+  1353→
+  1354→  const handleConfirm = () => {
+  1355→    const selected = editable.filter((p) => p.selected && p.fullName?.trim())
+  1356→    if (selected.length === 0) {
+  1357→      addToast('Pilih minimal 1 pengurus untuk disimpan', 'warning')
+  1358→      return
+  1359→    }
+  1360→    onConfirm(selected)
+  1361→  }
+  1362→
+  1363→  return (
+  1364→    <Dialog open={!!preview} onOpenChange={(o) => !o && onClose()}>
+  1365→      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+  1366→        <DialogHeader>
+  1367→          <DialogTitle className="flex items-center gap-2">
+  1368→            <ScanText className="w-5 h-5 text-orange-600" />
+  1369→            Sinkronkan Hasil Ekstrak ke Struktur Pengurus
+  1370→          </DialogTitle>
+  1371→          <DialogDescription>
+  1372→            {editable.length} pengurus terdeteksi dari SK "{preview.fileName}".
+  1373→            Edit data jika perlu, centang yang akan disinkronkan, lalu klik tombol di bawah.
+  1374→            Data akan otomatis masuk ke <strong>Struktur Pengurus {preview.orgLevel || ''}</strong> di atas.
+  1375→          </DialogDescription>
+  1376→        </DialogHeader>
+  1377→
+  1378→        <div className="space-y-3">
+  1379→          {/* Info SK */}
+  1380→          {preview.extractedText && (
+  1381→            <div className="rounded-lg bg-muted/50 p-3 text-xs">
+  1382→              <div className="font-semibold mb-1">Info SK (Auto-Detected):</div>
+  1383→              <pre className="whitespace-pre-wrap max-h-32 overflow-y-auto text-muted-foreground">
+  1384→                {preview.extractedText.substring(0, 500)}...
+  1385→              </pre>
+  1386→            </div>
+  1387→          )}
+  1388→
+  1389→          {/* Daftar pengurus yang bisa di-edit */}
+  1390→          <div className="space-y-2">
+  1391→            <div className="text-sm font-semibold">Daftar Pengurus Terdeteksi:</div>
+  1392→            {editable.map((p, i) => (
+  1393→              <div key={p.id} className="flex items-start gap-2 p-3 rounded-lg border">
+  1394→                <input
+  1395→                  type="checkbox"
+  1396→                  checked={p.selected}
+  1397→                  onChange={(e) => setEditable(prev => prev.map(x => x.id === p.id ? { ...x, selected: e.target.checked } : x))}
+  1398→                  className="mt-1 w-4 h-4"
+  1399→                />
+  1400→                <div className="flex-1 grid grid-cols-2 gap-2">
+  1401→                  <div>
+  1402→                    <Label className="text-[13px]">Nama Lengkap</Label>
+  1403→                    <Input
+  1404→                      value={p.fullName || ''}
+  1405→                      onChange={(e) => setEditable(prev => prev.map(x => x.id === p.id ? { ...x, fullName: e.target.value } : x))}
+  1406→                      className="h-8 text-sm"
+  1407→                    />
+  1408→                  </div>
+  1409→                  <div>
+  1410→                    <Label className="text-[13px]">Jabatan</Label>
+  1411→                    <Input
+  1412→                      value={p.positionName || ''}
+  1413→                      onChange={(e) => setEditable(prev => prev.map(x => x.id === p.id ? { ...x, positionName: e.target.value } : x))}
+  1414→                      className="h-8 text-sm"
+  1415→                    />
+  1416→                  </div>
+  1417→                  <div>
+  1418→                    <Label className="text-[13px]">WhatsApp</Label>
+  1419→                    <Input
+  1420→                      value={p.phone || ''}
+  1421→                      onChange={(e) => setEditable(prev => prev.map(x => x.id === p.id ? { ...x, phone: e.target.value } : x))}
+  1422→                      className="h-8 text-sm"
+  1423→                      placeholder="Opsional"
+  1424→                    />
+  1425→                  </div>
+  1426→                  <div>
+  1427→                    <Label className="text-[13px]">Email</Label>
+  1428→                    <Input
+  1429→                      value={p.email || ''}
+  1430→                      onChange={(e) => setEditable(prev => prev.map(x => x.id === p.id ? { ...x, email: e.target.value } : x))}
+  1431→                      className="h-8 text-sm"
+  1432→                      placeholder="Opsional"
+  1433→                    />
+  1434→                  </div>
+  1435→                </div>
+  1436→              </div>
+  1437→            ))}
+  1438→          </div>
+  1439→        </div>
+  1440→
+  1441→        <DialogFooter>
+  1442→          <Button variant="outline" onClick={onClose}>Batal</Button>
+  1443→          <Button onClick={handleConfirm} className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white">
+  1444→            <Users className="w-4 h-4 mr-1" />
+  1445→            Sinkronkan ke Struktur Pengurus ({editable.filter(p => p.selected && p.fullName?.trim()).length} pengurus)
+  1446→          </Button>
+  1447→        </DialogFooter>
+  1448→      </DialogContent>
+  1449→    </Dialog>
+  1450→  )
+  1451→}
+  1452→
+  1453→// ============================================================
+  1454→// HELPER COMPONENTS
+  1455→// ============================================================
+  1456→function BackButton({ onBack, label }: { onBack: () => void; label: string }) {
+  1457→  return (
+  1458→    <div className="flex items-center gap-3">
+  1459→      <Button variant="ghost" size="sm" onClick={onBack}>
+  1460→        <ArrowLeft className="w-4 h-4 mr-1" /> Kembali
+  1461→      </Button>
+  1462→      <h1 className="text-xl font-bold">{label}</h1>
+  1463→    </div>
+  1464→  )
+  1465→}
+  1466→
+  1467→// ============================================================
+  1468→// DIALOGS (Add/Edit Position, Add/Edit Member, Upload SK, Add Territory)
+  1469→// ============================================================
+  1470→function AddPositionDialog({ open, onOpenChange, defaultLevel, territoryId, territoryFilter, onSuccess }: any) {
+  1471→  const addToast = useToastStore((s) => s.addToast)
+  1472→  const [form, setForm] = useState({ fullName: '', positionName: '', level: defaultLevel, territoryId: territoryId || '', phone: '', email: '' })
+  1473→  const [loading, setLoading] = useState(false)
+  1474→  const [territories, setTerritories] = useState<Territory[]>([])
+  1475→
+  1476→  useEffect(() => {
+  1477→    if (open) {
+  1478→      api('/api/territory').then((all) => {
+  1479→        const levelMap: Record<string, string> = { DPN: 'COUNTRY', DPD: 'PROVINCE', DPC: 'REGENCY' }
+  1480→        const targetLevel = levelMap[defaultLevel]
+  1481→        setTerritories(all.filter((t: Territory) => t.level === targetLevel && t.isActive))
+  1482→      }).catch(() => {})
+  1483→    }
+  1484→  }, [open, defaultLevel])
+  1485→
+  1486→  const handleSubmit = async (e: React.FormEvent) => {
+  1487→    e.preventDefault(); setLoading(true)
+  1488→    try {
+  1489→      await api('/api/organization', { method: 'POST', body: JSON.stringify(form) })
+  1490→      setForm({ fullName: '', positionName: '', level: defaultLevel, territoryId: territoryId || '', phone: '', email: '' })
+  1491→      onSuccess()
+  1492→    } catch (e: any) { addToast(e.message, 'error') }
+  1493→    finally { setLoading(false) }
+  1494→  }
+  1495→
+  1496→  // Daftar jabatan standar LAPRA 08
+  1497→  const COMMON_POSITIONS = [
+  1498→    'Ketua', 'Ketua Harian', 'Wakil Ketua I', 'Wakil Ketua II', 'Wakil Ketua III', 'Wakil Ketua IV',
+  1499→    'Sekretaris', 'Wakil Sekretaris I', 'Wakil Sekretaris II',
+  1500→    'Bendahara', 'Wakil Bendahara I', 'Wakil Bendahara II',
+  1501→    'Bidang Sekretariat', 'Wakil Bidang Sekretariat',
+  1502→    'Bidang Humas', 'Wakil Bidang Humas',
+  1503→    'Bidang Antar Lembaga', 'Wakil Bidang Antar Lembaga',
+  1504→    'Bidang Lembaga Pemerintahan', 'Bidang Non Pemerintah/Swasta',
+  1505→    'Bidang Lembaga Luar Negeri',
+  1506→    'Bidang Program Internal', 'Bidang Program Eksternal',
+  1507→    'Bidang Pemberdayaan Perempuan',
+  1508→    'Bidang Kerukunan Antar Agama',
+  1509→    'Bidang Kaderisasi & Organisasi',
+  1510→    'Bidang Etik', 'Bidang Advokasi & Hukum', 'Bidang Litigasi', 'Bidang Non Litigasi',
+  1511→    'Bidang Ketenagakerjaan', 'Bidang Kepemudaan', 'Bidang Ekonomi Kreatif',
+  1512→    'Penasihat', 'Pembina', 'Dewan Penasihat',
+  1513→    'Staf', 'Anggota',
+  1514→  ]
+  1515→
+  1516→  return (
+  1517→    <Dialog open={open} onOpenChange={onOpenChange}>
+  1518→      <DialogContent className="max-w-md">
+  1519→        <DialogHeader><DialogTitle>Tambah Pengurus {defaultLevel}</DialogTitle></DialogHeader>
+  1520→        <form onSubmit={handleSubmit} className="space-y-3">
+  1521→          <div className="space-y-2">
+  1522→            <Label>Nama Lengkap *</Label>
+  1523→            <Input value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} placeholder="Nama lengkap pengurus" required />
+  1524→          </div>
+  1525→          <div className="space-y-2">
+  1526→            <Label>Jabatan *</Label>
+  1527→            <Select value={form.positionName} onValueChange={(v) => setForm({ ...form, positionName: v === '__custom' ? '' : v })}>
+  1528→              <SelectTrigger><SelectValue placeholder="Pilih atau ketik jabatan..." /></SelectTrigger>
+  1529→              <SelectContent>
+  1530→                {COMMON_POSITIONS.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+  1531→                <SelectItem value="__custom">+ Ketik Jabatan Lain...</SelectItem>
+  1532→              </SelectContent>
+  1533→            </Select>
+  1534→            {/* Input manual muncul jika pilih "Ketik Jabatan Lain" atau jika positionName kosong */}
+  1535→            {(form.positionName === '' || form.positionName === '__custom') && (
+  1536→              <Input
+  1537→                value={form.positionName === '__custom' ? '' : form.positionName}
+  1538→                onChange={(e) => setForm({ ...form, positionName: e.target.value })}
+  1539→                placeholder="Ketik jabatan custom..."
+  1540→                className="mt-1"
+  1541→                required
+  1542→              />
+  1543→            )}
+  1544→          </div>
+  1545→          {!territoryId && (
+  1546→            <div className="space-y-2">
+  1547→              <Label>Wilayah *</Label>
+  1548→              <Select value={form.territoryId} onValueChange={(v) => setForm({ ...form, territoryId: v })}>
+  1549→                <SelectTrigger><SelectValue placeholder="Pilih wilayah..." /></SelectTrigger>
+  1550→                <SelectContent>{territories.map((t) => <SelectItem key={t.id} value={t.id}>{t.name} ({t.code})</SelectItem>)}</SelectContent>
+  1551→              </Select>
+  1552→            </div>
+  1553→          )}
+  1554→          <div className="grid grid-cols-2 gap-3">
+  1555→            <div className="space-y-2"><Label>WhatsApp</Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="08xxx" /></div>
+  1556→            <div className="space-y-2"><Label>Email</Label><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
+  1557→          </div>
+  1558→          <DialogFooter>
+  1559→            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Batal</Button>
+  1560→            <Button type="submit" disabled={loading} className="bg-gradient-to-r from-orange-600 to-red-600 text-white">{loading ? 'Menyimpan...' : 'Simpan'}</Button>
+  1561→          </DialogFooter>
+  1562→        </form>
+  1563→      </DialogContent>
+  1564→    </Dialog>
+  1565→  )
+  1566→}
+  1567→
+  1568→function EditPositionDialog({ position, onOpenChange, onSuccess }: any) {
+  1569→  const addToast = useToastStore((s) => s.addToast)
+  1570→  const [form, setForm] = useState<any>({})
+  1571→  const [loading, setLoading] = useState(false)
+  1572→  const [useCustomPosition, setUseCustomPosition] = useState(false)
+  1573→  const [ktaFile, setKtaFile] = useState<File | null>(null)
+  1574→  const [biodataFile, setBiodataFile] = useState<File | null>(null)
+  1575→
+  1576→  useEffect(() => {
+  1577→    if (position) {
+  1578→      setForm({
+  1579→        fullName: position.fullName, positionName: position.positionName,
+  1580→        phone: position.phone || '', email: position.email || '',
+  1581→        ktaPhotoUrl: position.ktaPhotoUrl || null,
+  1582→        ktaNumber: position.ktaNumber || '',
+  1583→        biodataUrl: position.biodataUrl || null,
+  1584→        isActive: position.isActive,
+  1585→      })
+  1586→      setUseCustomPosition(false)
+  1587→      setKtaFile(null)
+  1588→      setBiodataFile(null)
+  1589→    }
+  1590→  }, [position])
+  1591→
+  1592→  if (!position) return null
+  1593→
+  1594→  const handleSubmit = async (e: React.FormEvent) => {
+  1595→    e.preventDefault(); setLoading(true)
+  1596→    try {
+  1597→      const payload = { ...form }
+  1598→      // Upload KTA
+  1599→      if (ktaFile) {
+  1600→        const buf = Buffer.from(await ktaFile.arrayBuffer())
+  1601→        const mime = ktaFile.type || 'image/jpeg'
+  1602→        payload.ktaPhotoUrl = `data:${mime};base64,${buf.toString('base64')}`
+  1603→      }
+  1604→      // Upload Biodata
+  1605→      if (biodataFile) {
+  1606→        const buf = Buffer.from(await biodataFile.arrayBuffer())
+  1607→        const mime = biodataFile.type || (biodataFile.name.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg')
+  1608→        payload.biodataUrl = `data:${mime};base64,${buf.toString('base64')}`
+  1609→      }
+  1610→      await api(`/api/organization/${position.id}`, { method: 'PUT', body: JSON.stringify(payload) })
+  1611→      onSuccess()
+  1612→    } catch (e: any) { addToast(e.message, 'error') }
+  1613→    finally { setLoading(false) }
+  1614→  }
+  1615→
+  1616→  const COMMON_POSITIONS = [
+  1617→    'Ketua', 'Ketua Harian', 'Wakil Ketua I', 'Wakil Ketua II', 'Wakil Ketua III', 'Wakil Ketua IV',
+  1618→    'Sekretaris', 'Wakil Sekretaris I', 'Wakil Sekretaris II',
+  1619→    'Bendahara', 'Wakil Bendahara I', 'Wakil Bendahara II',
+  1620→    'Bidang Sekretariat', 'Wakil Bidang Sekretariat',
+  1621→    'Bidang Humas', 'Wakil Bidang Humas',
+  1622→    'Bidang Antar Lembaga', 'Wakil Bidang Antar Lembaga',
+  1623→    'Bidang Lembaga Pemerintahan', 'Bidang Non Pemerintah/Swasta',
+  1624→    'Bidang Lembaga Luar Negeri',
+  1625→    'Bidang Program Internal', 'Bidang Program Eksternal',
+  1626→    'Bidang Pemberdayaan Perempuan',
+  1627→    'Bidang Kerukunan Antar Agama',
+  1628→    'Bidang Kaderisasi & Organisasi',
+  1629→    'Bidang Etik', 'Bidang Advokasi & Hukum', 'Bidang Litigasi', 'Bidang Non Litigasi',
+  1630→    'Bidang Ketenagakerjaan', 'Bidang Kepemudaan', 'Bidang Ekonomi Kreatif',
+  1631→    'Penasihat', 'Pembina', 'Dewan Penasihat',
+  1632→    'Staf', 'Anggota',
+  1633→  ]
+  1634→
+  1635→  // Check if current positionName is in common list
+  1636→  const isCustomPosition = !COMMON_POSITIONS.includes(form.positionName) && !useCustomPosition
+  1637→
+  1638→  return (
+  1639→    <Dialog open={!!position} onOpenChange={(o) => !o && onOpenChange(false)}>
+  1640→      <DialogContent className="max-w-md">
+  1641→        <DialogHeader>
+  1642→          <DialogTitle className="flex items-center gap-2">
+  1643→            <Edit className="w-4 h-4 text-blue-600" /> Edit Pengurus
+  1644→          </DialogTitle>
+  1645→        </DialogHeader>
+  1646→        <form onSubmit={handleSubmit} className="space-y-3">
+  1647→          <div className="space-y-2">
+  1648→            <Label>Nama Lengkap *</Label>
+  1649→            <Input value={form.fullName || ''} onChange={(e) => setForm({ ...form, fullName: e.target.value })} required />
+  1650→          </div>
+  1651→          <div className="space-y-2">
+  1652→            <Label>Jabatan *</Label>
+  1653→            <Select
+  1654→              value={useCustomPosition || isCustomPosition ? '__custom' : form.positionName}
+  1655→              onValueChange={(v) => {
+  1656→                if (v === '__custom') {
+  1657→                  setUseCustomPosition(true)
+  1658→                  setForm({ ...form, positionName: '' })
+  1659→                } else {
+  1660→                  setUseCustomPosition(false)
+  1661→                  setForm({ ...form, positionName: v })
+  1662→                }
+  1663→              }}
+  1664→            >
+  1665→              <SelectTrigger><SelectValue placeholder="Pilih jabatan..." /></SelectTrigger>
+  1666→              <SelectContent>
+  1667→                {COMMON_POSITIONS.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+  1668→                <SelectItem value="__custom">+ Ketik Jabatan Lain...</SelectItem>
+  1669→              </SelectContent>
+  1670→            </Select>
+  1671→            {(useCustomPosition || isCustomPosition) && (
+  1672→              <Input
+  1673→                value={form.positionName || ''}
+  1674→                onChange={(e) => setForm({ ...form, positionName: e.target.value })}
+  1675→                placeholder="Ketik jabatan custom..."
+  1676→                className="mt-1"
+  1677→                required
+  1678→              />
+  1679→            )}
+  1680→          </div>
+  1681→          <div className="grid grid-cols-2 gap-3">
+  1682→            <div className="space-y-2"><Label>WhatsApp</Label><Input value={form.phone || ''} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="08xxx" /></div>
+  1683→            <div className="space-y-2"><Label>Email</Label><Input type="email" value={form.email || ''} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
+  1684→          </div>
+  1685→          <div className="space-y-2">
+  1686→            <Label>Nomor KTA</Label>
+  1687→            <Input value={form.ktaNumber || ''} onChange={(e) => setForm({ ...form, ktaNumber: e.target.value })} placeholder="LAPRA08.ID.61.71.26.00001" className="font-mono text-sm" />
+  1688→            <p className="text-xs text-muted-foreground">Format: LAPRA08.[NEGARA].[PROVINSI].[KAB/KOTA].[TAHUN].[URUT]</p>
+  1689→          </div>
+  1690→          <div className="space-y-2">
+  1691→            <Label>Status</Label>
+  1692→            <Select value={form.isActive ? 'true' : 'false'} onValueChange={(v) => setForm({ ...form, isActive: v === 'true' })}>
+  1693→              <SelectTrigger><SelectValue /></SelectTrigger>
+  1694→              <SelectContent>
+  1695→                <SelectItem value="true">Aktif</SelectItem>
+  1696→                <SelectItem value="false">Nonaktif</SelectItem>
+  1697→              </SelectContent>
+  1698→            </Select>
+  1699→          </div>
+  1700→          {/* Upload KTA Photo */}
+  1701→          <div className="space-y-2">
+  1702→            <Label>Foto KTA (Kartu Tanda Anggota)</Label>
+  1703→            <div className="flex items-center gap-2">
+  1704→              {form.ktaPhotoUrl ? (
+  1705→                <img src={form.ktaPhotoUrl} alt="KTA" className="w-24 h-24 rounded-xl object-cover border-2 border-orange-300 shadow-sm" />
+  1706→              ) : (
+  1707→                <div className="w-24 h-24 rounded-xl bg-muted flex items-center justify-center"><FileText className="w-8 h-8 text-muted-foreground" /></div>
+  1708→              )}
+  1709→              <label className="cursor-pointer text-xs text-blue-600 hover:underline">
+  1710→                {form.ktaPhotoUrl ? 'Ganti KTA' : 'Upload KTA'}
+  1711→                <input type="file" accept="image/jpeg,image/png" className="hidden" onChange={(e) => { setKtaFile(e.target.files?.[0] || null); if (e.target.files?.[0]) { const r = new FileReader(); r.onload = (ev) => setForm({ ...form, ktaPhotoUrl: ev.target?.result }); r.readAsDataURL(e.target.files[0]); } }} />
+  1712→              </label>
+  1713→              {ktaFile && <span className="text-xs text-muted-foreground">{ktaFile.name}</span>}
+  1714→            </div>
+  1715→            <p className="text-xs text-muted-foreground">Format: JPG/PNG, maksimal 2MB</p>
+  1716→          </div>
+  1717→          {/* Upload Biodata */}
+  1718→          <div className="space-y-2">
+  1719→            <Label>Biodata (PDF/JPG/PNG)</Label>
+  1720→            <div className="flex items-center gap-2">
+  1721→              {form.biodataUrl ? (
+  1722→                <a href={form.biodataUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">Lihat Biodata ↗</a>
+  1723→              ) : (
+  1724→                <span className="text-xs text-muted-foreground">Belum ada biodata</span>
+  1725→              )}
+  1726→              <label className="cursor-pointer text-xs text-emerald-600 hover:underline">
+  1727→                {form.biodataUrl ? 'Ganti Biodata' : 'Upload Biodata'}
+  1728→                <input type="file" accept=".pdf,image/jpeg,image/png" className="hidden" onChange={(e) => { setBiodataFile(e.target.files?.[0] || null); if (e.target.files?.[0]) { const r = new FileReader(); r.onload = (ev) => setForm({ ...form, biodataUrl: ev.target?.result }); r.readAsDataURL(e.target.files[0]); } }} />
+  1729→              </label>
+  1730→              {biodataFile && <span className="text-xs text-muted-foreground">{biodataFile.name}</span>}
+  1731→            </div>
+  1732→            <p className="text-xs text-muted-foreground">Format: PDF/JPG/PNG, maksimal 5MB</p>
+  1733→          </div>
+  1734→          <DialogFooter>
+  1735→            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Batal</Button>
+  1736→            <Button type="submit" disabled={loading} className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
+  1737→              {loading ? 'Menyimpan...' : 'Simpan Perubahan'}
+  1738→            </Button>
+  1739→          </DialogFooter>
+  1740→        </form>
+  1741→      </DialogContent>
+  1742→    </Dialog>
+  1743→  )
+  1744→}
+  1745→
+  1746→function AddMemberDialog({ open, onOpenChange, territoryId, onSuccess }: any) {
+  1747→  const addToast = useToastStore((s) => s.addToast)
+  1748→  const [form, setForm] = useState({ fullName: '', nik: '', phone: '', email: '', profession: '', gender: '', shirtSize: '', territoryId })
+  1749→  const [loading, setLoading] = useState(false)
+  1750→
+  1751→  const handleSubmit = async (e: React.FormEvent) => {
+  1752→    e.preventDefault(); setLoading(true)
+  1753→    try {
+  1754→      await api('/api/members', { method: 'POST', body: JSON.stringify({ ...form, status: 'PENDING' }) })
+  1755→      setForm({ fullName: '', nik: '', phone: '', email: '', profession: '', gender: '', shirtSize: '', territoryId })
+  1756→      onSuccess()
+  1757→    } catch (e: any) { addToast(e.message, 'error') } finally { setLoading(false) }
+  1758→  }
+  1759→
+  1760→  return (
+  1761→    <Dialog open={open} onOpenChange={onOpenChange}>
+  1762→      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+  1763→        <DialogHeader><DialogTitle>Tambah Anggota</DialogTitle><DialogDescription>Nomor KTA otomatis di-generate</DialogDescription></DialogHeader>
+  1764→        <form onSubmit={handleSubmit} className="space-y-3">
+  1765→          <div className="space-y-2"><Label>Nama Lengkap *</Label><Input value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} required /></div>
+  1766→          <div className="grid grid-cols-2 gap-3">
+  1767→            <div className="space-y-2"><Label>NIK (16 digit)</Label><Input value={form.nik} onChange={(e) => setForm({ ...form, nik: e.target.value.replace(/\D/g, '').slice(0, 16) })} placeholder="16 digit" /></div>
+  1768→            <div className="space-y-2"><Label>WhatsApp *</Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="628xxx" required /></div>
+  1769→          </div>
+  1770→          <div className="grid grid-cols-2 gap-3">
+  1771→            <div className="space-y-2"><Label>Jenis Kelamin</Label><Select value={form.gender} onValueChange={(v) => setForm({ ...form, gender: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="L">Laki-laki</SelectItem><SelectItem value="P">Perempuan</SelectItem></SelectContent></Select></div>
+  1772→            <div className="space-y-2"><Label>Ukuran Kemeja</Label><Select value={form.shirtSize} onValueChange={(v) => setForm({ ...form, shirtSize: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{['S', 'M', 'L', 'XL', 'XXL', 'XXXL'].map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select></div>
+  1773→          </div>
+  1774→          <div className="space-y-2"><Label>Profesi</Label><Input value={form.profession} onChange={(e) => setForm({ ...form, profession: e.target.value })} /></div>
+  1775→          <DialogFooter><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Batal</Button><Button type="submit" disabled={loading}>{loading ? 'Menyimpan...' : 'Simpan'}</Button></DialogFooter>
+  1776→        </form>
+  1777→      </DialogContent>
+  1778→    </Dialog>
+  1779→  )
+  1780→}
+  1781→
+  1782→function EditMemberDialog({ member, onOpenChange, onSuccess }: any) {
+  1783→  const addToast = useToastStore((s) => s.addToast)
+  1784→  const [form, setForm] = useState<any>({})
+  1785→  const [loading, setLoading] = useState(false)
+  1786→
+  1787→  useEffect(() => {
+  1788→    if (member) setForm({ fullName: member.fullName, nik: member.nik || '', phone: member.phone, email: member.email || '', profession: member.profession || '', status: member.status })
+  1789→  }, [member])
+  1790→
+  1791→  if (!member) return null
+  1792→
+  1793→  const handleSubmit = async (e: React.FormEvent) => {
+  1794→    e.preventDefault(); setLoading(true)
+  1795→    try { await api(`/api/members/${member.id}`, { method: 'PUT', body: JSON.stringify(form) }); onSuccess() }
+  1796→    catch (e: any) { addToast(e.message, 'error') } finally { setLoading(false) }
+  1797→  }
+  1798→
+  1799→  return (
+  1800→    <Dialog open={!!member} onOpenChange={(o) => !o && onOpenChange(false)}>
+  1801→      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+  1802→        <DialogHeader><DialogTitle>Edit Anggota</DialogTitle></DialogHeader>
+  1803→        <form onSubmit={handleSubmit} className="space-y-3">
+  1804→          <div className="space-y-2"><Label>Nama Lengkap *</Label><Input value={form.fullName || ''} onChange={(e) => setForm({ ...form, fullName: e.target.value })} required /></div>
+  1805→          <div className="grid grid-cols-2 gap-3">
+  1806→            <div className="space-y-2"><Label>NIK</Label><Input value={form.nik || ''} onChange={(e) => setForm({ ...form, nik: e.target.value })} /></div>
+  1807→            <div className="space-y-2"><Label>WhatsApp</Label><Input value={form.phone || ''} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
+  1808→          </div>
+  1809→          <div className="space-y-2"><Label>Status</Label><Select value={form.status || 'PENDING'} onValueChange={(v) => setForm({ ...form, status: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="PENDING">Menunggu</SelectItem><SelectItem value="ACTIVE">Aktif</SelectItem><SelectItem value="INACTIVE">Nonaktif</SelectItem></SelectContent></Select></div>
+  1810→          <DialogFooter><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Batal</Button><Button type="submit" disabled={loading}>{loading ? 'Menyimpan...' : 'Simpan'}</Button></DialogFooter>
+  1811→        </form>
+  1812→      </DialogContent>
+  1813→    </Dialog>
+  1814→  )
+  1815→}
+  1816→
+  1817→function UploadSKDialogSimple({ open, onOpenChange, territoryId, territoryFilter, onSuccess }: any) {
+  1818→  const addToast = useToastStore((s) => s.addToast)
+  1819→  const user = useAuthStore((s) => s.user)!
+  1820→  const [form, setForm] = useState({ skNumber: '', title: '', issuedAt: '', issuedBy: '' })
+  1821→  const [file, setFile] = useState<File | null>(null)
+  1822→  const [loading, setLoading] = useState(false)
+  1823→  const [territories, setTerritories] = useState<Territory[]>([])
+  1824→  const [selectedTerritory, setSelectedTerritory] = useState(territoryId || '')
+  1825→
+  1826→  useEffect(() => {
+  1827→    if (open && !territoryId) {
+  1828→      api('/api/territory').then((all) => {
+  1829→        const levelMap: Record<string, string> = { DPN: 'COUNTRY', DPD: 'PROVINCE', DPC: 'REGENCY' }
+  1830→        const targetLevel = territoryFilter ? levelMap[territoryFilter.level === 'COUNTRY' ? 'DPN' : territoryFilter.level === 'PROVINCE' ? 'DPD' : 'DPC'] : null
+  1831→        if (targetLevel) {
+  1832→          setTerritories(all.filter((t: Territory) => t.level === targetLevel && t.isActive))
+  1833→        }
+  1834→      }).catch(() => {})
+  1835→    }
+  1836→  }, [open])
+  1837→
+  1838→  const handleSubmit = async (e: React.FormEvent) => {
+  1839→    e.preventDefault()
+  1840→    const targetTerritory = territoryId || selectedTerritory
+  1841→    if (!targetTerritory) { addToast('Pilih wilayah dulu', 'error'); return }
+  1842→
+  1843→    setLoading(true)
+  1844→    try {
+  1845→      const formData = new FormData()
+  1846→      if (file) formData.append('file', file)
+  1847→      formData.append('territoryId', targetTerritory)
+  1848→      formData.append('skNumber', form.skNumber || `SK-${Date.now()}`)
+  1849→      formData.append('title', form.title)
+  1850→      formData.append('issuedAt', form.issuedAt || new Date().toISOString())
+  1851→      formData.append('issuedBy', form.issuedBy || 'Unknown')
+  1852→
+  1853→      const res = await fetch('/api/sk/upload', { method: 'POST', headers: { 'x-user-id': user?.id || '' }, body: formData })
+  1854→      const data = await res.json()
+  1855→      if (!res.ok || !data.success) throw new Error(data.error || 'Upload gagal')
+  1856→
+  1857→      addToast(data.message || 'SK berhasil diunggah', 'success')
+  1858→      setForm({ skNumber: '', title: '', issuedAt: '', issuedBy: '' }); setFile(null)
+  1859→      onSuccess()
+  1860→    } catch (e: any) { addToast(e.message, 'error') } finally { setLoading(false) }
+  1861→  }
+  1862→
+  1863→  return (
+  1864→    <Dialog open={open} onOpenChange={onOpenChange}>
+  1865→      <DialogContent className="max-w-lg">
+  1866→        <DialogHeader><DialogTitle>Upload SK</DialogTitle><DialogDescription>OCR otomatis akan mengekstrak teks & metadata</DialogDescription></DialogHeader>
+  1867→        <form onSubmit={handleSubmit} className="space-y-3">
+  1868→          <div className="border-2 border-dashed rounded-lg p-4 text-center">
+  1869→            <input type="file" className="hidden" id="sk-file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+  1870→            {file ? (
+  1871→              <div><FileCheck className="w-8 h-8 text-emerald-600 mx-auto mb-1" /><div className="text-sm font-medium">{file.name}</div><Button type="button" variant="link" size="sm" onClick={() => document.getElementById('sk-file')?.click()}>Ganti</Button></div>
+  1872→            ) : (
+  1873→              <div><Upload className="w-8 h-8 text-gray-400 mx-auto mb-1" /><div className="text-sm">Drag & drop atau <Button type="button" variant="link" className="p-0 h-auto" onClick={() => document.getElementById('sk-file')?.click()}>pilih file</Button></div><div className="text-xs text-muted-foreground">PDF, JPG, PNG, DOC</div></div>
+  1874→            )}
+  1875→          </div>
+  1876→          <div className="space-y-2"><Label>Judul SK *</Label><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required /></div>
+  1877→          <div className="grid grid-cols-2 gap-3">
+  1878→            <div className="space-y-2"><Label>Nomor SK</Label><Input value={form.skNumber} onChange={(e) => setForm({ ...form, skNumber: e.target.value })} /></div>
+  1879→            <div className="space-y-2"><Label>Tanggal</Label><Input type="date" value={form.issuedAt} onChange={(e) => setForm({ ...form, issuedAt: e.target.value })} /></div>
+  1880→          </div>
+  1881→          {!territoryId && territories.length > 0 && (
+  1882→            <div className="space-y-2"><Label>Wilayah</Label><Select value={selectedTerritory} onValueChange={setSelectedTerritory}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{territories.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent></Select></div>
+  1883→          )}
+  1884→          <div className="space-y-2"><Label>Penerbit</Label><Input value={form.issuedBy} onChange={(e) => setForm({ ...form, issuedBy: e.target.value })} /></div>
+  1885→          <DialogFooter><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Batal</Button><Button type="submit" disabled={loading}>{loading ? 'Uploading...' : 'Upload'}</Button></DialogFooter>
+  1886→        </form>
+  1887→      </DialogContent>
+  1888→    </Dialog>
+  1889→  )
+  1890→}
+  1891→
+  1892→function AddTerritoryDialog({ open, onOpenChange, level, parentId: defaultParentId, onSuccess }: any) {
+  1893→  const addToast = useToastStore((s) => s.addToast)
+  1894→  const [form, setForm] = useState({ code: '', name: '', level: level || 'PROVINCE', category: 'DOMESTIC', parentId: defaultParentId || '' })
+  1895→  const [loading, setLoading] = useState(false)
+  1896→  const [countries, setCountries] = useState<Territory[]>([])
+  1897→
+  1898→  useEffect(() => {
+  1899→    if (open) {
+  1900→      api('/api/territory?level=COUNTRY').then(setCountries).catch(() => {})
+  1901→      setForm((f) => ({ ...f, level: level || 'PROVINCE', parentId: defaultParentId || f.parentId }))
+  1902→    }
+  1903→  }, [open, level, defaultParentId])
+  1904→
+  1905→  const handleSubmit = async (e: React.FormEvent) => {
+  1906→    e.preventDefault(); setLoading(true)
+  1907→    try {
+  1908→      await api('/api/territory', { method: 'POST', body: JSON.stringify({ ...form, parentId: form.parentId || null }) })
+  1909→      setForm({ code: '', name: '', level: level || 'PROVINCE', category: 'DOMESTIC', parentId: defaultParentId || '' })
+  1910→      onSuccess()
+  1911→    } catch (e: any) { addToast(e.message, 'error') } finally { setLoading(false) }
+  1912→  }
+  1913→
+  1914→  const isDPC = (level || form.level) === 'REGENCY'
+  1915→
+  1916→  return (
+  1917→    <Dialog open={open} onOpenChange={onOpenChange}>
+  1918→      <DialogContent className="max-w-md">
+  1919→        <DialogHeader><DialogTitle>{isDPC ? 'Tambah DPC' : 'Tambah DPD'}</DialogTitle></DialogHeader>
+  1920→        <form onSubmit={handleSubmit} className="space-y-3">
+  1921→          <div className="grid grid-cols-2 gap-3">
+  1922→            <div className="space-y-2"><Label>Kode *</Label><Input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })} required /></div>
+  1923→            <div className="space-y-2"><Label>Nama *</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></div>
+  1924→          </div>
+  1925→          {/* Untuk DPD: pilih negara induk. Untuk DPC: parentId sudah di-set dari selectedDpdId */}
+  1926→          {!isDPC ? (
+  1927→            <div className="space-y-2"><Label>Negara Induk</Label><Select value={form.parentId || ''} onValueChange={(v) => setForm({ ...form, parentId: v })}><SelectTrigger><SelectValue placeholder="Pilih negara..." /></SelectTrigger><SelectContent>{countries.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent></Select></div>
+  1928→          ) : (
+  1929→            <div className="rounded-lg bg-blue-50 border border-blue-200 p-2 text-xs text-blue-800">
+  1930→              <strong>DPC akan otomatis terikat ke DPD yang dipilih.</strong> Kode DPC harus diawali kode DPD parent.
+  1931→            </div>
+  1932→          )}
+  1933→          <div className="space-y-2"><Label>Kategori</Label><Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="DOMESTIC">Domestik</SelectItem><SelectItem value="INTERNATIONAL">Internasional</SelectItem></SelectContent></Select></div>
+  1934→          <DialogFooter><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Batal</Button><Button type="submit" disabled={loading}>{loading ? 'Menyimpan...' : 'Simpan'}</Button></DialogFooter>
+  1935→        </form>
+  1936→      </DialogContent>
+  1937→    </Dialog>
+  1938→  )
+  1939→}
+  1940→
+  1941→// ============================================================
+  1942→// EDIT TERRITORY DIALOG - Modal async untuk edit DPD/DPC
+  1943→// ============================================================
+  1944→function EditTerritoryDialog({ territory, onOpenChange, onSuccess }: any) {
+  1945→  const addToast = useToastStore((s) => s.addToast)
+  1946→  const [form, setForm] = useState<any>({})
+  1947→  const [loading, setLoading] = useState(false)
+  1948→
+  1949→  useEffect(() => {
+  1950→    if (territory) {
+  1951→      setForm({
+  1952→        code: territory.code,
+  1953→        name: territory.name,
+  1954→        level: territory.level,
+  1955→        category: territory.category,
+  1956→        parentId: territory.parentId || '',
+  1957→        isActive: territory.isActive,
+  1958→      })
+  1959→    }
+  1960→  }, [territory])
+  1961→
+  1962→  if (!territory) return null
+  1963→
+  1964→  const handleSubmit = async (e: React.FormEvent) => {
+  1965→    e.preventDefault(); setLoading(true)
+  1966→    try {
+  1967→      await api(`/api/territory/${territory.id}`, {
+  1968→        method: 'PUT',
+  1969→        body: JSON.stringify(form),
+  1970→      })
+  1971→      onSuccess()
+  1972→    } catch (e: any) { addToast(e.message, 'error') } finally { setLoading(false) }
+  1973→  }
+  1974→
+  1975→  const label = territory.level === 'PROVINCE' ? 'DPD' : 'DPC'
+  1976→
+  1977→  return (
+  1978→    <Dialog open={!!territory} onOpenChange={(o) => !o && onOpenChange(false)}>
+  1979→      <DialogContent className="max-w-md">
+  1980→        <DialogHeader>
+  1981→          <DialogTitle>Edit {label}</DialogTitle>
+  1982→          <DialogDescription>Edit data wilayah <strong>{territory.name}</strong></DialogDescription>
+  1983→        </DialogHeader>
+  1984→        <form onSubmit={handleSubmit} className="space-y-3">
+  1985→          <div className="grid grid-cols-2 gap-3">
+  1986→            <div className="space-y-2"><Label>Kode</Label><Input value={form.code || ''} onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })} /></div>
+  1987→            <div className="space-y-2"><Label>Nama *</Label><Input value={form.name || ''} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></div>
+  1988→          </div>
+  1989→          <div className="space-y-2"><Label>Kategori</Label><Select value={form.category || 'DOMESTIC'} onValueChange={(v) => setForm({ ...form, category: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="DOMESTIC">Domestik</SelectItem><SelectItem value="INTERNATIONAL">Internasional</SelectItem></SelectContent></Select></div>
+  1990→          <div className="space-y-2"><Label>Status</Label><Select value={form.isActive ? 'true' : 'false'} onValueChange={(v) => setForm({ ...form, isActive: v === 'true' })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="true">Aktif</SelectItem><SelectItem value="false">Nonaktif</SelectItem></SelectContent></Select></div>
+  1991→          <DialogFooter><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Batal</Button><Button type="submit" disabled={loading}>{loading ? 'Menyimpan...' : 'Simpan Perubahan'}</Button></DialogFooter>
+  1992→        </form>
+  1993→      </DialogContent>
+  1994→    </Dialog>
+  1995→  )
+  1996→}
+  1997→
