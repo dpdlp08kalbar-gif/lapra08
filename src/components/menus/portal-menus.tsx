@@ -1490,40 +1490,52 @@ export function ProfilMenu() {
 }
 
 // Struktur Overview — ringkasan read-only, full CRUD ada di menu admin "Keanggotaan & Pengurus"
+// Defensive: try/catch di render supaya tidak crash seluruh ProfilMenu kalau ada error
 function StrukturOverviewSection() {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base flex items-center gap-2">
-          <Building2 className="w-5 h-5 text-orange-600" /> Struktur Organisasi LAPRA 08
-        </CardTitle>
-        <CardDescription>Ringkasan hierarki kepengurusan</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="grid gap-3 md:grid-cols-3">
-          <div className="rounded-lg border-l-4 border-red-500 bg-red-50 p-3">
-            <div className="text-xs uppercase tracking-wide text-red-700 font-semibold">DPN</div>
-            <div className="text-sm font-medium mt-1">Dewan Pimpinan Pusat</div>
-            <div className="text-xs text-muted-foreground mt-1">Tingkat Nasional — Jakarta</div>
+  try {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Building2 className="w-5 h-5 text-orange-600" /> Struktur Organisasi LAPRA 08
+          </CardTitle>
+          <CardDescription>Ringkasan hierarki kepengurusan</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="rounded-lg border-l-4 border-red-500 bg-red-50 p-3">
+              <div className="text-xs uppercase tracking-wide text-red-700 font-semibold">DPN</div>
+              <div className="text-sm font-medium mt-1">Dewan Pimpinan Pusat</div>
+              <div className="text-xs text-muted-foreground mt-1">Tingkat Nasional — Jakarta</div>
+            </div>
+            <div className="rounded-lg border-l-4 border-blue-500 bg-blue-50 p-3">
+              <div className="text-xs uppercase tracking-wide text-blue-700 font-semibold">DPD</div>
+              <div className="text-sm font-medium mt-1">Dewan Pimpinan Daerah</div>
+              <div className="text-xs text-muted-foreground mt-1">Tingkat Provinsi (38 DPD) + 5 LN</div>
+            </div>
+            <div className="rounded-lg border-l-4 border-emerald-500 bg-emerald-50 p-3">
+              <div className="text-xs uppercase tracking-wide text-emerald-700 font-semibold">DPC</div>
+              <div className="text-sm font-medium mt-1">Dewan Pimpinan Cabang</div>
+              <div className="text-xs text-muted-foreground mt-1">Tingkat Kabupaten/Kota (514 DPC)</div>
+            </div>
           </div>
-          <div className="rounded-lg border-l-4 border-blue-500 bg-blue-50 p-3">
-            <div className="text-xs uppercase tracking-wide text-blue-700 font-semibold">DPD</div>
-            <div className="text-sm font-medium mt-1">Dewan Pimpinan Daerah</div>
-            <div className="text-xs text-muted-foreground mt-1">Tingkat Provinsi (38 DPD) + 5 LN</div>
+          <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs text-blue-800">
+            <strong>Info:</strong> Untuk melihat detail pengurus per tingkat, upload SK, dan verifikasi anggota,
+            silakan buka menu <strong>"Keanggotaan & Pengurus"</strong> di sidebar Sistem Administrasi.
           </div>
-          <div className="rounded-lg border-l-4 border-emerald-500 bg-emerald-50 p-3">
-            <div className="text-xs uppercase tracking-wide text-emerald-700 font-semibold">DPC</div>
-            <div className="text-sm font-medium mt-1">Dewan Pimpinan Cabang</div>
-            <div className="text-xs text-muted-foreground mt-1">Tingkat Kabupaten/Kota (514 DPC)</div>
-          </div>
-        </div>
-        <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs text-blue-800">
-          <strong>Info:</strong> Untuk melihat detail pengurus per tingkat, upload SK, dan verifikasi anggota,
-          silakan buka menu <strong>"Keanggotaan & Pengurus"</strong> di sidebar Sistem Administrasi.
-        </div>
-      </CardContent>
-    </Card>
-  )
+        </CardContent>
+      </Card>
+    )
+  } catch (e: any) {
+    return (
+      <Card className="border-amber-200 bg-amber-50">
+        <CardContent className="p-4">
+          <div className="text-sm font-medium text-amber-900">Gagal memuat Struktur Organisasi</div>
+          <div className="text-xs text-amber-700 mt-1">Error: {e?.message || 'Unknown'}</div>
+        </CardContent>
+      </Card>
+    )
+  }
 }
 
 // ============================================================
