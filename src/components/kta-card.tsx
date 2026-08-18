@@ -202,21 +202,19 @@ export function KTASampleCard({ compact = false }: { compact?: boolean }) {
 // Back: blue dominant, red area di bawah dengan globe
 // ============================================================
 function KTABg({ variant = 'front' }: { variant?: 'front' | 'back' }) {
-  // Front: split at 62%, arch cembung ke atas
-  // Back: split at 70% (lebih banyak biru), curve lebih datar
-  const splitPct = variant === 'front' ? 0.62 : 0.70
-  const archHeight = variant === 'front' ? 25 : 15
+  // Front: split at 62%, smooth arch
+  // Back: split at 68% (biru lebih dominan)
+  const splitPct = variant === 'front' ? 0.62 : 0.68
+  const archHeight = variant === 'front' ? 20 : 12
   const splitY = H * splitPct
 
   return (
     <div className="absolute inset-0">
-      {/* Biru full */}
       <div style={{ position: 'absolute', inset: 0, backgroundColor: C.blue }} />
-      {/* Merah dengan arch curve di atas */}
       <svg width="100%" height="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ position: 'absolute', inset: 0 }}>
         <path
           d={`M 0 ${splitY}
-              Q ${W / 2} ${splitY - archHeight} ${W} ${splitY}
+              C ${W * 0.25} ${splitY - archHeight * 1.5}, ${W * 0.75} ${splitY - archHeight * 1.5}, ${W} ${splitY}
               L ${W} ${H} L 0 ${H} Z`}
           fill={C.red}
         />
@@ -233,10 +231,10 @@ function KTALogo() {
   return (
     <div style={{
       position: 'absolute',
-      top: '3%',
+      top: '2%',
       left: '50%',
       transform: 'translateX(-50%)',
-      width: '55%',
+      width: '38%',
       zIndex: 10,
     }}>
       <img
@@ -317,20 +315,20 @@ function KTATemplateFront() {
       <KTAGlobe variant="front" />
       <KTALogo />
 
-      {/* Foto — X28% Y22%, W44% H32%, rounded pill, red container */}
+      {/* Foto — center, di bawah logo */}
       <div style={{
         position: 'absolute',
-        top: '20%',
+        top: '22%',
         left: '50%',
         transform: 'translateX(-50%)',
-        width: '44%',
-        height: '32%',
+        width: '40%',
+        height: '30%',
         zIndex: 5,
       }}>
         <div style={{
           width: '100%',
           height: '100%',
-          borderRadius: '16px',
+          borderRadius: '14px',
           backgroundColor: C.red,
           padding: '4px',
         }}>
@@ -338,7 +336,7 @@ function KTATemplateFront() {
             width: '100%',
             height: '100%',
             backgroundColor: 'rgba(255,255,255,0.9)',
-            borderRadius: '12px',
+            borderRadius: '10px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -350,10 +348,10 @@ function KTATemplateFront() {
         </div>
       </div>
 
-      {/* Nama — Y55%, center */}
+      {/* Nama — di bawah foto */}
       <div style={{
         position: 'absolute',
-        top: '53%',
+        top: '54%',
         left: '50%',
         transform: 'translateX(-50%)',
         width: '80%',
@@ -361,7 +359,7 @@ function KTATemplateFront() {
         zIndex: 5,
       }}>
         <div style={{
-          fontSize: '14px',
+          fontSize: '13px',
           fontWeight: 600,
           color: '#999',
           borderBottom: '1px solid #999',
@@ -372,20 +370,20 @@ function KTATemplateFront() {
         </div>
       </div>
 
-      {/* QR Code — X72% Y80%, 20% width */}
+      {/* QR Code — bottom-right dengan margin */}
       <div style={{
         position: 'absolute',
-        bottom: '5%',
-        right: '8%',
+        bottom: '8%',
+        right: '10%',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        gap: '3px',
+        gap: '4px',
         zIndex: 5,
       }}>
         <div style={{
-          width: '60px',
-          height: '60px',
+          width: '55px',
+          height: '55px',
           backgroundColor: 'white',
           padding: '3px',
           borderRadius: '3px',
@@ -490,18 +488,18 @@ function KTACardFront({ data }: { data: KTACardData }) {
       {/* Foto */}
       <div style={{
         position: 'absolute',
-        top: '20%',
+        top: '22%',
         left: '50%',
         transform: 'translateX(-50%)',
-        width: '44%',
-        height: '32%',
+        width: '40%',
+        height: '30%',
         zIndex: 5,
       }}>
-        <div style={{ width: '100%', height: '100%', borderRadius: '16px', backgroundColor: C.red, padding: '4px' }}>
+        <div style={{ width: '100%', height: '100%', borderRadius: '14px', backgroundColor: C.red, padding: '4px' }}>
           {data.photoUrl ? (
-            <img src={data.photoUrl} alt={data.fullName} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '12px' }} crossOrigin="anonymous" />
+            <img src={data.photoUrl} alt={data.fullName} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '10px' }} crossOrigin="anonymous" />
           ) : (
-            <div style={{ width: '100%', height: '100%', backgroundColor: '#FFE0B2', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888', fontSize: '12px' }}>Foto</div>
+            <div style={{ width: '100%', height: '100%', backgroundColor: '#FFE0B2', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888', fontSize: '12px' }}>Foto</div>
           )}
         </div>
       </div>
@@ -509,29 +507,29 @@ function KTACardFront({ data }: { data: KTACardData }) {
       {/* Nama */}
       <div style={{
         position: 'absolute',
-        top: '53%',
+        top: '54%',
         left: '50%',
         transform: 'translateX(-50%)',
         width: '80%',
         textAlign: 'center',
         zIndex: 5,
       }}>
-        <div style={{ fontSize: '14px', fontWeight: 600, color: C.black }}>{data.fullName}</div>
+        <div style={{ fontSize: '13px', fontWeight: 600, color: C.black }}>{data.fullName}</div>
       </div>
 
       {/* QR + validity */}
       <div style={{
         position: 'absolute',
-        bottom: '5%',
-        right: '8%',
+        bottom: '8%',
+        right: '10%',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        gap: '3px',
+        gap: '4px',
         zIndex: 5,
       }}>
         {data.qrCodeDataUrl && (
-          <img src={data.qrCodeDataUrl} alt="QR" style={{ width: '60px', height: '60px', backgroundColor: 'white', padding: '3px', borderRadius: '3px' }} crossOrigin="anonymous" />
+          <img src={data.qrCodeDataUrl} alt="QR" style={{ width: '55px', height: '55px', backgroundColor: 'white', padding: '3px', borderRadius: '3px' }} crossOrigin="anonymous" />
         )}
         <span style={{ fontSize: '8px', color: 'white', fontWeight: 500, textAlign: 'center' }}>
           Berlaku s/d<br />{data.validUntilString}
