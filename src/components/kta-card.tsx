@@ -1,7 +1,6 @@
 // LAPRA 08 - KTA Digital Card Component
-// PERSIS 100% sama dengan KTA asli — pakai gambar asli, TIDAK diubah
-// Front: public/kta-front.png
-// Back: public/kta-back.png
+// Pakai gambar KTA asli sebagai background
+// Field kosong sebagai placeholder (akan diisi dari database)
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
@@ -100,13 +99,16 @@ export function KTACard({ applicationId }: { applicationId: string }) {
 }
 
 // ============================================================
-// KTA SAMPLE CARD — pakai gambar asli KTA
+// KTA SAMPLE CARD — template kosong dengan placeholder
+// Gambar asli sebagai background, field kosong untuk diisi database
 // ============================================================
 export function KTASampleCard({ compact = false }: { compact?: boolean }) {
   if (compact) {
     return (
       <div className="flex flex-col items-center gap-3">
-        <img src="/kta-front.png" alt="KTA Depan" style={{ width: '220px', height: 'auto', borderRadius: '10px' }} />
+        <div style={{ width: '220px', height: '330px', borderRadius: '10px', overflow: 'hidden', position: 'relative' }}>
+          <KTATemplateFront />
+        </div>
         <div className="text-xs text-muted-foreground text-center max-w-xs">
           <strong>Template KTA Digital</strong>
           <br />
@@ -122,11 +124,15 @@ export function KTASampleCard({ compact = false }: { compact?: boolean }) {
     <div className="space-y-4">
       <div className="grid gap-4 md:grid-cols-2">
         <div className="flex flex-col items-center gap-2">
-          <img src="/kta-front.png" alt="KTA Depan" style={{ width: '100%', maxWidth: '300px', height: 'auto', borderRadius: '12px' }} />
+          <div style={{ width: '300px', height: '450px', borderRadius: '12px', overflow: 'hidden', position: 'relative' }}>
+            <KTATemplateFront />
+          </div>
           <div className="text-xs font-medium text-muted-foreground">Sisi Depan</div>
         </div>
         <div className="flex flex-col items-center gap-2">
-          <img src="/kta-back.png" alt="KTA Belakang" style={{ width: '100%', maxWidth: '300px', height: 'auto', borderRadius: '12px' }} />
+          <div style={{ width: '300px', height: '450px', borderRadius: '12px', overflow: 'hidden', position: 'relative' }}>
+            <KTATemplateBack />
+          </div>
           <div className="text-xs font-medium text-muted-foreground">Sisi Belakang</div>
         </div>
       </div>
@@ -159,7 +165,7 @@ export function KTASampleCard({ compact = false }: { compact?: boolean }) {
           <div className="flex items-start gap-2"><Badge variant="outline" className="text-[10px] shrink-0">Foto</Badge><span className="text-muted-foreground">Database → <code className="bg-muted px-1 rounded">photoUrl</code></span></div>
           <div className="flex items-start gap-2"><Badge variant="outline" className="text-[10px] shrink-0">Nama</Badge><span className="text-muted-foreground">Database → <code className="bg-muted px-1 rounded">fullName</code></span></div>
           <div className="flex items-start gap-2"><Badge variant="outline" className="text-[10px] shrink-0">Nomor KTA</Badge><span className="text-muted-foreground">Auto-generate → <code className="bg-muted px-1 rounded">08[LEVEL] [WILAYAH].P[URUT]</code></span></div>
-          <div className="flex items-start gap-2"><Badge variant="outline" className="text-[10px] shrink-0">QR Code</Badge><span className="text-muted-foreground">Auto-generate dari biodata</span></div>
+          <div className="flex items-start gap-2"><Badge variant="outline" className="text-[10px] shrink-0">Barcode</Badge><span className="text-muted-foreground">Auto-generate dari sistem barcode KTA</span></div>
           <div className="flex items-start gap-2"><Badge variant="outline" className="text-[10px] shrink-0">Masa Berlaku</Badge><span className="text-muted-foreground">Otomatis: 1 Jan - 31 Des tahun berjalan</span></div>
         </div>
       </div>
@@ -168,38 +174,151 @@ export function KTASampleCard({ compact = false }: { compact?: boolean }) {
 }
 
 // ============================================================
-// KTA CARD FRONT (dengan data nyata)
-// Overlay data anggota di atas gambar KTA asli
+// KTA TEMPLATE FRONT — gambar asli + field kosong
+// Foto, nama, masa berlaku, barcode = KOSONG (placeholder)
+// ============================================================
+function KTATemplateFront() {
+  return (
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+      {/* Background: gambar KTA asli */}
+      <img src="/kta-front.png" alt="KTA Depan" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+
+      {/* Placeholder: FOTO — tutup area foto asli dengan kotak kosong */}
+      <div style={{
+        position: 'absolute',
+        top: '19%',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        width: '36%',
+        height: '27%',
+        backgroundColor: 'rgba(255, 224, 178, 0.95)',
+        borderRadius: '10px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        border: '1px dashed #999',
+      }}>
+        <span style={{ fontSize: '9px', color: '#888', textAlign: 'center' }}>
+          [ INPUT FOTO<br />SISTEM ]
+        </span>
+      </div>
+
+      {/* Placeholder: NAMA — tutup area nama asli */}
+      <div style={{
+        position: 'absolute',
+        top: '47%',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        width: '60%',
+        height: '4%',
+        backgroundColor: 'rgba(255, 255, 255, 0.85)',
+        borderRadius: '2px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}>
+        <span style={{ fontSize: '8px', color: '#999' }}>[ NAMA DATABASE ]</span>
+      </div>
+
+      {/* Placeholder: BARCODE/QR — tutup area QR asli */}
+      <div style={{
+        position: 'absolute',
+        bottom: '8%',
+        right: '9%',
+        width: '52px',
+        height: '52px',
+        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+        borderRadius: '3px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        border: '1px dashed #999',
+      }}>
+        <span style={{ fontSize: '6px', color: '#999', textAlign: 'center' }}>
+          [ BARCODE ]
+        </span>
+      </div>
+
+      {/* Placeholder: MASA BERLAKU — tutup teks berlaku asli */}
+      <div style={{
+        position: 'absolute',
+        bottom: '3%',
+        right: '8%',
+        width: '60px',
+        height: '12px',
+        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+        borderRadius: '2px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}>
+        <span style={{ fontSize: '5px', color: '#999' }}>[ BERLAKU ]</span>
+      </div>
+    </div>
+  )
+}
+
+// ============================================================
+// KTA TEMPLATE BACK — gambar asli + nomor KTA kosong
+// ============================================================
+function KTATemplateBack() {
+  return (
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+      {/* Background: gambar KTA asli */}
+      <img src="/kta-back.png" alt="KTA Belakang" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+
+      {/* Placeholder: NOMOR KTA — tutup badge nomor asli */}
+      <div className="kta-number-box" style={{
+        position: 'absolute',
+        top: '18.5%',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        backgroundColor: '#E31E24',
+        padding: '4px 16px',
+        borderRadius: '999px',
+        minWidth: '120px',
+        textAlign: 'center',
+      }}>
+        <span style={{ color: 'white', fontSize: '9px', fontFamily: 'monospace', fontWeight: 700, letterSpacing: '0.5px' }}>
+          [ NOMOR KTA ]
+        </span>
+      </div>
+    </div>
+  )
+}
+
+// ============================================================
+// KTA CARD FRONT (dengan data nyata dari database)
 // ============================================================
 function KTACardFront({ data }: { data: KTACardData }) {
   return (
-    <div className="relative w-full h-full">
-      {/* Gambar KTA asli sebagai background */}
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+      {/* Background: gambar KTA asli */}
       <img src="/kta-front.png" alt="KTA Depan" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
 
-      {/* Overlay: Foto anggota */}
+      {/* Foto anggota dari database */}
       {data.photoUrl && (
         <img
           src={data.photoUrl}
           alt={data.fullName}
           style={{
             position: 'absolute',
-            top: '20%',
+            top: '19%',
             left: '50%',
             transform: 'translateX(-50%)',
-            width: '38%',
-            height: '28%',
+            width: '36%',
+            height: '27%',
             objectFit: 'cover',
-            borderRadius: '12px',
+            borderRadius: '10px',
           }}
           crossOrigin="anonymous"
         />
       )}
 
-      {/* Overlay: Nama */}
+      {/* Nama dari database */}
       <div style={{
         position: 'absolute',
-        top: '49%',
+        top: '47%',
         left: '50%',
         transform: 'translateX(-50%)',
         width: '80%',
@@ -211,7 +330,7 @@ function KTACardFront({ data }: { data: KTACardData }) {
         {data.fullName}
       </div>
 
-      {/* Overlay: QR Code */}
+      {/* Barcode/QR dari sistem */}
       {data.qrCodeDataUrl && (
         <img
           src={data.qrCodeDataUrl}
@@ -219,23 +338,23 @@ function KTACardFront({ data }: { data: KTACardData }) {
           style={{
             position: 'absolute',
             bottom: '8%',
-            right: '10%',
-            width: '55px',
-            height: '55px',
+            right: '9%',
+            width: '52px',
+            height: '52px',
             backgroundColor: 'white',
-            padding: '3px',
+            padding: '2px',
             borderRadius: '3px',
           }}
           crossOrigin="anonymous"
         />
       )}
 
-      {/* Overlay: Masa berlaku */}
+      {/* Masa berlaku otomatis */}
       <div style={{
         position: 'absolute',
-        bottom: '4%',
-        right: '10%',
-        fontSize: '8px',
+        bottom: '3%',
+        right: '8%',
+        fontSize: '7px',
         color: 'white',
         fontWeight: 500,
         textAlign: 'center',
@@ -247,31 +366,29 @@ function KTACardFront({ data }: { data: KTACardData }) {
 }
 
 // ============================================================
-// KTA CARD BACK (dengan data nyata)
-// Overlay nomor KTA di atas gambar KTA asli
+// KTA CARD BACK (dengan data nyata dari database)
 // ============================================================
 function KTACardBack({ data }: { data: KTACardData }) {
   return (
-    <div className="relative w-full h-full">
-      {/* Gambar KTA asli sebagai background */}
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+      {/* Background: gambar KTA asli */}
       <img src="/kta-back.png" alt="KTA Belakang" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
 
-      {/* Overlay: Nomor KTA (di posisi badge) */}
+      {/* Nomor KTA dari database */}
       <div className="kta-number-box" style={{
         position: 'absolute',
-        top: '20%',
+        top: '18.5%',
         left: '50%',
         transform: 'translateX(-50%)',
         backgroundColor: '#E31E24',
         color: 'white',
-        padding: '5px 18px',
+        padding: '4px 16px',
         borderRadius: '999px',
-        fontSize: '10px',
-        fontWeight: 700,
+        fontSize: '9px',
         fontFamily: 'monospace',
-        letterSpacing: '1px',
+        fontWeight: 700,
+        letterSpacing: '0.5px',
         whiteSpace: 'nowrap',
-        textAlign: 'center',
       }}>
         {data.ktaNumber}
       </div>
