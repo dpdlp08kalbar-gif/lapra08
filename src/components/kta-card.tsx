@@ -6,7 +6,8 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
-import { Loader2, Download, Printer, RefreshCw } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { Loader2, Download, Printer, RefreshCw, FileText } from 'lucide-react'
 import { useToastStore } from '@/lib/store'
 
 interface KTACardData {
@@ -199,7 +200,7 @@ export function KTASampleCard({ compact = false }: { compact?: boolean }) {
   return (
     <div className="space-y-4">
       <div className="grid gap-4 md:grid-cols-2">
-        {/* Depan */}
+        {/* Depan — Template kosong */}
         <div className="flex flex-col items-center gap-2">
           <div
             className="kta-card-sample relative shadow-lg"
@@ -211,9 +212,9 @@ export function KTASampleCard({ compact = false }: { compact?: boolean }) {
               fontFamily: 'system-ui, -apple-system, sans-serif',
             }}
           >
-            <KTACardFront data={sampleData} sample />
+            <KTATemplateFront />
           </div>
-          <div className="text-xs font-medium text-muted-foreground">Sisi Depan</div>
+          <div className="text-xs font-medium text-muted-foreground">Sisi Depan (Template)</div>
         </div>
         {/* Belakang */}
         <div className="flex flex-col items-center gap-2">
@@ -257,30 +258,230 @@ export function KTASampleCard({ compact = false }: { compact?: boolean }) {
         </div>
       </div>
 
-      {/* Penjelasan komponen KTA */}
-      <div className="grid gap-2 md:grid-cols-2">
-        <div className="rounded-lg border p-3 text-xs space-y-1">
-          <div className="font-semibold text-sm flex items-center gap-1">
-            <FileText className="w-3 h-3" /> Sisi Depan berisi:
+      {/* Penjelasan sumber data setiap field */}
+      <div className="rounded-lg border p-3 space-y-2">
+        <div className="text-xs font-semibold">Sumber Data Setiap Field KTA:</div>
+        <div className="grid gap-1.5 text-xs md:grid-cols-2">
+          <div className="flex items-start gap-2">
+            <Badge variant="outline" className="text-[10px] shrink-0">Foto</Badge>
+            <span className="text-muted-foreground">Dari database biodata anggota/pengurus → field <code className="bg-muted px-1 rounded">photoUrl</code></span>
           </div>
-          <ul className="space-y-0.5 text-muted-foreground list-disc list-inside">
-            <li>Logo Laskar Prabowo 08</li>
-            <li>Foto anggota (frame merah)</li>
-            <li>Nama lengkap + jabatan</li>
-            <li>QR Code verifikasi</li>
-            <li>Masa berlaku (1 Jan - 31 Des)</li>
-          </ul>
+          <div className="flex items-start gap-2">
+            <Badge variant="outline" className="text-[10px] shrink-0">Nama</Badge>
+            <span className="text-muted-foreground">Dari database biodata → field <code className="bg-muted px-1 rounded">fullName</code></span>
+          </div>
+          <div className="flex items-start gap-2">
+            <Badge variant="outline" className="text-[10px] shrink-0">Jabatan</Badge>
+            <span className="text-muted-foreground">Dari database biodata → field <code className="bg-muted px-1 rounded">positionName</code> / <code className="bg-muted px-1 rounded">occupation</code></span>
+          </div>
+          <div className="flex items-start gap-2">
+            <Badge variant="outline" className="text-[10px] shrink-0">Nomor KTA</Badge>
+            <span className="text-muted-foreground">Auto-generate dari database → format <code className="bg-muted px-1 rounded">08[LEVEL][WILAYAH]P[URUT]</code></span>
+          </div>
+          <div className="flex items-start gap-2">
+            <Badge variant="outline" className="text-[10px] shrink-0">Barcode/QR</Badge>
+            <span className="text-muted-foreground">Auto-generate dari data biodata (ktaNumber + nama + wilayah + masa berlaku)</span>
+          </div>
+          <div className="flex items-start gap-2">
+            <Badge variant="outline" className="text-[10px] shrink-0">Masa Berlaku</Badge>
+            <span className="text-muted-foreground">Otomatis: 1 Januari - 31 Desember tahun berjalan</span>
+          </div>
         </div>
-        <div className="rounded-lg border p-3 text-xs space-y-1">
-          <div className="font-semibold text-sm flex items-center gap-1">
-            <FileText className="w-3 h-3" /> Sisi Belakang berisi:
+      </div>
+    </div>
+  )
+}
+
+// ============================================================
+// KTA TEMPLATE FRONT — template kosong dengan label field
+// Semua field kosong, cuma tampilkan label dari mana data akan diisi
+// ============================================================
+function KTATemplateFront() {
+  return (
+    <div className="relative w-full h-full">
+      {/* Background: Biru muda (atas 55%) + Merah (bawah 45%) */}
+      <div className="absolute inset-0 flex flex-col">
+        <div style={{ height: '55%', backgroundColor: '#BFE3F5' }} />
+        <div style={{ height: '45%', backgroundColor: '#EF3340' }} />
+      </div>
+
+      {/* Globe graphic (di area merah, opacity 30%) */}
+      <div
+        className="absolute inset-0 flex items-end justify-center"
+        style={{ top: '40%' }}
+      >
+        <svg width="280" height="220" viewBox="0 0 200 150" style={{ opacity: 0.25 }}>
+          <ellipse cx="100" cy="75" rx="80" ry="75" fill="none" stroke="white" strokeWidth="0.8" />
+          <ellipse cx="100" cy="75" rx="80" ry="40" fill="none" stroke="white" strokeWidth="0.5" />
+          <ellipse cx="100" cy="75" rx="80" ry="20" fill="none" stroke="white" strokeWidth="0.5" />
+          <line x1="20" y1="75" x2="180" y2="75" stroke="white" strokeWidth="0.5" />
+          <line x1="100" y1="0" x2="100" y2="150" stroke="white" strokeWidth="0.5" />
+          <ellipse cx="100" cy="75" rx="40" ry="75" fill="none" stroke="white" strokeWidth="0.5" />
+          <ellipse cx="100" cy="75" rx="20" ry="75" fill="none" stroke="white" strokeWidth="0.5" />
+        </svg>
+      </div>
+
+      {/* Header: Logo Laskar Prabowo 08 */}
+      <div className="relative pt-3 px-4 flex items-center justify-center gap-2">
+        <div className="flex items-center gap-1">
+          <span
+            style={{
+              fontFamily: 'Brush Script MT, cursive',
+              fontSize: '22px',
+              color: '#C62828',
+              fontStyle: 'italic',
+              fontWeight: 'bold',
+              lineHeight: 1,
+            }}
+          >
+            Laskar
+          </span>
+          <div className="flex flex-col leading-none">
+            <span
+              style={{
+                fontSize: '14px',
+                fontWeight: 900,
+                color: '#1A1A1A',
+                letterSpacing: '1px',
+              }}
+            >
+              PRABOWO
+            </span>
+            <span
+              style={{
+                fontSize: '11px',
+                fontWeight: 700,
+                color: '#D32F2F',
+              }}
+            >
+              08
+            </span>
           </div>
-          <ul className="space-y-0.5 text-muted-foreground list-disc list-inside">
-            <li>Logo Laskar Prabowo 08</li>
-            <li>Nomor KTA (badge merah)</li>
-            <li>4 poin tata tertib anggota</li>
-            <li>Grafis globe</li>
-          </ul>
+        </div>
+      </div>
+
+      {/* Foto placeholder — KOSONG, label "Foto dari biodata" */}
+      <div className="relative flex justify-center mt-3">
+        <div
+          style={{
+            width: '140px',
+            height: '170px',
+            borderRadius: '10px',
+            backgroundColor: '#FF1744',
+            padding: '4px',
+          }}
+        >
+          <div
+            style={{
+              width: '100%',
+              height: '100%',
+              backgroundColor: '#FFE0B2',
+              borderRadius: '6px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexDirection: 'column',
+              color: '#666',
+              fontSize: '9px',
+              textAlign: 'center',
+              padding: '8px',
+              border: '2px dashed #999',
+            }}
+          >
+            <span style={{ fontWeight: 600, marginBottom: '4px' }}>FOTO</span>
+            <span style={{ fontSize: '8px', color: '#888' }}>(dari biodata)</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Nama placeholder — KOSONG, label "Nama dari biodata" */}
+      <div className="relative text-center mt-2 px-4">
+        <div
+          style={{
+            fontSize: '13px',
+            fontWeight: 700,
+            color: '#1A1A1A',
+            letterSpacing: '0.5px',
+            lineHeight: 1.2,
+            border: '1px dashed #999',
+            backgroundColor: 'rgba(255,255,255,0.5)',
+            padding: '4px 8px',
+            borderRadius: '4px',
+            margin: '0 auto',
+            maxWidth: '180px',
+          }}
+        >
+          <span style={{ color: '#888', fontSize: '10px' }}>NAMA (dari biodata)</span>
+        </div>
+        <div
+          style={{
+            fontSize: '10px',
+            color: '#555',
+            marginTop: '3px',
+            border: '1px dashed #999',
+            backgroundColor: 'rgba(255,255,255,0.5)',
+            padding: '2px 8px',
+            borderRadius: '4px',
+            margin: '2px auto 0',
+            maxWidth: '140px',
+          }}
+        >
+          <span style={{ color: '#888', fontSize: '9px' }}>JABATAN (dari biodata)</span>
+        </div>
+      </div>
+
+      {/* QR Code placeholder + masa berlaku (di area merah) */}
+      <div className="absolute bottom-3 right-3 flex flex-col items-end gap-1">
+        <div
+          style={{
+            width: '60px',
+            height: '60px',
+            backgroundColor: 'white',
+            padding: '2px',
+            borderRadius: '4px',
+            border: '2px dashed #999',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <span style={{ fontSize: '7px', color: '#888', textAlign: 'center' }}>QR CODE<br />(auto-generate)</span>
+        </div>
+        <div
+          style={{
+            fontSize: '8px',
+            color: 'white',
+            textAlign: 'center',
+            fontWeight: 600,
+            backgroundColor: 'rgba(0,0,0,0.3)',
+            padding: '2px 4px',
+            borderRadius: '3px',
+          }}
+        >
+          Berlaku s/d
+          <br />
+          31 Desember {new Date().getFullYear()}
+        </div>
+      </div>
+
+      {/* Nomor KTA placeholder — di kiri bawah (di area merah) */}
+      <div className="absolute bottom-3 left-3">
+        <div
+          style={{
+            backgroundColor: '#E63946',
+            color: 'white',
+            padding: '4px 10px',
+            borderRadius: '10px',
+            fontSize: '9px',
+            fontWeight: 700,
+            fontFamily: 'monospace',
+            letterSpacing: '0.5px',
+            border: '2px dashed rgba(255,255,255,0.5)',
+          }}
+        >
+          <span style={{ fontSize: '7px', opacity: 0.8 }}>NOMOR KTA</span>
+          <br />
+          <span style={{ fontSize: '8px', opacity: 0.7 }}>(dari database)</span>
         </div>
       </div>
     </div>
