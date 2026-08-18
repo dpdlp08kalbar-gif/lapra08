@@ -300,7 +300,8 @@ function KTAGlobe({ size = 'normal' }: { size?: 'normal' | 'large' }) {
 }
 
 // ============================================================
-// KTA TEMPLATE FRONT — PERSIS KTA asli, field kosong
+// KTA TEMPLATE FRONT — PERSIS KTA asli, field kosong dengan placeholder teks
+// Placeholder: [ INPUT FOTO SISTEM ], [ NAMA DATABASE ], [ QR CODE AUTO ]
 // ============================================================
 function KTATemplateFront() {
   return (
@@ -308,34 +309,79 @@ function KTATemplateFront() {
       <KTABackground curve="concave" />
       <KTADecorativeLines position="left" />
 
-      {/* Globe bottom-left, SOLID */}
+      {/* Globe bottom-left */}
       <div style={{ position: 'absolute', bottom: '-5%', left: '-8%' }}>
         <KTAGlobe />
       </div>
 
       <KTALogo />
 
-      {/* Foto — rounded rect, bg merah, KOSONG */}
+      {/* Foto — KOSONG dengan placeholder teks besar */}
       <div className="relative flex justify-center mt-5">
         <div style={{ width: '130px', height: '160px', borderRadius: '20px', backgroundColor: KTA.redBg, padding: '4px' }}>
-          <div style={{ width: '100%', height: '100%', backgroundColor: '#FFE0B2', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', border: '2px dashed #999' }}>
-            <span style={{ fontSize: '11px', fontWeight: 600, color: '#666' }}>FOTO</span>
-            <span style={{ fontSize: '9px', color: '#888' }}>(dari biodata)</span>
+          <div style={{
+            width: '100%',
+            height: '100%',
+            backgroundColor: 'rgba(255,255,255,0.85)',
+            borderRadius: '16px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            border: '2px solid rgba(255,255,255,0.9)',
+          }}>
+            <span style={{
+              fontSize: '10px',
+              fontWeight: 700,
+              color: '#666',
+              textAlign: 'center',
+              letterSpacing: '0.5px',
+            }}>
+              [ INPUT FOTO<br />SISTEM ]
+            </span>
           </div>
         </div>
       </div>
 
-      {/* Nama — KOSONG */}
-      <div className="relative text-center mt-2 px-6">
-        <div style={{ fontSize: '14px', fontWeight: 600, color: KTA.blackText, border: '1px dashed #999', backgroundColor: 'rgba(255,255,255,0.5)', padding: '4px 10px', borderRadius: '4px', margin: '0 auto', maxWidth: '220px' }}>
-          <span style={{ color: '#888', fontSize: '11px' }}>NAMA (dari biodata)</span>
+      {/* Nama — KOSONG dengan placeholder teks */}
+      <div className="relative text-center mt-3 px-6">
+        <div style={{
+          fontSize: '13px',
+          fontWeight: 600,
+          color: '#999',
+          letterSpacing: '0.5px',
+          borderBottom: '1px solid #999',
+          paddingBottom: '2px',
+          margin: '0 auto',
+          maxWidth: '220px',
+        }}>
+          [ NAMA DATABASE ]
         </div>
       </div>
 
-      {/* QR Code — bottom-right, border putih */}
-      <div style={{ position: 'absolute', bottom: '15px', right: '15px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-        <div style={{ width: '55px', height: '55px', backgroundColor: 'white', padding: '3px', borderRadius: '3px', border: '2px dashed #999', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <span style={{ fontSize: '7px', color: '#888', textAlign: 'center' }}>QR CODE<br />(auto)</span>
+      {/* QR Code — KOSONG dengan placeholder */}
+      <div style={{
+        position: 'absolute',
+        bottom: '15px',
+        right: '15px',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: '4px',
+      }}>
+        <div style={{
+          width: '55px',
+          height: '55px',
+          backgroundColor: 'white',
+          padding: '3px',
+          borderRadius: '3px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          border: '1px solid #ccc',
+        }}>
+          <span style={{ fontSize: '7px', color: '#999', textAlign: 'center', fontWeight: 600 }}>
+            [ QR ]<br />AUTO
+          </span>
         </div>
         <span style={{ fontSize: '8px', color: 'white', fontWeight: 500, textAlign: 'center' }}>
           Berlaku s/d<br />31 Desember {new Date().getFullYear()}
@@ -368,11 +414,21 @@ function KTATemplateBack() {
 
       <KTALogo />
 
-      {/* Badge nomor KTA — pill shape merah, KOSONG */}
+      {/* Badge nomor KTA — pill shape merah, KOSONG dengan placeholder */}
       <div className="relative flex justify-center mt-4">
-        <div style={{ backgroundColor: KTA.redBg, color: 'white', padding: '6px 20px', borderRadius: '16px', fontSize: '12px', fontWeight: 700, fontFamily: 'monospace', letterSpacing: '1px', border: '2px dashed rgba(255,255,255,0.6)', minWidth: '160px', textAlign: 'center' }}>
-          <span style={{ fontSize: '8px', opacity: 0.8, display: 'block' }}>NOMOR KTA</span>
-          <span style={{ fontSize: '9px', opacity: 0.7 }}>(dari database)</span>
+        <div style={{
+          backgroundColor: KTA.redBg,
+          color: 'white',
+          padding: '6px 20px',
+          borderRadius: '16px',
+          fontSize: '12px',
+          fontWeight: 700,
+          fontFamily: 'monospace',
+          letterSpacing: '1px',
+          minWidth: '160px',
+          textAlign: 'center',
+        }}>
+          [ NOMOR KTA ]
         </div>
       </div>
 
