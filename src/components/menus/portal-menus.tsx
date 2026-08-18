@@ -4061,159 +4061,125 @@ function KtaPendaftaranForm() {
               <div className="space-y-2"><Label>Pekerjaan</Label><Input value={form.occupation} onChange={(e) => setForm({ ...form, occupation: e.target.value })} placeholder="cth: Wiraswasta" /></div>
               <div className="space-y-2">
                 <Label>Jabatan di Pengurus / Anggota *</Label>
-                <Select value={form.applicantNotes?.split('||')[0] || ''} onValueChange={(v) => {
-                  const existingDetail = form.applicantNotes?.split('||')[1] || ''
-                  setForm({ ...form, applicantNotes: v + (existingDetail ? '||' + existingDetail : '') })
-                }}>
+                <Select value={form.applicantNotes || ''} onValueChange={(v) => setForm({ ...form, applicantNotes: v })}>
                   <SelectTrigger><SelectValue placeholder="Pilih Jabatan" /></SelectTrigger>
                   <SelectContent className="max-h-72">
 
-                    {/* === A. STRUKTUR DPN === */}
+                    {/* I. DEWAN PEMBINA */}
+                    <SelectItem value="Ketua Dewan Pembina">Ketua Dewan Pembina</SelectItem>
+                    <SelectItem value="Wakil Ketua Dewan Pembina I">Wakil Ketua Dewan Pembina I</SelectItem>
+                    <SelectItem value="Wakil Ketua Dewan Pembina II">Wakil Ketua Dewan Pembina II</SelectItem>
+                    <SelectItem value="Anggota Dewan Pembina I">Anggota Dewan Pembina I</SelectItem>
+                    <SelectItem value="Anggota Dewan Pembina II">Anggota Dewan Pembina II</SelectItem>
+                    <SelectItem value="Anggota Dewan Pembina III">Anggota Dewan Pembina III</SelectItem>
+                    <SelectItem value="Anggota Dewan Pembina IV">Anggota Dewan Pembina IV</SelectItem>
+                    <SelectItem value="Anggota Dewan Pembina V">Anggota Dewan Pembina V</SelectItem>
 
-                    {/* I. DEWAN PEMBINA (DPN) */}
-                    <SelectItem value="Ketua Dewan Pembina">[DPN] Ketua Dewan Pembina</SelectItem>
-                    <SelectItem value="Wakil Ketua Dewan Pembina I">[DPN] Wakil Ketua Dewan Pembina I</SelectItem>
-                    <SelectItem value="Wakil Ketua Dewan Pembina II">[DPN] Wakil Ketua Dewan Pembina II</SelectItem>
-                    <SelectItem value="Anggota Dewan Pembina I">[DPN] Anggota Dewan Pembina I</SelectItem>
-                    <SelectItem value="Anggota Dewan Pembina II">[DPN] Anggota Dewan Pembina II</SelectItem>
-                    <SelectItem value="Anggota Dewan Pembina III">[DPN] Anggota Dewan Pembina III</SelectItem>
-                    <SelectItem value="Anggota Dewan Pembina IV">[DPN] Anggota Dewan Pembina IV</SelectItem>
-                    <SelectItem value="Anggota Dewan Pembina V">[DPN] Anggota Dewan Pembina V</SelectItem>
+                    {/* II. DEWAN PENASEHAT */}
+                    <SelectItem value="Ketua Dewan Penasehat">Ketua Dewan Penasehat</SelectItem>
+                    <SelectItem value="Wakil Ketua Dewan Penasehat I">Wakil Ketua Dewan Penasehat I</SelectItem>
+                    <SelectItem value="Wakil Ketua Dewan Penasehat II">Wakil Ketua Dewan Penasehat II</SelectItem>
+                    <SelectItem value="Wakil Ketua Dewan Penasehat III">Wakil Ketua Dewan Penasehat III</SelectItem>
+                    <SelectItem value="Wakil Ketua Dewan Penasehat IV">Wakil Ketua Dewan Penasehat IV</SelectItem>
+                    <SelectItem value="Anggota Dewan Penasehat I">Anggota Dewan Penasehat I</SelectItem>
+                    <SelectItem value="Anggota Dewan Penasehat II">Anggota Dewan Penasehat II</SelectItem>
+                    <SelectItem value="Anggota Dewan Penasehat III">Anggota Dewan Penasehat III</SelectItem>
+                    <SelectItem value="Anggota Dewan Penasehat IV">Anggota Dewan Penasehat IV</SelectItem>
+                    <SelectItem value="Anggota Dewan Penasehat V">Anggota Dewan Penasehat V</SelectItem>
+                    <SelectItem value="Anggota Dewan Penasehat VI">Anggota Dewan Penasehat VI</SelectItem>
 
-                    {/* II. DEWAN PENASEHAT (DPN) */}
-                    <SelectItem value="Ketua Dewan Penasehat">[DPN] Ketua Dewan Penasehat</SelectItem>
-                    <SelectItem value="Wakil Ketua Dewan Penasehat I">[DPN] Wakil Ketua Dewan Penasehat I</SelectItem>
-                    <SelectItem value="Wakil Ketua Dewan Penasehat II">[DPN] Wakil Ketua Dewan Penasehat II</SelectItem>
-                    <SelectItem value="Wakil Ketua Dewan Penasehat III">[DPN] Wakil Ketua Dewan Penasehat III</SelectItem>
-                    <SelectItem value="Wakil Ketua Dewan Penasehat IV">[DPN] Wakil Ketua Dewan Penasehat IV</SelectItem>
-                    <SelectItem value="Anggota Dewan Penasehat I">[DPN] Anggota Dewan Penasehat I</SelectItem>
-                    <SelectItem value="Anggota Dewan Penasehat II">[DPN] Anggota Dewan Penasehat II</SelectItem>
-                    <SelectItem value="Anggota Dewan Penasehat III">[DPN] Anggota Dewan Penasehat III</SelectItem>
-                    <SelectItem value="Anggota Dewan Penasehat IV">[DPN] Anggota Dewan Penasehat IV</SelectItem>
-                    <SelectItem value="Anggota Dewan Penasehat V">[DPN] Anggota Dewan Penasehat V</SelectItem>
-                    <SelectItem value="Anggota Dewan Penasehat VI">[DPN] Anggota Dewan Penasehat VI</SelectItem>
+                    {/* III. DEWAN PAKAR */}
+                    <SelectItem value="Ketua Dewan Pakar">Ketua Dewan Pakar</SelectItem>
+                    <SelectItem value="Anggota Dewan Pakar I">Anggota Dewan Pakar I</SelectItem>
+                    <SelectItem value="Anggota Dewan Pakar II">Anggota Dewan Pakar II</SelectItem>
 
-                    {/* III. DEWAN PAKAR (DPN) */}
-                    <SelectItem value="Ketua Dewan Pakar">[DPN] Ketua Dewan Pakar</SelectItem>
-                    <SelectItem value="Anggota Dewan Pakar I">[DPN] Anggota Dewan Pakar I</SelectItem>
-                    <SelectItem value="Anggota Dewan Pakar II">[DPN] Anggota Dewan Pakar II</SelectItem>
+                    {/* IV. PENGURUS HARIAN */}
+                    <SelectItem value="Ketua Umum">Ketua Umum</SelectItem>
+                    <SelectItem value="Ketua Harian">Ketua Harian</SelectItem>
+                    <SelectItem value="Wakil Ketua Umum I">Wakil Ketua Umum I (Internal)</SelectItem>
+                    <SelectItem value="Wakil Ketua Umum II">Wakil Ketua Umum II (Eksternal)</SelectItem>
+                    <SelectItem value="Wakil Ketua Umum III">Wakil Ketua Umum III (Dana & Investasi)</SelectItem>
+                    <SelectItem value="Wakil Ketua Umum IV">Wakil Ketua Umum IV (Hukum & HAM)</SelectItem>
+                    <SelectItem value="Sekretaris Jenderal">Sekretaris Jenderal</SelectItem>
+                    <SelectItem value="Wakil Sekretaris Jenderal I">Wakil Sekretaris Jenderal I</SelectItem>
+                    <SelectItem value="Wakil Sekretaris Jenderal II">Wakil Sekretaris Jenderal II</SelectItem>
+                    <SelectItem value="Wakil Sekretaris Jenderal III">Wakil Sekretaris Jenderal III</SelectItem>
+                    <SelectItem value="Bendahara Umum">Bendahara Umum</SelectItem>
+                    <SelectItem value="Wakil Bendahara Umum I">Wakil Bendahara Umum I</SelectItem>
+                    <SelectItem value="Wakil Bendahara Umum II">Wakil Bendahara Umum II</SelectItem>
+                    <SelectItem value="Wakil Bendahara Umum III">Wakil Bendahara Umum III</SelectItem>
+                    <SelectItem value="Sekretaris">Sekretaris</SelectItem>
+                    <SelectItem value="Wakil Sekretaris I">Wakil Sekretaris I</SelectItem>
+                    <SelectItem value="Wakil Sekretaris II">Wakil Sekretaris II</SelectItem>
+                    <SelectItem value="Bendahara">Bendahara</SelectItem>
+                    <SelectItem value="Wakil Bendahara I">Wakil Bendahara I</SelectItem>
+                    <SelectItem value="Wakil Bendahara II">Wakil Bendahara II</SelectItem>
 
-                    {/* IV. PENGURUS HARIAN DPN */}
-                    <SelectItem value="Ketua Umum">[DPN] Ketua Umum</SelectItem>
-                    <SelectItem value="Ketua Harian">[DPN] Ketua Harian</SelectItem>
-                    <SelectItem value="Wakil Ketua Umum I">[DPN] Wakil Ketua Umum I (Internal)</SelectItem>
-                    <SelectItem value="Wakil Ketua Umum II">[DPN] Wakil Ketua Umum II (Eksternal)</SelectItem>
-                    <SelectItem value="Wakil Ketua Umum III">[DPN] Wakil Ketua Umum III (Dana & Investasi)</SelectItem>
-                    <SelectItem value="Wakil Ketua Umum IV">[DPN] Wakil Ketua Umum IV (Hukum & HAM)</SelectItem>
-                    <SelectItem value="Sekretaris Jenderal">[DPN] Sekretaris Jenderal</SelectItem>
-                    <SelectItem value="Wakil Sekretaris Jenderal I">[DPN] Wakil Sekretaris Jenderal I</SelectItem>
-                    <SelectItem value="Wakil Sekretaris Jenderal II">[DPN] Wakil Sekretaris Jenderal II</SelectItem>
-                    <SelectItem value="Wakil Sekretaris Jenderal III">[DPN] Wakil Sekretaris Jenderal III</SelectItem>
-                    <SelectItem value="Bendahara Umum">[DPN] Bendahara Umum</SelectItem>
-                    <SelectItem value="Wakil Bendahara Umum I">[DPN] Wakil Bendahara Umum I</SelectItem>
-                    <SelectItem value="Wakil Bendahara Umum II">[DPN] Wakil Bendahara Umum II</SelectItem>
-                    <SelectItem value="Wakil Bendahara Umum III">[DPN] Wakil Bendahara Umum III</SelectItem>
+                    {/* V. DIVISI / BIRO */}
+                    <SelectItem value="Ketua Biro Sekretariat">Ketua Biro Sekretariat</SelectItem>
+                    <SelectItem value="Wakil Ketua Biro Sekretariat">Wakil Ketua Biro Sekretariat</SelectItem>
+                    <SelectItem value="Ketua Divisi Humas">Ketua Divisi Humas</SelectItem>
+                    <SelectItem value="Wakil Ketua Divisi Humas">Wakil Ketua Divisi Humas</SelectItem>
+                    <SelectItem value="Ketua Divisi Antar Lembaga">Ketua Divisi Antar Lembaga</SelectItem>
+                    <SelectItem value="Wakil Ketua Divisi Antar Lembaga">Wakil Ketua Divisi Antar Lembaga</SelectItem>
+                    <SelectItem value="Ketua Biro Lembaga Pemerintahan">Ketua Biro Lembaga Pemerintahan</SelectItem>
+                    <SelectItem value="Wakil Ketua Biro Lembaga Pemerintahan">Wakil Ketua Biro Lembaga Pemerintahan</SelectItem>
+                    <SelectItem value="Ketua Biro Lembaga Non Pemerintahan">Ketua Biro Lembaga Non Pemerintahan/Swasta</SelectItem>
+                    <SelectItem value="Wakil Ketua Biro Lembaga Non Pemerintahan">Wakil Ketua Biro Lembaga Non Pemerintahan/Swasta</SelectItem>
+                    <SelectItem value="Ketua Biro Lembaga Luar Negeri">Ketua Biro Lembaga di Luar Negeri</SelectItem>
+                    <SelectItem value="Wakil Ketua Biro Lembaga Luar Negeri">Wakil Ketua Biro Lembaga di Luar Negeri</SelectItem>
+                    <SelectItem value="Ketua Divisi Program Internal">Ketua Divisi Program Internal</SelectItem>
+                    <SelectItem value="Wakil Ketua Divisi Program Internal">Wakil Ketua Divisi Program Internal</SelectItem>
+                    <SelectItem value="Ketua Biro Hubungan Internal">Ketua Biro Hubungan Internal</SelectItem>
+                    <SelectItem value="Wakil Ketua Biro Hubungan Internal">Wakil Ketua Biro Hubungan Internal</SelectItem>
+                    <SelectItem value="Ketua Biro Seni dan Budaya">Ketua Biro Seni dan Budaya</SelectItem>
+                    <SelectItem value="Wakil Ketua Biro Seni dan Budaya">Wakil Ketua Biro Seni dan Budaya</SelectItem>
+                    <SelectItem value="Ketua Biro Kaderisasi SDM">Ketua Biro Kaderisasi dan Pengembangan SDM</SelectItem>
+                    <SelectItem value="Wakil Ketua Biro Kaderisasi SDM">Wakil Ketua Biro Kaderisasi dan Pengembangan SDM</SelectItem>
+                    <SelectItem value="Ketua Divisi Program Eksternal">Ketua Divisi Program Eksternal</SelectItem>
+                    <SelectItem value="Wakil Ketua Divisi Program Eksternal">Wakil Ketua Divisi Program Eksternal</SelectItem>
+                    <SelectItem value="Ketua Biro Pemberdayaan Perempuan">Ketua Biro Pemberdayaan Perempuan</SelectItem>
+                    <SelectItem value="Wakil Ketua Biro Pemberdayaan Perempuan">Wakil Ketua Biro Pemberdayaan Perempuan</SelectItem>
+                    <SelectItem value="Ketua Biro Ketahanan Pangan">Ketua Biro Ketahanan Pangan</SelectItem>
+                    <SelectItem value="Wakil Ketua Biro Ketahanan Pangan">Wakil Ketua Biro Ketahanan Pangan</SelectItem>
+                    <SelectItem value="Ketua Biro Kesehatan Gizi Anak">Ketua Biro Kesehatan & Gizi Anak</SelectItem>
+                    <SelectItem value="Wakil Ketua Biro Kesehatan Gizi Anak">Wakil Ketua Biro Kesehatan & Gizi Anak</SelectItem>
+                    <SelectItem value="Ketua Biro Kerukunan Antar Agama">Ketua Biro Kerukunan Antar Agama</SelectItem>
+                    <SelectItem value="Wakil Ketua Biro Kerukunan Antar Agama">Wakil Ketua Biro Kerukunan Antar Agama</SelectItem>
+                    <SelectItem value="Ketua Divisi Kaderisasi Organisasi">Ketua Divisi Kaderisasi & Organisasi</SelectItem>
+                    <SelectItem value="Wakil Ketua Divisi Kaderisasi Organisasi">Wakil Ketua Divisi Kaderisasi & Organisasi</SelectItem>
+                    <SelectItem value="Ketua Biro Kaderisasi">Ketua Biro Kaderisasi</SelectItem>
+                    <SelectItem value="Wakil Ketua Biro Kaderisasi">Wakil Ketua Biro Kaderisasi</SelectItem>
+                    <SelectItem value="Ketua Biro Etik">Ketua Biro Etik</SelectItem>
+                    <SelectItem value="Wakil Ketua Biro Etik">Wakil Ketua Biro Etik</SelectItem>
+                    <SelectItem value="Ketua Divisi Advokasi Hukum">Ketua Divisi Advokasi & Hukum</SelectItem>
+                    <SelectItem value="Wakil Ketua Divisi Advokasi Hukum">Wakil Ketua Divisi Advokasi & Hukum</SelectItem>
+                    <SelectItem value="Ketua Biro Litigasi">Ketua Biro Litigasi</SelectItem>
+                    <SelectItem value="Wakil Ketua Biro Litigasi">Wakil Ketua Biro Litigasi</SelectItem>
+                    <SelectItem value="Ketua Biro Non Litigasi">Ketua Biro Non Litigasi</SelectItem>
+                    <SelectItem value="Wakil Ketua Biro Non Litigasi">Wakil Ketua Biro Non Litigasi</SelectItem>
+                    <SelectItem value="Ketua Biro Ketenagakerjaan">Ketua Biro Ketenagakerjaan</SelectItem>
+                    <SelectItem value="Wakil Ketua Biro Ketenagakerjaan">Wakil Ketua Biro Ketenagakerjaan</SelectItem>
+                    <SelectItem value="Ketua Divisi Kepemudaan">Ketua Divisi Kepemudaan</SelectItem>
+                    <SelectItem value="Wakil Ketua Divisi Kepemudaan">Wakil Ketua Divisi Kepemudaan</SelectItem>
+                    <SelectItem value="Ketua Biro UMKM">Ketua Biro UMKM</SelectItem>
+                    <SelectItem value="Wakil Ketua Biro UMKM">Wakil Ketua Biro UMKM</SelectItem>
+                    <SelectItem value="Ketua Biro Ekonomi Kreatif">Ketua Biro Ekonomi Kreatif</SelectItem>
+                    <SelectItem value="Wakil Ketua Biro Ekonomi Kreatif">Wakil Ketua Biro Ekonomi Kreatif</SelectItem>
 
-                    {/* V. DIVISI / BIRO DPN — Ketua & Wakil untuk masing-masing */}
-                    <SelectItem value="Ketua Biro Sekretariat">[DPN] Ketua Biro Sekretariat</SelectItem>
-                    <SelectItem value="Wakil Ketua Biro Sekretariat">[DPN] Wakil Ketua Biro Sekretariat</SelectItem>
-                    <SelectItem value="Ketua Divisi Humas">[DPN] Ketua Divisi Humas</SelectItem>
-                    <SelectItem value="Wakil Ketua Divisi Humas">[DPN] Wakil Ketua Divisi Humas</SelectItem>
-                    <SelectItem value="Ketua Divisi Antar Lembaga">[DPN] Ketua Divisi Antar Lembaga</SelectItem>
-                    <SelectItem value="Wakil Ketua Divisi Antar Lembaga">[DPN] Wakil Ketua Divisi Antar Lembaga</SelectItem>
-                    <SelectItem value="Ketua Biro Lembaga Pemerintahan">[DPN] Ketua Biro Lembaga Pemerintahan</SelectItem>
-                    <SelectItem value="Wakil Ketua Biro Lembaga Pemerintahan">[DPN] Wakil Ketua Biro Lembaga Pemerintahan</SelectItem>
-                    <SelectItem value="Ketua Biro Lembaga Non Pemerintahan">[DPN] Ketua Biro Lembaga Non Pemerintahan/Swasta</SelectItem>
-                    <SelectItem value="Wakil Ketua Biro Lembaga Non Pemerintahan">[DPN] Wakil Ketua Biro Lembaga Non Pemerintahan/Swasta</SelectItem>
-                    <SelectItem value="Ketua Biro Lembaga Luar Negeri">[DPN] Ketua Biro Lembaga di Luar Negeri</SelectItem>
-                    <SelectItem value="Wakil Ketua Biro Lembaga Luar Negeri">[DPN] Wakil Ketua Biro Lembaga di Luar Negeri</SelectItem>
-                    <SelectItem value="Ketua Divisi Program Internal">[DPN] Ketua Divisi Program Internal</SelectItem>
-                    <SelectItem value="Wakil Ketua Divisi Program Internal">[DPN] Wakil Ketua Divisi Program Internal</SelectItem>
-                    <SelectItem value="Ketua Biro Hubungan Internal">[DPN] Ketua Biro Hubungan Internal</SelectItem>
-                    <SelectItem value="Wakil Ketua Biro Hubungan Internal">[DPN] Wakil Ketua Biro Hubungan Internal</SelectItem>
-                    <SelectItem value="Ketua Biro Seni dan Budaya">[DPN] Ketua Biro Seni dan Budaya</SelectItem>
-                    <SelectItem value="Wakil Ketua Biro Seni dan Budaya">[DPN] Wakil Ketua Biro Seni dan Budaya</SelectItem>
-                    <SelectItem value="Ketua Biro Kaderisasi SDM">[DPN] Ketua Biro Kaderisasi dan Pengembangan SDM</SelectItem>
-                    <SelectItem value="Wakil Ketua Biro Kaderisasi SDM">[DPN] Wakil Ketua Biro Kaderisasi dan Pengembangan SDM</SelectItem>
-                    <SelectItem value="Ketua Divisi Program Eksternal">[DPN] Ketua Divisi Program Eksternal</SelectItem>
-                    <SelectItem value="Wakil Ketua Divisi Program Eksternal">[DPN] Wakil Ketua Divisi Program Eksternal</SelectItem>
-                    <SelectItem value="Ketua Biro Pemberdayaan Perempuan">[DPN] Ketua Biro Pemberdayaan Perempuan</SelectItem>
-                    <SelectItem value="Wakil Ketua Biro Pemberdayaan Perempuan">[DPN] Wakil Ketua Biro Pemberdayaan Perempuan</SelectItem>
-                    <SelectItem value="Ketua Biro Ketahanan Pangan">[DPN] Ketua Biro Ketahanan Pangan</SelectItem>
-                    <SelectItem value="Wakil Ketua Biro Ketahanan Pangan">[DPN] Wakil Ketua Biro Ketahanan Pangan</SelectItem>
-                    <SelectItem value="Ketua Biro Kesehatan Gizi Anak">[DPN] Ketua Biro Kesehatan & Gizi Anak</SelectItem>
-                    <SelectItem value="Wakil Ketua Biro Kesehatan Gizi Anak">[DPN] Wakil Ketua Biro Kesehatan & Gizi Anak</SelectItem>
-                    <SelectItem value="Ketua Biro Kerukunan Antar Agama">[DPN] Ketua Biro Kerukunan Antar Agama</SelectItem>
-                    <SelectItem value="Wakil Ketua Biro Kerukunan Antar Agama">[DPN] Wakil Ketua Biro Kerukunan Antar Agama</SelectItem>
-                    <SelectItem value="Ketua Divisi Kaderisasi Organisasi">[DPN] Ketua Divisi Kaderisasi & Organisasi</SelectItem>
-                    <SelectItem value="Wakil Ketua Divisi Kaderisasi Organisasi">[DPN] Wakil Ketua Divisi Kaderisasi & Organisasi</SelectItem>
-                    <SelectItem value="Ketua Biro Kaderisasi">[DPN] Ketua Biro Kaderisasi</SelectItem>
-                    <SelectItem value="Wakil Ketua Biro Kaderisasi">[DPN] Wakil Ketua Biro Kaderisasi</SelectItem>
-                    <SelectItem value="Ketua Biro Etik">[DPN] Ketua Biro Etik</SelectItem>
-                    <SelectItem value="Wakil Ketua Biro Etik">[DPN] Wakil Ketua Biro Etik</SelectItem>
-                    <SelectItem value="Ketua Divisi Advokasi Hukum">[DPN] Ketua Divisi Advokasi & Hukum</SelectItem>
-                    <SelectItem value="Wakil Ketua Divisi Advokasi Hukum">[DPN] Wakil Ketua Divisi Advokasi & Hukum</SelectItem>
-                    <SelectItem value="Ketua Biro Litigasi">[DPN] Ketua Biro Litigasi</SelectItem>
-                    <SelectItem value="Wakil Ketua Biro Litigasi">[DPN] Wakil Ketua Biro Litigasi</SelectItem>
-                    <SelectItem value="Ketua Biro Non Litigasi">[DPN] Ketua Biro Non Litigasi</SelectItem>
-                    <SelectItem value="Wakil Ketua Biro Non Litigasi">[DPN] Wakil Ketua Biro Non Litigasi</SelectItem>
-                    <SelectItem value="Ketua Biro Ketenagakerjaan">[DPN] Ketua Biro Ketenagakerjaan</SelectItem>
-                    <SelectItem value="Wakil Ketua Biro Ketenagakerjaan">[DPN] Wakil Ketua Biro Ketenagakerjaan</SelectItem>
-                    <SelectItem value="Ketua Divisi Kepemudaan">[DPN] Ketua Divisi Kepemudaan</SelectItem>
-                    <SelectItem value="Wakil Ketua Divisi Kepemudaan">[DPN] Wakil Ketua Divisi Kepemudaan</SelectItem>
-                    <SelectItem value="Ketua Biro UMKM">[DPN] Ketua Biro UMKM</SelectItem>
-                    <SelectItem value="Wakil Ketua Biro UMKM">[DPN] Wakil Ketua Biro UMKM</SelectItem>
-                    <SelectItem value="Ketua Biro Ekonomi Kreatif">[DPN] Ketua Biro Ekonomi Kreatif</SelectItem>
-                    <SelectItem value="Wakil Ketua Biro Ekonomi Kreatif">[DPN] Wakil Ketua Biro Ekonomi Kreatif</SelectItem>
-                    <SelectItem value="Staf DPN">[DPN] Staf</SelectItem>
-
-                    {/* === B. STRUKTUR DPD / DPC === */}
-
-                    {/* I. PENGURUS HARIAN DPD/DPC */}
-                    <SelectItem value="Ketua DPD">[DPD/DPC] Ketua</SelectItem>
-                    <SelectItem value="Ketua Harian DPD">[DPD/DPC] Ketua Harian</SelectItem>
-                    <SelectItem value="Wakil Ketua I">[DPD/DPC] Wakil Ketua I (Internal)</SelectItem>
-                    <SelectItem value="Wakil Ketua II">[DPD/DPC] Wakil Ketua II (Eksternal)</SelectItem>
-                    <SelectItem value="Wakil Ketua III">[DPD/DPC] Wakil Ketua III (Dana & Investasi)</SelectItem>
-                    <SelectItem value="Wakil Ketua IV">[DPD/DPC] Wakil Ketua IV (Hukum & HAM)</SelectItem>
-                    <SelectItem value="Sekretaris DPD">[DPD/DPC] Sekretaris</SelectItem>
-                    <SelectItem value="Wakil Sekretaris I">[DPD/DPC] Wakil Sekretaris I</SelectItem>
-                    <SelectItem value="Wakil Sekretaris II">[DPD/DPC] Wakil Sekretaris II</SelectItem>
-                    <SelectItem value="Bendahara DPD">[DPD/DPC] Bendahara</SelectItem>
-                    <SelectItem value="Wakil Bendahara I">[DPD/DPC] Wakil Bendahara I</SelectItem>
-                    <SelectItem value="Wakil Bendahara II">[DPD/DPC] Wakil Bendahara II</SelectItem>
-
-                    {/* II. BIDANG-BIDANG DPD/DPC — Ketua, Wakil, Anggota untuk masing-masing */}
-                    {[
-                      'Sekretariat', 'Humas', 'Antar Lembaga', 'Lembaga Pemerintahan',
-                      'Non Pemerintah/Swasta', 'Lembaga di Luar Negeri', 'Program Internal',
-                      'Program Eksternal', 'Pemberdayaan Perempuan', 'Kerukunan Antar Agama',
-                      'Kaderisasi & Organisasi', 'Etik', 'Advokasi & Hukum', 'Litigasi',
-                      'Non Litigasi', 'Ketenagakerjaan', 'Kepemudaan', 'Ekonomi Kreatif',
-                    ].map((bidang) => (
-                      <SelectItem key={bidang} value={`Ketua Bidang ${bidang}`}>[DPD/DPC] Ketua Bidang {bidang}</SelectItem>
+                    {/* BIDANG-BIDANG */}
+                    {['Sekretariat', 'Humas', 'Antar Lembaga', 'Lembaga Pemerintahan', 'Non Pemerintah/Swasta', 'Lembaga di Luar Negeri', 'Program Internal', 'Program Eksternal', 'Pemberdayaan Perempuan', 'Kerukunan Antar Agama', 'Kaderisasi & Organisasi', 'Etik', 'Advokasi & Hukum', 'Litigasi', 'Non Litigasi', 'Ketenagakerjaan', 'Kepemudaan', 'Ekonomi Kreatif'].map((b) => (
+                      <SelectItem key={`k${b}`} value={`Ketua Bidang ${b}`}>Ketua Bidang {b}</SelectItem>
                     ))}
-                    {[
-                      'Sekretariat', 'Humas', 'Antar Lembaga', 'Lembaga Pemerintahan',
-                      'Non Pemerintah/Swasta', 'Lembaga di Luar Negeri', 'Program Internal',
-                      'Program Eksternal', 'Pemberdayaan Perempuan', 'Kerukunan Antar Agama',
-                      'Kaderisasi & Organisasi', 'Etik', 'Advokasi & Hukum', 'Litigasi',
-                      'Non Litigasi', 'Ketenagakerjaan', 'Kepemudaan', 'Ekonomi Kreatif',
-                    ].map((bidang) => (
-                      <SelectItem key={`w${bidang}`} value={`Wakil Bidang ${bidang}`}>[DPD/DPC] Wakil Bidang {bidang}</SelectItem>
+                    {['Sekretariat', 'Humas', 'Antar Lembaga', 'Lembaga Pemerintahan', 'Non Pemerintah/Swasta', 'Lembaga di Luar Negeri', 'Program Internal', 'Program Eksternal', 'Pemberdayaan Perempuan', 'Kerukunan Antar Agama', 'Kaderisasi & Organisasi', 'Etik', 'Advokasi & Hukum', 'Litigasi', 'Non Litigasi', 'Ketenagakerjaan', 'Kepemudaan', 'Ekonomi Kreatif'].map((b) => (
+                      <SelectItem key={`w${b}`} value={`Wakil Bidang ${b}`}>Wakil Bidang {b}</SelectItem>
                     ))}
-                    {[
-                      'Sekretariat', 'Humas', 'Antar Lembaga', 'Lembaga Pemerintahan',
-                      'Non Pemerintah/Swasta', 'Lembaga di Luar Negeri', 'Program Internal',
-                      'Program Eksternal', 'Pemberdayaan Perempuan', 'Kerukunan Antar Agama',
-                      'Kaderisasi & Organisasi', 'Etik', 'Advokasi & Hukum', 'Litigasi',
-                      'Non Litigasi', 'Ketenagakerjaan', 'Kepemudaan', 'Ekonomi Kreatif',
-                    ].map((bidang) => (
-                      <SelectItem key={`a${bidang}`} value={`Anggota Bidang ${bidang}`}>[DPD/DPC] Anggota Bidang {bidang}</SelectItem>
+                    {['Sekretariat', 'Humas', 'Antar Lembaga', 'Lembaga Pemerintahan', 'Non Pemerintah/Swasta', 'Lembaga di Luar Negeri', 'Program Internal', 'Program Eksternal', 'Pemberdayaan Perempuan', 'Kerukunan Antar Agama', 'Kaderisasi & Organisasi', 'Etik', 'Advokasi & Hukum', 'Litigasi', 'Non Litigasi', 'Ketenagakerjaan', 'Kepemudaan', 'Ekonomi Kreatif'].map((b) => (
+                      <SelectItem key={`a${b}`} value={`Anggota Bidang ${b}`}>Anggota Bidang {b}</SelectItem>
                     ))}
-                    <SelectItem value="Staf DPD">[DPD/DPC] Staf</SelectItem>
 
-                    {/* === UMUM === */}
+                    {/* UMUM */}
+                    <SelectItem value="Staf">Staf</SelectItem>
                     <SelectItem value="Anggota">Anggota</SelectItem>
                     <SelectItem value="Relawan">Relawan</SelectItem>
                     <SelectItem value="Koordinator Wilayah">Koordinator Wilayah</SelectItem>
@@ -4222,26 +4188,13 @@ function KtaPendaftaranForm() {
                 </Select>
 
                 {/* Input detail untuk Lainnya */}
-                {form.applicantNotes?.split('||')[0] === 'Lainnya' && (
+                {form.applicantNotes === 'Lainnya' && (
                   <Input
-                    value={form.applicantNotes?.split('||')[1] || ''}
-                    onChange={(e) => {
-                      setForm({ ...form, applicantNotes: 'Lainnya||' + e.target.value })
-                    }}
+                    value={form.applicantNotes === 'Lainnya' ? (form.applicantNotes.split('||')[1] || '') : ''}
+                    onChange={(e) => setForm({ ...form, applicantNotes: 'Lainnya||' + e.target.value })}
                     placeholder="Tulis jabatan lainnya..."
                     className="mt-2"
                   />
-                )}
-                {/* Preview jabatan */}
-                {form.applicantNotes && form.applicantNotes.split('||')[0] !== 'Lainnya' && (
-                  <div className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
-                    Jabatan: <strong>{form.applicantNotes.split('||')[0]}</strong>
-                  </div>
-                )}
-                {form.applicantNotes?.split('||')[1] && form.applicantNotes?.split('||')[0] === 'Lainnya' && (
-                  <div className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
-                    Jabatan: <strong>{form.applicantNotes.split('||')[1]}</strong>
-                  </div>
                 )}
               </div>
               <div className="space-y-2"><Label>Ukuran Baju Seragam</Label>
