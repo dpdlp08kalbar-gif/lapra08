@@ -4059,37 +4059,79 @@ function KtaPendaftaranForm() {
                 </Select>
               </div>
               <div className="space-y-2"><Label>Pekerjaan</Label><Input value={form.occupation} onChange={(e) => setForm({ ...form, occupation: e.target.value })} placeholder="cth: Wiraswasta" /></div>
-              <div className="space-y-2"><Label>Jabatan di Pengurus / Anggota</Label>
-                <Select value={form.applicantNotes || ''} onValueChange={(v) => setForm({ ...form, applicantNotes: v })}>
+              <div className="space-y-2">
+                <Label>Jabatan di Pengurus / Anggota *</Label>
+                <Select value={form.applicantNotes?.split('||')[0] || ''} onValueChange={(v) => {
+                  // Simpan format: "Jabatan||detail" (kalau ada detail bidang/biro)
+                  const existingDetail = form.applicantNotes?.split('||')[1] || ''
+                  setForm({ ...form, applicantNotes: v + (existingDetail ? '||' + existingDetail : '') })
+                }}>
                   <SelectTrigger><SelectValue placeholder="Pilih Jabatan" /></SelectTrigger>
                   <SelectContent className="max-h-60">
                     <SelectItem value="Anggota">Anggota</SelectItem>
+                    <SelectItem value="Relawan">Relawan</SelectItem>
                     <SelectItem value="Ketua Umum">Ketua Umum</SelectItem>
-                    <SelectItem value="Wakil Ketua">Wakil Ketua</SelectItem>
+                    <SelectItem value="Wakil Ketua Umum">Wakil Ketua Umum</SelectItem>
                     <SelectItem value="Sekretaris Jenderal">Sekretaris Jenderal</SelectItem>
-                    <SelectItem value="Wakil Sekretaris">Wakil Sekretaris</SelectItem>
+                    <SelectItem value="Wakil Sekretaris Jenderal">Wakil Sekretaris Jenderal</SelectItem>
                     <SelectItem value="Bendahara Umum">Bendahara Umum</SelectItem>
-                    <SelectItem value="Wakil Bendahara">Wakil Bendahara</SelectItem>
+                    <SelectItem value="Wakil Bendahara Umum">Wakil Bendahara Umum</SelectItem>
                     <SelectItem value="Ketua Bidang">Ketua Bidang</SelectItem>
                     <SelectItem value="Wakil Ketua Bidang">Wakil Ketua Bidang</SelectItem>
+                    <SelectItem value="Ketua Biro">Ketua Biro</SelectItem>
+                    <SelectItem value="Wakil Ketua Biro">Wakil Ketua Biro</SelectItem>
+                    <SelectItem value="Kepala Bagian">Kepala Bagian</SelectItem>
                     <SelectItem value="Koordinator Wilayah">Koordinator Wilayah</SelectItem>
                     <SelectItem value="Ketua DPD">Ketua DPD</SelectItem>
                     <SelectItem value="Wakil Ketua DPD">Wakil Ketua DPD</SelectItem>
                     <SelectItem value="Sekretaris DPD">Sekretaris DPD</SelectItem>
                     <SelectItem value="Bendahara DPD">Bendahara DPD</SelectItem>
+                    <SelectItem value="Ketua Bidang DPD">Ketua Bidang DPD</SelectItem>
                     <SelectItem value="Ketua DPC">Ketua DPC</SelectItem>
                     <SelectItem value="Wakil Ketua DPC">Wakil Ketua DPC</SelectItem>
                     <SelectItem value="Sekretaris DPC">Sekretaris DPC</SelectItem>
                     <SelectItem value="Bendahara DPC">Bendahara DPC</SelectItem>
+                    <SelectItem value="Ketua Bidang DPC">Ketua Bidang DPC</SelectItem>
                     <SelectItem value="Dewan Pembina">Dewan Pembina</SelectItem>
                     <SelectItem value="Dewan Penasihat">Dewan Penasihat</SelectItem>
+                    <SelectItem value="Dewan Kehormatan">Dewan Kehormatan</SelectItem>
                     <SelectItem value="Staf Ahli">Staf Ahli</SelectItem>
                     <SelectItem value="Tim Media">Tim Media</SelectItem>
                     <SelectItem value="Tim Hukum">Tim Hukum</SelectItem>
                     <SelectItem value="Tim Logistik">Tim Logistik</SelectItem>
-                    <SelectItem value="Relawan">Relawan</SelectItem>
+                    <SelectItem value="Tim IT">Tim IT</SelectItem>
+                    <SelectItem value="Tim Kreatif">Tim Kreatif</SelectItem>
+                    <SelectItem value="Pembina Remaja">Pembina Remaja</SelectItem>
+                    <SelectItem value="Lainnya">Lainnya (isi manual)</SelectItem>
                   </SelectContent>
                 </Select>
+
+                {/* Input detail jabatan — tampil kalau pilih: Ketua Bidang, Wakil Ketua Bidang, Ketua Biro, Wakil Ketua Biro, Kepala Bagian, Ketua Bidang DPD/DPC, Lainnya */}
+                {['Ketua Bidang', 'Wakil Ketua Bidang', 'Ketua Biro', 'Wakil Ketua Biro', 'Kepala Bagian', 'Ketua Bidang DPD', 'Ketua Bidang DPC', 'Lainnya'].includes(form.applicantNotes?.split('||')[0] || '') && (
+                  <Input
+                    value={form.applicantNotes?.split('||')[1] || ''}
+                    onChange={(e) => {
+                      const jabatan = form.applicantNotes?.split('||')[0] || ''
+                      setForm({ ...form, applicantNotes: jabatan + '||' + e.target.value })
+                    }}
+                    placeholder={
+                      form.applicantNotes?.split('||')[0] === 'Lainnya'
+                        ? 'Tulis jabatan lainnya...'
+                        : form.applicantNotes?.split('||')[0]?.includes('Bidang')
+                        ? 'Bidang apa? (cth: Bidang Pemuda, Bidang Sosial, Bidang Hukum, dll)'
+                        : form.applicantNotes?.split('||')[0]?.includes('Biro')
+                        ? 'Biro apa? (cth: Biro Organisasi, Biro Keuangan, Biro Humas, dll)'
+                        : 'Detail jabatan...'
+                    }
+                    className="mt-2"
+                  />
+                )}
+                {/* Preview jabatan lengkap */}
+                {form.applicantNotes?.split('||')[1] && (
+                  <div className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
+                    Jabatan: <strong>{form.applicantNotes.split('||')[0]} {form.applicantNotes.split('||')[1]}</strong>
+                  </div>
+                )}
               </div>
               <div className="space-y-2"><Label>Ukuran Baju Seragam</Label>
                 <Select value={form.shirtSize} onValueChange={(v) => setForm({ ...form, shirtSize: v })}>
