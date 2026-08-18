@@ -34,11 +34,13 @@ interface KTACardData {
 // CONSTANTS — warna & dimensi PERSIS dari VLM
 // ============================================================
 const KTA = {
-  blueBg: '#D4E8F0',
-  redBg: '#ED1C24',
+  blueBg: '#C5DDE8',
+  redBg: '#E6262C',
   blackText: '#1A1A1A',
   white: '#FFFFFF',
-  decorativeLine: '#5DADE2',
+  decorativeLine: '#A8C5D4',
+  globeLine: '#FFFFFF',
+  globeLand: '#FFF0E8',
 }
 
 // ============================================================
@@ -196,24 +198,23 @@ export function KTASampleCard({ compact = false }: { compact?: boolean }) {
 }
 
 // ============================================================
-// SHARED: Background dengan curve (concave untuk depan, convex untuk belakang)
+// SHARED: Background dengan curve "senyum" (concave ke bawah)
 // ============================================================
 function KTABackground({ curve = 'concave' }: { curve?: 'concave' | 'convex' }) {
-  // Curve path: concave = melengkung ke atas di kanan (depan)
-  //             convex = melengkung ke bawah di kanan (belakang)
-  const splitY = curve === 'concave' ? 280 : 250
-  const curveOffset = curve === 'concave' ? -30 : 30
+  // concave = melengkung ke bawah (senyum) — untuk DEPAN
+  // convex = melengkung ke atas (kebalikan) — untuk BELAKANG
+  const splitY = curve === 'concave' ? 260 : 270
+  const dip = curve === 'concave' ? 30 : -30
 
   return (
     <div className="absolute inset-0">
       {/* Background biru full */}
       <div style={{ position: 'absolute', inset: 0, backgroundColor: KTA.blueBg }} />
-      {/* Background merah dengan curved top */}
+      {/* Background merah dengan curved top — bentuk "senyum" */}
       <svg width="100%" height="100%" viewBox="0 0 340 480" preserveAspectRatio="none" style={{ position: 'absolute', inset: 0 }}>
         <path
-          d={`M 0 ${splitY}
-              Q 100 ${splitY + curveOffset} 200 ${splitY - curveOffset * 0.5}
-              Q 280 ${splitY - curveOffset} 340 ${splitY + curveOffset * 0.3}
+          d={`M 0 ${splitY - dip}
+              Q 170 ${splitY + dip} 340 ${splitY - dip}
               L 340 480 L 0 480 Z`}
           fill={KTA.redBg}
         />
@@ -247,27 +248,28 @@ function KTADecorativeLines({ position = 'left' }: { position?: 'left' | 'right'
 
 // ============================================================
 // SHARED: Logo Laskar PRABOWO 08
+// Siluet wajah di sebelah KANAN "Laskar" (bukan PRABOWO)
 // ============================================================
 function KTALogo() {
   return (
     <div className="relative flex items-center justify-center gap-1 pt-4">
-      <span style={{ fontFamily: '"Great Vibes", "Brush Script MT", cursive', fontSize: '28px', color: KTA.redBg, fontStyle: 'italic', fontWeight: 'bold', lineHeight: 1 }}>
+      <span style={{ fontFamily: '"Great Vibes", "Brush Script MT", cursive', fontSize: '26px', color: KTA.redBg, fontStyle: 'italic', fontWeight: 'bold', lineHeight: 1 }}>
         Laskar
       </span>
-      <div className="flex flex-col items-center leading-none">
-        <div className="flex items-center gap-1">
-          <span style={{ fontSize: '20px', fontWeight: 900, color: '#000000', letterSpacing: '-0.5px', fontFamily: 'Impact, "Bebas Neue", "Arial Black", sans-serif' }}>
-            PRABOWO
-          </span>
-          {/* Siluet wajah dengan peci */}
-          <svg width="16" height="22" viewBox="0 0 16 22" style={{ flexShrink: 0 }}>
-            {/* Peci */}
-            <ellipse cx="8" cy="4" rx="6" ry="3" fill={KTA.redBg} />
-            <rect x="3" y="3" width="10" height="2" fill={KTA.redBg} />
-            {/* Wajah */}
-            <path d="M 8 6 C 4 6 2 9 2 13 C 2 16 3 18 4 19 C 5 20 6 21 8 21 C 10 21 11 20 12 19 C 13 18 14 16 14 13 C 14 9 12 6 8 6 Z" fill={KTA.redBg} />
-          </svg>
-        </div>
+      {/* Siluet wajah menghadap kanan — di sebelah KANAN "Laskar" */}
+      <svg width="18" height="24" viewBox="0 0 18 24" style={{ flexShrink: 0, marginLeft: '-2px' }}>
+        {/* Peci/songkok */}
+        <ellipse cx="9" cy="5" rx="7" ry="3.5" fill={KTA.redBg} />
+        <rect x="3" y="4" width="12" height="2.5" fill={KTA.redBg} />
+        {/* Wajah profil menghadap kanan */}
+        <path d="M 9 7 C 5 7 3 10 3 14 C 3 17 4 19 5 20.5 C 6 22 7.5 23 9 23 C 10.5 23 12 22 13 20.5 C 14 19 15 17 15 14 C 15 10 13 7 9 7 Z" fill={KTA.redBg} />
+        {/* Hidung profil (ke kanan) */}
+        <path d="M 14 12 L 15.5 14 L 14 15 Z" fill={KTA.redBg} />
+      </svg>
+      <div className="flex flex-col items-center leading-none" style={{ marginLeft: '4px' }}>
+        <span style={{ fontSize: '20px', fontWeight: 900, color: '#000000', letterSpacing: '-0.5px', fontFamily: 'Impact, "Bebas Neue", "Arial Black", sans-serif' }}>
+          PRABOWO
+        </span>
         <span style={{ fontSize: '15px', fontWeight: 700, color: KTA.redBg }}>08</span>
       </div>
     </div>
@@ -280,19 +282,19 @@ function KTALogo() {
 function KTAGlobe({ size = 'normal' }: { size?: 'normal' | 'large' }) {
   const dims = size === 'large' ? { w: 220, h: 180 } : { w: 180, h: 150 }
   return (
-    <svg width={dims.w} height={dims.h} viewBox="0 0 200 160" style={{ opacity: 1 }}>
-      {/* Globe wireframe — putih solid */}
-      <ellipse cx="80" cy="80" rx="75" ry="70" fill="none" stroke="white" strokeWidth="1" />
-      <ellipse cx="80" cy="80" rx="75" ry="38" fill="none" stroke="white" strokeWidth="0.7" />
-      <ellipse cx="80" cy="80" rx="75" ry="20" fill="none" stroke="white" strokeWidth="0.5" />
-      <line x1="5" y1="80" x2="155" y2="80" stroke="white" strokeWidth="0.5" />
-      <line x1="80" y1="10" x2="80" y2="150" stroke="white" strokeWidth="0.5" />
-      <ellipse cx="80" cy="80" rx="38" ry="70" fill="none" stroke="white" strokeWidth="0.5" />
-      <ellipse cx="80" cy="80" rx="20" ry="70" fill="none" stroke="white" strokeWidth="0.5" />
-      {/* Daratan Asia-Australia */}
-      <path d="M 45 50 Q 55 40 70 45 Q 85 50 80 60 Q 70 65 55 60 Z" fill="white" opacity="0.9" />
-      <path d="M 85 65 Q 100 60 115 70 Q 125 80 110 88 Q 95 85 88 75 Z" fill="white" opacity="0.9" />
-      <path d="M 95 95 Q 105 90 115 100 Q 110 110 100 105 Z" fill="white" opacity="0.9" />
+    <svg width={dims.w} height={dims.h} viewBox="0 0 200 160" style={{ opacity: 0.85 }}>
+      {/* Globe wireframe — putih dengan opacity tinggi */}
+      <ellipse cx="80" cy="80" rx="75" ry="70" fill="none" stroke={KTA.globeLine} strokeWidth="1" />
+      <ellipse cx="80" cy="80" rx="75" ry="38" fill="none" stroke={KTA.globeLine} strokeWidth="0.7" />
+      <ellipse cx="80" cy="80" rx="75" ry="20" fill="none" stroke={KTA.globeLine} strokeWidth="0.5" />
+      <line x1="5" y1="80" x2="155" y2="80" stroke={KTA.globeLine} strokeWidth="0.5" />
+      <line x1="80" y1="10" x2="80" y2="150" stroke={KTA.globeLine} strokeWidth="0.5" />
+      <ellipse cx="80" cy="80" rx="38" ry="70" fill="none" stroke={KTA.globeLine} strokeWidth="0.5" />
+      <ellipse cx="80" cy="80" rx="20" ry="70" fill="none" stroke={KTA.globeLine} strokeWidth="0.5" />
+      {/* Daratan Asia-Australia — putih krem */}
+      <path d="M 45 50 Q 55 40 70 45 Q 85 50 80 60 Q 70 65 55 60 Z" fill={KTA.globeLand} />
+      <path d="M 85 65 Q 100 60 115 70 Q 125 80 110 88 Q 95 85 88 75 Z" fill={KTA.globeLand} />
+      <path d="M 95 95 Q 105 90 115 100 Q 110 110 100 105 Z" fill={KTA.globeLand} />
     </svg>
   )
 }
