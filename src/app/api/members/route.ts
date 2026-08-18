@@ -26,6 +26,11 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status')
     const territoryId = searchParams.get('territoryId')
     const search = searchParams.get('search')
+    // Filter baru: level (DPN/DPD/DPC) untuk lihat anggota per tingkat
+    // DPN = semua anggota di territory level COUNTRY
+    // DPD = semua anggota di territory ini + anak DPC di provinsinya
+    // DPC = anggota di territory ini saja (default)
+    const levelFilter = searchParams.get('level') // DPN | DPD | DPC
     const limit = parseInt(searchParams.get('limit') || '100')
     const offset = parseInt(searchParams.get('offset') || '0')
 
@@ -50,11 +55,29 @@ export async function GET(request: NextRequest) {
         { phone: { contains: search } },
       ]
     }
-    // Isolasi territory (VIEW)
+    // Isolasi territory (VIEW) — default RBAC
     if (!viewScope.isGlobalView) {
       where.territoryId = { in: viewScope.territoryIds }
     }
-    if (territoryId) {
+
+    // === Filter level (DPN/DPD/DPC) ===
+    // Kalau levelFilter diberikan, ambil semua anggota di territory level itu (dan anak-anaknya kalau DPD)
+    if (levelFilter === 'DPN') {
+      // DPN: anggota di territory level COUNTRY
+      where.territory = { level: 'COUNTRY' }
+    } else if (levelFilter === 'DPD' && territoryId) {
+      // DPD: anggota di DPD itu sendiri + semua DPC di bawahnya
+      // Ambil semua territory anak dari DPD ini (DPC di provinsi tsb)
+      const childTerritories = await db.territory.findMany({
+        where: { parentId: territoryId },
+        select: { id: true },
+      })
+      const childIds = childTerritories.map(t => t.id)
+      // Include DPD sendiri + semua DPC anak
+      where.territoryId = { in: [territoryId, ...childIds] }
+      // Override RBAC filter di atas
+    } else if (territoryId) {
+      // Default: single territoryId (DPC atau DPD specific)
       if (viewScope.isGlobalView) {
         where.territoryId = territoryId
       } else {

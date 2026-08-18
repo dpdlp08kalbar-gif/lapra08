@@ -205,10 +205,31 @@ function MenuCard({
 // HALAMAN DPN - Langsung tampilkan Struktur Pengurus DPN
 // ============================================================
 function DpnPage({ onBack }: { onBack: () => void }) {
+  const [tab, setTab] = useState('pengurus')
+
   return (
     <div className="space-y-4">
       <BackButton onBack={onBack} label="DPN (Pusat Nasional)" />
-      <PengurusSection level="DPN" territoryFilter={{ level: 'COUNTRY' }} />
+
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsTrigger value="pengurus">
+            <Building2 className="w-4 h-4 mr-2" /> Struktur Pengurus
+          </TabsTrigger>
+          <TabsTrigger value="anggota">
+            <Users className="w-4 h-4 mr-2" /> Daftar Anggota
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="pengurus" className="mt-4">
+          <PengurusSection level="DPN" territoryFilter={{ level: 'COUNTRY' }} />
+        </TabsContent>
+
+        <TabsContent value="anggota" className="mt-4">
+          <AnggotaSection territoryId="" level="DPN" />
+        </TabsContent>
+      </Tabs>
+
       <SKSection level="DPN" territoryFilter={{ level: 'COUNTRY' }} />
     </div>
   )
@@ -367,10 +388,31 @@ function TerritoryCard({ territory, onClick, canManage, onEdit, onDelete }: {
 // HALAMAN DPD DETAIL - Struktur Pengurus DPD + CRUD + Upload SK
 // ============================================================
 function DpdDetailPage({ dpd, onBack }: { dpd: Territory; onBack: () => void }) {
+  const [tab, setTab] = useState('pengurus')
+
   return (
     <div className="space-y-4">
       <BackButton onBack={onBack} label={`DPD ${dpd.name}`} />
-      <PengurusSection level="DPD" territoryId={dpd.id} />
+
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsTrigger value="pengurus">
+            <Building2 className="w-4 h-4 mr-2" /> Struktur Pengurus
+          </TabsTrigger>
+          <TabsTrigger value="anggota">
+            <Users className="w-4 h-4 mr-2" /> Daftar Anggota
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="pengurus" className="mt-4">
+          <PengurusSection level="DPD" territoryId={dpd.id} />
+        </TabsContent>
+
+        <TabsContent value="anggota" className="mt-4">
+          <AnggotaSection territoryId={dpd.id} level="DPD" />
+        </TabsContent>
+      </Tabs>
+
       <SKSection level="DPD" territoryId={dpd.id} />
     </div>
   )
@@ -881,7 +923,7 @@ function PengurusSection({ level, territoryId, territoryFilter }: {
 // ============================================================
 // SECTION ANGGOTA (Reusable untuk DPC)
 // ============================================================
-function AnggotaSection({ territoryId }: { territoryId: string }) {
+function AnggotaSection({ territoryId, level }: { territoryId: string; level?: 'DPN' | 'DPD' | 'DPC' }) {
   const user = useAuthStore((s) => s.user)!
   const addToast = useToastStore((s) => s.addToast)
   const [members, setMembers] = useState<Member[]>([])
@@ -894,10 +936,18 @@ function AnggotaSection({ territoryId }: { territoryId: string }) {
 
   const loadData = () => {
     setLoading(true)
-    api(`/api/members?territoryId=${territoryId}`)
+    // Pakai filter level kalau ada (DPN/DPD), fallback ke territoryId biasa untuk DPC
+    const params = new URLSearchParams()
+    if (level && (level === 'DPN' || level === 'DPD')) {
+      params.set('level', level)
+      if (territoryId && level === 'DPD') params.set('territoryId', territoryId)
+    } else if (territoryId) {
+      params.set('territoryId', territoryId)
+    }
+    api(`/api/members?${params.toString()}`)
       .then(setMembers).catch((e) => setError(e.message)).finally(() => setLoading(false))
   }
-  useEffect(() => { loadData() }, [territoryId])
+  useEffect(() => { loadData() }, [territoryId, level])
 
   const handleDelete = async () => {
     if (!deleteMem) return
