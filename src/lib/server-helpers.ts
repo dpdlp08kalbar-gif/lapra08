@@ -351,6 +351,123 @@ export async function logAccess(params: {
 }
 
 /**
+ * Generate nomor KTA format: 08[LEVEL][WILAYAH]P[URUT]
+ * Contoh: 08DPD 0625 P0017
+ *   - 08 = LAPRA 08
+ *   - DPD = tingkat (DPN/DPD/DPC)
+ *   - 0625 = kode wilayah (2 digit provinsi + 2 digit kab/kota, 00 kalau pusat)
+ *   - P0017 = P (Person) + 4 digit urut
+ *
+ * Sequence di-generate dari count Member di territory itu + 1
+ */
+export async function generateKTANumber(territoryId: string): Promise<string> {
+  const territory = await db.territory.findUnique({
+    where: { id: territoryId },
+    include: { parent: true },
+  })
+  if (!territory) throw new Error('Territory not found')
+
+  // Tentukan level code
+  let levelCode = 'DPC'
+  let wilayahCode = '0000'
+
+  if (territory.level === 'COUNTRY') {
+    levelCode = 'DPN'
+    wilayahCode = '0000' // pusat nasional
+  } else if (territory.level === 'PROVINCE') {
+    levelCode = 'DPD'
+    // Kode wilayah: 2 digit provinsi + 00 (pusat provinsi)
+    const provCode = territory.code.padStart(2, '0').slice(-2)
+    wilayahCode = `${provCode}00`
+  } else if (territory.level === 'REGENCY') {
+    levelCode = 'DPC'
+    // Kode wilayah: 2 digit provinsi + 2 digit kab/kota
+    let provCode = '00'
+    let regCode = '00'
+    if (territory.parent?.level === 'PROVINCE') {
+      provCode = territory.parent.code.padStart(2, '0').slice(-2)
+    }
+    regCode = territory.code.padStart(2, '0').slice(-2)
+    wilayahCode = `${provCode}${regCode}`
+  }
+
+  // Hitung urut: count member di territory ini + 1
+  const count = await db.member.count({
+    where: { territoryId },
+  })
+  const urut = String(count + 1).padStart(4, '0')
+
+  return `08${levelCode} ${wilayahCode} P${urut}`
+}
+
+/**
+ * Generate masa berlaku KTA: 1 Januari - 31 Desember tahun berjalan
+ * Returns: { start: Date, end: Date, endString: "31 Desember 2026" }
+ */
+export function getKTAValidityPeriod(): { start: Date; end: Date; endString: string; startString: string } {
+  const year = new Date().getFullYear()
+  const start = new Date(year, 0, 1) // 1 Januari
+  const end = new Date(year, 11, 31) // 31 Desember
+
+  const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+                  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember']
+
+  return {
+    start,
+    end,
+    startString: `1 Januari ${year}`,
+    endString: `31 Desember ${year}`,
+  }
+}
+
+/**
+ * Generate QR code data URL dari string
+ * Mengembalikan base64 data URL: data:image/png;base64,...
+ */
+export async function generateQRCodeDataURL(data: string): Promise<string> {
+  try {
+    const QRCode = await import('qrcode')
+    const dataUrl = await QRCode.toDataURL(data, {
+      width: 200,
+      margin: 1,
+      color: {
+        dark: '#000000',
+        light: '#FFFFFF',
+      },
+      errorCorrectionLevel: 'M',
+    })
+    return dataUrl
+  } catch (e: any) {
+    console.error('[generateQRCodeDataURL] failed:', e.message)
+    // Fallback: return empty QR placeholder
+    return ''
+  }
+}
+
+/**
+ * Build QR code data untuk KTA (JSON string)
+ * Berisi: ktaNumber, fullName, territory, validUntil, verifyUrl
+ */
+export function buildKTAQRData(params: {
+  ktaNumber: string
+  fullName: string
+  territoryName: string
+  level: string
+  validUntil: string
+}): string {
+  const { ktaNumber, fullName, territoryName, level, validUntil } = params
+  const verifyUrl = `https://lapra08.vercel.app/verify-kta?kta=${encodeURIComponent(ktaNumber.replace(/\s/g, ''))}`
+  return JSON.stringify({
+    kta: ktaNumber,
+    name: fullName,
+    wilayah: territoryName,
+    tingkat: level,
+    berlaku: validUntil,
+    verify: verifyUrl,
+  })
+}
+
+/**
  * Cek apakah user adalah DPO (Data Protection Officer)
  * DPO assignments disimpan di SystemSetting key='dpo_assignments' (JSON array of userIds)
  * SUPERADMIN selalu dianggap DPO

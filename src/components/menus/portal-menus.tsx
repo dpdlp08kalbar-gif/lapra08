@@ -43,6 +43,7 @@ import {
 // Reuse existing functional components
 import { PusatDataMenu } from '@/components/menus/pusat-data-menu'
 import { CommunicationMenu } from '@/components/menus/communication-menu'
+import { KTACard } from '@/components/kta-card'
 
 // === Shared interface untuk data Territory (DPN/DPD/DPC) ===
 interface Territory {
@@ -3749,6 +3750,7 @@ function KtaLayananManager() {
   const subTabs = [
     { key: 'daftar', label: 'Daftar KTA Online', icon: IdCard },
     { key: 'status', label: 'Cek Status Permohonan', icon: Search },
+    { key: 'digital', label: 'KTA Digital', icon: Award },
     { key: 'admin', label: 'Admin Review Permohonan', icon: UserCheck },
     { key: 'info', label: 'Info Layanan KTA', icon: Award },
   ]
@@ -3766,10 +3768,117 @@ function KtaLayananManager() {
         <KtaPendaftaranForm />
       ) : subTab === 'status' ? (
         <KtaCekStatus />
+      ) : subTab === 'digital' ? (
+        <KtaDigitalManager />
       ) : subTab === 'admin' ? (
         <KtaAdminReview />
       ) : (
         <KtaInfoLayanan />
+      )}
+    </div>
+  )
+}
+
+// ============================================================
+// KTA DIGITAL MANAGER — list anggota/pengurus yang punya KTA, klik → preview card
+// ============================================================
+function KtaDigitalManager() {
+  const [items, setItems] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+
+  const loadData = () => {
+    setLoading(true)
+    setError(null)
+    // Ambil KtaApplication dengan status APPROVED atau ISSUED
+    api('/api/kta-applications?status=APPROVED')
+      .then((data: any[]) => {
+        setItems(data || [])
+      })
+      .catch((e: any) => {
+        setError(e.message || 'Gagal memuat data')
+      })
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(() => { loadData() }, [])
+
+  // Kalau ada selectedId → tampilkan KTA card
+  if (selectedId) {
+    return (
+      <div className="space-y-4">
+        <Button variant="ghost" size="sm" onClick={() => setSelectedId(null)} className="gap-1">
+          <ChevronRight className="w-4 h-4 rotate-180" /> Kembali ke Daftar
+        </Button>
+        <KTACard applicationId={selectedId} />
+      </div>
+    )
+  }
+
+  if (loading) return <LoadingState message="Memuat daftar KTA..." />
+  if (error) return <ErrorState message={error} />
+
+  const filtered = items.filter((item: any) =>
+    !search ||
+    item.fullName?.toLowerCase().includes(search.toLowerCase()) ||
+    item.applicationNumber?.toLowerCase().includes(search.toLowerCase()) ||
+    item.ktaNumber?.toLowerCase().includes(search.toLowerCase())
+  )
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-xs text-emerald-800">
+        <strong>KTA Digital:</strong> Klik anggota untuk lihat KTA digital (depan + belakang).
+        KTA berisi: foto, nama, jabatan, nomor KTA, QR code, masa berlaku (1 Januari - 31 Desember {new Date().getFullYear()}).
+        Bisa download PNG atau print.
+      </div>
+
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <Input
+          placeholder="Cari nama / nomor pendaftaran / nomor KTA..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="pl-9"
+        />
+      </div>
+
+      {filtered.length === 0 ? (
+        <EmptyState
+          icon={IdCard}
+          title="Belum ada KTA yang diterbitkan"
+          description="KTA digital akan muncul di sini setelah permohonan KTA di-approve oleh admin. Gunakan tab 'Admin Review Permohonan' untuk approve permohonan."
+        />
+      ) : (
+        <div className="grid gap-2">
+          {filtered.map((item: any) => (
+            <button
+              key={item.id}
+              onClick={() => setSelectedId(item.id)}
+              className="flex items-center gap-3 p-3 rounded-lg border hover:bg-accent hover:border-emerald-400 transition-all text-left"
+            >
+              {item.photoUrl ? (
+                <img src={item.photoUrl} alt={item.fullName} className="w-10 h-12 rounded object-cover" />
+              ) : (
+                <div className="w-10 h-12 rounded bg-muted flex items-center justify-center">
+                  <IdCard className="w-5 h-5 text-muted-foreground" />
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium truncate">{item.fullName}</div>
+                <div className="text-xs text-muted-foreground">
+                  {item.ktaNumber || 'KTA belum generate'} • {item.territory?.name || '-'}
+                </div>
+                <div className="text-[10px] text-muted-foreground">
+                  {item.applicationNumber} • Status: {item.status}
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-muted-foreground" />
+            </button>
+          ))}
+        </div>
       )}
     </div>
   )
