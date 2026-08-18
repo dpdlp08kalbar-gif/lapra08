@@ -18,7 +18,7 @@ export async function GET() {
       vercelGitCommitMessage: process.env.VERCEL_GIT_COMMIT_MESSAGE || '-',
       vercelGitCommitAuthor: process.env.VERCEL_GIT_COMMIT_AUTHOR || '-',
       // Marker untuk verifikasi deploy terbaru (update nilai kalau ada fix baru)
-      deployMarker: '1b6ab54-kta-logo-globe-fix',
+      deployMarker: 'a45764d-logo-png-asli',
       dbUrl: process.env.DATABASE_URL ? 'set' : 'NOT SET',
     },
   })

@@ -1,13 +1,16 @@
 // LAPRA 08 - KTA Digital Card Component
-// PERSIS sama dengan KTA asli LAPRA 08
+// PERSIS 100% sama dengan KTA asli LAPRA 08
+// Logo pakai file asli logo-lapra08.png (bukan SVG re-create)
 //
-// Spesifikasi presisi dari VLM audit 5 screenshot:
-// - Background: biru #CFE2EF (atas) + merah #EB424F (bawah) dengan curve
-// - Logo: "Laskar" [siluet] "PRABOWO" SEJAJAR satu baris, "08" di bawah
-// - Globe depan: KIRI BAWAH, TERPOTONG (hanya kanan atas)
-// - Globe belakang: KANAN BAWAH, UTUH (lingkaran penuh)
-// - Globe: semua PUTIH (outline, grid, daratan)
-// - Texture: garis lengkung tipis putih di area biru
+// Koordinat presisi dari VLM audit:
+// - Blue bg: #D4E6F1 (atas 0-62%) + Red bg: #E31E24 (bawah 62-100%)
+// - Curve: arch cembung ke atas (front), blue dominant (back)
+// - Logo: X50% Y8%, pakai PNG asli
+// - Foto: X28% Y22%, W44% H32%, rounded pill, red container
+// - Globe: X25% Y78%, 70% width, putih solid, cropped bawah
+// - QR: X72% Y80%, 20% width
+// - Validity: X75% Y92%, putih
+// - Decorative: front KIRI atas, back KANAN atas, #5DADE2
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
@@ -28,13 +31,19 @@ interface KTACardData {
   qrCodeDataUrl: string
 }
 
-const KTA = {
-  blueBg: '#CFE2EF',
-  redBg: '#EB424F',
-  blackText: '#1A1A1A',
+// Warna presisi dari VLM
+const C = {
+  blue: '#D4E6F1',
+  red: '#E31E24',
+  black: '#000000',
+  grey: '#2C3E50',
   white: '#FFFFFF',
-  globeColor: '#FFFFFF',
+  decoBlue: '#5DADE2',
 }
+
+// Dimensi kartu (ratio portrait ~2:3)
+const W = 340
+const H = 510
 
 // ============================================================
 // MAIN KTACard
@@ -71,7 +80,7 @@ export function KTACard({ applicationId }: { applicationId: string }) {
     try {
       addToast('Mengunduh KTA...', 'info')
       const html2canvas = (await import('html2canvas')).default
-      const canvas = await html2canvas(cardRef.current, { scale: 2, backgroundColor: null, useCORS: true, logging: false })
+      const canvas = await html2canvas(cardRef.current, { scale: 3, backgroundColor: null, useCORS: true, logging: false })
       const link = document.createElement('a')
       link.download = `KTA_${data?.fullName || 'anggota'}_${data?.ktaNumber || ''}.png`
       link.href = canvas.toDataURL('image/png')
@@ -101,7 +110,7 @@ export function KTACard({ applicationId }: { applicationId: string }) {
         <Button size="sm" variant={side === 'back' ? 'default' : 'outline'} onClick={() => setSide('back')}>Belakang</Button>
       </div>
       <div className="flex justify-center">
-        <div ref={cardRef} className="kta-card relative shadow-2xl" style={{ width: '340px', height: '480px', borderRadius: '14px', overflow: 'hidden', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+        <div ref={cardRef} className="kta-card relative shadow-2xl" style={{ width: `${W}px`, height: `${H}px`, borderRadius: '16px', overflow: 'hidden', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
           {side === 'front' ? <KTACardFront data={data} /> : <KTACardBack data={data} />}
         </div>
       </div>
@@ -120,7 +129,7 @@ export function KTASampleCard({ compact = false }: { compact?: boolean }) {
   if (compact) {
     return (
       <div className="flex flex-col items-center gap-3">
-        <div className="kta-card-sample relative shadow-lg" style={{ width: '220px', height: '310px', borderRadius: '10px', overflow: 'hidden', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+        <div className="kta-card-sample relative shadow-lg" style={{ width: '220px', height: '330px', borderRadius: '12px', overflow: 'hidden', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
           <KTATemplateFront />
         </div>
         <div className="text-xs text-muted-foreground text-center max-w-xs">
@@ -138,13 +147,13 @@ export function KTASampleCard({ compact = false }: { compact?: boolean }) {
     <div className="space-y-4">
       <div className="grid gap-4 md:grid-cols-2">
         <div className="flex flex-col items-center gap-2">
-          <div className="kta-card-sample relative shadow-lg" style={{ width: '280px', height: '395px', borderRadius: '12px', overflow: 'hidden', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+          <div className="kta-card-sample relative shadow-lg" style={{ width: '280px', height: '420px', borderRadius: '14px', overflow: 'hidden', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
             <KTATemplateFront />
           </div>
           <div className="text-xs font-medium text-muted-foreground">Sisi Depan</div>
         </div>
         <div className="flex flex-col items-center gap-2">
-          <div className="kta-card-sample relative shadow-lg" style={{ width: '280px', height: '395px', borderRadius: '12px', overflow: 'hidden', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+          <div className="kta-card-sample relative shadow-lg" style={{ width: '280px', height: '420px', borderRadius: '14px', overflow: 'hidden', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
             <KTATemplateBack />
           </div>
           <div className="text-xs font-medium text-muted-foreground">Sisi Belakang</div>
@@ -162,26 +171,25 @@ export function KTASampleCard({ compact = false }: { compact?: boolean }) {
         </div>
         <div className="text-xs space-y-1">
           <div><code className="text-red-600 font-bold">08</code> = Kode LAPRA 08</div>
-          <div><code className="text-blue-600 font-bold">LEVEL</code> = DPN / DPD / DPC (tingkat pengurus)</div>
-          <div><code className="text-emerald-600 font-bold">WILAYAH</code> = 4 digit (2 digit provinsi + 2 digit kab/kota)</div>
+          <div><code className="text-blue-600 font-bold">LEVEL</code> = DPN / DPD / DPC</div>
+          <div><code className="text-emerald-600 font-bold">WILAYAH</code> = 4 digit (2 provinsi + 2 kab/kota)</div>
           <div><code className="text-purple-600 font-bold">P</code> = Person (Anggota)</div>
-          <div><code className="text-orange-600 font-bold">URUT</code> = 4 digit nomor urut anggota</div>
+          <div><code className="text-orange-600 font-bold">URUT</code> = 4 digit urut</div>
         </div>
         <div className="text-xs border-t pt-2 mt-2">
           <strong>Contoh:</strong>{' '}
           <code className="font-mono bg-background px-1.5 py-0.5 rounded border">08DPD 0625.P0017</code>
-          {' '}→ Anggota DPD Kalimantan Barat (kode 61), nomor urut 0017
         </div>
       </div>
 
       <div className="rounded-lg border p-3 space-y-2">
-        <div className="text-xs font-semibold">Sumber Data Setiap Field KTA:</div>
+        <div className="text-xs font-semibold">Sumber Data:</div>
         <div className="grid gap-1.5 text-xs md:grid-cols-2">
-          <div className="flex items-start gap-2"><Badge variant="outline" className="text-[10px] shrink-0">Foto</Badge><span className="text-muted-foreground">Dari database biodata → <code className="bg-muted px-1 rounded">photoUrl</code></span></div>
-          <div className="flex items-start gap-2"><Badge variant="outline" className="text-[10px] shrink-0">Nama</Badge><span className="text-muted-foreground">Dari database biodata → <code className="bg-muted px-1 rounded">fullName</code></span></div>
+          <div className="flex items-start gap-2"><Badge variant="outline" className="text-[10px] shrink-0">Foto</Badge><span className="text-muted-foreground">Database → <code className="bg-muted px-1 rounded">photoUrl</code></span></div>
+          <div className="flex items-start gap-2"><Badge variant="outline" className="text-[10px] shrink-0">Nama</Badge><span className="text-muted-foreground">Database → <code className="bg-muted px-1 rounded">fullName</code></span></div>
           <div className="flex items-start gap-2"><Badge variant="outline" className="text-[10px] shrink-0">Nomor KTA</Badge><span className="text-muted-foreground">Auto-generate → <code className="bg-muted px-1 rounded">08[LEVEL] [WILAYAH].P[URUT]</code></span></div>
-          <div className="flex items-start gap-2"><Badge variant="outline" className="text-[10px] shrink-0">QR Code</Badge><span className="text-muted-foreground">Auto-generate dari data biodata</span></div>
-          <div className="flex items-start gap-2"><Badge variant="outline" className="text-[10px] shrink-0">Masa Berlaku</Badge><span className="text-muted-foreground">Otomatis: 1 Januari - 31 Desember tahun berjalan</span></div>
+          <div className="flex items-start gap-2"><Badge variant="outline" className="text-[10px] shrink-0">QR Code</Badge><span className="text-muted-foreground">Auto-generate dari biodata</span></div>
+          <div className="flex items-start gap-2"><Badge variant="outline" className="text-[10px] shrink-0">Masa Berlaku</Badge><span className="text-muted-foreground">Otomatis: 1 Jan - 31 Des tahun berjalan</span></div>
         </div>
       </div>
     </div>
@@ -189,114 +197,110 @@ export function KTASampleCard({ compact = false }: { compact?: boolean }) {
 }
 
 // ============================================================
-// SHARED: Background dengan curve
-// Depan: cembung ke bawah (senyum/concave)
-// Belakang: cembung ke atas (convex)
+// SHARED: Background dengan curve arch
+// Front: arch cembung ke atas (red area mulai dari ~62%)
+// Back: blue dominant, red area di bawah dengan globe
 // ============================================================
-function KTABackground({ curve = 'concave' }: { curve?: 'concave' | 'convex' }) {
-  const splitY = 250
-  const dip = curve === 'concave' ? 35 : -35
+function KTABg({ variant = 'front' }: { variant?: 'front' | 'back' }) {
+  // Front: split at 62%, arch cembung ke atas
+  // Back: split at 70% (lebih banyak biru), curve lebih datar
+  const splitPct = variant === 'front' ? 0.62 : 0.70
+  const archHeight = variant === 'front' ? 25 : 15
+  const splitY = H * splitPct
 
   return (
     <div className="absolute inset-0">
-      <div style={{ position: 'absolute', inset: 0, backgroundColor: KTA.blueBg }} />
-      <svg width="100%" height="100%" viewBox="0 0 340 480" preserveAspectRatio="none" style={{ position: 'absolute', inset: 0 }}>
+      {/* Biru full */}
+      <div style={{ position: 'absolute', inset: 0, backgroundColor: C.blue }} />
+      {/* Merah dengan arch curve di atas */}
+      <svg width="100%" height="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ position: 'absolute', inset: 0 }}>
         <path
-          d={`M 0 ${splitY - dip} Q 170 ${splitY + dip} 340 ${splitY - dip} L 340 480 L 0 480 Z`}
-          fill={KTA.redBg}
+          d={`M 0 ${splitY}
+              Q ${W / 2} ${splitY - archHeight} ${W} ${splitY}
+              L ${W} ${H} L 0 ${H} Z`}
+          fill={C.red}
         />
-      </svg>
-      {/* Texture: garis lengkung tipis putih di area biru (kiri atas) */}
-      <svg width="140" height="100" viewBox="0 0 140 100" style={{ position: 'absolute', top: 0, left: 0, opacity: 0.4 }}>
-        <path d="M -20 80 Q 40 30 90 60 Q 130 75 160 40" fill="none" stroke="white" strokeWidth="1.5" />
-        <path d="M -20 95 Q 40 45 90 75 Q 130 90 160 55" fill="none" stroke="white" strokeWidth="1" />
-        <path d="M -20 65 Q 40 15 90 45 Q 130 60 160 25" fill="none" stroke="white" strokeWidth="0.8" />
-        <path d="M -20 50 Q 40 0 90 30 Q 130 45 160 10" fill="none" stroke="white" strokeWidth="0.6" />
       </svg>
     </div>
   )
 }
 
 // ============================================================
-// SHARED: Logo — "Laskar" [siluet] "PRABOWO" SEJAJAR satu baris
-// "08" di bawah PRABOWO
+// SHARED: Logo — pakai PNG asli
+// Posisi: X50% Y8%, width ~50% kartu
 // ============================================================
 function KTALogo() {
   return (
-    <div className="relative flex flex-col items-center pt-4">
-      {/* Baris utama: Laskar [siluet] PRABOWO — sejajar */}
-      <div className="flex items-center gap-1">
-        <span style={{
-          fontFamily: '"Great Vibes", "Brush Script MT", cursive',
-          fontSize: '24px',
-          color: KTA.redBg,
-          fontStyle: 'italic',
-          fontWeight: 'bold',
-          lineHeight: 1,
-        }}>
-          Laskar
-        </span>
-        {/* Siluet wajah di TENGAH — pemisah Laskar dan PRABOWO */}
-        <svg width="20" height="26" viewBox="0 0 20 26" style={{ flexShrink: 0 }}>
-          {/* Peci */}
-          <ellipse cx="10" cy="5" rx="7" ry="3.5" fill={KTA.redBg} />
-          <rect x="3.5" y="4" width="13" height="2.5" fill={KTA.redBg} />
-          {/* Wajah profil menghadap kanan */}
-          <path d="M 10 7 C 6 7 4 10 4 15 C 4 18 5 21 6 22.5 C 7 24 8.5 25 10 25 C 11.5 25 13 24 14 22.5 C 15 21 16 18 16 15 C 16 10 14 7 10 7 Z" fill={KTA.redBg} />
-          {/* Hidung */}
-          <path d="M 15 13 L 17 16 L 15 17 Z" fill={KTA.redBg} />
-        </svg>
-        <span style={{
-          fontSize: '20px',
-          fontWeight: 900,
-          color: '#000000',
-          letterSpacing: '-0.5px',
-          fontFamily: 'Impact, "Bebas Neue", "Arial Black", sans-serif',
-        }}>
-          PRABOWO
-        </span>
-      </div>
-      {/* "08" di bawah PRABOWO */}
-      <span style={{
-        fontSize: '15px',
-        fontWeight: 700,
-        color: KTA.redBg,
-        marginTop: '-2px',
-      }}>
-        08
-      </span>
+    <div style={{
+      position: 'absolute',
+      top: '3%',
+      left: '50%',
+      transform: 'translateX(-50%)',
+      width: '55%',
+      zIndex: 10,
+    }}>
+      <img
+        src="/logo-lapra08.png"
+        alt="Laskar Prabowo 08"
+        style={{ width: '100%', height: 'auto', objectFit: 'contain' }}
+      />
     </div>
   )
 }
 
 // ============================================================
-// SHARED: Globe — SEMUA PUTIH (outline, grid, daratan)
-// variant: 'cropped-left' (depan, kiri bawah, terpotong)
-//          'full-right' (belakang, kanan bawah, utuh)
+// SHARED: Decorative lines
+// Front: KIRI atas, Back: KANAN atas (mirror)
 // ============================================================
-function KTAGlobe({ variant = 'cropped-left' }: { variant?: 'cropped-left' | 'full-right' }) {
-  const positionStyle: any = variant === 'cropped-left'
-    ? { position: 'absolute', bottom: '-15%', left: '-25%' }  // Kiri bawah, terpotong
-    : { position: 'absolute', bottom: '-10%', right: '-15%' } // Kanan bawah, utuh
+function KTADeco({ side = 'left' }: { side?: 'left' | 'right' }) {
+  const pos = side === 'left' ? { left: 0 } : { right: 0 }
+  const transform = side === 'right' ? 'scaleX(-1)' : 'none'
 
   return (
-    <div style={positionStyle}>
-      <svg width="200" height="200" viewBox="0 0 200 200">
-        {/* Lingkaran globe utuh — putih */}
-        <circle cx="100" cy="100" r="95" fill="none" stroke={KTA.globeColor} strokeWidth="1.2" />
-        {/* Grid garis lintang (horizontal) */}
-        <ellipse cx="100" cy="100" rx="95" ry="50" fill="none" stroke={KTA.globeColor} strokeWidth="0.7" />
-        <ellipse cx="100" cy="100" rx="95" ry="25" fill="none" stroke={KTA.globeColor} strokeWidth="0.5" />
-        <line x1="5" y1="100" x2="195" y2="100" stroke={KTA.globeColor} strokeWidth="0.5" />
-        {/* Grid garis bujur (vertical) */}
-        <line x1="100" y1="5" x2="100" y2="195" stroke={KTA.globeColor} strokeWidth="0.5" />
-        <ellipse cx="100" cy="100" rx="50" ry="95" fill="none" stroke={KTA.globeColor} strokeWidth="0.5" />
-        <ellipse cx="100" cy="100" rx="25" ry="95" fill="none" stroke={KTA.globeColor} strokeWidth="0.4" />
+    <svg
+      width="130"
+      height="110"
+      viewBox="0 0 130 110"
+      style={{ position: 'absolute', top: 0, ...pos, opacity: 0.5, transform }}
+    >
+      <path d="M -20 90 Q 35 35 85 65 Q 120 80 150 45" fill="none" stroke={C.decoBlue} strokeWidth="1.5" />
+      <path d="M -20 105 Q 35 50 85 80 Q 120 95 150 60" fill="none" stroke={C.decoBlue} strokeWidth="1" />
+      <path d="M -20 75 Q 35 20 85 50 Q 120 65 150 30" fill="none" stroke={C.decoBlue} strokeWidth="0.8" />
+      <path d="M -20 60 Q 35 5 85 35 Q 120 50 150 15" fill="none" stroke={C.decoBlue} strokeWidth="0.6" />
+      <path d="M -20 45 Q 35 -10 85 20 Q 120 35 150 0" fill="none" stroke={C.decoBlue} strokeWidth="0.5" />
+      <path d="M -20 30 Q 35 -25 85 5 Q 120 20 150 -15" fill="none" stroke={C.decoBlue} strokeWidth="0.4" />
+    </svg>
+  )
+}
+
+// ============================================================
+// SHARED: Globe — putih solid, cropped di bawah
+// Posisi: X25% Y78%, 70% width
+// ============================================================
+function KTAGlobe({ variant = 'front' }: { variant?: 'front' | 'back' }) {
+  // Front: kiri bawah, terpotong di bawah
+  // Back: kiri bawah, sedikit lebih tinggi
+  const bottom = variant === 'front' ? '-20%' : '-15%'
+  const left = '-15%'
+
+  return (
+    <div style={{ position: 'absolute', bottom, left, zIndex: 1 }}>
+      <svg width="240" height="240" viewBox="0 0 200 200">
+        {/* Lingkaran utama */}
+        <circle cx="100" cy="100" r="95" fill="none" stroke={C.white} strokeWidth="1.2" />
+        {/* Grid garis lintang */}
+        <ellipse cx="100" cy="100" rx="95" ry="50" fill="none" stroke={C.white} strokeWidth="0.7" />
+        <ellipse cx="100" cy="100" rx="95" ry="25" fill="none" stroke={C.white} strokeWidth="0.5" />
+        <line x1="5" y1="100" x2="195" y2="100" stroke={C.white} strokeWidth="0.5" />
+        {/* Grid garis bujur */}
+        <line x1="100" y1="5" x2="100" y2="195" stroke={C.white} strokeWidth="0.5" />
+        <ellipse cx="100" cy="100" rx="50" ry="95" fill="none" stroke={C.white} strokeWidth="0.5" />
+        <ellipse cx="100" cy="100" rx="25" ry="95" fill="none" stroke={C.white} strokeWidth="0.4" />
         {/* Daratan Asia-Australia — putih solid */}
-        <path d="M 55 60 Q 70 50 85 55 Q 100 60 95 75 Q 85 82 70 75 Z" fill={KTA.globeColor} />
-        <path d="M 100 80 Q 115 75 130 85 Q 140 95 125 105 Q 110 100 103 88 Z" fill={KTA.globeColor} />
-        <path d="M 110 115 Q 125 110 135 120 Q 130 130 120 125 Z" fill={KTA.globeColor} />
-        <path d="M 70 95 Q 80 90 88 100 Q 83 108 73 103 Z" fill={KTA.globeColor} />
+        <path d="M 55 55 Q 70 45 88 52 Q 100 58 95 72 Q 82 80 65 72 Z" fill={C.white} />
+        <path d="M 98 75 Q 115 70 132 82 Q 142 92 125 102 Q 108 98 100 85 Z" fill={C.white} />
+        <path d="M 108 112 Q 125 108 138 120 Q 132 132 118 125 Z" fill={C.white} />
+        <path d="M 65 88 Q 78 83 88 95 Q 82 105 70 98 Z" fill={C.white} />
       </svg>
     </div>
   )
@@ -304,23 +308,40 @@ function KTAGlobe({ variant = 'cropped-left' }: { variant?: 'cropped-left' | 'fu
 
 // ============================================================
 // KTA TEMPLATE FRONT — PERSIS KTA asli
-// Globe: KIRI BAWAH TERPOTONG
 // ============================================================
 function KTATemplateFront() {
   return (
     <div className="relative w-full h-full">
-      <KTABackground curve="concave" />
-      <KTAGlobe variant="cropped-left" />
+      <KTABg variant="front" />
+      <KTADeco side="left" />
+      <KTAGlobe variant="front" />
       <KTALogo />
 
-      {/* Foto — placeholder [ INPUT FOTO SISTEM ] */}
-      <div className="relative flex justify-center mt-5">
-        <div style={{ width: '125px', height: '155px', borderRadius: '18px', backgroundColor: KTA.redBg, padding: '4px' }}>
+      {/* Foto — X28% Y22%, W44% H32%, rounded pill, red container */}
+      <div style={{
+        position: 'absolute',
+        top: '20%',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        width: '44%',
+        height: '32%',
+        zIndex: 5,
+      }}>
+        <div style={{
+          width: '100%',
+          height: '100%',
+          borderRadius: '16px',
+          backgroundColor: C.red,
+          padding: '4px',
+        }}>
           <div style={{
-            width: '100%', height: '100%',
+            width: '100%',
+            height: '100%',
             backgroundColor: 'rgba(255,255,255,0.9)',
-            borderRadius: '14px',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            borderRadius: '12px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
           }}>
             <span style={{ fontSize: '10px', fontWeight: 700, color: '#666', textAlign: 'center' }}>
               [ INPUT FOTO<br />SISTEM ]
@@ -329,23 +350,48 @@ function KTATemplateFront() {
         </div>
       </div>
 
-      {/* Nama — placeholder [ NAMA DATABASE ] */}
-      <div className="relative text-center mt-3 px-6">
+      {/* Nama — Y55%, center */}
+      <div style={{
+        position: 'absolute',
+        top: '53%',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        width: '80%',
+        textAlign: 'center',
+        zIndex: 5,
+      }}>
         <div style={{
-          fontSize: '13px', fontWeight: 600, color: '#999',
-          borderBottom: '1px solid #999', paddingBottom: '2px',
-          margin: '0 auto', maxWidth: '220px',
+          fontSize: '14px',
+          fontWeight: 600,
+          color: '#999',
+          borderBottom: '1px solid #999',
+          paddingBottom: '2px',
+          display: 'inline-block',
         }}>
           [ NAMA DATABASE ]
         </div>
       </div>
 
-      {/* QR Code — placeholder [ QR ] AUTO */}
-      <div style={{ position: 'absolute', bottom: '15px', right: '15px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+      {/* QR Code — X72% Y80%, 20% width */}
+      <div style={{
+        position: 'absolute',
+        bottom: '5%',
+        right: '8%',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: '3px',
+        zIndex: 5,
+      }}>
         <div style={{
-          width: '55px', height: '55px', backgroundColor: 'white',
-          padding: '3px', borderRadius: '3px',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          width: '60px',
+          height: '60px',
+          backgroundColor: 'white',
+          padding: '3px',
+          borderRadius: '3px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
           border: '1px solid #ccc',
         }}>
           <span style={{ fontSize: '7px', color: '#999', textAlign: 'center', fontWeight: 600 }}>
@@ -362,7 +408,6 @@ function KTATemplateFront() {
 
 // ============================================================
 // KTA TEMPLATE BACK — PERSIS KTA asli
-// Globe: KANAN BAWAH UTUH
 // ============================================================
 function KTATemplateBack() {
   const peraturan = [
@@ -374,28 +419,56 @@ function KTATemplateBack() {
 
   return (
     <div className="relative w-full h-full">
-      <KTABackground curve="convex" />
-      <KTAGlobe variant="full-right" />
+      <KTABg variant="back" />
+      <KTADeco side="right" />
+      <KTAGlobe variant="back" />
       <KTALogo />
 
-      {/* Badge nomor KTA — [ NOMOR KTA DATABASE ] */}
-      <div className="kta-number-box relative flex justify-center mt-4">
+      {/* Badge nomor KTA — X50% Y23%, pill shape */}
+      <div className="kta-number-box" style={{
+        position: 'absolute',
+        top: '20%',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        zIndex: 5,
+      }}>
         <div style={{
-          backgroundColor: KTA.redBg, color: 'white',
-          padding: '6px 20px', borderRadius: '16px',
-          fontSize: '12px', fontWeight: 700, fontFamily: 'monospace',
-          letterSpacing: '1px', minWidth: '180px', textAlign: 'center',
+          backgroundColor: C.red,
+          color: 'white',
+          padding: '6px 20px',
+          borderRadius: '16px',
+          fontSize: '12px',
+          fontWeight: 700,
+          fontFamily: 'monospace',
+          letterSpacing: '1px',
+          minWidth: '170px',
+          textAlign: 'center',
         }}>
           [ NOMOR KTA DATABASE ]
         </div>
       </div>
 
-      {/* 4 poin peraturan */}
-      <div className="relative mt-4 px-5 space-y-2">
+      {/* 4 poin peraturan — X15% Y30% */}
+      <div style={{
+        position: 'absolute',
+        top: '28%',
+        left: '8%',
+        right: '8%',
+        zIndex: 5,
+      }}>
         {peraturan.map((p, i) => (
-          <div key={i} className="flex items-start gap-2">
-            <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: KTA.redBg, marginTop: '5px', flexShrink: 0 }} />
-            <p style={{ fontSize: '9px', lineHeight: 1.4, color: '#000000', textAlign: 'justify' }}>{p}</p>
+          <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', marginBottom: '8px' }}>
+            <div style={{
+              width: '6px',
+              height: '6px',
+              borderRadius: '50%',
+              backgroundColor: C.red,
+              marginTop: '5px',
+              flexShrink: 0,
+            }} />
+            <p style={{ fontSize: '9px', lineHeight: 1.5, color: C.grey, textAlign: 'justify', margin: 0 }}>
+              {p}
+            </p>
           </div>
         ))}
       </div>
@@ -409,27 +482,56 @@ function KTATemplateBack() {
 function KTACardFront({ data }: { data: KTACardData }) {
   return (
     <div className="relative w-full h-full">
-      <KTABackground curve="concave" />
-      <KTAGlobe variant="cropped-left" />
+      <KTABg variant="front" />
+      <KTADeco side="left" />
+      <KTAGlobe variant="front" />
       <KTALogo />
 
-      <div className="relative flex justify-center mt-5">
-        <div style={{ width: '125px', height: '155px', borderRadius: '18px', backgroundColor: KTA.redBg, padding: '4px' }}>
+      {/* Foto */}
+      <div style={{
+        position: 'absolute',
+        top: '20%',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        width: '44%',
+        height: '32%',
+        zIndex: 5,
+      }}>
+        <div style={{ width: '100%', height: '100%', borderRadius: '16px', backgroundColor: C.red, padding: '4px' }}>
           {data.photoUrl ? (
-            <img src={data.photoUrl} alt={data.fullName} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '14px' }} crossOrigin="anonymous" />
+            <img src={data.photoUrl} alt={data.fullName} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '12px' }} crossOrigin="anonymous" />
           ) : (
-            <div style={{ width: '100%', height: '100%', backgroundColor: '#FFE0B2', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888', fontSize: '12px' }}>Foto</div>
+            <div style={{ width: '100%', height: '100%', backgroundColor: '#FFE0B2', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888', fontSize: '12px' }}>Foto</div>
           )}
         </div>
       </div>
 
-      <div className="relative text-center mt-3 px-6">
-        <div style={{ fontSize: '14px', fontWeight: 600, color: KTA.blackText }}>{data.fullName}</div>
+      {/* Nama */}
+      <div style={{
+        position: 'absolute',
+        top: '53%',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        width: '80%',
+        textAlign: 'center',
+        zIndex: 5,
+      }}>
+        <div style={{ fontSize: '14px', fontWeight: 600, color: C.black }}>{data.fullName}</div>
       </div>
 
-      <div style={{ position: 'absolute', bottom: '15px', right: '15px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+      {/* QR + validity */}
+      <div style={{
+        position: 'absolute',
+        bottom: '5%',
+        right: '8%',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: '3px',
+        zIndex: 5,
+      }}>
         {data.qrCodeDataUrl && (
-          <img src={data.qrCodeDataUrl} alt="QR Code" style={{ width: '55px', height: '55px', backgroundColor: 'white', padding: '3px', borderRadius: '3px' }} crossOrigin="anonymous" />
+          <img src={data.qrCodeDataUrl} alt="QR" style={{ width: '60px', height: '60px', backgroundColor: 'white', padding: '3px', borderRadius: '3px' }} crossOrigin="anonymous" />
         )}
         <span style={{ fontSize: '8px', color: 'white', fontWeight: 500, textAlign: 'center' }}>
           Berlaku s/d<br />{data.validUntilString}
@@ -452,25 +554,43 @@ function KTACardBack({ data }: { data: KTACardData }) {
 
   return (
     <div className="relative w-full h-full">
-      <KTABackground curve="convex" />
-      <KTAGlobe variant="full-right" />
+      <KTABg variant="back" />
+      <KTADeco side="right" />
+      <KTAGlobe variant="back" />
       <KTALogo />
 
-      <div className="kta-number-box relative flex justify-center mt-4">
+      <div className="kta-number-box" style={{
+        position: 'absolute',
+        top: '20%',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        zIndex: 5,
+      }}>
         <div style={{
-          backgroundColor: KTA.redBg, color: 'white',
-          padding: '6px 20px', borderRadius: '16px',
-          fontSize: '12px', fontWeight: 700, fontFamily: 'monospace', letterSpacing: '1px',
+          backgroundColor: C.red,
+          color: 'white',
+          padding: '6px 20px',
+          borderRadius: '16px',
+          fontSize: '12px',
+          fontWeight: 700,
+          fontFamily: 'monospace',
+          letterSpacing: '1px',
         }}>
           {data.ktaNumber}
         </div>
       </div>
 
-      <div className="relative mt-4 px-5 space-y-2">
+      <div style={{
+        position: 'absolute',
+        top: '28%',
+        left: '8%',
+        right: '8%',
+        zIndex: 5,
+      }}>
         {peraturan.map((p, i) => (
-          <div key={i} className="flex items-start gap-2">
-            <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: KTA.redBg, marginTop: '5px', flexShrink: 0 }} />
-            <p style={{ fontSize: '9px', lineHeight: 1.4, color: '#000000', textAlign: 'justify' }}>{p}</p>
+          <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', marginBottom: '8px' }}>
+            <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: C.red, marginTop: '5px', flexShrink: 0 }} />
+            <p style={{ fontSize: '9px', lineHeight: 1.5, color: C.grey, textAlign: 'justify', margin: 0 }}>{p}</p>
           </div>
         ))}
       </div>
