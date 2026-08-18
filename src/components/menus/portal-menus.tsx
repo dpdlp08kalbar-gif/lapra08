@@ -4093,7 +4093,7 @@ function KtaPendaftaranForm() {
                     <SelectItem value="Anggota Dewan Pakar I">Anggota Dewan Pakar I</SelectItem>
                     <SelectItem value="Anggota Dewan Pakar II">Anggota Dewan Pakar II</SelectItem>
 
-                    {/* IV. PENGURUS HARIAN */}
+                    {/* IV. PENGURUS HARIAN DPN */}
                     <SelectItem value="Ketua Umum">Ketua Umum</SelectItem>
                     <SelectItem value="Ketua Harian">Ketua Harian</SelectItem>
                     <SelectItem value="Wakil Ketua Umum I">Wakil Ketua Umum I (Internal)</SelectItem>
@@ -4108,6 +4108,14 @@ function KtaPendaftaranForm() {
                     <SelectItem value="Wakil Bendahara Umum I">Wakil Bendahara Umum I</SelectItem>
                     <SelectItem value="Wakil Bendahara Umum II">Wakil Bendahara Umum II</SelectItem>
                     <SelectItem value="Wakil Bendahara Umum III">Wakil Bendahara Umum III</SelectItem>
+
+                    {/* IVb. PENGURUS HARIAN DPD/DPC */}
+                    <SelectItem value="Ketua">Ketua</SelectItem>
+                    <SelectItem value="Ketua Harian DPD">Ketua Harian</SelectItem>
+                    <SelectItem value="Wakil Ketua I">Wakil Ketua I (Internal)</SelectItem>
+                    <SelectItem value="Wakil Ketua II">Wakil Ketua II (Eksternal)</SelectItem>
+                    <SelectItem value="Wakil Ketua III">Wakil Ketua III (Dana & Investasi)</SelectItem>
+                    <SelectItem value="Wakil Ketua IV">Wakil Ketua IV (Hukum & HAM)</SelectItem>
                     <SelectItem value="Sekretaris">Sekretaris</SelectItem>
                     <SelectItem value="Wakil Sekretaris I">Wakil Sekretaris I</SelectItem>
                     <SelectItem value="Wakil Sekretaris II">Wakil Sekretaris II</SelectItem>
