@@ -4062,52 +4062,92 @@ function KtaPendaftaranForm() {
               <div className="space-y-2">
                 <Label>Jabatan di Pengurus / Anggota *</Label>
                 <Select value={form.applicantNotes?.split('||')[0] || ''} onValueChange={(v) => {
-                  // Simpan format: "Jabatan||detail" (kalau ada detail bidang/biro)
                   const existingDetail = form.applicantNotes?.split('||')[1] || ''
                   setForm({ ...form, applicantNotes: v + (existingDetail ? '||' + existingDetail : '') })
                 }}>
                   <SelectTrigger><SelectValue placeholder="Pilih Jabatan" /></SelectTrigger>
                   <SelectContent className="max-h-60">
+                    {/* === ANGGOTA === */}
                     <SelectItem value="Anggota">Anggota</SelectItem>
                     <SelectItem value="Relawan">Relawan</SelectItem>
+
+                    {/* === DEWAN PEMBINA === */}
+                    <SelectItem value="Ketua Dewan Pembina">Ketua Dewan Pembina</SelectItem>
+                    <SelectItem value="Anggota Dewan Pembina">Anggota Dewan Pembina</SelectItem>
+
+                    {/* === PIMPINAN UTAMA === */}
                     <SelectItem value="Ketua Umum">Ketua Umum</SelectItem>
-                    <SelectItem value="Wakil Ketua Umum">Wakil Ketua Umum</SelectItem>
+                    <SelectItem value="Ketua Harian">Ketua Harian</SelectItem>
+                    <SelectItem value="Wakil Ketua Umum I">Wakil Ketua Umum I (Internal)</SelectItem>
+                    <SelectItem value="Wakil Ketua Umum II">Wakil Ketua Umum II (Eksternal)</SelectItem>
+                    <SelectItem value="Wakil Ketua Umum III">Wakil Ketua Umum III (Dana & Investasi)</SelectItem>
+                    <SelectItem value="Wakil Ketua Umum IV">Wakil Ketua Umum IV (Hukum & HAM)</SelectItem>
+                    <SelectItem value="Wakil Ketua I">Wakil Ketua I (Internal)</SelectItem>
+                    <SelectItem value="Wakil Ketua II">Wakil Ketua II (Eksternal)</SelectItem>
+                    <SelectItem value="Wakil Ketua III">Wakil Ketua III (Dana & Inv)</SelectItem>
+                    <SelectItem value="Wakil Ketua IV">Wakil Ketua IV (Huk & HAM)</SelectItem>
+
+                    {/* === SEKRETARIAT === */}
                     <SelectItem value="Sekretaris Jenderal">Sekretaris Jenderal</SelectItem>
-                    <SelectItem value="Wakil Sekretaris Jenderal">Wakil Sekretaris Jenderal</SelectItem>
+                    <SelectItem value="Wakil Sekretaris Jenderal I">Wakil Sekretaris Jenderal I</SelectItem>
+                    <SelectItem value="Wakil Sekretaris Jenderal II">Wakil Sekretaris Jenderal II</SelectItem>
+                    <SelectItem value="Wakil Sekretaris Jenderal III">Wakil Sekretaris Jenderal III</SelectItem>
+                    <SelectItem value="Sekretaris">Sekretaris</SelectItem>
+                    <SelectItem value="Wakil Sekretaris">Wakil Sekretaris</SelectItem>
+
+                    {/* === BENDAHARA === */}
                     <SelectItem value="Bendahara Umum">Bendahara Umum</SelectItem>
-                    <SelectItem value="Wakil Bendahara Umum">Wakil Bendahara Umum</SelectItem>
+                    <SelectItem value="Wakil Bendahara Umum I">Wakil Bendahara Umum I</SelectItem>
+                    <SelectItem value="Wakil Bendahara Umum II">Wakil Bendahara Umum II</SelectItem>
+                    <SelectItem value="Wakil Bendahara Umum III">Wakil Bendahara Umum III</SelectItem>
+                    <SelectItem value="Bendahara">Bendahara</SelectItem>
+                    <SelectItem value="Wakil Bendahara">Wakil Bendahara</SelectItem>
+
+                    {/* === KETUA BIDANG (dengan input detail) === */}
                     <SelectItem value="Ketua Bidang">Ketua Bidang</SelectItem>
                     <SelectItem value="Wakil Ketua Bidang">Wakil Ketua Bidang</SelectItem>
+                    <SelectItem value="Ketua Bidang DPD">Ketua Bidang DPD</SelectItem>
+                    <SelectItem value="Ketua Bidang DPC">Ketua Bidang DPC</SelectItem>
+
+                    {/* === KETUA BIRO (dengan input detail) === */}
                     <SelectItem value="Ketua Biro">Ketua Biro</SelectItem>
                     <SelectItem value="Wakil Ketua Biro">Wakil Ketua Biro</SelectItem>
-                    <SelectItem value="Kepala Bagian">Kepala Bagian</SelectItem>
-                    <SelectItem value="Koordinator Wilayah">Koordinator Wilayah</SelectItem>
-                    <SelectItem value="Ketua DPD">Ketua DPD</SelectItem>
-                    <SelectItem value="Wakil Ketua DPD">Wakil Ketua DPD</SelectItem>
-                    <SelectItem value="Sekretaris DPD">Sekretaris DPD</SelectItem>
-                    <SelectItem value="Bendahara DPD">Bendahara DPD</SelectItem>
-                    <SelectItem value="Ketua Bidang DPD">Ketua Bidang DPD</SelectItem>
-                    <SelectItem value="Ketua DPC">Ketua DPC</SelectItem>
-                    <SelectItem value="Wakil Ketua DPC">Wakil Ketua DPC</SelectItem>
-                    <SelectItem value="Sekretaris DPC">Sekretaris DPC</SelectItem>
-                    <SelectItem value="Bendahara DPC">Bendahara DPC</SelectItem>
-                    <SelectItem value="Ketua Bidang DPC">Ketua Bidang DPC</SelectItem>
-                    <SelectItem value="Dewan Pembina">Dewan Pembina</SelectItem>
-                    <SelectItem value="Dewan Penasihat">Dewan Penasihat</SelectItem>
+
+                    {/* === BIDANG SEKRETARIAT === */}
+                    <SelectItem value="Bidang Sekretariat">Bidang Sekretariat</SelectItem>
+                    <SelectItem value="Wakil Bidang Sekretariat">Wakil Bidang Sekretariat</SelectItem>
+
+                    {/* === DEWAN PENASIHAT === */}
+                    <SelectItem value="Ketua Dewan Penasihat">Ketua Dewan Penasihat</SelectItem>
+                    <SelectItem value="Anggota Dewan Penasihat">Anggota Dewan Penasihat</SelectItem>
+
+                    {/* === DEWAN PAKAR === */}
+                    <SelectItem value="Ketua Dewan Pakar">Ketua Dewan Pakar</SelectItem>
+                    <SelectItem value="Anggota Dewan Pakar">Anggota Dewan Pakar</SelectItem>
+
+                    {/* === DEWAN KEHORMATAN === */}
                     <SelectItem value="Dewan Kehormatan">Dewan Kehormatan</SelectItem>
-                    <SelectItem value="Staf Ahli">Staf Ahli</SelectItem>
+
+                    {/* === KOORDINATOR === */}
+                    <SelectItem value="Koordinator Wilayah">Koordinator Wilayah</SelectItem>
+                    <SelectItem value="Kepala Bagian">Kepala Bagian</SelectItem>
+
+                    {/* === TIM === */}
                     <SelectItem value="Tim Media">Tim Media</SelectItem>
                     <SelectItem value="Tim Hukum">Tim Hukum</SelectItem>
                     <SelectItem value="Tim Logistik">Tim Logistik</SelectItem>
                     <SelectItem value="Tim IT">Tim IT</SelectItem>
                     <SelectItem value="Tim Kreatif">Tim Kreatif</SelectItem>
-                    <SelectItem value="Pembina Remaja">Pembina Remaja</SelectItem>
+                    <SelectItem value="Staf Ahli">Staf Ahli</SelectItem>
+                    <SelectItem value="Staf">Staf</SelectItem>
+
+                    {/* === LAINNYA === */}
                     <SelectItem value="Lainnya">Lainnya (isi manual)</SelectItem>
                   </SelectContent>
                 </Select>
 
-                {/* Input detail jabatan — tampil kalau pilih: Ketua Bidang, Wakil Ketua Bidang, Ketua Biro, Wakil Ketua Biro, Kepala Bagian, Ketua Bidang DPD/DPC, Lainnya */}
-                {['Ketua Bidang', 'Wakil Ketua Bidang', 'Ketua Biro', 'Wakil Ketua Biro', 'Kepala Bagian', 'Ketua Bidang DPD', 'Ketua Bidang DPC', 'Lainnya'].includes(form.applicantNotes?.split('||')[0] || '') && (
+                {/* Input detail — muncul untuk: Ketua Bidang, Wakil Ketua Bidang, Ketua Biro, Wakil Ketua Biro, Kepala Bagian, Ketua Bidang DPD/DPC, Bidang Sekretariat, Lainnya */}
+                {['Ketua Bidang', 'Wakil Ketua Bidang', 'Ketua Biro', 'Wakil Ketua Biro', 'Kepala Bagian', 'Ketua Bidang DPD', 'Ketua Bidang DPC', 'Bidang Sekretariat', 'Wakil Bidang Sekretariat', 'Lainnya'].includes(form.applicantNotes?.split('||')[0] || '') && (
                   <Input
                     value={form.applicantNotes?.split('||')[1] || ''}
                     onChange={(e) => {
@@ -4118,9 +4158,11 @@ function KtaPendaftaranForm() {
                       form.applicantNotes?.split('||')[0] === 'Lainnya'
                         ? 'Tulis jabatan lainnya...'
                         : form.applicantNotes?.split('||')[0]?.includes('Bidang')
-                        ? 'Bidang apa? (cth: Bidang Pemuda, Bidang Sosial, Bidang Hukum, dll)'
+                        ? 'Bidang apa? (cth: Humas, Antar Lembaga, Program Internal, Advokasi & Hukum, Kepemudaan, Ekonomi Kreatif, dll)'
                         : form.applicantNotes?.split('||')[0]?.includes('Biro')
-                        ? 'Biro apa? (cth: Biro Organisasi, Biro Keuangan, Biro Humas, dll)'
+                        ? 'Biro apa? (cth: Biro Organisasi, Biro Keuangan, Biro Humas, Biro Lembaga Pemerintahan, dll)'
+                        : form.applicantNotes?.split('||')[0]?.includes('Sekretariat')
+                        ? 'Detail bidang sekretariat...'
                         : 'Detail jabatan...'
                     }
                     className="mt-2"
