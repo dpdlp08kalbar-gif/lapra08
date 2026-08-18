@@ -276,29 +276,41 @@ function KTADeco({ side = 'left' }: { side?: 'left' | 'right' }) {
 // Posisi: X25% Y78%, 70% width
 // ============================================================
 function KTAGlobe({ variant = 'front' }: { variant?: 'front' | 'back' }) {
-  // Front: kiri bawah, terpotong di bawah
-  // Back: kiri bawah, sedikit lebih tinggi
-  const bottom = variant === 'front' ? '-20%' : '-15%'
-  const left = '-15%'
+  // Front: kiri bawah, besar, terpotong
+  // Back: kiri bawah, lebih besar
+  const size = variant === 'front' ? 260 : 280
+  const bottom = variant === 'front' ? '-25%' : '-20%'
+  const left = '-18%'
 
   return (
     <div style={{ position: 'absolute', bottom, left, zIndex: 1 }}>
-      <svg width="240" height="240" viewBox="0 0 200 200">
-        {/* Lingkaran utama */}
-        <circle cx="100" cy="100" r="95" fill="none" stroke={C.white} strokeWidth="1.2" />
-        {/* Grid garis lintang */}
-        <ellipse cx="100" cy="100" rx="95" ry="50" fill="none" stroke={C.white} strokeWidth="0.7" />
-        <ellipse cx="100" cy="100" rx="95" ry="25" fill="none" stroke={C.white} strokeWidth="0.5" />
-        <line x1="5" y1="100" x2="195" y2="100" stroke={C.white} strokeWidth="0.5" />
-        {/* Grid garis bujur */}
-        <line x1="100" y1="5" x2="100" y2="195" stroke={C.white} strokeWidth="0.5" />
-        <ellipse cx="100" cy="100" rx="50" ry="95" fill="none" stroke={C.white} strokeWidth="0.5" />
-        <ellipse cx="100" cy="100" rx="25" ry="95" fill="none" stroke={C.white} strokeWidth="0.4" />
-        {/* Daratan Asia-Australia — putih solid */}
-        <path d="M 55 55 Q 70 45 88 52 Q 100 58 95 72 Q 82 80 65 72 Z" fill={C.white} />
-        <path d="M 98 75 Q 115 70 132 82 Q 142 92 125 102 Q 108 98 100 85 Z" fill={C.white} />
-        <path d="M 108 112 Q 125 108 138 120 Q 132 132 118 125 Z" fill={C.white} />
-        <path d="M 65 88 Q 78 83 88 95 Q 82 105 70 98 Z" fill={C.white} />
+      <svg width={size} height={size} viewBox="0 0 200 200">
+        {/* Lingkaran utama — putih solid */}
+        <circle cx="100" cy="100" r="95" fill="none" stroke={C.white} strokeWidth="1.5" />
+        {/* Grid garis lintang (horizontal) */}
+        <ellipse cx="100" cy="100" rx="95" ry="48" fill="none" stroke={C.white} strokeWidth="0.8" />
+        <ellipse cx="100" cy="100" rx="95" ry="24" fill="none" stroke={C.white} strokeWidth="0.5" />
+        <ellipse cx="100" cy="100" rx="95" ry="70" fill="none" stroke={C.white} strokeWidth="0.5" />
+        <line x1="5" y1="100" x2="195" y2="100" stroke={C.white} strokeWidth="0.6" />
+        {/* Grid garis bujur (vertical) */}
+        <line x1="100" y1="5" x2="100" y2="195" stroke={C.white} strokeWidth="0.6" />
+        <ellipse cx="100" cy="100" rx="48" ry="95" fill="none" stroke={C.white} strokeWidth="0.5" />
+        <ellipse cx="100" cy="100" rx="24" ry="95" fill="none" stroke={C.white} strokeWidth="0.4" />
+        <ellipse cx="100" cy="100" rx="70" ry="95" fill="none" stroke={C.white} strokeWidth="0.4" />
+        {/* Daratan Asia-Australia — putih solid, lebih detail */}
+        {/* Asia Tenggara daratan */}
+        <path d="M 50 50 Q 62 42 78 48 Q 90 52 95 62 Q 88 70 75 68 Q 60 65 50 58 Z" fill={C.white} />
+        {/* Indonesia/kepulauan */}
+        <path d="M 70 72 Q 80 68 92 75 Q 98 82 88 85 Q 78 83 70 78 Z" fill={C.white} />
+        <path d="M 92 78 Q 102 75 112 82 Q 108 88 98 86 Z" fill={C.white} />
+        {/* Australia */}
+        <path d="M 95 105 Q 115 100 135 108 Q 145 118 130 125 Q 110 122 98 115 Z" fill={C.white} />
+        {/* India/Asia Selatan */}
+        <path d="M 40 60 Q 48 55 55 62 Q 52 70 45 68 Z" fill={C.white} />
+        {/* Jepang */}
+        <path d="M 115 45 Q 122 42 125 50 Q 120 55 115 52 Z" fill={C.white} />
+        {/* Papua */}
+        <path d="M 115 82 Q 128 78 138 85 Q 132 92 120 88 Z" fill={C.white} />
       </svg>
     </div>
   )
@@ -406,6 +418,7 @@ function KTATemplateFront() {
 
 // ============================================================
 // KTA TEMPLATE BACK — PERSIS KTA asli
+// Logo top center, badge pill shape di bawah logo, globe besar kiri bawah
 // ============================================================
 function KTATemplateBack() {
   const peraturan = [
@@ -422,10 +435,10 @@ function KTATemplateBack() {
       <KTAGlobe variant="back" />
       <KTALogo />
 
-      {/* Badge nomor KTA — X50% Y23%, pill shape */}
+      {/* Badge nomor KTA — pill shape penuh, di bawah logo */}
       <div className="kta-number-box" style={{
         position: 'absolute',
-        top: '20%',
+        top: '16%',
         left: '50%',
         transform: 'translateX(-50%)',
         zIndex: 5,
@@ -433,38 +446,38 @@ function KTATemplateBack() {
         <div style={{
           backgroundColor: C.red,
           color: 'white',
-          padding: '6px 20px',
-          borderRadius: '16px',
-          fontSize: '12px',
+          padding: '7px 24px',
+          borderRadius: '999px',
+          fontSize: '11px',
           fontWeight: 700,
           fontFamily: 'monospace',
-          letterSpacing: '1px',
-          minWidth: '170px',
+          letterSpacing: '1.5px',
+          whiteSpace: 'nowrap',
           textAlign: 'center',
         }}>
           [ NOMOR KTA DATABASE ]
         </div>
       </div>
 
-      {/* 4 poin peraturan — X15% Y30% */}
+      {/* 4 poin peraturan */}
       <div style={{
         position: 'absolute',
-        top: '28%',
+        top: '26%',
         left: '8%',
         right: '8%',
         zIndex: 5,
       }}>
         {peraturan.map((p, i) => (
-          <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', marginBottom: '8px' }}>
+          <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', marginBottom: '7px' }}>
             <div style={{
               width: '6px',
               height: '6px',
               borderRadius: '50%',
               backgroundColor: C.red,
-              marginTop: '5px',
+              marginTop: '4px',
               flexShrink: 0,
             }} />
-            <p style={{ fontSize: '9px', lineHeight: 1.5, color: C.grey, textAlign: 'justify', margin: 0 }}>
+            <p style={{ fontSize: '8.5px', lineHeight: 1.4, color: C.grey, textAlign: 'justify', margin: 0 }}>
               {p}
             </p>
           </div>
@@ -559,7 +572,7 @@ function KTACardBack({ data }: { data: KTACardData }) {
 
       <div className="kta-number-box" style={{
         position: 'absolute',
-        top: '20%',
+        top: '16%',
         left: '50%',
         transform: 'translateX(-50%)',
         zIndex: 5,
@@ -567,12 +580,14 @@ function KTACardBack({ data }: { data: KTACardData }) {
         <div style={{
           backgroundColor: C.red,
           color: 'white',
-          padding: '6px 20px',
-          borderRadius: '16px',
-          fontSize: '12px',
+          padding: '7px 24px',
+          borderRadius: '999px',
+          fontSize: '11px',
           fontWeight: 700,
           fontFamily: 'monospace',
-          letterSpacing: '1px',
+          letterSpacing: '1.5px',
+          whiteSpace: 'nowrap',
+          textAlign: 'center',
         }}>
           {data.ktaNumber}
         </div>
@@ -580,15 +595,15 @@ function KTACardBack({ data }: { data: KTACardData }) {
 
       <div style={{
         position: 'absolute',
-        top: '28%',
+        top: '26%',
         left: '8%',
         right: '8%',
         zIndex: 5,
       }}>
         {peraturan.map((p, i) => (
-          <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', marginBottom: '8px' }}>
-            <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: C.red, marginTop: '5px', flexShrink: 0 }} />
-            <p style={{ fontSize: '9px', lineHeight: 1.5, color: C.grey, textAlign: 'justify', margin: 0 }}>{p}</p>
+          <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', marginBottom: '7px' }}>
+            <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: C.red, marginTop: '4px', flexShrink: 0 }} />
+            <p style={{ fontSize: '8.5px', lineHeight: 1.4, color: C.grey, textAlign: 'justify', margin: 0 }}>{p}</p>
           </div>
         ))}
       </div>
