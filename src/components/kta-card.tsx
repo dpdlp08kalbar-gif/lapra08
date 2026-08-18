@@ -216,7 +216,7 @@ export function KTASampleCard({ compact = false }: { compact?: boolean }) {
           </div>
           <div className="text-xs font-medium text-muted-foreground">Sisi Depan (Template)</div>
         </div>
-        {/* Belakang */}
+        {/* Belakang — Template kosong */}
         <div className="flex flex-col items-center gap-2">
           <div
             className="kta-card-sample relative shadow-lg"
@@ -228,9 +228,9 @@ export function KTASampleCard({ compact = false }: { compact?: boolean }) {
               fontFamily: 'system-ui, -apple-system, sans-serif',
             }}
           >
-            <KTACardBack data={sampleData} />
+            <KTATemplateBack />
           </div>
-          <div className="text-xs font-medium text-muted-foreground">Sisi Belakang</div>
+          <div className="text-xs font-medium text-muted-foreground">Sisi Belakang (Template)</div>
         </div>
       </div>
 
@@ -287,6 +287,109 @@ export function KTASampleCard({ compact = false }: { compact?: boolean }) {
             <span className="text-muted-foreground">Otomatis: 1 Januari - 31 Desember tahun berjalan</span>
           </div>
         </div>
+      </div>
+    </div>
+  )
+}
+
+// ============================================================
+// KTA TEMPLATE BACK — template kosong dengan nomor KTA placeholder
+// Badge merah dengan teks putih, nomor KTA masih kosong (dashed border)
+// ============================================================
+function KTATemplateBack() {
+  const peraturan = [
+    'Pemilik KTA wajib menjunjung tinggi nilai-nilai perjuangan, kedisiplinan dan loyalitas terhadap cita-cita luhur Laskar Prabowo 08.',
+    'KTA ini bukan untuk disalahgunakan dan harus dijaga dengan penuh tanggung jawab.',
+    'Apabila ditemukan pelanggaran terhadap kode etik dan aturan organisasi, KTA dapat dicabut oleh pengurus pusat atau wilayah.',
+    'Setiap anggota wajib aktif berpartisipasi dalam kegiatan organisasi, sosial dan kemasyarakatan demi mendukung visi besar Laskar Prabowo 08 untuk Indonesia Maju.',
+  ]
+
+  return (
+    <div className="relative w-full h-full">
+      {/* Background: Biru muda (atas 60%) + Merah (bawah 40%) */}
+      <div className="absolute inset-0 flex flex-col">
+        <div style={{ height: '60%', backgroundColor: '#BFE3F5' }} />
+        <div style={{ height: '40%', backgroundColor: '#EF3340' }} />
+      </div>
+
+      {/* Globe graphic (di area merah, lebih besar) */}
+      <div className="absolute inset-0 flex items-end justify-center" style={{ top: '50%' }}>
+        <svg width="320" height="250" viewBox="0 0 200 150" style={{ opacity: 0.25 }}>
+          <ellipse cx="100" cy="75" rx="80" ry="75" fill="none" stroke="white" strokeWidth="0.8" />
+          <ellipse cx="100" cy="75" rx="80" ry="40" fill="none" stroke="white" strokeWidth="0.5" />
+          <ellipse cx="100" cy="75" rx="80" ry="20" fill="none" stroke="white" strokeWidth="0.5" />
+          <line x1="20" y1="75" x2="180" y2="75" stroke="white" strokeWidth="0.5" />
+          <line x1="100" y1="0" x2="100" y2="150" stroke="white" strokeWidth="0.5" />
+          <ellipse cx="100" cy="75" rx="40" ry="75" fill="none" stroke="white" strokeWidth="0.5" />
+          <ellipse cx="100" cy="75" rx="20" ry="75" fill="none" stroke="white" strokeWidth="0.5" />
+        </svg>
+      </div>
+
+      {/* Header: Logo Laskar Prabowo 08 */}
+      <div className="relative pt-3 px-4 flex items-center justify-center gap-2">
+        <div className="flex items-center gap-1">
+          <span
+            style={{
+              fontFamily: 'Brush Script MT, cursive',
+              fontSize: '22px',
+              color: '#C62828',
+              fontStyle: 'italic',
+              fontWeight: 'bold',
+              lineHeight: 1,
+            }}
+          >
+            Laskar
+          </span>
+          <div className="flex flex-col leading-none">
+            <span style={{ fontSize: '14px', fontWeight: 900, color: '#1A1A1A', letterSpacing: '1px' }}>
+              PRABOWO
+            </span>
+            <span style={{ fontSize: '11px', fontWeight: 700, color: '#D32F2F' }}>08</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Nomor KTA — badge merah KOSONG (placeholder dashed) */}
+      <div className="relative flex justify-center mt-3">
+        <div
+          style={{
+            backgroundColor: '#E63946',
+            color: 'white',
+            padding: '6px 20px',
+            borderRadius: '14px',
+            fontSize: '11px',
+            fontWeight: 700,
+            fontFamily: 'monospace',
+            letterSpacing: '1px',
+            border: '2px dashed rgba(255,255,255,0.6)',
+            minWidth: '160px',
+            textAlign: 'center',
+          }}
+        >
+          <span style={{ fontSize: '7px', opacity: 0.8, display: 'block' }}>NOMOR KTA</span>
+          <span style={{ fontSize: '8px', opacity: 0.7 }}>(dari database)</span>
+        </div>
+      </div>
+
+      {/* Daftar peraturan */}
+      <div className="relative mt-3 px-4 space-y-1.5">
+        {peraturan.map((p, i) => (
+          <div key={i} className="flex items-start gap-1.5">
+            <div
+              style={{
+                width: '6px',
+                height: '6px',
+                borderRadius: '50%',
+                backgroundColor: '#E63946',
+                marginTop: '4px',
+                flexShrink: 0,
+              }}
+            />
+            <p style={{ fontSize: '8.5px', lineHeight: 1.3, color: '#1A1A1A', textAlign: 'justify' }}>
+              {p}
+            </p>
+          </div>
+        ))}
       </div>
     </div>
   )
