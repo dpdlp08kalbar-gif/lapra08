@@ -3909,6 +3909,7 @@ function KtaPendaftaranForm() {
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [idCardFile, setIdCardFile] = useState<File | null>(null)
   const [isInternational, setIsInternational] = useState(false)
+  const [wilayahLevel, setWilayahLevel] = useState<'DPN' | 'DPD' | 'DPC'>('DPC')
   const [form, setForm] = useState({
     fullName: '', gender: '', birthPlace: '', birthDate: '', bloodType: '',
     maritalStatus: '', occupation: '', shirtSize: '',
@@ -3917,9 +3918,12 @@ function KtaPendaftaranForm() {
   })
 
   useEffect(() => {
-    api('/api/territory?level=REGENCY').then((t: any[]) => {
-      setTerritories(t || [])
-      if (t && t.length > 0) setForm(f => ({ ...f, territoryId: t[0].id }))
+    // Load semua territory dulu, filter berdasarkan level yang dipilih
+    api('/api/territory').then((all: any[]) => {
+      setTerritories(all || [])
+      // Default: tampilkan DPC (REGENCY)
+      const dpcList = (all || []).filter((t: any) => t.level === 'REGENCY')
+      if (dpcList.length > 0) setForm(f => ({ ...f, territoryId: dpcList[0].id }))
     }).catch(() => {})
   }, [])
 
@@ -4077,11 +4081,56 @@ function KtaPendaftaranForm() {
               )}
               <div className="space-y-2"><Label>Nomor WhatsApp *</Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+62 812-xxxx-xxxx" required /></div>
               <div className="space-y-2"><Label>Email</Label><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="email@example.com" /></div>
-              <div className="space-y-2"><Label>Wilayah DPC Tujuan *</Label>
+              <div className="space-y-2">
+                <Label>Wilayah Tujuan *</Label>
+                {/* Pilih Level: DPN / DPD / DPC */}
+                <div className="flex gap-1 mb-2">
+                  {([
+                    { key: 'DPN', label: 'DPN (Pusat)', level: 'COUNTRY' },
+                    { key: 'DPD', label: 'DPD (Provinsi)', level: 'PROVINCE' },
+                    { key: 'DPC', label: 'DPC (Kab/Kota)', level: 'REGENCY' },
+                  ] as const).map((lv) => (
+                    <button
+                      key={lv.key}
+                      type="button"
+                      onClick={() => {
+                        setWilayahLevel(lv.key)
+                        const filtered = territories.filter((t: any) => t.level === lv.level)
+                        if (filtered.length > 0) setForm(f => ({ ...f, territoryId: filtered[0].id }))
+                        else setForm(f => ({ ...f, territoryId: '' }))
+                      }}
+                      className={`flex-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                        wilayahLevel === lv.key
+                          ? 'bg-emerald-600 text-white shadow-sm'
+                          : 'border hover:bg-accent'
+                      }`}
+                    >
+                      {lv.label}
+                    </button>
+                  ))}
+                </div>
+                {/* Pilih Wilayah sesuai level */}
                 <Select value={form.territoryId} onValueChange={(v) => setForm({ ...form, territoryId: v })}>
-                  <SelectTrigger><SelectValue placeholder="Pilih DPC" /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue placeholder={
+                      wilayahLevel === 'DPN' ? 'Pilih DPN' :
+                      wilayahLevel === 'DPD' ? 'Pilih DPD (Provinsi)' :
+                      'Pilih DPC (Kab/Kota)'
+                    } />
+                  </SelectTrigger>
                   <SelectContent className="max-h-60">
-                    {territories.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                    {territories
+                      .filter((t: any) =>
+                        wilayahLevel === 'DPN' ? t.level === 'COUNTRY' :
+                        wilayahLevel === 'DPD' ? t.level === 'PROVINCE' :
+                        t.level === 'REGENCY'
+                      )
+                      .map((t: any) => (
+                        <SelectItem key={t.id} value={t.id}>
+                          {t.name} ({t.code})
+                        </SelectItem>
+                      ))
+                    }
                   </SelectContent>
                 </Select>
               </div>
