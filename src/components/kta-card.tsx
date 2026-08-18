@@ -177,8 +177,8 @@ export function KTASampleCard({ compact = false }: { compact?: boolean }) {
         </div>
         <div className="text-xs border-t pt-2 mt-2">
           <strong>Contoh:</strong>{' '}
-          <code className="font-mono bg-background px-1.5 py-0.5 rounded border">08DPD 6100 P0001</code>
-          {' '}→ Anggota DPD Kalimantan Barat (kode 61), nomor urut 0001
+          <code className="font-mono bg-background px-1.5 py-0.5 rounded border">08DPD 0625.P0017</code>
+          {' '}→ Anggota DPD Kalimantan Barat (kode 61), nomor urut 0017
         </div>
       </div>
 
@@ -414,8 +414,8 @@ function KTATemplateBack() {
 
       <KTALogo />
 
-      {/* Badge nomor KTA — pill shape merah, KOSONG dengan placeholder */}
-      <div className="relative flex justify-center mt-4">
+      {/* Badge nomor KTA — pill shape merah, KOSONG dengan placeholder untuk backend integration */}
+      <div className="kta-number-box relative flex justify-center mt-4">
         <div style={{
           backgroundColor: KTA.redBg,
           color: 'white',
@@ -425,10 +425,10 @@ function KTATemplateBack() {
           fontWeight: 700,
           fontFamily: 'monospace',
           letterSpacing: '1px',
-          minWidth: '160px',
+          minWidth: '180px',
           textAlign: 'center',
         }}>
-          [ NOMOR KTA ]
+          [ NOMOR KTA DATABASE ]
         </div>
       </div>
 
@@ -508,8 +508,18 @@ function KTACardBack({ data }: { data: KTACardData }) {
 
       <KTALogo />
 
-      <div className="relative flex justify-center mt-4">
-        <div style={{ backgroundColor: KTA.redBg, color: 'white', padding: '6px 20px', borderRadius: '16px', fontSize: '12px', fontWeight: 700, fontFamily: 'monospace', letterSpacing: '1px' }}>
+      {/* Badge nomor KTA — pill shape merah, diisi dari database */}
+      <div className="kta-number-box relative flex justify-center mt-4">
+        <div style={{
+          backgroundColor: KTA.redBg,
+          color: 'white',
+          padding: '6px 20px',
+          borderRadius: '16px',
+          fontSize: '12px',
+          fontWeight: 700,
+          fontFamily: 'monospace',
+          letterSpacing: '1px',
+        }}>
           {data.ktaNumber}
         </div>
       </div>

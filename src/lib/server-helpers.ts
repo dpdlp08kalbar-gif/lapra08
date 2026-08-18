@@ -351,11 +351,12 @@ export async function logAccess(params: {
 }
 
 /**
- * Generate nomor KTA format: 08[LEVEL][WILAYAH]P[URUT]
- * Contoh: 08DPD 0625 P0017
+ * Generate nomor KTA format: 08[LEVEL] [WILAYAH].P[URUT]
+ * Contoh: 08DPD 0625.P0017 (sesuai KTA asli Dedy Zahidi)
  *   - 08 = LAPRA 08
  *   - DPD = tingkat (DPN/DPD/DPC)
  *   - 0625 = kode wilayah (2 digit provinsi + 2 digit kab/kota, 00 kalau pusat)
+ *   - . = pemisah titik
  *   - P0017 = P (Person) + 4 digit urut
  *
  * Sequence di-generate dari count Member di territory itu + 1
@@ -397,7 +398,8 @@ export async function generateKTANumber(territoryId: string): Promise<string> {
   })
   const urut = String(count + 1).padStart(4, '0')
 
-  return `08${levelCode} ${wilayahCode} P${urut}`
+  // Format: 08DPD 0625.P0017 (dengan titik sebelum P, sesuai KTA asli)
+  return `08${levelCode} ${wilayahCode}.P${urut}`
 }
 
 /**
