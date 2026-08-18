@@ -273,63 +273,52 @@ function KTADeco({ side = 'left' }: { side?: 'left' | 'right' }) {
 // Posisi: X25% Y78%, 70% width
 // ============================================================
 function KTAGlobe({ variant = 'front' }: { variant?: 'front' | 'back' }) {
-  const size = variant === 'front' ? 300 : 320
-  const bottom = variant === 'front' ? '-30%' : '-25%'
-  const left = '-22%'
+  const size = variant === 'front' ? 340 : 360
+  const bottom = variant === 'front' ? '-35%' : '-30%'
+  const left = '-25%'
 
   return (
     <div style={{ position: 'absolute', bottom, left, zIndex: 1 }}>
       <svg width={size} height={size} viewBox="0 0 200 200">
-        {/* Lingkaran globe */}
-        <circle cx="100" cy="100" r="95" fill="none" stroke={C.white} strokeWidth="0.5" />
-        {/* Grid halus */}
-        <ellipse cx="100" cy="100" rx="95" ry="48" fill="none" stroke={C.white} strokeWidth="0.2" />
-        <ellipse cx="100" cy="100" rx="95" ry="24" fill="none" stroke={C.white} strokeWidth="0.15" />
-        <ellipse cx="100" cy="100" rx="95" ry="70" fill="none" stroke={C.white} strokeWidth="0.15" />
-        <line x1="5" y1="100" x2="195" y2="100" stroke={C.white} strokeWidth="0.15" />
-        <line x1="100" y1="5" x2="100" y2="195" stroke={C.white} strokeWidth="0.15" />
-        <ellipse cx="100" cy="100" rx="48" ry="95" fill="none" stroke={C.white} strokeWidth="0.2" />
-        <ellipse cx="100" cy="100" rx="24" ry="95" fill="none" stroke={C.white} strokeWidth="0.15" />
-        <ellipse cx="100" cy="100" rx="70" ry="95" fill="none" stroke={C.white} strokeWidth="0.15" />
+        {/* Lingkaran globe — putih, stroke tipis */}
+        <circle cx="100" cy="100" r="95" fill="none" stroke={C.white} strokeWidth="0.4" />
 
-        {/* === PETA: dot-matrix style (titik-titik putih membentuk benua) === */}
-        {/* Asia - utara besar */}
-        <g fill={C.white}>
-          {/* Asia Tengah & Timur */}
-          <circle cx="55" cy="40" r="1.5"/><circle cx="62" cy="38" r="1.5"/><circle cx="70" cy="37" r="1.5"/>
-          <circle cx="78" cy="36" r="1.5"/><circle cx="86" cy="37" r="1.5"/><circle cx="94" cy="38" r="1.5"/>
-          <circle cx="102" cy="39" r="1.5"/><circle cx="110" cy="40" r="1.5"/><circle cx="118" cy="42" r="1.5"/>
-          <circle cx="58" cy="46" r="1.5"/><circle cx="66" cy="44" r="1.5"/><circle cx="74" cy="43" r="1.5"/>
-          <circle cx="82" cy="42" r="1.5"/><circle cx="90" cy="43" r="1.5"/><circle cx="98" cy="44" r="1.5"/>
-          <circle cx="106" cy="45" r="1.5"/><circle cx="114" cy="46" r="1.5"/>
-          {/* India */}
-          <circle cx="48" cy="50" r="1.5"/><circle cx="52" cy="54" r="1.5"/><circle cx="50" cy="58" r="1.5"/>
-          <circle cx="48" cy="62" r="1.5"/>
-          {/* Asia Tenggara daratan */}
-          <circle cx="68" cy="52" r="1.5"/><circle cx="72" cy="56" r="1.5"/><circle cx="74" cy="60" r="1.5"/>
-          <circle cx="76" cy="64" r="1.5"/>
-          {/* Sumatra */}
-          <circle cx="68" cy="68" r="1.2"/><circle cx="70" cy="72" r="1.2"/><circle cx="72" cy="76" r="1.2"/>
-          {/* Kalimantan */}
-          <circle cx="80" cy="70" r="1.2"/><circle cx="84" cy="72" r="1.2"/><circle cx="82" cy="76" r="1.2"/>
-          {/* Jawa */}
-          <circle cx="78" cy="82" r="1.2"/><circle cx="84" cy="83" r="1.2"/><circle cx="90" cy="84" r="1.2"/>
-          {/* Sulawesi */}
-          <circle cx="92" cy="72" r="1.2"/><circle cx="94" cy="76" r="1.2"/>
-          {/* Papua */}
-          <circle cx="100" cy="76" r="1.5"/><circle cx="108" cy="77" r="1.5"/><circle cx="116" cy="78" r="1.5"/>
-          <circle cx="124" cy="79" r="1.5"/>
-          {/* Filipina */}
-          <circle cx="96" cy="60" r="1"/><circle cx="98" cy="64" r="1"/>
-          {/* Australia */}
-          <circle cx="100" cy="108" r="1.5"/><circle cx="108" cy="106" r="1.5"/><circle cx="116" cy="105" r="1.5"/>
-          <circle cx="124" cy="106" r="1.5"/><circle cx="132" cy="108" r="1.5"/><circle cx="138" cy="112" r="1.5"/>
-          <circle cx="104" cy="114" r="1.5"/><circle cx="112" cy="112" r="1.5"/><circle cx="120" cy="112" r="1.5"/>
-          <circle cx="128" cy="114" r="1.5"/><circle cx="134" cy="118" r="1.5"/>
-          <circle cx="108" cy="120" r="1.5"/><circle cx="116" cy="120" r="1.5"/><circle cx="124" cy="122" r="1.5"/>
-          {/* Jepang */}
-          <circle cx="118" cy="44" r="1"/><circle cx="120" cy="48" r="1"/>
-        </g>
+        {/* Grid melengkung mengikuti bentuk bola (orthographic) */}
+        <path d="M 5 100 Q 100 60 195 100" fill="none" stroke={C.white} strokeWidth="0.15"/>
+        <path d="M 5 100 Q 100 140 195 100" fill="none" stroke={C.white} strokeWidth="0.15"/>
+        <path d="M 5 80 Q 100 50 195 80" fill="none" stroke={C.white} strokeWidth="0.12"/>
+        <path d="M 5 120 Q 100 150 195 120" fill="none" stroke={C.white} strokeWidth="0.12"/>
+        <path d="M 5 60 Q 100 40 195 60" fill="none" stroke={C.white} strokeWidth="0.1"/>
+        <path d="M 5 140 Q 100 160 195 140" fill="none" stroke={C.white} strokeWidth="0.1"/>
+        <ellipse cx="100" cy="100" rx="48" ry="95" fill="none" stroke={C.white} strokeWidth="0.15"/>
+        <ellipse cx="100" cy="100" rx="24" ry="95" fill="none" stroke={C.white} strokeWidth="0.1"/>
+        <ellipse cx="100" cy="100" rx="70" ry="95" fill="none" stroke={C.white} strokeWidth="0.1"/>
+
+        {/* === DARATAN PUTIH SOLID — siluet Asia-Australia === */}
+        {/* Asia utara (Tiongkok/Mongol) */}
+        <path d="M 45 32 Q 60 25 80 28 Q 100 30 120 35 Q 130 40 125 48 Q 110 45 90 42 Q 70 40 55 42 Q 45 38 45 32 Z" fill={C.white}/>
+        {/* India */}
+        <path d="M 45 45 L 52 50 L 50 60 L 48 68 L 44 60 L 42 50 Z" fill={C.white}/>
+        {/* Burma/Thailand/Vietnam */}
+        <path d="M 65 48 Q 72 52 75 58 Q 73 65 70 62 Q 67 55 65 48 Z" fill={C.white}/>
+        {/* Malaysia semenanjung */}
+        <path d="M 72 62 L 76 68 L 74 72 L 71 68 Z" fill={C.white}/>
+        {/* Sumatra */}
+        <path d="M 66 68 L 72 72 L 70 80 L 65 74 Z" fill={C.white}/>
+        {/* Kalimantan */}
+        <path d="M 78 68 Q 85 65 90 72 Q 88 80 82 78 Q 77 74 78 68 Z" fill={C.white}/>
+        {/* Jawa */}
+        <path d="M 76 82 L 85 82 L 92 85 L 88 88 L 80 87 Z" fill={C.white}/>
+        {/* Sulawesi */}
+        <path d="M 90 72 L 94 70 L 96 78 L 92 78 Z" fill={C.white}/>
+        {/* Papua */}
+        <path d="M 98 75 Q 110 72 125 76 Q 130 80 120 82 Q 108 80 98 78 Z" fill={C.white}/>
+        {/* Filipina */}
+        <path d="M 95 58 L 98 62 L 96 66 L 94 62 Z" fill={C.white}/>
+        {/* Australia */}
+        <path d="M 95 105 Q 110 100 130 103 Q 145 108 148 116 Q 145 124 135 128 Q 120 130 105 125 Q 95 118 95 105 Z" fill={C.white}/>
+        {/* Jepang */}
+        <path d="M 118 38 L 122 42 L 120 48 L 116 44 Z" fill={C.white}/>
       </svg>
     </div>
   )
@@ -465,12 +454,12 @@ function KTATemplateBack() {
         <div style={{
           backgroundColor: C.red,
           color: 'white',
-          padding: '7px 24px',
+          padding: '5px 18px',
           borderRadius: '999px',
-          fontSize: '11px',
+          fontSize: '10px',
           fontWeight: 700,
           fontFamily: 'monospace',
-          letterSpacing: '1.5px',
+          letterSpacing: '1px',
           whiteSpace: 'nowrap',
           textAlign: 'center',
         }}>
@@ -599,12 +588,12 @@ function KTACardBack({ data }: { data: KTACardData }) {
         <div style={{
           backgroundColor: C.red,
           color: 'white',
-          padding: '7px 24px',
+          padding: '5px 18px',
           borderRadius: '999px',
-          fontSize: '11px',
+          fontSize: '10px',
           fontWeight: 700,
           fontFamily: 'monospace',
-          letterSpacing: '1.5px',
+          letterSpacing: '1px',
           whiteSpace: 'nowrap',
           textAlign: 'center',
         }}>
