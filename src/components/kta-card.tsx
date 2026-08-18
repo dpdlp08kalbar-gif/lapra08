@@ -202,8 +202,6 @@ export function KTASampleCard({ compact = false }: { compact?: boolean }) {
 // Back: blue dominant, red area di bawah dengan globe
 // ============================================================
 function KTABg({ variant = 'front' }: { variant?: 'front' | 'back' }) {
-  // Front: split at 62%, smooth arch
-  // Back: split at 68% (biru lebih dominan)
   const splitPct = variant === 'front' ? 0.62 : 0.68
   const archHeight = variant === 'front' ? 20 : 12
   const splitY = H * splitPct
@@ -224,17 +222,16 @@ function KTABg({ variant = 'front' }: { variant?: 'front' | 'back' }) {
 }
 
 // ============================================================
-// SHARED: Logo — pakai PNG asli
-// Posisi: X50% Y8%, width ~50% kartu
+// SHARED: Logo — pakai PNG asli, ukuran compact
 // ============================================================
 function KTALogo() {
   return (
     <div style={{
       position: 'absolute',
-      top: '2%',
+      top: '4%',
       left: '50%',
       transform: 'translateX(-50%)',
-      width: '38%',
+      width: '32%',
       zIndex: 10,
     }}>
       <img
@@ -278,39 +275,44 @@ function KTADeco({ side = 'left' }: { side?: 'left' | 'right' }) {
 function KTAGlobe({ variant = 'front' }: { variant?: 'front' | 'back' }) {
   // Front: kiri bawah, besar, terpotong
   // Back: kiri bawah, lebih besar
-  const size = variant === 'front' ? 260 : 280
-  const bottom = variant === 'front' ? '-25%' : '-20%'
-  const left = '-18%'
+  const size = variant === 'front' ? 300 : 320
+  const bottom = variant === 'front' ? '-30%' : '-25%'
+  const left = '-22%'
 
   return (
     <div style={{ position: 'absolute', bottom, left, zIndex: 1 }}>
       <svg width={size} height={size} viewBox="0 0 200 200">
-        {/* Lingkaran utama — putih solid */}
-        <circle cx="100" cy="100" r="95" fill="none" stroke={C.white} strokeWidth="1.5" />
-        {/* Grid garis lintang (horizontal) */}
-        <ellipse cx="100" cy="100" rx="95" ry="48" fill="none" stroke={C.white} strokeWidth="0.8" />
-        <ellipse cx="100" cy="100" rx="95" ry="24" fill="none" stroke={C.white} strokeWidth="0.5" />
-        <ellipse cx="100" cy="100" rx="95" ry="70" fill="none" stroke={C.white} strokeWidth="0.5" />
-        <line x1="5" y1="100" x2="195" y2="100" stroke={C.white} strokeWidth="0.6" />
-        {/* Grid garis bujur (vertical) */}
-        <line x1="100" y1="5" x2="100" y2="195" stroke={C.white} strokeWidth="0.6" />
-        <ellipse cx="100" cy="100" rx="48" ry="95" fill="none" stroke={C.white} strokeWidth="0.5" />
-        <ellipse cx="100" cy="100" rx="24" ry="95" fill="none" stroke={C.white} strokeWidth="0.4" />
-        <ellipse cx="100" cy="100" rx="70" ry="95" fill="none" stroke={C.white} strokeWidth="0.4" />
-        {/* Daratan Asia-Australia — putih solid, lebih detail */}
-        {/* Asia Tenggara daratan */}
-        <path d="M 50 50 Q 62 42 78 48 Q 90 52 95 62 Q 88 70 75 68 Q 60 65 50 58 Z" fill={C.white} />
-        {/* Indonesia/kepulauan */}
-        <path d="M 70 72 Q 80 68 92 75 Q 98 82 88 85 Q 78 83 70 78 Z" fill={C.white} />
-        <path d="M 92 78 Q 102 75 112 82 Q 108 88 98 86 Z" fill={C.white} />
-        {/* Australia */}
-        <path d="M 95 105 Q 115 100 135 108 Q 145 118 130 125 Q 110 122 98 115 Z" fill={C.white} />
-        {/* India/Asia Selatan */}
-        <path d="M 40 60 Q 48 55 55 62 Q 52 70 45 68 Z" fill={C.white} />
-        {/* Jepang */}
-        <path d="M 115 45 Q 122 42 125 50 Q 120 55 115 52 Z" fill={C.white} />
+        {/* Lingkaran utama — putih solid, stroke halus */}
+        <circle cx="100" cy="100" r="95" fill="none" stroke={C.white} strokeWidth="0.8" />
+        {/* Grid garis lintang (horizontal) — stroke halus */}
+        <ellipse cx="100" cy="100" rx="95" ry="48" fill="none" stroke={C.white} strokeWidth="0.4" />
+        <ellipse cx="100" cy="100" rx="95" ry="24" fill="none" stroke={C.white} strokeWidth="0.3" />
+        <ellipse cx="100" cy="100" rx="95" ry="70" fill="none" stroke={C.white} strokeWidth="0.3" />
+        <line x1="5" y1="100" x2="195" y2="100" stroke={C.white} strokeWidth="0.3" />
+        {/* Grid garis bujur (vertical) — stroke halus */}
+        <line x1="100" y1="5" x2="100" y2="195" stroke={C.white} strokeWidth="0.3" />
+        <ellipse cx="100" cy="100" rx="48" ry="95" fill="none" stroke={C.white} strokeWidth="0.4" />
+        <ellipse cx="100" cy="100" rx="24" ry="95" fill="none" stroke={C.white} strokeWidth="0.3" />
+        <ellipse cx="100" cy="100" rx="70" ry="95" fill="none" stroke={C.white} strokeWidth="0.3" />
+        {/* Daratan Asia-Australia — putih solid */}
+        {/* Asia Tenggara daratan (Thailand/Vietnam/Malaysia) */}
+        <path d="M 52 52 Q 64 44 80 50 Q 92 54 97 64 Q 90 72 77 70 Q 62 67 52 60 Z" fill={C.white} />
+        {/* Sumatra */}
+        <path d="M 68 70 Q 74 67 78 73 Q 76 80 72 78 Z" fill={C.white} />
+        {/* Kalimantan */}
+        <path d="M 78 72 Q 86 68 90 74 Q 88 80 82 78 Z" fill={C.white} />
+        {/* Jawa */}
+        <path d="M 78 82 Q 88 80 94 84 Q 90 88 82 86 Z" fill={C.white} />
+        {/* Sulawesi */}
+        <path d="M 90 74 Q 95 72 96 78 Q 93 80 90 76 Z" fill={C.white} />
         {/* Papua */}
-        <path d="M 115 82 Q 128 78 138 85 Q 132 92 120 88 Z" fill={C.white} />
+        <path d="M 98 78 Q 110 74 122 80 Q 118 86 104 84 Z" fill={C.white} />
+        {/* Australia */}
+        <path d="M 92 108 Q 112 103 135 110 Q 145 120 128 128 Q 108 125 95 118 Z" fill={C.white} />
+        {/* India/Asia Selatan */}
+        <path d="M 42 62 Q 50 57 57 64 Q 54 72 47 70 Z" fill={C.white} />
+        {/* Jepang */}
+        <path d="M 118 48 Q 125 45 128 53 Q 123 58 118 55 Z" fill={C.white} />
       </svg>
     </div>
   )
@@ -323,24 +325,24 @@ function KTATemplateFront() {
   return (
     <div className="relative w-full h-full">
       <KTABg variant="front" />
-      <KTADeco side="left" />
+      
       <KTAGlobe variant="front" />
       <KTALogo />
 
       {/* Foto — center, di bawah logo */}
       <div style={{
         position: 'absolute',
-        top: '22%',
+        top: '20%',
         left: '50%',
         transform: 'translateX(-50%)',
-        width: '40%',
-        height: '30%',
+        width: '38%',
+        height: '28%',
         zIndex: 5,
       }}>
         <div style={{
           width: '100%',
           height: '100%',
-          borderRadius: '14px',
+          borderRadius: '12px',
           backgroundColor: C.red,
           padding: '4px',
         }}>
@@ -348,7 +350,7 @@ function KTATemplateFront() {
             width: '100%',
             height: '100%',
             backgroundColor: 'rgba(255,255,255,0.9)',
-            borderRadius: '10px',
+            borderRadius: '8px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -360,10 +362,10 @@ function KTATemplateFront() {
         </div>
       </div>
 
-      {/* Nama — di bawah foto */}
+      {/* Nama — di bawah foto dengan jarak */}
       <div style={{
         position: 'absolute',
-        top: '54%',
+        top: '50%',
         left: '50%',
         transform: 'translateX(-50%)',
         width: '80%',
@@ -431,7 +433,7 @@ function KTATemplateBack() {
   return (
     <div className="relative w-full h-full">
       <KTABg variant="back" />
-      <KTADeco side="right" />
+      
       <KTAGlobe variant="back" />
       <KTALogo />
 
@@ -494,25 +496,25 @@ function KTACardFront({ data }: { data: KTACardData }) {
   return (
     <div className="relative w-full h-full">
       <KTABg variant="front" />
-      <KTADeco side="left" />
+      
       <KTAGlobe variant="front" />
       <KTALogo />
 
       {/* Foto */}
       <div style={{
         position: 'absolute',
-        top: '22%',
+        top: '20%',
         left: '50%',
         transform: 'translateX(-50%)',
-        width: '40%',
-        height: '30%',
+        width: '38%',
+        height: '28%',
         zIndex: 5,
       }}>
-        <div style={{ width: '100%', height: '100%', borderRadius: '14px', backgroundColor: C.red, padding: '4px' }}>
+        <div style={{ width: '100%', height: '100%', borderRadius: '12px', backgroundColor: C.red, padding: '4px' }}>
           {data.photoUrl ? (
-            <img src={data.photoUrl} alt={data.fullName} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '10px' }} crossOrigin="anonymous" />
+            <img src={data.photoUrl} alt={data.fullName} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px' }} crossOrigin="anonymous" />
           ) : (
-            <div style={{ width: '100%', height: '100%', backgroundColor: '#FFE0B2', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888', fontSize: '12px' }}>Foto</div>
+            <div style={{ width: '100%', height: '100%', backgroundColor: '#FFE0B2', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888', fontSize: '12px' }}>Foto</div>
           )}
         </div>
       </div>
@@ -520,7 +522,7 @@ function KTACardFront({ data }: { data: KTACardData }) {
       {/* Nama */}
       <div style={{
         position: 'absolute',
-        top: '54%',
+        top: '50%',
         left: '50%',
         transform: 'translateX(-50%)',
         width: '80%',
@@ -566,7 +568,7 @@ function KTACardBack({ data }: { data: KTACardData }) {
   return (
     <div className="relative w-full h-full">
       <KTABg variant="back" />
-      <KTADeco side="right" />
+      
       <KTAGlobe variant="back" />
       <KTALogo />
 
