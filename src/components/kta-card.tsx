@@ -152,9 +152,145 @@ export function KTACard({ applicationId }: { applicationId: string }) {
 }
 
 // ============================================================
-// KTA CARD FRONT
+// KTA SAMPLE CARD — preview format KTA (untuk Info Layanan & KTA Digital)
+// Tampilkan contoh KTA dengan data dummy supaya user paham formatnya
 // ============================================================
-function KTACardFront({ data }: { data: KTACardData }) {
+export function KTASampleCard({ compact = false }: { compact?: boolean }) {
+  const sampleData: KTACardData = {
+    ktaNumber: '08DPD 6100 P0001',
+    fullName: 'NAMA ANGGOTA CONTOH',
+    photoUrl: null,
+    level: 'DPD',
+    territoryName: 'Kalimantan Barat',
+    positionName: 'Anggota',
+    validFromString: `1 Januari ${new Date().getFullYear()}`,
+    validUntilString: `31 Desember ${new Date().getFullYear()}`,
+    qrCodeDataUrl: '', // empty untuk sample
+  }
+
+  if (compact) {
+    // Compact mode — cuma tampilkan card depan saja, lebih kecil
+    return (
+      <div className="flex flex-col items-center gap-3">
+        <div
+          className="kta-card-sample relative shadow-lg"
+          style={{
+            width: '220px',
+            height: '350px',
+            borderRadius: '12px',
+            overflow: 'hidden',
+            fontFamily: 'system-ui, -apple-system, sans-serif',
+          }}
+        >
+          <KTACardFront data={sampleData} sample />
+        </div>
+        <div className="text-xs text-muted-foreground text-center max-w-xs">
+          <strong>Contoh format KTA Digital</strong>
+          <br />
+          Nomor: <code className="font-mono bg-muted px-1 rounded">08DPD 6100 P0001</code>
+          <br />
+          Masa berlaku: 1 Januari - 31 Desember {new Date().getFullYear()}
+        </div>
+      </div>
+    )
+  }
+
+  // Full mode — tampilkan depan + belakang + penjelasan format
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-4 md:grid-cols-2">
+        {/* Depan */}
+        <div className="flex flex-col items-center gap-2">
+          <div
+            className="kta-card-sample relative shadow-lg"
+            style={{
+              width: '240px',
+              height: '380px',
+              borderRadius: '12px',
+              overflow: 'hidden',
+              fontFamily: 'system-ui, -apple-system, sans-serif',
+            }}
+          >
+            <KTACardFront data={sampleData} sample />
+          </div>
+          <div className="text-xs font-medium text-muted-foreground">Sisi Depan</div>
+        </div>
+        {/* Belakang */}
+        <div className="flex flex-col items-center gap-2">
+          <div
+            className="kta-card-sample relative shadow-lg"
+            style={{
+              width: '240px',
+              height: '380px',
+              borderRadius: '12px',
+              overflow: 'hidden',
+              fontFamily: 'system-ui, -apple-system, sans-serif',
+            }}
+          >
+            <KTACardBack data={sampleData} />
+          </div>
+          <div className="text-xs font-medium text-muted-foreground">Sisi Belakang</div>
+        </div>
+      </div>
+
+      {/* Penjelasan format nomor KTA */}
+      <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+        <div className="text-xs font-semibold">Format Nomor KTA:</div>
+        <div className="font-mono text-sm bg-background p-2 rounded border">
+          <span className="text-red-600 font-bold">08</span>
+          <span className="text-blue-600 font-bold">[LEVEL]</span>
+          <span className="text-emerald-600 font-bold">[WILAYAH]</span>
+          <span className="text-purple-600 font-bold">P</span>
+          <span className="text-orange-600 font-bold">[URUT]</span>
+        </div>
+        <div className="text-xs space-y-1">
+          <div><code className="text-red-600 font-bold">08</code> = Kode LAPRA 08</div>
+          <div><code className="text-blue-600 font-bold">LEVEL</code> = DPN / DPD / DPC (tingkat pengurus)</div>
+          <div><code className="text-emerald-600 font-bold">WILAYAH</code> = 4 digit (2 digit provinsi + 2 digit kab/kota)</div>
+          <div><code className="text-purple-600 font-bold">P</code> = Person (Anggota)</div>
+          <div><code className="text-orange-600 font-bold">URUT</code> = 4 digit nomor urut anggota</div>
+        </div>
+        <div className="text-xs border-t pt-2 mt-2">
+          <strong>Contoh:</strong>{' '}
+          <code className="font-mono bg-background px-1.5 py-0.5 rounded border">08DPD 6100 P0001</code>
+          {' '}→ Anggota DPD Kalimantan Barat (kode 61), nomor urut 0001
+        </div>
+      </div>
+
+      {/* Penjelasan komponen KTA */}
+      <div className="grid gap-2 md:grid-cols-2">
+        <div className="rounded-lg border p-3 text-xs space-y-1">
+          <div className="font-semibold text-sm flex items-center gap-1">
+            <FileText className="w-3 h-3" /> Sisi Depan berisi:
+          </div>
+          <ul className="space-y-0.5 text-muted-foreground list-disc list-inside">
+            <li>Logo Laskar Prabowo 08</li>
+            <li>Foto anggota (frame merah)</li>
+            <li>Nama lengkap + jabatan</li>
+            <li>QR Code verifikasi</li>
+            <li>Masa berlaku (1 Jan - 31 Des)</li>
+          </ul>
+        </div>
+        <div className="rounded-lg border p-3 text-xs space-y-1">
+          <div className="font-semibold text-sm flex items-center gap-1">
+            <FileText className="w-3 h-3" /> Sisi Belakang berisi:
+          </div>
+          <ul className="space-y-0.5 text-muted-foreground list-disc list-inside">
+            <li>Logo Laskar Prabowo 08</li>
+            <li>Nomor KTA (badge merah)</li>
+            <li>4 poin tata tertib anggota</li>
+            <li>Grafis globe</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ============================================================
+// KTA CARD FRONT (dengan opsi 'sample' untuk placeholder)
+// ============================================================
+function KTACardFront({ data, sample = false }: { data: KTACardData; sample?: boolean }) {
   return (
     <div className="relative w-full h-full">
       {/* Background: Biru muda (atas 55%) + Merah (bawah 45%) */}
@@ -254,10 +390,12 @@ function KTACardFront({ data }: { data: KTACardData }) {
                 alignItems: 'center',
                 justifyContent: 'center',
                 color: '#888',
-                fontSize: '12px',
+                fontSize: sample ? '10px' : '12px',
+                textAlign: 'center',
+                padding: '8px',
               }}
             >
-              Foto
+              {sample ? 'Foto 3×4\n(Latar Merah)' : 'Foto'}
             </div>
           )}
         </div>

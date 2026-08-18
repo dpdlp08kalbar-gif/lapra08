@@ -43,7 +43,7 @@ import {
 // Reuse existing functional components
 import { PusatDataMenu } from '@/components/menus/pusat-data-menu'
 import { CommunicationMenu } from '@/components/menus/communication-menu'
-import { KTACard } from '@/components/kta-card'
+import { KTACard, KTASampleCard } from '@/components/kta-card'
 
 // === Shared interface untuk data Territory (DPN/DPD/DPC) ===
 interface Territory {
@@ -3846,11 +3846,25 @@ function KtaDigitalManager() {
       </div>
 
       {filtered.length === 0 ? (
-        <EmptyState
-          icon={IdCard}
-          title="Belum ada KTA yang diterbitkan"
-          description="KTA digital akan muncul di sini setelah permohonan KTA di-approve oleh admin. Gunakan tab 'Admin Review Permohonan' untuk approve permohonan."
-        />
+        <div className="space-y-4">
+          <EmptyState
+            icon={IdCard}
+            title="Belum ada KTA yang diterbitkan"
+            description="KTA digital akan muncul di sini setelah permohonan KTA di-approve oleh admin. Gunakan tab 'Admin Review Permohonan' untuk approve permohonan."
+          />
+          {/* Preview format KTA */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Award className="w-4 h-4 text-emerald-600" /> Contoh Format KTA Digital
+              </CardTitle>
+              <CardDescription>Begini tampilan KTA yang akan diterbitkan</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <KTASampleCard compact />
+            </CardContent>
+          </Card>
+        </div>
       ) : (
         <div className="grid gap-2">
           {filtered.map((item: any) => (
@@ -4549,13 +4563,25 @@ function KtaInfoLayanan() {
           <div className="rounded-xl border p-4">
             <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center mb-2"><KeyRound className="w-5 h-5 text-blue-600" /></div>
             <div className="font-semibold text-sm">Format KTA</div>
-            <p className="text-xs text-muted-foreground mt-1 font-mono">LAPRA08.[NEGARA].[PROV].[KAB].[TAHUN].[URUT]</p>
+            <p className="text-xs text-muted-foreground mt-1 font-mono">08[LEVEL][WILAYAH]P[URUT]</p>
+            <p className="text-[10px] text-muted-foreground mt-1">Contoh: 08DPD 6100 P0001</p>
           </div>
           <div className="rounded-xl border p-4">
             <div className="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center mb-2"><FileText className="w-5 h-5 text-orange-600" /></div>
             <div className="font-semibold text-sm">Cetak KTA Fisik</div>
             <p className="text-xs text-muted-foreground mt-1">Tersedia di sekretariat DPC. Biaya Rp 25.000 dengan kartu PVC + hologram.</p>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Preview Format KTA Digital — depan + belakang + penjelasan */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base"><IdCard className="w-4 h-4 text-emerald-600" /> Format KTA Digital</CardTitle>
+          <CardDescription>Tampilan dan format Kartu Tanda Anggota digital LAPRA 08</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <KTASampleCard />
         </CardContent>
       </Card>
 
