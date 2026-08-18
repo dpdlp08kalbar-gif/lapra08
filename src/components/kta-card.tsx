@@ -280,43 +280,56 @@ function KTAGlobe({ variant = 'front' }: { variant?: 'front' | 'back' }) {
   return (
     <div style={{ position: 'absolute', bottom, left, zIndex: 1 }}>
       <svg width={size} height={size} viewBox="0 0 200 200">
-        {/* Lingkaran utama */}
-        <circle cx="100" cy="100" r="95" fill="none" stroke={C.white} strokeWidth="0.6" />
+        {/* Lingkaran globe */}
+        <circle cx="100" cy="100" r="95" fill="none" stroke={C.white} strokeWidth="0.5" />
         {/* Grid halus */}
-        <ellipse cx="100" cy="100" rx="95" ry="48" fill="none" stroke={C.white} strokeWidth="0.3" />
-        <ellipse cx="100" cy="100" rx="95" ry="24" fill="none" stroke={C.white} strokeWidth="0.2" />
-        <ellipse cx="100" cy="100" rx="95" ry="70" fill="none" stroke={C.white} strokeWidth="0.2" />
-        <line x1="5" y1="100" x2="195" y2="100" stroke={C.white} strokeWidth="0.2" />
-        <line x1="100" y1="5" x2="100" y2="195" stroke={C.white} strokeWidth="0.2" />
-        <ellipse cx="100" cy="100" rx="48" ry="95" fill="none" stroke={C.white} strokeWidth="0.3" />
-        <ellipse cx="100" cy="100" rx="24" ry="95" fill="none" stroke={C.white} strokeWidth="0.2" />
-        <ellipse cx="100" cy="100" rx="70" ry="95" fill="none" stroke={C.white} strokeWidth="0.2" />
+        <ellipse cx="100" cy="100" rx="95" ry="48" fill="none" stroke={C.white} strokeWidth="0.2" />
+        <ellipse cx="100" cy="100" rx="95" ry="24" fill="none" stroke={C.white} strokeWidth="0.15" />
+        <ellipse cx="100" cy="100" rx="95" ry="70" fill="none" stroke={C.white} strokeWidth="0.15" />
+        <line x1="5" y1="100" x2="195" y2="100" stroke={C.white} strokeWidth="0.15" />
+        <line x1="100" y1="5" x2="100" y2="195" stroke={C.white} strokeWidth="0.15" />
+        <ellipse cx="100" cy="100" rx="48" ry="95" fill="none" stroke={C.white} strokeWidth="0.2" />
+        <ellipse cx="100" cy="100" rx="24" ry="95" fill="none" stroke={C.white} strokeWidth="0.15" />
+        <ellipse cx="100" cy="100" rx="70" ry="95" fill="none" stroke={C.white} strokeWidth="0.15" />
 
-        {/* === PETA ASIA-AUSTRALIA — bentuk realistis === */}
-        {/* Benua Asia (utara) - dari India sampai Tiongkok */}
-        <path d="M 30 35 Q 45 28 65 30 Q 85 28 105 32 Q 120 35 130 42 Q 125 50 110 48 Q 90 45 70 48 Q 50 50 35 45 Z" fill={C.white} />
-        {/* India (segitiga ke bawah) */}
-        <path d="M 48 48 Q 55 50 58 58 Q 55 68 50 65 Q 46 58 48 48 Z" fill={C.white} />
-        {/* Semenanjung Malaya */}
-        <path d="M 72 55 Q 78 58 80 65 Q 78 70 75 68 Q 72 62 72 55 Z" fill={C.white} />
-        {/* Sumatra */}
-        <path d="M 68 68 Q 73 65 77 72 Q 75 78 71 76 Q 68 72 68 68 Z" fill={C.white} />
-        {/* Kalimantan */}
-        <path d="M 80 68 Q 88 65 92 72 Q 90 78 84 76 Q 80 72 80 68 Z" fill={C.white} />
-        {/* Jawa */}
-        <path d="M 78 80 Q 88 78 96 82 Q 92 86 82 84 Z" fill={C.white} />
-        {/* Sulawesi */}
-        <path d="M 92 70 Q 97 68 98 74 Q 96 78 92 74 Z" fill={C.white} />
-        {/* Papua */}
-        <path d="M 100 74 Q 115 70 130 76 Q 125 82 108 80 Z" fill={C.white} />
-        {/* Filipina */}
-        <path d="M 95 58 Q 100 55 102 62 Q 99 65 96 62 Z" fill={C.white} />
-        {/* Australia */}
-        <path d="M 95 105 Q 115 100 140 108 Q 148 118 132 128 Q 110 125 92 116 Z" fill={C.white} />
-        {/* Selandia Baru */}
-        <path d="M 140 125 Q 145 122 148 128 Q 144 132 140 128 Z" fill={C.white} />
-        {/* Jepang */}
-        <path d="M 118 42 Q 124 38 128 45 Q 124 50 119 47 Z" fill={C.white} />
+        {/* === PETA: dot-matrix style (titik-titik putih membentuk benua) === */}
+        {/* Asia - utara besar */}
+        <g fill={C.white}>
+          {/* Asia Tengah & Timur */}
+          <circle cx="55" cy="40" r="1.5"/><circle cx="62" cy="38" r="1.5"/><circle cx="70" cy="37" r="1.5"/>
+          <circle cx="78" cy="36" r="1.5"/><circle cx="86" cy="37" r="1.5"/><circle cx="94" cy="38" r="1.5"/>
+          <circle cx="102" cy="39" r="1.5"/><circle cx="110" cy="40" r="1.5"/><circle cx="118" cy="42" r="1.5"/>
+          <circle cx="58" cy="46" r="1.5"/><circle cx="66" cy="44" r="1.5"/><circle cx="74" cy="43" r="1.5"/>
+          <circle cx="82" cy="42" r="1.5"/><circle cx="90" cy="43" r="1.5"/><circle cx="98" cy="44" r="1.5"/>
+          <circle cx="106" cy="45" r="1.5"/><circle cx="114" cy="46" r="1.5"/>
+          {/* India */}
+          <circle cx="48" cy="50" r="1.5"/><circle cx="52" cy="54" r="1.5"/><circle cx="50" cy="58" r="1.5"/>
+          <circle cx="48" cy="62" r="1.5"/>
+          {/* Asia Tenggara daratan */}
+          <circle cx="68" cy="52" r="1.5"/><circle cx="72" cy="56" r="1.5"/><circle cx="74" cy="60" r="1.5"/>
+          <circle cx="76" cy="64" r="1.5"/>
+          {/* Sumatra */}
+          <circle cx="68" cy="68" r="1.2"/><circle cx="70" cy="72" r="1.2"/><circle cx="72" cy="76" r="1.2"/>
+          {/* Kalimantan */}
+          <circle cx="80" cy="70" r="1.2"/><circle cx="84" cy="72" r="1.2"/><circle cx="82" cy="76" r="1.2"/>
+          {/* Jawa */}
+          <circle cx="78" cy="82" r="1.2"/><circle cx="84" cy="83" r="1.2"/><circle cx="90" cy="84" r="1.2"/>
+          {/* Sulawesi */}
+          <circle cx="92" cy="72" r="1.2"/><circle cx="94" cy="76" r="1.2"/>
+          {/* Papua */}
+          <circle cx="100" cy="76" r="1.5"/><circle cx="108" cy="77" r="1.5"/><circle cx="116" cy="78" r="1.5"/>
+          <circle cx="124" cy="79" r="1.5"/>
+          {/* Filipina */}
+          <circle cx="96" cy="60" r="1"/><circle cx="98" cy="64" r="1"/>
+          {/* Australia */}
+          <circle cx="100" cy="108" r="1.5"/><circle cx="108" cy="106" r="1.5"/><circle cx="116" cy="105" r="1.5"/>
+          <circle cx="124" cy="106" r="1.5"/><circle cx="132" cy="108" r="1.5"/><circle cx="138" cy="112" r="1.5"/>
+          <circle cx="104" cy="114" r="1.5"/><circle cx="112" cy="112" r="1.5"/><circle cx="120" cy="112" r="1.5"/>
+          <circle cx="128" cy="114" r="1.5"/><circle cx="134" cy="118" r="1.5"/>
+          <circle cx="108" cy="120" r="1.5"/><circle cx="116" cy="120" r="1.5"/><circle cx="124" cy="122" r="1.5"/>
+          {/* Jepang */}
+          <circle cx="118" cy="44" r="1"/><circle cx="120" cy="48" r="1"/>
+        </g>
       </svg>
     </div>
   )
