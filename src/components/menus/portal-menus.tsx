@@ -4059,6 +4059,38 @@ function KtaPendaftaranForm() {
                 </Select>
               </div>
               <div className="space-y-2"><Label>Pekerjaan</Label><Input value={form.occupation} onChange={(e) => setForm({ ...form, occupation: e.target.value })} placeholder="cth: Wiraswasta" /></div>
+              <div className="space-y-2"><Label>Jabatan di Pengurus / Anggota</Label>
+                <Select value={form.applicantNotes || ''} onValueChange={(v) => setForm({ ...form, applicantNotes: v })}>
+                  <SelectTrigger><SelectValue placeholder="Pilih Jabatan" /></SelectTrigger>
+                  <SelectContent className="max-h-60">
+                    <SelectItem value="Anggota">Anggota</SelectItem>
+                    <SelectItem value="Ketua Umum">Ketua Umum</SelectItem>
+                    <SelectItem value="Wakil Ketua">Wakil Ketua</SelectItem>
+                    <SelectItem value="Sekretaris Jenderal">Sekretaris Jenderal</SelectItem>
+                    <SelectItem value="Wakil Sekretaris">Wakil Sekretaris</SelectItem>
+                    <SelectItem value="Bendahara Umum">Bendahara Umum</SelectItem>
+                    <SelectItem value="Wakil Bendahara">Wakil Bendahara</SelectItem>
+                    <SelectItem value="Ketua Bidang">Ketua Bidang</SelectItem>
+                    <SelectItem value="Wakil Ketua Bidang">Wakil Ketua Bidang</SelectItem>
+                    <SelectItem value="Koordinator Wilayah">Koordinator Wilayah</SelectItem>
+                    <SelectItem value="Ketua DPD">Ketua DPD</SelectItem>
+                    <SelectItem value="Wakil Ketua DPD">Wakil Ketua DPD</SelectItem>
+                    <SelectItem value="Sekretaris DPD">Sekretaris DPD</SelectItem>
+                    <SelectItem value="Bendahara DPD">Bendahara DPD</SelectItem>
+                    <SelectItem value="Ketua DPC">Ketua DPC</SelectItem>
+                    <SelectItem value="Wakil Ketua DPC">Wakil Ketua DPC</SelectItem>
+                    <SelectItem value="Sekretaris DPC">Sekretaris DPC</SelectItem>
+                    <SelectItem value="Bendahara DPC">Bendahara DPC</SelectItem>
+                    <SelectItem value="Dewan Pembina">Dewan Pembina</SelectItem>
+                    <SelectItem value="Dewan Penasihat">Dewan Penasihat</SelectItem>
+                    <SelectItem value="Staf Ahli">Staf Ahli</SelectItem>
+                    <SelectItem value="Tim Media">Tim Media</SelectItem>
+                    <SelectItem value="Tim Hukum">Tim Hukum</SelectItem>
+                    <SelectItem value="Tim Logistik">Tim Logistik</SelectItem>
+                    <SelectItem value="Relawan">Relawan</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="space-y-2"><Label>Ukuran Baju Seragam</Label>
                 <Select value={form.shirtSize} onValueChange={(v) => setForm({ ...form, shirtSize: v })}>
                   <SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger>
