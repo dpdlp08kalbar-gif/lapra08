@@ -12,6 +12,13 @@ import {
 const _cache = new Map<string, { ts: number; data: any }>()
 const CACHE_TTL_MS = 30 * 1000
 
+// === FASE 0.7: Export invalidation function ===
+// Dipanggil dari /api/essay-polls/[id]/route.ts (PUT/DELETE) untuk invalidate cache
+// agar perubahan langsung terlihat di list endpoint (no stale data ≤30 detik)
+export function invalidateEssayPollsCache(): void {
+  _cache.clear()
+}
+
 // GET - List essay polls
 export async function GET(request: NextRequest) {
   const user = await getUserFromRequest(request)
@@ -67,8 +74,8 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
 
-    // Invalidate cache on creation
-    _cache.clear()
+    // Invalidate cache on creation (pakai exported function untuk konsistensi)
+    invalidateEssayPollsCache()
 
     // === AI Generate mode (LLM-powered) ===
     if (body.action === 'ai_generate') {

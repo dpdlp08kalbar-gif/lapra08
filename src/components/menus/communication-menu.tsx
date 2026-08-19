@@ -3062,12 +3062,12 @@ function KeywordHashtagManagerDialog({ open, onOpenChange }: { open: boolean; on
       if (filterCategory !== 'ALL') params.set('category', filterCategory)
       if (filterActive !== 'ALL') params.set('active', filterActive)
       if (search.trim()) params.set('q', search.trim())
-      const res = await api(`/api/medsos-keywords?${params.toString()}`)
-      if (res.success) {
+      const res = await api(`/api/medsos-keywords?${params.toString()}`, { keepWrapper: true })
+      if (res?.success) {
         setKeywords(res.data || [])
         setStats(res.stats || null)
       } else {
-        addToast(res.error || 'Gagal memuat keyword', 'error')
+        addToast(res?.error || 'Gagal memuat keyword', 'error')
       }
     } catch (e: any) {
       addToast(e.message, 'error')
@@ -3091,13 +3091,14 @@ function KeywordHashtagManagerDialog({ open, onOpenChange }: { open: boolean; on
       const res = await api('/api/medsos-keywords', {
         method: 'POST',
         body: JSON.stringify(formData),
+        keepWrapper: true,
       })
-      if (res.success) {
-        addToast(res.message, 'success')
+      if (res?.success) {
+        addToast(res.message || 'Keyword ditambahkan', 'success')
         setFormData({ ...formData, text: '', notes: '' })
         loadData()
       } else {
-        addToast(res.error, 'error')
+        addToast(res?.error || 'Gagal menambah keyword', 'error')
       }
     } catch (e: any) {
       addToast(e.message, 'error')
@@ -3124,13 +3125,14 @@ function KeywordHashtagManagerDialog({ open, onOpenChange }: { open: boolean; on
             isActive: true,
           })),
         }),
+        keepWrapper: true,
       })
-      if (res.success) {
-        addToast(res.message, 'success')
+      if (res?.success) {
+        addToast(res.message || `${res.addedCount} keyword ditambahkan`, 'success')
         setBulkText('')
         loadData()
       } else {
-        addToast(res.error, 'error')
+        addToast(res?.error || 'Gagal bulk add', 'error')
       }
     } catch (e: any) {
       addToast(e.message, 'error')
@@ -3144,12 +3146,13 @@ function KeywordHashtagManagerDialog({ open, onOpenChange }: { open: boolean; on
       const res = await api('/api/medsos-keywords', {
         method: 'POST',
         body: JSON.stringify({ action: 'preset_politik' }),
+        keepWrapper: true,
       })
-      if (res.success) {
-        addToast(res.message, 'success')
+      if (res?.success) {
+        addToast(res.message || `${res.addedCount} preset ditambahkan`, 'success')
         loadData()
       } else {
-        addToast(res.error, 'error')
+        addToast(res?.error || 'Gagal import preset', 'error')
       }
     } catch (e: any) {
       addToast(e.message, 'error')
@@ -3162,11 +3165,12 @@ function KeywordHashtagManagerDialog({ open, onOpenChange }: { open: boolean; on
       const res = await api('/api/medsos-keywords', {
         method: 'PATCH',
         body: JSON.stringify({ id, isActive: !currentActive }),
+        keepWrapper: true,
       })
-      if (res.success) {
+      if (res?.success) {
         loadData()
       } else {
-        addToast(res.error, 'error')
+        addToast(res?.error || 'Gagal toggle status', 'error')
       }
     } catch (e: any) {
       addToast(e.message, 'error')
@@ -3180,14 +3184,15 @@ function KeywordHashtagManagerDialog({ open, onOpenChange }: { open: boolean; on
       const res = await api('/api/medsos-keywords', {
         method: 'PATCH',
         body: JSON.stringify({ id: editId, ...editData }),
+        keepWrapper: true,
       })
-      if (res.success) {
-        addToast(res.message, 'success')
+      if (res?.success) {
+        addToast(res.message || 'Keyword diperbarui', 'success')
         setEditId(null)
         setEditData(null)
         loadData()
       } else {
-        addToast(res.error, 'error')
+        addToast(res?.error || 'Gagal update keyword', 'error')
       }
     } catch (e: any) {
       addToast(e.message, 'error')
@@ -3201,12 +3206,13 @@ function KeywordHashtagManagerDialog({ open, onOpenChange }: { open: boolean; on
       const res = await api('/api/medsos-keywords', {
         method: 'DELETE',
         body: JSON.stringify({ id }),
+        keepWrapper: true,
       })
-      if (res.success) {
-        addToast(res.message, 'success')
+      if (res?.success) {
+        addToast(res.message || 'Keyword dihapus', 'success')
         loadData()
       } else {
-        addToast(res.error, 'error')
+        addToast(res?.error || 'Gagal hapus keyword', 'error')
       }
     } catch (e: any) {
       addToast(e.message, 'error')
@@ -3224,13 +3230,14 @@ function KeywordHashtagManagerDialog({ open, onOpenChange }: { open: boolean; on
       const res = await api('/api/medsos-keywords', {
         method: 'DELETE',
         body: JSON.stringify({ ids: Array.from(selectedIds) }),
+        keepWrapper: true,
       })
-      if (res.success) {
-        addToast(res.message, 'success')
+      if (res?.success) {
+        addToast(res.message || `${res.deletedCount} keyword dihapus`, 'success')
         setSelectedIds(new Set())
         loadData()
       } else {
-        addToast(res.error, 'error')
+        addToast(res?.error || 'Gagal bulk delete', 'error')
       }
     } catch (e: any) {
       addToast(e.message, 'error')
@@ -3704,12 +3711,12 @@ function SurveyorManagerDialog({ open, onOpenChange }: { open: boolean; onOpenCh
       const params = new URLSearchParams()
       if (filterActive !== 'ALL') params.set('active', filterActive)
       if (search.trim()) params.set('q', search.trim())
-      const res = await api(`/api/surveyors?${params.toString()}`)
-      if (res.success) {
+      const res = await api(`/api/surveyors?${params.toString()}`, { keepWrapper: true })
+      if (res?.success) {
         setSurveyors(res.data || [])
         setStats(res.stats || null)
       } else {
-        addToast(res.error || 'Gagal memuat surveyor', 'error')
+        addToast(res?.error || 'Gagal memuat surveyor', 'error')
       }
     } catch (e: any) {
       addToast(e.message, 'error')
@@ -3725,13 +3732,14 @@ function SurveyorManagerDialog({ open, onOpenChange }: { open: boolean; onOpenCh
   // Load options for add form
   const loadOptions = useCallback(async () => {
     try {
+      // Pakai keepWrapper untuk konsistensi (beberapa endpoint return { success, data })
       const [usersRes, terrRes, pollsRes] = await Promise.all([
-        api('/api/users'),
-        api('/api/territory'),
-        api('/api/essay-polls'),
+        api('/api/users', { keepWrapper: true }),
+        api('/api/territory', { keepWrapper: true }),
+        api('/api/essay-polls'),  // essay-polls GET return array langsung (unwrap OK)
       ])
-      if (usersRes.success) setUsers(usersRes.data || [])
-      if (terrRes.success) setTerritories(terrRes.data || [])
+      if (usersRes?.success) setUsers(usersRes.data || [])
+      if (terrRes?.success) setTerritories(terrRes.data || [])
       if (Array.isArray(pollsRes)) setPolls(pollsRes.filter((p: any) => p.status === 'ACTIVE' || p.status === 'DRAFT'))
       else if (pollsRes?.data) setPolls((pollsRes.data || []).filter((p: any) => p.status === 'ACTIVE' || p.status === 'DRAFT'))
     } catch (e: any) {
@@ -3759,14 +3767,15 @@ function SurveyorManagerDialog({ open, onOpenChange }: { open: boolean; onOpenCh
       const res = await api('/api/surveyors', {
         method: 'POST',
         body: JSON.stringify(addForm),
+        keepWrapper: true,
       })
-      if (res.success) {
-        addToast(res.message, 'success')
+      if (res?.success) {
+        addToast(res.message || 'Surveyor ditambahkan', 'success')
         setAddForm({ userId: '', territoryIds: [], assignedPollIds: [], notes: '', isActive: true })
         setShowAddForm(false)
         loadData()
       } else {
-        addToast(res.error, 'error')
+        addToast(res?.error || 'Gagal menambah surveyor', 'error')
       }
     } catch (e: any) {
       addToast(e.message, 'error')
@@ -3781,11 +3790,12 @@ function SurveyorManagerDialog({ open, onOpenChange }: { open: boolean; onOpenCh
       const res = await api('/api/surveyors', {
         method: 'PATCH',
         body: JSON.stringify({ id, isActive: !currentActive }),
+        keepWrapper: true,
       })
-      if (res.success) {
+      if (res?.success) {
         loadData()
       } else {
-        addToast(res.error, 'error')
+        addToast(res?.error || 'Gagal toggle status', 'error')
       }
     } catch (e: any) {
       addToast(e.message, 'error')
@@ -3798,14 +3808,15 @@ function SurveyorManagerDialog({ open, onOpenChange }: { open: boolean; onOpenCh
       const res = await api('/api/surveyors', {
         method: 'PATCH',
         body: JSON.stringify({ id: surveyorId, assignedPollIds: editPollIds }),
+        keepWrapper: true,
       })
-      if (res.success) {
-        addToast(res.message, 'success')
+      if (res?.success) {
+        addToast(res.message || 'Tugas survei diperbarui', 'success')
         setEditId(null)
         setEditPollIds([])
         loadData()
       } else {
-        addToast(res.error, 'error')
+        addToast(res?.error || 'Gagal update tugas', 'error')
       }
     } catch (e: any) {
       addToast(e.message, 'error')
@@ -3819,12 +3830,13 @@ function SurveyorManagerDialog({ open, onOpenChange }: { open: boolean; onOpenCh
       const res = await api('/api/surveyors', {
         method: 'DELETE',
         body: JSON.stringify({ id }),
+        keepWrapper: true,
       })
-      if (res.success) {
-        addToast(res.message, 'success')
+      if (res?.success) {
+        addToast(res.message || 'Surveyor dihapus', 'success')
         loadData()
       } else {
-        addToast(res.error, 'error')
+        addToast(res?.error || 'Gagal hapus surveyor', 'error')
       }
     } catch (e: any) {
       addToast(e.message, 'error')
@@ -4181,11 +4193,11 @@ function SurveyorSyncDialog({ open, onOpenChange }: { open: boolean; onOpenChang
   const loadData = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await api('/api/surveyors?active=true')
-      if (res.success) {
+      const res = await api('/api/surveyors?active=true', { keepWrapper: true })
+      if (res?.success) {
         setSurveyors(res.data || [])
       } else {
-        addToast(res.error || 'Gagal memuat surveyor', 'error')
+        addToast(res?.error || 'Gagal memuat surveyor', 'error')
       }
     } catch (e: any) {
       addToast(e.message, 'error')

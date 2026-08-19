@@ -1,17 +1,26 @@
 // LAPRA 08 - Client-side API helper
 import { useAuthStore } from './store'
 
-export async function apiFetch(path: string, options: RequestInit = {}) {
+// Opsi tambahan yang bisa dilewatkan via RequestInit
+// - keepWrapper: true → return full envelope { success, data, stats?, message?, ... }
+//   Berguna untuk endpoint yang mengembalikan metadata tambahan (stats, pagination, dll)
+//   Default false → unwrap ke data.data saja (backward-compatible)
+export interface ApiOptions extends RequestInit {
+  keepWrapper?: boolean
+}
+
+export async function apiFetch(path: string, options: ApiOptions = {}) {
   const user = useAuthStore.getState().user
+  const { keepWrapper = false, ...fetchOptions } = options
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...(options.headers as Record<string, string>),
+    ...(fetchOptions.headers as Record<string, string>),
   }
   if (user) {
     headers['x-user-id'] = user.id
   }
   const res = await fetch(path, {
-    ...options,
+    ...fetchOptions,
     headers,
   })
 
@@ -54,7 +63,7 @@ export async function apiFetch(path: string, options: RequestInit = {}) {
   if (!res.ok || (data && data.success === false)) {
     const errMsg = data?.error || `HTTP ${res.status}`
     // Prefix dengan path + method biar gampang tracking endpoint mana yang bermasalah
-    const method = (options.method as string) || 'GET'
+    const method = (fetchOptions.method as string) || 'GET'
     const enrichedErr = new Error(`[${method} ${path}] ${errMsg}`)
     console.error(`[API ${res.status}] ${method} ${path}`, {
       status: res.status,
@@ -63,6 +72,12 @@ export async function apiFetch(path: string, options: RequestInit = {}) {
     })
     throw enrichedErr
   }
+
+  // Mode keepWrapper: return full envelope (untuk akses metadata: stats, message, pagination, dll)
+  if (keepWrapper) {
+    return data
+  }
+
   // Kalau response berupa { success: true, data: ... } → return data.data
   // Kalau response langsung objek tanpa wrapper → return objek itu sendiri
   if (data && typeof data === 'object' && 'success' in data && 'data' in data) {

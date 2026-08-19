@@ -25,11 +25,74 @@
 // ============================================================
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { logAccess } from '@/lib/server-helpers'
+import {
+  analyzeSentiment, calculatePriority, detectLocationFromDB,
+  extractKeywords, aiAnalyzeEssayResponseLLM,
+  detectSpam,
+} from '@/lib/ai-engine'
+import { randomBytes } from 'crypto'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 const SETTING_KEY = 'surveyor_assignments'
+const SETTING_CATEGORY = 'SURVEYOR'
+
+// === FASE 0.6: Rate limit khusus surveyor (per userId + IP) ===
+const _surveyorRateLimit: Map<string, { count: number; windowStart: number }> = new Map()
+const SURVEYOR_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000 // 1 jam
+const SURVEYOR_RATE_LIMIT_MAX = 30
+
+function checkSurveyorRateLimit(key: string): { allowed: boolean; remaining: number; resetInMs: number } {
+  const now = Date.now()
+  const record = _surveyorRateLimit.get(key)
+  if (record && (now - record.windowStart) > SURVEYOR_RATE_LIMIT_WINDOW_MS) {
+    _surveyorRateLimit.delete(key)
+  }
+  const current = _surveyorRateLimit.get(key) || { count: 0, windowStart: now }
+  current.count++
+  if (current.count > SURVEYOR_RATE_LIMIT_MAX) {
+    const resetInMs = SURVEYOR_RATE_LIMIT_WINDOW_MS - (now - current.windowStart)
+    return { allowed: false, remaining: 0, resetInMs }
+  }
+  _surveyorRateLimit.set(key, current)
+  const remaining = SURVEYOR_RATE_LIMIT_MAX - current.count
+  const resetInMs = SURVEYOR_RATE_LIMIT_WINDOW_MS - (now - current.windowStart)
+  return { allowed: true, remaining, resetInMs }
+}
+
+// === FASE 0.6: Validasi enum respondentInfo ===
+const VALID_AGE_GROUPS = ['18-25', '26-35', '36-50', '51+']
+const VALID_GENDERS = ['LAKI-LAKI', 'PEREMPUAN']
+const VALID_OCCUPATIONS = [
+  'PETANI', 'NELAYAN', 'UMKM', 'PELAJAR', 'MAHASISWA', 'GURU', 'PNS',
+  'TNI_POLRI', 'PEDAGANG', 'BURUH', 'SWASTA', 'IRT', 'LAINNYA',
+]
+
+function validateRespondentInfo(info: any): { valid: boolean; error?: string; cleaned?: any } {
+  if (!info) return { valid: true, cleaned: {} }
+  if (info.ageGroup && !VALID_AGE_GROUPS.includes(info.ageGroup)) {
+    return { valid: false, error: `ageGroup tidak valid. Harus salah satu: ${VALID_AGE_GROUPS.join(', ')}` }
+  }
+  if (info.gender && !VALID_GENDERS.includes(info.gender)) {
+    return { valid: false, error: `gender tidak valid. Harus salah satu: ${VALID_GENDERS.join(', ')}` }
+  }
+  if (info.occupation && !VALID_OCCUPATIONS.includes(info.occupation)) {
+    return { valid: false, error: `occupation tidak valid. Harus salah satu: ${VALID_OCCUPATIONS.join(', ')}` }
+  }
+  return {
+    valid: true,
+    cleaned: {
+      ageGroup: info.ageGroup || null,
+      gender: info.gender || null,
+      occupation: info.occupation || null,
+      provinceCode: info.provinceCode || null,
+      regencyCode: info.regencyCode || null,
+      districtCode: info.districtCode || null,
+    },
+  }
+}
 
 interface SurveyorAssignment {
   id: string
@@ -79,12 +142,14 @@ async function saveAssignments(items: SurveyorAssignment[]): Promise<void> {
 }
 
 // GET /api/surveyor-feed/[userId] — pull feed
+// PUBLIC endpoint (tidak perlu x-user-id header) — surveyor akses via URL unik
+// Next.js 16: params adalah Promise, harus di-await
 export async function GET(
   request: NextRequest,
-  { params }: { params: { userId: string } }
+  { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
-    const userId = params.userId
+    const { userId } = await params
     if (!userId) return NextResponse.json({ success: false, error: 'userId wajib' }, { status: 400 })
 
     const items = await loadAssignments()
@@ -187,10 +252,10 @@ export async function GET(
 // }
 export async function POST(
   request: NextRequest,
-  { params }: { params: { userId: string } }
+  { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
-    const userId = params.userId
+    const { userId } = await params
     if (!userId) return NextResponse.json({ success: false, error: 'userId wajib' }, { status: 400 })
 
     const items = await loadAssignments()
@@ -205,14 +270,42 @@ export async function POST(
     const body = await request.json()
     const { pollId, answer, respondentInfo } = body
     if (!pollId) return NextResponse.json({ success: false, error: 'Field wajib: pollId' }, { status: 400 })
-    if (!answer || typeof answer !== 'string' || answer.trim().length < 3) {
-      return NextResponse.json({ success: false, error: 'Field wajib: answer (minimal 3 karakter)' }, { status: 400 })
+    if (!answer || typeof answer !== 'string' || answer.trim().length < 10) {
+      return NextResponse.json({ success: false, error: 'Field wajib: answer (minimal 10 karakter)' }, { status: 400 })
+    }
+
+    // === FASE 0.6: Validasi enum respondentInfo ===
+    const infoValidation = validateRespondentInfo(respondentInfo)
+    if (!infoValidation.valid) {
+      return NextResponse.json({ success: false, error: infoValidation.error }, { status: 400 })
+    }
+    const cleanedInfo = infoValidation.cleaned
+
+    // === FASE 0.6: Spam detection ===
+    if (detectSpam(answer)) {
+      return NextResponse.json({
+        success: false,
+        error: 'Jawaban terdeteksi sebagai spam. Mohon tulis jawaban yang substantif.',
+      }, { status: 400 })
+    }
+
+    // === FASE 0.6: Rate limit per (surveyor userId + IP) ===
+    const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+                     request.headers.get('x-real-ip') || 'unknown'
+    const rateLimitKey = `surveyor:${userId}:${clientIp}`
+    const rateLimit = checkSurveyorRateLimit(rateLimitKey)
+    if (!rateLimit.allowed) {
+      const minutes = Math.ceil(rateLimit.resetInMs / 60000)
+      return NextResponse.json({
+        success: false,
+        error: `Rate limit tercapai. Maks 30 respon per jam per surveyor. Coba lagi dalam ${minutes} menit.`,
+      }, { status: 429 })
     }
 
     // Cek poll exists & aktif
     const poll = await db.essayPoll.findUnique({
       where: { id: pollId },
-      select: { id: true, status: true, title: true },
+      select: { id: true, status: true, title: true, question: true },
     })
     if (!poll) return NextResponse.json({ success: false, error: 'Poll tidak ditemukan' }, { status: 404 })
     if (poll.status !== 'ACTIVE') {
@@ -227,23 +320,55 @@ export async function POST(
     // Hitung word count
     const wordCount = answer.trim().split(/\s+/).filter(Boolean).length
 
-    // Simpan response — pakai schema EssayResponse yang ada
-    // Identitas responden lapangan disimpan anonymous (tidak ada nama/NIK/phone)
+    // === FASE 0.6: AI ANALYSIS (lexicon + LLM fallback) — sama seperti public endpoint ===
+    // Tanpa ini, field responses tidak masuk ke sentimen stats di dashboard (Critical #7 dari audit)
+    const lexiconSentiment = analyzeSentiment(answer)
+    const lexiconPriority = calculatePriority(answer, wordCount, lexiconSentiment.sentiment)
+    const loc = await detectLocationFromDB(answer)
+
+    let finalSentiment: 'POSITIVE' | 'NEUTRAL' | 'NEGATIVE' = lexiconSentiment.sentiment
+    let finalScore = lexiconPriority.urgencyScore
+    let finalCategory = lexiconPriority.category
+    let finalSummary = `Sentimen: ${lexiconSentiment.sentiment}. Kategori: ${lexiconPriority.category}. ${wordCount} kata. Urgency: ${lexiconPriority.urgencyScore}/100.`
+    let finalKeywords = extractKeywords(answer)
+    let aiProvider = 'lexicon'
+
+    // Try LLM for deeper analysis (fallback ke lexicon jika gagal)
+    try {
+      const llmResult = await aiAnalyzeEssayResponseLLM(answer, poll.question)
+      finalSentiment = llmResult.sentiment as 'POSITIVE' | 'NEUTRAL' | 'NEGATIVE'
+      finalScore = llmResult.score
+      finalCategory = llmResult.category
+      finalSummary = llmResult.summary
+      finalKeywords = llmResult.keywords.length > 0 ? llmResult.keywords : finalKeywords
+      aiProvider = 'llm'
+    } catch (e: any) {
+      console.error('[SurveyorFeed] LLM analysis failed, using lexicon:', e.message)
+    }
+
+    // Simpan response dengan AI analysis lengkap
     await db.essayResponse.create({
       data: {
         pollId,
-        answer,
+        answer: answer.substring(0, 5000),
         wordCount,
         // Identitas responden — anonim untuk PDP compliance
         respondentName: null,
         respondentPhone: null,
-        ageGroup: respondentInfo?.ageGroup || null,
-        gender: respondentInfo?.gender || null,
-        occupation: respondentInfo?.occupation || null,
-        provinceCode: respondentInfo?.provinceCode || null,
-        regencyCode: respondentInfo?.regencyCode || null,
-        districtCode: respondentInfo?.districtCode || null,
-        // Tandai channel sebagai field surveyor (pakai ipAddress field, karena tidak ada field khusus)
+        ageGroup: cleanedInfo.ageGroup,
+        gender: cleanedInfo.gender,
+        occupation: cleanedInfo.occupation,
+        provinceCode: cleanedInfo.provinceCode || loc.provinceCode || null,
+        regencyCode: cleanedInfo.regencyCode || loc.regencyCode || null,
+        districtCode: cleanedInfo.districtCode,
+        // AI analysis fields
+        aiSentiment: finalSentiment,
+        aiScore: finalScore,
+        aiCategory: finalCategory,
+        aiSummary: finalSummary,
+        aiKeywords: JSON.stringify({ keywords: finalKeywords, provider: aiProvider }),
+        isProcessed: true,
+        // Tandai channel sebagai field surveyor (pakai ipAddress field)
         ipAddress: `FIELD:${assignment.id}`,
       },
     })
@@ -254,14 +379,34 @@ export async function POST(
     items[idx].updatedAt = new Date().toISOString()
     await saveAssignments(items)
 
+    // === FASE 0.5: Audit log ===
+    // Buat pseudo-actor untuk surveyor (logAccess butuh field 'id', 'role', 'fullName', 'territory')
+    await logAccess({
+      actor: {
+        id: assignment.userId,
+        role: 'SURVEYOR' as any,
+        fullName: assignment.fullName,
+        territory: { code: assignment.territoryNames[0] || 'FIELD' } as any,
+      } as any,
+      action: 'CREATE',
+      resource: 'SYSTEM_SETTING',
+      resourceId: pollId,
+      resourceLabel: poll.title,
+      request,
+      detail: `Surveyor submit response (${wordCount} kata, sentimen: ${finalSentiment}, ${aiProvider})`,
+    })
+
     return NextResponse.json({
       success: true,
       data: {
         pollId,
         pollTitle: poll.title,
         responsesCount: items[idx].responsesCount,
+        aiSentiment: finalSentiment,
+        aiProvider,
       },
-      message: 'Respon berhasil dikirim. Terima kasih.',
+      message: `Respon berhasil dikirim & dianalisis AI (${aiProvider}). Sentimen: ${finalSentiment}.`,
+      rateLimit: { remaining: rateLimit.remaining - 1, resetInMs: rateLimit.resetInMs },
     })
   } catch (e: any) {
     console.error('[SurveyorFeed POST] Error:', e)
