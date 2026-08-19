@@ -82,7 +82,7 @@ export const SHARE_PLATFORMS: SharePlatform[] = [
     icon: '✉️',
     color: 'bg-slate-600 hover:bg-slate-700 text-white',
     category: 'personal',
-    buildUrl: (_text, url) => `mailto:?subject=${encodeURIComponent('Survei Opini Publik LAPRA 08')}&body=${encodeURIComponent(`${_text}\n\n${url}\n\nMohon partisipasi Anda dalam survei ini. Jawaban Anda sangat berharga untuk kami.`)}`,
+    buildUrl: (_text, url) => `mailto:?subject=${encodeURIComponent('Survei Opini Publik')}&body=${encodeURIComponent(`${_text}\n\n${url}\n\nMohon partisipasi Anda dalam survei ini. Jawaban Anda sangat berharga untuk perbaikan kebijakan publik.`)}`,
   },
   // === LINKEDIN ===
   {
@@ -160,7 +160,7 @@ export function buildShareText(poll: {
   const occupation = poll.targetOccupation && poll.targetOccupation !== 'UMUM'
     ? ` (untuk ${poll.targetOccupation.toLowerCase()})`
     : ''
-  return `📝 SURVEI OPINI PUBLIK LAPRA 08${occupation}\n${poll.title}\n\n${poll.question}\n\n📍 Lokasi: ${location}\n\nMohon partisipasi Anda. Jawaban sangat berharga untuk advokasi kami.`
+  return `📝 SURVEI OPINI PUBLIK${occupation}\n${poll.title}\n\n${poll.question}\n\n📍 Lokasi: ${location}\n\nMohon partisipasi Anda. Jawaban sangat berharga untuk perbaikan kebijakan publik.`
 }
 
 // Get platform by ID
