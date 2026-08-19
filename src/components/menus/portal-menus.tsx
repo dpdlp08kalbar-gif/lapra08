@@ -4267,7 +4267,7 @@ function KtaPendaftaranForm() {
                   <SelectContent className="max-h-60">
                     {territories
                       .filter((t: any) =>
-                        wilayahLevel === 'DPN' ? t.level === 'COUNTRY' :
+                        wilayahLevel === 'DPN' ? (t.level === 'COUNTRY' && t.code === 'ID') :
                         wilayahLevel === 'DPD' ? t.level === 'PROVINCE' :
                         t.level === 'REGENCY'
                       )
