@@ -3697,3 +3697,59 @@ Stage Summary:
   - `src/app/api/medsos-keywords/route.ts` (baru, ~470 LOC)
   - `src/components/menus/communication-menu.tsx` (dialog + wire tombol)
   - `src/lib/server-helpers.ts` (tambah SYSTEM_SETTING ke AuditResource)
+
+---
+Task ID: LAPRA08-KANAL-DISTRIBUSI
+Agent: Main Agent (Super Z)
+Task: Implementasi 3 tombol stub di section "Kanal Distribusi & Integrasi" yang masih menampilkan toast "fitur sedang dalam pengembangan"
+
+Work Log:
+- Audit kondisi: 3 dari 4 tombol di section Kanal Distribusi masih stub. Tombol "Atur Keyword AI & Hashtag" sudah diimplementasi di task sebelumnya (LAPRA08-KEYWORD-AI). Yang masih stub:
+  1. "🚀 Kirim via WhatsApp/SMS Blast" (Kolom B - Jalur Digital Broadcast)
+  2. "📱 Sinkronisasi ke HP Surveyor" (Kolom C - Jalur Teritorial Lapangan)
+  3. "👥 Kelola Akun & Wilayah Surveyor" (Kolom C - Jalur Teritorial Lapangan)
+- Tambah prop `onSwitchTab?: (tab: string) => void` ke EssayPollsTab; parent CommunicationMenu pass `setTab`.
+- Wire tombol "Kirim via WhatsApp/SMS Blast" → `onSwitchTab?.('broadcast')` — switch ke tab BroadcastComposerTab yang sudah punya fitur WA/SMS blast lengkap.
+- Buat API `/api/surveyors` (GET/POST/PATCH/DELETE) — storage pakai SystemSetting key='surveyor_assignments':
+  - Schema: { id, userId, fullName, phone, territoryIds[], territoryNames[], assignedPollIds[], isActive, deviceInfo?, lastSyncAt?, responsesCount, notes?, createdAt, updatedAt, createdBy }
+  - Action khusus POST: `action='sync'` (record surveyor pull feed + return active surveys) & `action='increment_response'` (tambah counter respon).
+  - RBAC: GET untuk semua admin; POST/PATCH/DELETE untuk DPN/DPD (DPC read-only).
+  - Filter by access level: DPN lihat semua; DPD lihat surveyor di provinsi sendiri; DPC lihat surveyor di DPC sendiri.
+  - Statistik: total, active, neverSynced, totalResponses, totalAssignedSurveys.
+  - Audit log setiap perubahan (resource='SYSTEM_SETTING').
+- Buat API `/api/surveyor-feed/[userId]` (GET + POST) — endpoint publik untuk HP surveyor:
+  - GET: pull daftar survei aktif yang ditugaskan + update lastSyncAt + deviceInfo. Return JSON terstruktur (surveyor info, activeSurveys, serverTime, feedVersion).
+  - POST: submit respon survei. Body: { pollId, answer, respondentInfo? }. Respon disimpan ke EssayResponse table dengan channel='FIELD' (ditandai via ipAddress field). Identitas responden anonim (tidak ada nama/NIK/phone) — UU PDP compliance.
+  - Keamanan: URL mengandung cuid userId (sulit ditebak); surveyor harus isActive=true.
+- Buat komponen `SurveyorManagerDialog` (~470 LOC) di communication-menu.tsx:
+  - Statistik ringkas (5 kartu: total, aktif, belum sync, total respon, total tugas).
+  - Form tambah surveyor: pilih user (dropdown dari /api/users) + multi-select wilayah (checkbox dari /api/territory) + multi-select survei (dari /api/essay-polls).
+  - Inline edit untuk assignedPollIds (klik icon pensil → checkbox list survei).
+  - Toggle aktif/nonaktif langsung dari tabel.
+  - Hapus surveyor (dengan konfirmasi; respon yang sudah terkumpul tetap tersimpan).
+  - Filter: search (nama/telepon/wilayah) + status aktif.
+  - Mode read-only otomatis untuk DPC.
+- Buat komponen `SurveyorSyncDialog` (~210 LOC):
+  - List surveyor aktif dengan badge: lastSyncAt, responsesCount, assignedPollIds count.
+  - Expand per surveyor: generate QR code (pakai library `qrcode` via dynamic import) + tombol "Buka Feed di Tab Baru" + "Copy URL" + "Test Sync Manual".
+  - Device info panel: platform, lastSeen, userAgent.
+  - Tombol "Generate QR Code" lazy-load (tidak generate semua sekaligus).
+- Wire 2 tombol di Kolom C: `setSurveyorManagerOpen(true)` & `setSurveyorSyncOpen(true)`.
+- Tambah state `surveyorManagerOpen` & `surveyorSyncOpen` di EssayPollsTab.
+- Render kedua dialog baru di akhir JSX EssayPollsTab.
+- Typecheck: tidak ada error TypeScript baru di file yang dimodifikasi.
+- Build: `next build` berhasil dalam 28.7s. Route `/api/surveyors` & `/api/surveyor-feed/[userId]` terdaftar sebagai dynamic server route.
+
+Stage Summary:
+- 3 tombol stub di section "Kanal Distribusi & Integrasi" sekarang berfungsi penuh.
+- Tombol "Kirim via WhatsApp/SMS Blast" → switch ke tab "Siaran & Broadcast" (fitur sudah ada: WA/SMS/FB/IG/Email blast).
+- Tombol "Kelola Akun & Wilayah Surveyor" → dialog CRUD surveyor dengan multi-territory + multi-survey assignment.
+- Tombol "Sinkronisasi ke HP Surveyor" → dialog status sync + URL feed + QR code + test sync manual.
+- Endpoint publik `/api/surveyor-feed/[userId]` siap dipakai HP surveyor (browser/apk mobile).
+- Semua respon surveyor anonymous (UU PDP No. 27/2022 compliance).
+- Storage: SystemSetting JSON (no migration, Vercel Free compatible).
+- Audit log: setiap perubahan assignment tercatat.
+- Artefak:
+  - `src/app/api/surveyors/route.ts` (baru, ~340 LOC)
+  - `src/app/api/surveyor-feed/[userId]/route.ts` (baru, ~210 LOC)
+  - `src/components/menus/communication-menu.tsx` (tambah 2 dialog + wire 3 tombol, +700 LOC)

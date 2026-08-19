@@ -94,7 +94,7 @@ export function CommunicationMenu() {
       </div>
 
       {tab === 'broadcast' && <BroadcastComposerTab />}
-      {tab === 'essay-polls' && <EssayPollsTab />}
+      {tab === 'essay-polls' && <EssayPollsTab onSwitchTab={setTab} />}
       {tab === 'decision' && <DecisionDashboardTab />}
       {tab === 'opinion-scanner' && <OpinionScannerTab />}
     </div>
@@ -1141,7 +1141,7 @@ function SurveyOutputDashboard({ polls }: { polls: any[] }) {
 // ============================================================
 // TAB 4: ESSAY POLLS & AI AUTO-PERTANYAAN
 // ============================================================
-function EssayPollsTab() {
+function EssayPollsTab({ onSwitchTab }: { onSwitchTab?: (tab: string) => void }) {
   const addToast = useToastStore((s) => s.addToast)
   const [polls, setPolls] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -1152,6 +1152,9 @@ function EssayPollsTab() {
   const [aiForm, setAiForm] = useState({ sourceTopic: '', sourceUrl: '', sourceContent: '' })
   // === State untuk dialog Keyword AI & Hashtag ===
   const [keywordManagerOpen, setKeywordManagerOpen] = useState(false)
+  // === State untuk dialog Surveyor Manager & Sync ===
+  const [surveyorManagerOpen, setSurveyorManagerOpen] = useState(false)
+  const [surveyorSyncOpen, setSurveyorSyncOpen] = useState(false)
   // === State baru untuk multiple AI suggestions ===
   const [aiSuggestions, setAiSuggestions] = useState<any[]>([])
   const [aiSuggestionsMeta, setAiSuggestionsMeta] = useState<any>(null)
@@ -1481,9 +1484,12 @@ function EssayPollsTab() {
               <p className="text-xs text-muted-foreground">
                 Menyebarkan tautan kuesioner digital mandiri secara massal ke pangkalan data masyarakat.
               </p>
-              <Button size="sm" variant="outline" className="w-full text-xs gap-1" onClick={() => addToast('Integrasi ke Sistem Siaran sedang dalam pengembangan', 'info')}>
-                🚀 Kirim via WhatsApp/SMS Blast
-              </Button>
+              <div className="space-y-2">
+                <Button size="sm" variant="outline" className="w-full text-xs gap-1 bg-emerald-50 border-emerald-300 text-emerald-700 hover:bg-emerald-100" onClick={() => onSwitchTab?.('broadcast')}>
+                  🚀 Kirim via WhatsApp/SMS Blast
+                </Button>
+                <p className="text-[11px] text-muted-foreground italic">→ Buka tab Siaran &amp; Broadcast</p>
+              </div>
             </CardContent>
           </Card>
 
@@ -1502,10 +1508,10 @@ function EssayPollsTab() {
                 Mengirimkan kuesioner ke aplikasi HP khusus tim surveyor di lapangan untuk pendataan door-to-door.
               </p>
               <div className="space-y-1">
-                <Button size="sm" variant="outline" className="w-full text-xs gap-1" onClick={() => addToast('Sinkronisasi ke HP Surveyor sedang dalam pengembangan', 'info')}>
+                <Button size="sm" variant="outline" className="w-full text-xs gap-1 bg-orange-50 border-orange-300 text-orange-700 hover:bg-orange-100" onClick={() => setSurveyorSyncOpen(true)}>
                   📱 Sinkronisasi ke HP Surveyor
                 </Button>
-                <Button size="sm" variant="outline" className="w-full text-xs gap-1" onClick={() => addToast('Kelola Akun & Wilayah Surveyor sedang dalam pengembangan', 'info')}>
+                <Button size="sm" variant="outline" className="w-full text-xs gap-1 bg-orange-50 border-orange-300 text-orange-700 hover:bg-orange-100" onClick={() => setSurveyorManagerOpen(true)}>
                   👥 Kelola Akun &amp; Wilayah Surveyor
                 </Button>
               </div>
@@ -1823,6 +1829,12 @@ function EssayPollsTab() {
 
       {/* === Keyword & Hashtag Manager Dialog === */}
       <KeywordHashtagManagerDialog open={keywordManagerOpen} onOpenChange={setKeywordManagerOpen} />
+
+      {/* === Surveyor Manager Dialog === */}
+      <SurveyorManagerDialog open={surveyorManagerOpen} onOpenChange={setSurveyorManagerOpen} />
+
+      {/* === Surveyor Sync Dialog === */}
+      <SurveyorSyncDialog open={surveyorSyncOpen} onOpenChange={setSurveyorSyncOpen} />
 
       {/* Detail dialog */}
       {detailPoll && (
@@ -3634,6 +3646,743 @@ function KeywordHashtagManagerDialog({ open, onOpenChange }: { open: boolean; on
           <strong>Cara kerja:</strong> AI secara berkala mengambil percakapan publik dari medsos yang mengandung keyword di atas,
           lalu menganalisis sentimen &amp; klaster opini. Hasilnya tampil di <em>SurveyOutputDashboard → Medsos (Tren Sentimen, Feed Viral, Word Cloud)</em>.
           Keyword <code>High Priority</code> dipantau lebih sering (setiap 30 menit), <code>Medium</code> setiap 2 jam, <code>Low</code> setiap 6 jam.
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Tutup</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ============================================================
+// SURVEYOR MANAGER DIALOG — Kelola Akun & Wilayah Surveyor
+// ============================================================
+// CRUD surveyor lapangan. Pakai API /api/surveyors (SystemSetting storage).
+//
+// Fitur:
+// - List surveyor dengan filter (active, search)
+// - Tambah surveyor: pilih user + territory (multi-select)
+// - Assign survei ke surveyor (multi-select dari poll aktif)
+// - Toggle aktif/nonaktif
+// - Hapus assignment
+// - Statistik (total, aktif, never synced, total respon)
+// ============================================================
+function SurveyorManagerDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+  const addToast = useToastStore((s) => s.addToast)
+  const user = useAuthStore.getState().user
+  const canManage = user?.role === 'SUPERADMIN' || user?.role === 'ADMIN_DPN' || user?.role === 'ADMIN_DPD'
+
+  const [surveyors, setSurveyors] = useState<any[]>([])
+  const [stats, setStats] = useState<any>(null)
+  const [loading, setLoading] = useState(false)
+  const [search, setSearch] = useState('')
+  const [filterActive, setFilterActive] = useState<string>('ALL')
+
+  // Form state
+  const [showAddForm, setShowAddForm] = useState(false)
+  const [users, setUsers] = useState<any[]>([])
+  const [territories, setTerritories] = useState<any[]>([])
+  const [polls, setPolls] = useState<any[]>([])
+  const [addForm, setAddForm] = useState({
+    userId: '',
+    territoryIds: [] as string[],
+    assignedPollIds: [] as string[],
+    notes: '',
+    isActive: true,
+  })
+  const [saving, setSaving] = useState(false)
+
+  // Edit state
+  const [editId, setEditId] = useState<string | null>(null)
+  const [editPollIds, setEditPollIds] = useState<string[]>([])
+
+  const loadData = useCallback(async () => {
+    setLoading(true)
+    try {
+      const params = new URLSearchParams()
+      if (filterActive !== 'ALL') params.set('active', filterActive)
+      if (search.trim()) params.set('q', search.trim())
+      const res = await api(`/api/surveyors?${params.toString()}`)
+      if (res.success) {
+        setSurveyors(res.data || [])
+        setStats(res.stats || null)
+      } else {
+        addToast(res.error || 'Gagal memuat surveyor', 'error')
+      }
+    } catch (e: any) {
+      addToast(e.message, 'error')
+    } finally {
+      setLoading(false)
+    }
+  }, [filterActive, search, addToast])
+
+  useEffect(() => {
+    if (open) loadData()
+  }, [open, loadData])
+
+  // Load options for add form
+  const loadOptions = useCallback(async () => {
+    try {
+      const [usersRes, terrRes, pollsRes] = await Promise.all([
+        api('/api/users'),
+        api('/api/territory'),
+        api('/api/essay-polls'),
+      ])
+      if (usersRes.success) setUsers(usersRes.data || [])
+      if (terrRes.success) setTerritories(terrRes.data || [])
+      if (Array.isArray(pollsRes)) setPolls(pollsRes.filter((p: any) => p.status === 'ACTIVE' || p.status === 'DRAFT'))
+      else if (pollsRes?.data) setPolls((pollsRes.data || []).filter((p: any) => p.status === 'ACTIVE' || p.status === 'DRAFT'))
+    } catch (e: any) {
+      addToast('Gagal memuat opsi: ' + e.message, 'error')
+    }
+  }, [addToast])
+
+  useEffect(() => {
+    if (open && canManage && showAddForm) loadOptions()
+  }, [open, canManage, showAddForm, loadOptions])
+
+  // === Add new surveyor ===
+  const handleAdd = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!addForm.userId) {
+      addToast('Pilih user terlebih dahulu', 'error')
+      return
+    }
+    if (addForm.territoryIds.length === 0) {
+      addToast('Pilih minimal 1 wilayah', 'error')
+      return
+    }
+    setSaving(true)
+    try {
+      const res = await api('/api/surveyors', {
+        method: 'POST',
+        body: JSON.stringify(addForm),
+      })
+      if (res.success) {
+        addToast(res.message, 'success')
+        setAddForm({ userId: '', territoryIds: [], assignedPollIds: [], notes: '', isActive: true })
+        setShowAddForm(false)
+        loadData()
+      } else {
+        addToast(res.error, 'error')
+      }
+    } catch (e: any) {
+      addToast(e.message, 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // === Toggle active ===
+  const handleToggleActive = async (id: string, currentActive: boolean) => {
+    try {
+      const res = await api('/api/surveyors', {
+        method: 'PATCH',
+        body: JSON.stringify({ id, isActive: !currentActive }),
+      })
+      if (res.success) {
+        loadData()
+      } else {
+        addToast(res.error, 'error')
+      }
+    } catch (e: any) {
+      addToast(e.message, 'error')
+    }
+  }
+
+  // === Save edit (polls assignment) ===
+  const handleSaveEdit = async (surveyorId: string) => {
+    try {
+      const res = await api('/api/surveyors', {
+        method: 'PATCH',
+        body: JSON.stringify({ id: surveyorId, assignedPollIds: editPollIds }),
+      })
+      if (res.success) {
+        addToast(res.message, 'success')
+        setEditId(null)
+        setEditPollIds([])
+        loadData()
+      } else {
+        addToast(res.error, 'error')
+      }
+    } catch (e: any) {
+      addToast(e.message, 'error')
+    }
+  }
+
+  // === Delete ===
+  const handleDelete = async (id: string, name: string) => {
+    if (!confirm(`Hapus ${name} dari daftar surveyor? Respon yang sudah dikumpulkan tetap tersimpan.`)) return
+    try {
+      const res = await api('/api/surveyors', {
+        method: 'DELETE',
+        body: JSON.stringify({ id }),
+      })
+      if (res.success) {
+        addToast(res.message, 'success')
+        loadData()
+      } else {
+        addToast(res.error, 'error')
+      }
+    } catch (e: any) {
+      addToast(e.message, 'error')
+    }
+  }
+
+  // === Toggle selection in multi-select ===
+  const toggleArrayValue = (arr: string[], value: string): string[] => {
+    return arr.includes(value) ? arr.filter(v => v !== value) : [...arr, value]
+  }
+
+  const startEdit = (svy: any) => {
+    setEditId(svy.id)
+    setEditPollIds(svy.assignedPollIds || [])
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-5xl max-h-[92vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Users className="w-5 h-5 text-orange-600" />
+            Kelola Akun &amp; Wilayah Surveyor
+          </DialogTitle>
+          <DialogDescription>
+            Daftar surveyor lapangan yang bertugas mengumpulkan data door-to-door. Setiap surveyor bisa ditugaskan
+            ke beberapa wilayah dan beberapa survei aktif.
+          </DialogDescription>
+        </DialogHeader>
+
+        {/* === STATISTIK === */}
+        {stats && (
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+            <div className="rounded-lg border bg-card p-3">
+              <div className="text-xs text-muted-foreground">Total Surveyor</div>
+              <div className="text-2xl font-bold">{stats.total}</div>
+            </div>
+            <div className="rounded-lg border bg-card p-3">
+              <div className="text-xs text-muted-foreground">Aktif</div>
+              <div className="text-2xl font-bold text-emerald-600">{stats.active}</div>
+            </div>
+            <div className="rounded-lg border bg-card p-3">
+              <div className="text-xs text-muted-foreground">Belum Sync</div>
+              <div className="text-2xl font-bold text-amber-600">{stats.neverSynced}</div>
+            </div>
+            <div className="rounded-lg border bg-card p-3">
+              <div className="text-xs text-muted-foreground">Total Respon</div>
+              <div className="text-2xl font-bold text-blue-600">{stats.totalResponses}</div>
+            </div>
+            <div className="rounded-lg border bg-card p-3">
+              <div className="text-xs text-muted-foreground">Total Tugas</div>
+              <div className="text-2xl font-bold text-purple-600">{stats.totalAssignedSurveys}</div>
+            </div>
+          </div>
+        )}
+
+        {/* === ALERT: Read-only === */}
+        {!canManage && (
+          <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-900">
+            <AlertTriangle className="w-4 h-4 inline mr-1" />
+            Anda dalam mode <strong>read-only</strong>. Hanya admin DPN/DPD yang bisa mengelola surveyor.
+          </div>
+        )}
+
+        {/* === ACTION BAR === */}
+        <div className="flex gap-2 flex-wrap">
+          {canManage && (
+            <Button size="sm" onClick={() => setShowAddForm(!showAddForm)} className="bg-orange-600 hover:bg-orange-700 text-white">
+              <Plus className="w-4 h-4 mr-1" /> {showAddForm ? 'Tutup Form' : 'Tambah Surveyor'}
+            </Button>
+          )}
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="🔍 Cari nama / telepon / wilayah..."
+            className="h-8 text-sm max-w-xs ml-auto"
+          />
+          <Select value={filterActive} onValueChange={setFilterActive}>
+            <SelectTrigger className="h-8 text-sm w-32"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL" className="text-sm">Semua</SelectItem>
+              <SelectItem value="true" className="text-sm">Aktif</SelectItem>
+              <SelectItem value="false" className="text-sm">Nonaktif</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* === ADD FORM === */}
+        {canManage && showAddForm && (
+          <form onSubmit={handleAdd} className="rounded-lg border bg-orange-50/30 p-3 space-y-3">
+            <div className="text-sm font-semibold text-orange-800">Form Penugasan Surveyor Baru</div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Pilih User (anggota/admin)</Label>
+                <Select value={addForm.userId} onValueChange={(v) => setAddForm({ ...addForm, userId: v })}>
+                  <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Pilih user..." /></SelectTrigger>
+                  <SelectContent>
+                    {users.map(u => (
+                      <SelectItem key={u.id} value={u.id} className="text-sm">
+                        {u.fullName} — {u.role} {u.territory?.name ? `(${u.territory.name})` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">Catatan (opsional)</Label>
+                <Input
+                  value={addForm.notes}
+                  onChange={(e) => setAddForm({ ...addForm, notes: e.target.value })}
+                  placeholder="Contoh: Surveyor khusus kecamatan X"
+                  className="h-8 text-sm"
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label className="text-xs">Wilayah Tugas (pilih satu atau beberapa)</Label>
+              <div className="mt-1 max-h-32 overflow-y-auto rounded border bg-white p-2 space-y-1">
+                {territories.length === 0 ? (
+                  <div className="text-xs text-muted-foreground italic">Memuat wilayah...</div>
+                ) : (
+                  territories.map(t => (
+                    <label key={t.id} className="flex items-center gap-2 text-xs cursor-pointer hover:bg-slate-50 p-1 rounded">
+                      <input
+                        type="checkbox"
+                        checked={addForm.territoryIds.includes(t.id)}
+                        onChange={() => setAddForm({
+                          ...addForm,
+                          territoryIds: toggleArrayValue(addForm.territoryIds, t.id),
+                        })}
+                      />
+                      <span className="font-medium">{t.name}</span>
+                      <Badge variant="outline" className="text-[10px] ml-auto">{t.level}</Badge>
+                    </label>
+                  ))
+                )}
+              </div>
+              <div className="text-[11px] text-muted-foreground mt-1">{addForm.territoryIds.length} wilayah dipilih</div>
+            </div>
+
+            <div>
+              <Label className="text-xs">Survei yang Ditugaskan (opsional, bisa diisi nanti)</Label>
+              <div className="mt-1 max-h-32 overflow-y-auto rounded border bg-white p-2 space-y-1">
+                {polls.length === 0 ? (
+                  <div className="text-xs text-muted-foreground italic">Belum ada survei aktif</div>
+                ) : (
+                  polls.map(p => (
+                    <label key={p.id} className="flex items-start gap-2 text-xs cursor-pointer hover:bg-slate-50 p-1 rounded">
+                      <input
+                        type="checkbox"
+                        checked={addForm.assignedPollIds.includes(p.id)}
+                        onChange={() => setAddForm({
+                          ...addForm,
+                          assignedPollIds: toggleArrayValue(addForm.assignedPollIds, p.id),
+                        })}
+                        className="mt-0.5"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium truncate">{p.title}</div>
+                        <div className="text-[10px] text-muted-foreground">{p.status}</div>
+                      </div>
+                    </label>
+                  ))
+                )}
+              </div>
+              <div className="text-[11px] text-muted-foreground mt-1">{addForm.assignedPollIds.length} survei dipilih</div>
+            </div>
+
+            <label className="flex items-center gap-2 text-xs cursor-pointer">
+              <input
+                type="checkbox"
+                checked={addForm.isActive}
+                onChange={(e) => setAddForm({ ...addForm, isActive: e.target.checked })}
+              />
+              Aktifkan langsung (surveyor bisa langsung sync)
+            </label>
+
+            <div className="flex gap-2">
+              <Button type="submit" size="sm" disabled={saving} className="bg-orange-600 hover:bg-orange-700 text-white">
+                {saving ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Plus className="w-3 h-3 mr-1" />}
+                {saving ? 'Menyimpan...' : 'Tambah Surveyor'}
+              </Button>
+              <Button type="button" size="sm" variant="outline" onClick={() => setShowAddForm(false)}>Batal</Button>
+            </div>
+          </form>
+        )}
+
+        {/* === SURVEYOR LIST === */}
+        {loading ? (
+          <div className="py-12 flex items-center justify-center">
+            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : surveyors.length === 0 ? (
+          <EmptyState
+            icon={Users}
+            title="Belum ada surveyor"
+            description={canManage
+              ? 'Klik "Tambah Surveyor" untuk mendaftarkan anggota sebagai surveyor lapangan.'
+              : 'Admin DPN/DPD belum menambahkan surveyor.'}
+          />
+        ) : (
+          <div className="rounded-lg border overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-xs">Nama Surveyor</TableHead>
+                  <TableHead className="text-xs">Wilayah Tugas</TableHead>
+                  <TableHead className="text-xs w-24">Survei</TableHead>
+                  <TableHead className="text-xs w-20">Respon</TableHead>
+                  <TableHead className="text-xs w-28">Sync Terakhir</TableHead>
+                  <TableHead className="text-xs w-16">Status</TableHead>
+                  <TableHead className="text-xs w-28">Aksi</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {surveyors.map(svy => {
+                  const isEditing = editId === svy.id
+                  return (
+                    <TableRow key={svy.id} className={svy.isActive ? '' : 'opacity-60'}>
+                      <TableCell>
+                        <div className="font-medium text-sm">{svy.fullName}</div>
+                        {svy.phone && <div className="text-xs text-muted-foreground">📞 {svy.phone}</div>}
+                        {svy.notes && <div className="text-xs italic text-orange-700 mt-0.5">{svy.notes}</div>}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1">
+                          {svy.territoryNames.map((name: string, i: number) => (
+                            <Badge key={i} variant="outline" className="text-[10px] bg-blue-50 text-blue-700">{name}</Badge>
+                          ))}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {isEditing ? (
+                          <div className="space-y-1 max-h-32 overflow-y-auto">
+                            {polls.map(p => (
+                              <label key={p.id} className="flex items-center gap-1 text-[11px] cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={editPollIds.includes(p.id)}
+                                  onChange={() => setEditPollIds(toggleArrayValue(editPollIds, p.id))}
+                                />
+                                <span className="truncate">{p.title}</span>
+                              </label>
+                            ))}
+                          </div>
+                        ) : (
+                          <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700">
+                            {svy.assignedPollIds.length} survei
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm font-semibold text-blue-600">{svy.responsesCount || 0}</span>
+                      </TableCell>
+                      <TableCell>
+                        {svy.lastSyncAt ? (
+                          <span className="text-xs">{formatDateTimeID(svy.lastSyncAt)}</span>
+                        ) : (
+                          <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700">Belum pernah</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {canManage ? (
+                          <button
+                            onClick={() => handleToggleActive(svy.id, svy.isActive)}
+                            className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded ${svy.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}
+                          >
+                            <span className={`w-1.5 h-1.5 rounded-full ${svy.isActive ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+                            {svy.isActive ? 'Aktif' : 'Off'}
+                          </button>
+                        ) : (
+                          <Badge variant="outline" className={`text-xs ${svy.isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                            {svy.isActive ? 'Aktif' : 'Nonaktif'}
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {canManage ? (
+                          <div className="flex gap-1">
+                            {isEditing ? (
+                              <>
+                                <Button size="sm" className="h-7 w-7 p-0 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => handleSaveEdit(svy.id)}>
+                                  <CheckCircle2 className="w-3 h-3" />
+                                </Button>
+                                <Button size="sm" variant="outline" className="h-7 w-7 p-0" onClick={() => { setEditId(null); setEditPollIds([]) }}>
+                                  ✕
+                                </Button>
+                              </>
+                            ) : (
+                              <>
+                                <Button size="sm" variant="outline" className="h-7 w-7 p-0" onClick={() => startEdit(svy)} title="Edit survei yang ditugaskan">
+                                  <Edit className="w-3 h-3" />
+                                </Button>
+                                <Button size="sm" variant="outline" className="h-7 w-7 p-0 text-red-600 hover:bg-red-50" onClick={() => handleDelete(svy.id, svy.fullName)}>
+                                  <Trash2 className="w-3 h-3" />
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+
+        {/* === INFO FOOTER === */}
+        <div className="rounded-lg bg-orange-50 border border-orange-200 p-3 text-xs text-orange-900">
+          <MapPin className="w-4 h-4 inline mr-1" />
+          <strong>Cara kerja:</strong> Surveyor yang ditugaskan akan menerima daftar survei aktif via
+          endpoint <code>/api/surveyor-feed/&lt;userId&gt;</code>. Mereka bisa akses feed ini lewat browser HP
+          atau aplikasi mobile khusus (lihat dialog <em>Sinkronisasi ke HP Surveyor</em> untuk URL &amp; QR code).
+          Respon yang dikirim surveyor otomatis tercatat anonymous (UU PDP No. 27/2022 compliance).
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Tutup</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ============================================================
+// SURVEYOR SYNC DIALOG — Status Sinkronisasi & URL Feed
+// ============================================================
+// Menampilkan:
+// - URL feed untuk setiap surveyor (bisa dibuka di HP)
+// - QR code URL feed (untuk scan dengan HP)
+// - Status sync terakhir per surveyor
+// - Tombol "Test Sync" untuk trigger sync manual
+// ============================================================
+function SurveyorSyncDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+  const addToast = useToastStore((s) => s.addToast)
+  const [surveyors, setSurveyors] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [qrDataUrls, setQrDataUrls] = useState<Record<string, string>>({})
+  const [origin, setOrigin] = useState('')
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setOrigin(window.location.origin)
+    }
+  }, [])
+
+  const loadData = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await api('/api/surveyors?active=true')
+      if (res.success) {
+        setSurveyors(res.data || [])
+      } else {
+        addToast(res.error || 'Gagal memuat surveyor', 'error')
+      }
+    } catch (e: any) {
+      addToast(e.message, 'error')
+    } finally {
+      setLoading(false)
+    }
+  }, [addToast])
+
+  useEffect(() => {
+    if (open) loadData()
+  }, [open, loadData])
+
+  // Generate QR code for a surveyor's feed URL
+  const generateQR = async (userId: string, url: string) => {
+    if (qrDataUrls[userId]) return
+    try {
+      const QRCode = (await import('qrcode')).default
+      const dataUrl = await QRCode.toDataURL(url, {
+        width: 200,
+        margin: 1,
+        color: { dark: '#1f2937', light: '#ffffff' },
+      })
+      setQrDataUrls(prev => ({ ...prev, [userId]: dataUrl }))
+    } catch (e: any) {
+      console.error('[QR] Error:', e)
+      addToast('Gagal generate QR: ' + e.message, 'error')
+    }
+  }
+
+  // Manual sync trigger
+  const handleTestSync = async (userId: string) => {
+    try {
+      const res = await fetch(`/api/surveyor-feed/${userId}`)
+      const data = await res.json()
+      if (data.success) {
+        addToast(`Sync berhasil untuk ${data.data.surveyor.fullName}. ${data.data.activeSurveys.length} survei aktif.`, 'success')
+        loadData()
+      } else {
+        addToast(data.error || 'Sync gagal', 'error')
+      }
+    } catch (e: any) {
+      addToast(e.message, 'error')
+    }
+  }
+
+  // Copy URL to clipboard
+  const handleCopyUrl = async (url: string) => {
+    try {
+      await navigator.clipboard.writeText(url)
+      addToast('URL feed disalin ke clipboard', 'success')
+    } catch {
+      addToast('Gagal menyalin URL', 'error')
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-4xl max-h-[92vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <MessageSquare className="w-5 h-5 text-orange-600" />
+            Sinkronisasi ke HP Surveyor
+          </DialogTitle>
+          <DialogDescription>
+            Setiap surveyor memiliki URL feed unik. URL ini bisa dibuka di browser HP atau di-scan via QR code
+            untuk langsung pull daftar survei aktif yang harus dikerjakan.
+          </DialogDescription>
+        </DialogHeader>
+
+        {/* === CARA KERJA === */}
+        <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs text-blue-900">
+          <strong>📋 Cara Pakai (untuk Surveyor):</strong>
+          <ol className="list-decimal ml-5 mt-1 space-y-0.5">
+            <li>Buka URL feed (atau scan QR code) di HP</li>
+            <li>Sistem otomatis pull daftar survei aktif yang ditugaskan</li>
+            <li>Untuk setiap survei: baca pertanyaan, wawancara responden, isi jawaban essay</li>
+            <li>Klik <strong>Submit</strong> — respon tersimpan anonymous + counter surveyor bertambah</li>
+            <li>Sync ulang secara berkala untuk cek survei baru</li>
+          </ol>
+        </div>
+
+        {/* === SURVEYOR LIST === */}
+        {loading ? (
+          <div className="py-12 flex items-center justify-center">
+            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : surveyors.length === 0 ? (
+          <EmptyState
+            icon={MessageSquare}
+            title="Belum ada surveyor aktif"
+            description="Tambahkan surveyor lewat dialog 'Kelola Akun & Wilayah Surveyor' terlebih dahulu."
+          />
+        ) : (
+          <div className="space-y-2">
+            {surveyors.map(svy => {
+              const feedUrl = `${origin}/api/surveyor-feed/${svy.userId}`
+              const isExpanded = expandedId === svy.id
+              return (
+                <Card key={svy.id} className="border-orange-200">
+                  <CardContent className="p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                          <span className="font-semibold text-sm">{svy.fullName}</span>
+                          {svy.lastSyncAt ? (
+                            <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-700">
+                              <CheckCircle2 className="w-2.5 h-2.5 mr-0.5" /> Sync: {formatDateTimeID(svy.lastSyncAt)}
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700">
+                              <AlertTriangle className="w-2.5 h-2.5 mr-0.5" /> Belum sync
+                            </Badge>
+                          )}
+                          <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700">
+                            {svy.responsesCount || 0} respon
+                          </Badge>
+                          <Badge variant="outline" className="text-[10px] bg-purple-50 text-purple-700">
+                            {svy.assignedPollIds.length} tugas
+                          </Badge>
+                        </div>
+                        <div className="text-xs text-muted-foreground font-mono truncate">{feedUrl}</div>
+                        {/* Territory tags */}
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {svy.territoryNames.map((name: string, i: number) => (
+                            <Badge key={i} variant="outline" className="text-[10px]">{name}</Badge>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-1 shrink-0">
+                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setExpandedId(isExpanded ? null : svy.id)}>
+                          {isExpanded ? '▲ Sembunyikan' : '▼ Lihat QR & Sync'}
+                        </Button>
+                      </div>
+                    </div>
+
+                    {isExpanded && (
+                      <div className="mt-3 pt-3 border-t border-orange-100 grid md:grid-cols-2 gap-3">
+                        {/* QR Code */}
+                        <div className="space-y-2">
+                          <div className="text-xs font-semibold">📷 QR Code Feed</div>
+                          <div className="flex flex-col items-center gap-2 p-3 rounded-lg bg-white border">
+                            {qrDataUrls[svy.userId] ? (
+                              <img src={qrDataUrls[svy.userId]} alt="QR Code" className="w-40 h-40" />
+                            ) : (
+                              <Button size="sm" variant="outline" onClick={() => generateQR(svy.userId, feedUrl)}>
+                                Generate QR Code
+                              </Button>
+                            )}
+                            <div className="text-[10px] text-muted-foreground text-center">
+                              Scan dengan HP kamera → buka URL feed
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="space-y-2">
+                          <div className="text-xs font-semibold">⚡ Aksi</div>
+                          <div className="flex flex-col gap-1.5">
+                            <Button size="sm" variant="outline" className="h-7 text-xs justify-start" onClick={() => window.open(feedUrl, '_blank')}>
+                              <ExternalLink className="w-3 h-3 mr-1" /> Buka Feed di Tab Baru
+                            </Button>
+                            <Button size="sm" variant="outline" className="h-7 text-xs justify-start" onClick={() => handleCopyUrl(feedUrl)}>
+                              <Copy className="w-3 h-3 mr-1" /> Copy URL
+                            </Button>
+                            <Button size="sm" variant="outline" className="h-7 text-xs justify-start bg-emerald-50 border-emerald-300 text-emerald-700 hover:bg-emerald-100" onClick={() => handleTestSync(svy.userId)}>
+                              <RefreshCw className="w-3 h-3 mr-1" /> Test Sync Manual
+                            </Button>
+                          </div>
+
+                          <div className="rounded bg-slate-50 p-2 text-[11px] text-slate-700 mt-2">
+                            <div><strong>Device Info:</strong></div>
+                            {svy.deviceInfo ? (
+                              <>
+                                <div>Platform: {svy.deviceInfo.platform || 'unknown'}</div>
+                                <div>Last seen: {svy.deviceInfo.lastSeen ? formatDateTimeID(svy.deviceInfo.lastSeen) : '—'}</div>
+                                <div className="truncate">UA: {svy.deviceInfo.userAgent || '—'}</div>
+                              </>
+                            ) : (
+                              <div className="italic text-muted-foreground">Belum ada info device (surveyor belum pernah sync)</div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+        )}
+
+        {/* === INFO FOOTER === */}
+        <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-900">
+          <AlertTriangle className="w-4 h-4 inline mr-1" />
+          <strong>Catatan keamanan:</strong> URL feed bersifat <em>semi-publik</em> — siapa saja yang punya URL
+          bisa pull daftar survei &amp; submit respon. Namun URL mengandung ID acak (cuid) sehingga sulit ditebak.
+          Untuk keamanan lebih ketat, nonaktifkan surveyor yang sudah selesai tugas via dialog Kelola Surveyor.
         </div>
 
         <DialogFooter>
