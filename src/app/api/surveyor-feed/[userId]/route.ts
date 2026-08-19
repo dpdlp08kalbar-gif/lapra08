@@ -214,7 +214,12 @@ export async function GET(
           id: assignment.id,
           userId: assignment.userId,
           fullName: assignment.fullName,
-          phone: assignment.phone,
+          // === C3 FIX: Mask phone untuk privacy (sebelumnya: plaintext) ===
+          // Format: 0812****1234 — cukup untuk identifikasi, tidak expose nomor lengkap
+          // Endpoint ini PUBLIC (no auth), siapa saja dengan URL bisa lihat
+          phoneMasked: assignment.phone
+            ? assignment.phone.replace(/(\d{4})\d{4,}(\d{4})/, '$1****$2')
+            : null,
           territoryNames: assignment.territoryNames,
           notes: assignment.notes,
           responsesCount: assignment.responsesCount,
@@ -341,7 +346,9 @@ export async function POST(
       finalCategory = llmResult.category
       finalSummary = llmResult.summary
       finalKeywords = llmResult.keywords.length > 0 ? llmResult.keywords : finalKeywords
-      aiProvider = 'llm'
+      // === H3 FIX: Label akurat — rule-based, bukan 'llm' ===
+      // aiAnalyzeEssayResponseLLM pakai rule-based lexicon (Z.AI removed per constraint no API berbayar)
+      aiProvider = 'rule-based'
     } catch (e: any) {
       console.error('[SurveyorFeed] LLM analysis failed, using lexicon:', e.message)
     }

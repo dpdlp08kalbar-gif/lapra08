@@ -188,7 +188,7 @@ export async function generateAutoSurveyFromOpinion(
       resourceId: newPoll.id,
       resourceLabel: newPoll.title,
       request,
-      detail: `Auto-survey dari opinion link "${opinionLink.title.substring(0, 60)}" (sentiment: ${sourceSentiment}, scope: ${targetScope})`,
+      detail: `Auto-survey dari opinion link "${opinionLink.title.substring(0, 60)}" (sentiment: ${sourceSentiment}, scope: ${targetScope}, provider: rule-based)`,
     })
 
     return {
@@ -199,7 +199,10 @@ export async function generateAutoSurveyFromOpinion(
         pollQuestion: newPoll.question,
         sourceOpinionLinkId: opinionLink.id,
         sourceOpinionLinkTitle: opinionLink.title,
-        aiProvider: aiResult.aiProvider || 'llm',
+        // === H3 FIX: Label akurat — rule-based, bukan 'llm' ===
+        // Sebelumnya: aiResult.aiProvider || 'llm' → selalu fallback 'llm' (misleading)
+        // aiGenerateEssayQuestionLLM pakai rule-based template (Z.AI removed per constraint)
+        aiProvider: aiResult.aiProvider || 'rule-based',
         deduped: false,
       },
     }

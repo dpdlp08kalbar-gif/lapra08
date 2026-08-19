@@ -33,9 +33,9 @@ export async function POST(request: NextRequest) {
 
     const locName = loc.regencyName || loc.provinceName || 'Indonesia'
 
-    // Try LLM first
+    // Try AI generate (rule-based template, Z.AI removed per constraint)
     let questions: any[] = []
-    let aiProvider = 'llm'
+    let aiProvider = 'rule-based'  // H3 FIX: label akurat
     let llmError: string | null = null
 
     try {

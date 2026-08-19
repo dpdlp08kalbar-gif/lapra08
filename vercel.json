@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    {
+      "path": "/api/opinion-links/auto-survey-batch",
+      "schedule": "*/5 * * * *"
+    }
+  ]
+}

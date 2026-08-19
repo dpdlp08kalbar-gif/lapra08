@@ -37,24 +37,50 @@ export const dynamic = 'force-dynamic'
 const MAX_BATCH_SIZE = 10 // anti-overload: max 10 opinion link per run
 const CRON_SECRET = process.env.CRON_SECRET // optional: jika set, cron harus kirim header ini
 
-// System actor untuk cron job (pseudo-user)
-const SYSTEM_ACTOR = {
-  id: 'system-cron',
+// System actor placeholder untuk cron job — TIDAK dipakai langsung sebagai createdById
+// karena EssayPoll.createdById adalah FK ke User.id. Resolve ke SUPERADMIN real di handler.
+const SYSTEM_ACTOR_PLACEHOLDER = {
+  id: 'system-cron',  // placeholder, akan di-override
   role: 'SUPERADMIN',
   fullName: 'AI Early Warning System (Cron)',
-  territoryId: '', // akan di-resolve per opinionLink
+  territoryId: '',
 }
 
 export async function POST(request: NextRequest) {
   try {
-    // === Auth: cek apakah cron secret atau user auth ===
-    const cronSecret = request.headers.get('x-cron-secret')
-    const isCronCall = cronSecret && CRON_SECRET && cronSecret === CRON_SECRET
+    // === Auth: cek apakah Vercel Cron atau user auth ===
+    // Vercel Cron kirim header Authorization: Bearer <CRON_SECRET> otomatis (jika env var diset)
+    // Atau manual header x-cron-secret untuk backward compat
+    const authHeader = request.headers.get('authorization') || ''
+    const cronSecretHeader = request.headers.get('x-cron-secret')
+    const isCronCall = (CRON_SECRET && (
+      authHeader === `Bearer ${CRON_SECRET}` ||
+      cronSecretHeader === CRON_SECRET
+    ))
 
     let actor: { id: string; role: string; fullName: string; territoryId: string } | null = null
 
     if (isCronCall) {
-      actor = SYSTEM_ACTOR
+      // === C1 FIX: Cron job harus pakai SUPERADMIN real (FK constraint EssayPoll.createdById → User.id) ===
+      // SYSTEM_ACTOR_PLACEHOLDER.id='system-cron' BUKAN user valid → Prisma akan throw FK violation
+      // Resolve: cari SUPERADMIN aktif pertama di DB
+      const admin = await db.user.findFirst({
+        where: { role: 'SUPERADMIN', isActive: true },
+        select: { id: true, fullName: true, territoryId: true },
+      })
+      if (!admin) {
+        console.error('[AutoSurveyBatch] Tidak ada SUPERADMIN aktif di DB untuk menjadi creator auto-survey')
+        return NextResponse.json({
+          success: false,
+          error: 'Tidak ada SUPERADMIN aktif di DB. Auto-survey cron butuh minimal 1 SUPERADMIN aktif sebagai creator.',
+        }, { status: 500 })
+      }
+      actor = {
+        id: admin.id,  // ← FK valid
+        role: 'SUPERADMIN',
+        fullName: `${admin.fullName} (via Cron)`,
+        territoryId: admin.territoryId,
+      }
     } else {
       // Manual trigger: harus login sebagai DPN/SUPERADMIN
       const user = await getUserFromRequest(request)
@@ -134,10 +160,11 @@ export async function POST(request: NextRequest) {
         continue
       }
 
-      // Resolve territoryId untuk actor (karena system actor tidak punya territory)
-      // Pakai DPN pusat ( Indonesia ) sebagai fallback
+      // Resolve territoryId untuk actor
+      // Kalau actor.territoryId kosong (mis. cron pakai SUPERADMIN tanpa territory),
+      // fallback ke DPN pusat ( Indonesia )
       let territoryId = actor.territoryId
-      if (!territoryId || actor.id === 'system-cron') {
+      if (!territoryId) {
         const pusat = await db.territory.findFirst({
           where: { level: 'COUNTRY', code: 'ID' },
           select: { id: true },
