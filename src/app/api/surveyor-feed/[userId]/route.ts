@@ -445,6 +445,13 @@ export async function POST(
     } catch (e) {
       console.warn('[SurveyorFeed] Essay polls cache invalidation skipped:', (e as any).message)
     }
+    // === FASE 3.4: Invalidate analytics cache (dashboard konsolidasi) ===
+    try {
+      const { invalidateAnalyticsCache } = await import('@/app/api/essay-polls/analytics/route')
+      invalidateAnalyticsCache()
+    } catch (e) {
+      console.warn('[SurveyorFeed] Analytics cache invalidation skipped:', (e as any).message)
+    }
 
     // === FASE 0.5: Audit log ===
     // Buat pseudo-actor untuk surveyor (logAccess butuh field 'id', 'role', 'fullName', 'territory')

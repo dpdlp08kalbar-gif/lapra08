@@ -146,6 +146,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     } catch (e) {
       console.warn('[Essay Response] Essay polls cache invalidation skipped:', (e as any).message)
     }
+    // === FASE 3.4: Invalidate analytics cache juga (dashboard pakai analytics) ===
+    try {
+      const { invalidateAnalyticsCache } = await import('@/app/api/essay-polls/analytics/route')
+      invalidateAnalyticsCache()
+    } catch (e) {
+      console.warn('[Essay Response] Analytics cache invalidation skipped:', (e as any).message)
+    }
 
     // === C2 FIX: Return hanya field aman (no PII) ===
     return NextResponse.json({
