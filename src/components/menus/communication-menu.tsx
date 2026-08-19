@@ -112,12 +112,29 @@ function OpinionScannerTab() {
   const [recentLinks, setRecentLinks] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [filterPriority, setFilterPriority] = useState('ALL')
+  const [filterPlatform, setFilterPlatform] = useState('ALL')
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [generatingKonter, setGeneratingKonter] = useState<string | null>(null)
   const [generatingSurvey, setGeneratingSurvey] = useState<string | null>(null)
   const [batchSurveyRunning, setBatchSurveyRunning] = useState(false)
   const [batchPreview, setBatchPreview] = useState<any>(null)
   const [triageLoading, setTriageLoading] = useState(false)
+
+  // === Platform selection state ===
+  const ALL_PLATFORMS = [
+    { id: 'GOOGLE', label: 'Google', icon: '🔍', color: 'blue' },
+    { id: 'YAHOO', label: 'Yahoo', icon: '🟣', color: 'purple' },
+    { id: 'FACEBOOK', label: 'Facebook', icon: '🔵', color: 'blue' },
+    { id: 'INSTAGRAM', label: 'Instagram', icon: '📷', color: 'pink' },
+    { id: 'TIKTOK', label: 'TikTok', icon: '🎵', color: 'slate' },
+    { id: 'TWITTER_X', label: 'Twitter/X', icon: '🐦', color: 'slate' },
+    { id: 'LINKEDIN', label: 'LinkedIn', icon: '💼', color: 'blue' },
+    { id: 'PERS_INDONESIA', label: 'Pers Indonesia', icon: '📰', color: 'red' },
+    { id: 'YOUTUBE', label: 'YouTube', icon: '▶️', color: 'red' },
+  ]
+  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([
+    'GOOGLE', 'YAHOO', 'PERS_INDONESIA' // default: 3 platform utama berita
+  ])
 
   // === PILAR 1: Handle Auto-draft Survei dari opinion link (single) ===
   const handleAutoSurvey = async (linkId: string) => {
@@ -276,12 +293,16 @@ function OpinionScannerTab() {
   }
 
   const handleScan = async () => {
+    if (selectedPlatforms.length === 0) {
+      addToast('Pilih minimal 1 platform untuk di-scan', 'error')
+      return
+    }
     setScanning(true); setLastResult(null)
     try {
       const res = await fetch('/api/opinion-links', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
-        body: JSON.stringify({ action: 'scrape' }),
+        body: JSON.stringify({ action: 'scrape', platforms: selectedPlatforms }),
       })
       const data = await res.json()
       if (!res.ok || !data.success) throw new Error(data.error)
@@ -290,6 +311,22 @@ function OpinionScannerTab() {
       loadRecent()
     } catch (e: any) { addToast(e.message, 'error') }
     finally { setScanning(false) }
+  }
+
+  const togglePlatform = (platformId: string) => {
+    setSelectedPlatforms(prev =>
+      prev.includes(platformId)
+        ? prev.filter(p => p !== platformId)
+        : [...prev, platformId]
+    )
+  }
+
+  const selectAllPlatforms = () => {
+    setSelectedPlatforms(ALL_PLATFORMS.map(p => p.id))
+  }
+
+  const deselectAllPlatforms = () => {
+    setSelectedPlatforms([])
   }
 
   const platformIcon = (p: string) => {
@@ -323,15 +360,53 @@ function OpinionScannerTab() {
             <div className="flex-1">
               <h3 className="font-bold text-lg mb-1">Audit Opini Publik Otomatis</h3>
               <p className="text-sm text-muted-foreground mb-3">
-                Sistem akan otomatis mengambil REAL mention LAPRA 08 dari YouTube (via yt-dlp) + Google News RSS,
-                lalu menganalisis sentimen, prioritas, lokasi, dan kategori setiap mention dengan AI.
-                Hasil disimpan ke database untuk tracking &amp; decision dashboard.
+                Sistem otomatis mengambil REAL mention LAPRA 08 dari berbagai platform media sosial &amp; berita,
+                lalu menganalisis sentimen, prioritas, lokasi, dan kategori dengan AI.
               </p>
+
+              {/* === Platform Selection === */}
+              <div className="mb-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-semibold text-slate-700">
+                    Pilih Platform ({selectedPlatforms.length} dari {ALL_PLATFORMS.length}):
+                  </span>
+                  <div className="flex gap-1">
+                    <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={selectAllPlatforms}>
+                      Pilih Semua
+                    </Button>
+                    <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={deselectAllPlatforms}>
+                      Kosongkan
+                    </Button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-9 gap-1.5">
+                  {ALL_PLATFORMS.map(p => {
+                    const isSelected = selectedPlatforms.includes(p.id)
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => togglePlatform(p.id)}
+                        className={`flex flex-col items-center gap-0.5 p-2 rounded-lg border text-[10px] font-medium transition-all ${
+                          isSelected
+                            ? 'border-orange-500 bg-orange-100 text-orange-800 shadow-sm'
+                            : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
+                        }`}
+                        title={p.label}
+                      >
+                        <span className="text-lg">{p.icon}</span>
+                        <span className="truncate w-full text-center">{p.label}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
               <div className="flex items-center gap-3">
-                <Button onClick={handleScan} disabled={scanning} size="lg"
+                <Button onClick={handleScan} disabled={scanning || selectedPlatforms.length === 0} size="lg"
                   className="bg-gradient-to-r from-orange-600 to-red-600 text-white">
                   {scanning ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Zap className="w-4 h-4 mr-2" />}
-                  {scanning ? 'Sedang scan otomatis...' : 'Mulai Scan Sekarang'}
+                  {scanning ? `Sedang scan ${selectedPlatforms.length} platform...` : `Scan ${selectedPlatforms.length} Platform Sekarang`}
                 </Button>
                 <Button variant="outline" onClick={loadRecent} disabled={loading} size="lg">
                   <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />

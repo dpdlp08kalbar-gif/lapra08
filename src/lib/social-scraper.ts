@@ -9,7 +9,7 @@
 // This is "audit responding" — fetching REAL public mentions of LAPRA 08 / Laskar Prabowo.
 
 export type ScrapedMention = {
-  platform: 'FACEBOOK' | 'INSTAGRAM' | 'TIKTOK' | 'TWITTER_X' | 'GOOGLE'
+  platform: 'FACEBOOK' | 'INSTAGRAM' | 'TIKTOK' | 'TWITTER_X' | 'GOOGLE' | 'YAHOO' | 'LINKEDIN' | 'PERS_INDONESIA'
   author: string
   authorHandle: string | null
   title: string
@@ -31,7 +31,11 @@ const PLATFORM_QUERIES: { platform: ScrapedMention['platform']; siteFilter: stri
   { platform: 'INSTAGRAM', siteFilter: 'site:instagram.com', queryExtra: '' },
   { platform: 'TIKTOK', siteFilter: 'site:tiktok.com', queryExtra: '' },
   { platform: 'TWITTER_X', siteFilter: 'site:twitter.com OR site:x.com', queryExtra: '' },
+  { platform: 'LINKEDIN', siteFilter: 'site:linkedin.com', queryExtra: '' },
+  { platform: 'YAHOO', siteFilter: 'site:yahoo.com OR site:news.yahoo.com', queryExtra: '' },
   { platform: 'GOOGLE', siteFilter: '', queryExtra: '' }, // General web news (no platform filter)
+  // Pers Indonesia: major news portals
+  { platform: 'PERS_INDONESIA', siteFilter: 'site:kompas.com OR site:detik.com OR site:tribunnews.com OR site:cnnindonesia.com OR site:tempo.co OR site:antaranews.com OR site:republika.co.id OR site:sindonews.com OR site:beritasatu.com OR site:okezone.com OR site:inilah.com OR site:voaindonesia.com OR site:kumparan.com OR site:suara.com OR site:merdeka.com OR site:liputan6.com OR site:jalantikus.com', queryExtra: '' },
 ]
 
 const COMPLAINT_KEYWORDS = [
@@ -307,7 +311,7 @@ export function detectLocation(text: string): {
 // Fetches REAL mentions across all platforms using Google News RSS with site: filters.
 // Each platform gets its own Google News query → returns REAL posts from that platform.
 export async function scrapeAllPlatforms(
-  platforms: string[] = ['FACEBOOK', 'INSTAGRAM', 'TIKTOK', 'TWITTER_X', 'GOOGLE'],
+  platforms: string[] = ['FACEBOOK', 'INSTAGRAM', 'TIKTOK', 'TWITTER_X', 'LINKEDIN', 'YAHOO', 'GOOGLE', 'PERS_INDONESIA'],
   scope?: { provinceCode?: string | null; regencyCode?: string | null },
 ): Promise<ScrapedMention[]> {
   const allMentions: ScrapedMention[] = []
@@ -331,7 +335,7 @@ export async function scrapeAllPlatforms(
     let q = `${BASE_QUERY} ${TIME_FILTER}${locationFilter}`
     if (cfg.siteFilter) q += ` ${cfg.siteFilter}`
     if (cfg.queryExtra) q += ` ${cfg.queryExtra}`
-    queries.push({ platform, query: q })
+    queries.push({ platform: cfg.platform, query: q })
   }
 
   // Fire all queries in parallel

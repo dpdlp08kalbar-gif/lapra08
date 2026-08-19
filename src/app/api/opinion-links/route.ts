@@ -125,7 +125,65 @@ export async function POST(request: NextRequest) {
       // WARNING: This may timeout on Vercel serverless (10s hobby, 60s pro).
       // Recommended to deploy worker for production.
       console.warn('[opinion-links] Running scrape SYNCHRONOUSLY (worker not deployed). May timeout on Vercel.')
-      const { posts, sources } = await scrapeAuto()
+
+      // === MULTI-PLATFORM SCRAPE ===
+      // Pakai scrapeAllPlatforms dari social-scraper.ts (Google News RSS dengan site: filter)
+      // + scrapeAuto dari auto-scraper.ts (YouTube via Invidious + Google News)
+      const { scrapeAllPlatforms } = await import('@/lib/social-scraper')
+      const requestedPlatforms: string[] = body.platforms || ['GOOGLE', 'YAHOO', 'PERS_INDONESIA']
+
+      // Scope untuk filter lokasi (terpisah dari variable scope di atas)
+      const terrForScope = await db.territory.findUnique({ where: { id: user.territoryId } })
+      const scrapeScope = terrForScope?.level === 'PROVINCE' ? { provinceCode: terrForScope.code, regencyCode: null }
+        : terrForScope?.level === 'REGENCY' ? { provinceCode: null, regencyCode: terrForScope.code }
+        : { provinceCode: null, regencyCode: null }
+
+      const socialMentions = await scrapeAllPlatforms(requestedPlatforms, scrapeScope)
+
+      // Jika YouTube dipilih, juga jalankan scrapeAuto (yang include YouTube via Invidious)
+      let ytPosts: any[] = []
+      let ytSources: string[] = []
+      if (requestedPlatforms.includes('YOUTUBE')) {
+        try {
+          const ytResult = await scrapeAuto()
+          ytPosts = ytResult.posts.filter(p => p.platform === 'YOUTUBE')
+          ytSources = ytResult.sources
+        } catch (e: any) {
+          console.warn('[opinion-links] YouTube scrape failed:', e.message)
+        }
+      }
+
+      // Gabungkan mentions dari social-scraper + youtube
+      const allPosts = [
+        ...socialMentions.map(m => ({
+          platform: m.platform,
+          postId: m.url,
+          author: m.author,
+          authorHandle: m.authorHandle,
+          title: m.title,
+          content: m.content,
+          url: m.url,
+          publishedAt: m.publishedAt,
+          engagementCount: m.engagementCount,
+          source: 'google-news-rss',
+        })),
+        ...ytPosts,
+      ]
+
+      const sources: string[] = []
+      if (socialMentions.length > 0) {
+        // Group by platform untuk reporting
+        const platformCounts: Record<string, number> = {}
+        for (const m of socialMentions) {
+          platformCounts[m.platform] = (platformCounts[m.platform] || 0) + 1
+        }
+        for (const [plat, count] of Object.entries(platformCounts)) {
+          sources.push(`${plat} (${count})`)
+        }
+      }
+      sources.push(...ytSources)
+
+      const posts = allPosts
       let savedCount = 0
       let duplicateCount = 0
       let newHigh = 0
