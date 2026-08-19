@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { api } from '@/lib/api-client'
 import { useDebounce } from '@/lib/use-debounce'
 import { PageHeader, LoadingState, ErrorState, EmptyState, StatCard } from '@/components/ui-helpers'
+import { ErrorBoundary } from '@/components/error-boundary'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -1985,6 +1986,14 @@ function EssayPollsTab({ onSwitchTab }: { onSwitchTab?: (tab: string) => void })
           <h3 className="text-sm font-bold">📡 Kanal Distribusi &amp; Integrasi</h3>
           <span className="text-xs text-muted-foreground">— Pilih jalur pengumpulan data</span>
         </div>
+
+        {/* === Info Banner: Cara Pakai === */}
+        <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs text-blue-900">
+          <strong>📋 Cara Pakai:</strong> Klik salah satu tombol di bawah. Setiap klik akan menampilkan notifikasi <em>"Membuka..."</em> lalu membuka dialog.
+          <br />
+          <strong>Jika tidak ada respons:</strong> Buka DevTools (F12) → tab Console → lihat pesan <code>[Kanal Distribusi]</code> untuk debugging.
+        </div>
+
         <div className="grid gap-3 md:grid-cols-3">
           {/* KOLOM A: Jalur Otomatis Medsos */}
           <Card className="border-blue-200 bg-blue-50/50">
@@ -2000,7 +2009,20 @@ function EssayPollsTab({ onSwitchTab }: { onSwitchTab?: (tab: string) => void })
               <p className="text-xs text-muted-foreground">
                 Menangkap percakapan publik di media sosial secara otomatis dan real-time berbasis AI.
               </p>
-              <Button size="sm" variant="outline" className="w-full text-xs gap-1" onClick={() => setKeywordManagerOpen(true)}>
+              {/* Status badge dinamis */}
+              <div className="text-[11px] text-blue-700 bg-blue-100/70 rounded px-2 py-1">
+                💡 Klik tombol di bawah untuk atur keyword
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full text-xs gap-1"
+                onClick={() => {
+                  console.log('[Kanal Distribusi] Tombol Atur Keyword diklik')
+                  addToast('⏳ Membuka pengaturan keyword AI...', 'info')
+                  setKeywordManagerOpen(true)
+                }}
+              >
                 ⚙️ Atur Keyword AI &amp; Hashtag
               </Button>
             </CardContent>
@@ -2020,11 +2042,47 @@ function EssayPollsTab({ onSwitchTab }: { onSwitchTab?: (tab: string) => void })
               <p className="text-xs text-muted-foreground">
                 Menyebarkan tautan kuesioner digital mandiri secara massal ke pangkalan data masyarakat.
               </p>
+              {/* Pilih poll aktif untuk di-share */}
               <div className="space-y-2">
-                <Button size="sm" variant="outline" className="w-full text-xs gap-1 bg-emerald-50 border-emerald-300 text-emerald-700 hover:bg-emerald-100" onClick={() => onSwitchTab?.('broadcast')}>
-                  🚀 Kirim via WhatsApp/SMS Blast
+                {/* Tombol 1: Share link survei via medsos (WA/FB/IG/Email) */}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full text-xs gap-1 bg-emerald-50 border-emerald-300 text-emerald-700 hover:bg-emerald-100"
+                  onClick={() => {
+                    console.log('[Kanal Distribusi] Tombol Share Link diklik')
+                    const activePoll = polls.find(p => p.status === 'ACTIVE')
+                    if (!activePoll) {
+                      addToast('⚠️ Belum ada poll ACTIVE. Aktifkan poll dulu sebelum share.', 'error')
+                      return
+                    }
+                    addToast(`📤 Membuka dialog share untuk: ${activePoll.title.substring(0, 40)}...`, 'info')
+                    setSharePoll(activePoll)
+                  }}
+                >
+                  🔗 Bagikan Link Survei
                 </Button>
-                <p className="text-[11px] text-muted-foreground italic">→ Buka tab Siaran &amp; Broadcast</p>
+                {/* Tombol 2: Buka tab Siaran & Broadcast (multi-channel blast) */}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full text-xs gap-1 bg-emerald-50 border-emerald-300 text-emerald-700 hover:bg-emerald-100"
+                  onClick={() => {
+                    console.log('[Kanal Distribusi] Tombol Switch to Broadcast diklik')
+                    if (onSwitchTab) {
+                      addToast('🚀 Mengalihkan ke tab Siaran & Broadcast...', 'info')
+                      onSwitchTab('broadcast')
+                    } else {
+                      addToast('❌ Error: fungsi switch tab tidak tersedia', 'error')
+                    }
+                  }}
+                >
+                  🚀 Buka Siaran &amp; Broadcast
+                </Button>
+                <p className="text-[11px] text-muted-foreground italic">
+                  Tombol 1: share link ke WA/FB/IG<br />
+                  Tombol 2: blast massal via gateway
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -2044,10 +2102,28 @@ function EssayPollsTab({ onSwitchTab }: { onSwitchTab?: (tab: string) => void })
                 Mengirimkan kuesioner ke aplikasi HP khusus tim surveyor di lapangan untuk pendataan door-to-door.
               </p>
               <div className="space-y-1">
-                <Button size="sm" variant="outline" className="w-full text-xs gap-1 bg-orange-50 border-orange-300 text-orange-700 hover:bg-orange-100" onClick={() => setSurveyorSyncOpen(true)}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full text-xs gap-1 bg-orange-50 border-orange-300 text-orange-700 hover:bg-orange-100"
+                  onClick={() => {
+                    console.log('[Kanal Distribusi] Tombol Sinkronisasi HP Surveyor diklik')
+                    addToast('⏳ Membuka dialog sinkronisasi HP surveyor...', 'info')
+                    setSurveyorSyncOpen(true)
+                  }}
+                >
                   📱 Sinkronisasi ke HP Surveyor
                 </Button>
-                <Button size="sm" variant="outline" className="w-full text-xs gap-1 bg-orange-50 border-orange-300 text-orange-700 hover:bg-orange-100" onClick={() => setSurveyorManagerOpen(true)}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full text-xs gap-1 bg-orange-50 border-orange-300 text-orange-700 hover:bg-orange-100"
+                  onClick={() => {
+                    console.log('[Kanal Distribusi] Tombol Kelola Surveyor diklik')
+                    addToast('⏳ Membuka dialog kelola surveyor...', 'info')
+                    setSurveyorManagerOpen(true)
+                  }}
+                >
                   👥 Kelola Akun &amp; Wilayah Surveyor
                 </Button>
               </div>
@@ -2364,7 +2440,9 @@ function EssayPollsTab({ onSwitchTab }: { onSwitchTab?: (tab: string) => void })
       )}
 
       {/* === Keyword & Hashtag Manager Dialog === */}
-      <KeywordHashtagManagerDialog open={keywordManagerOpen} onOpenChange={setKeywordManagerOpen} />
+      <ErrorBoundary>
+        <KeywordHashtagManagerDialog open={keywordManagerOpen} onOpenChange={setKeywordManagerOpen} />
+      </ErrorBoundary>
 
       {/* === FASE 3.3.8: Poll Config Dialog (set pollType + options) === */}
       {configPoll && (
@@ -2372,10 +2450,14 @@ function EssayPollsTab({ onSwitchTab }: { onSwitchTab?: (tab: string) => void })
       )}
 
       {/* === Surveyor Manager Dialog === */}
-      <SurveyorManagerDialog open={surveyorManagerOpen} onOpenChange={setSurveyorManagerOpen} />
+      <ErrorBoundary>
+        <SurveyorManagerDialog open={surveyorManagerOpen} onOpenChange={setSurveyorManagerOpen} />
+      </ErrorBoundary>
 
       {/* === Surveyor Sync Dialog === */}
-      <SurveyorSyncDialog open={surveyorSyncOpen} onOpenChange={setSurveyorSyncOpen} />
+      <ErrorBoundary>
+        <SurveyorSyncDialog open={surveyorSyncOpen} onOpenChange={setSurveyorSyncOpen} />
+      </ErrorBoundary>
 
       {/* Detail dialog */}
       {detailPoll && (
