@@ -18,10 +18,17 @@ interface PublicPoll {
   regencyName?: string | null
   targetAgeGroup?: string | null
   targetOccupation?: string | null
+  // === FASE 3.3.4: poll type config ===
+  pollType?: 'ESSAY' | 'MULTIPLE_CHOICE' | 'LIKERT' | null
+  options?: string[] | null
+  likertScale?: number | null
+  likertLabels?: string[] | null
 }
 
 export default function PublicPollForm({ poll }: { poll: PublicPoll }) {
-  const [answer, setAnswer] = useState('')
+  const [answer, setAnswer] = useState('') // untuk ESSAY
+  const [selectedOption, setSelectedOption] = useState('') // untuk MULTIPLE_CHOICE
+  const [selectedLikert, setSelectedLikert] = useState<number | null>(null) // untuk LIKERT
   const [ageGroup, setAgeGroup] = useState('')
   const [gender, setGender] = useState('')
   const [occupation, setOccupation] = useState('')
@@ -29,9 +36,34 @@ export default function PublicPollForm({ poll }: { poll: PublicPoll }) {
   const [result, setResult] = useState<any>(null)
   const [error, setError] = useState<string | null>(null)
 
+  const pollType = poll.pollType || 'ESSAY'
+  const options = poll.options || []
+  const likertScale = poll.likertScale || 5
+  const likertLabels = poll.likertLabels || []
+
+  // Validasi jawaban sesuai pollType
   const wordCount = answer.trim().split(/\s+/).filter(Boolean).length
   const minWords = 10
-  const canSubmit = answer.trim().length >= 10 && wordCount >= minWords && !submitting
+
+  const isAnswerValid = () => {
+    if (pollType === 'ESSAY') return answer.trim().length >= 10 && wordCount >= minWords
+    if (pollType === 'MULTIPLE_CHOICE') return selectedOption !== ''
+    if (pollType === 'LIKERT') return selectedLikert !== null
+    return false
+  }
+
+  const getSubmitPayload = () => {
+    if (pollType === 'ESSAY') return { answer: answer.trim() }
+    if (pollType === 'MULTIPLE_CHOICE') return { answer: selectedOption }
+    if (pollType === 'LIKERT') {
+      // Untuk Likert, simpan label + index
+      const label = likertLabels[selectedLikert!] || `Skala ${selectedLikert! + 1}`
+      return { answer: `${selectedLikert! + 1}. ${label}` }
+    }
+    return { answer: answer.trim() }
+  }
+
+  const canSubmit = isAnswerValid() && !submitting
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -39,11 +71,12 @@ export default function PublicPollForm({ poll }: { poll: PublicPoll }) {
     setSubmitting(true)
     setError(null)
     try {
+      const payload = getSubmitPayload()
       const res = await fetch(`/api/essay-polls/${poll.id}/responses`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          answer: answer.trim(),
+          ...payload,
           // Anonim: tidak kirim respondentName/Phone
           ageGroup: ageGroup || undefined,
           gender: gender || undefined,
@@ -61,6 +94,17 @@ export default function PublicPollForm({ poll }: { poll: PublicPoll }) {
     } finally {
       setSubmitting(false)
     }
+  }
+
+  // Reset all form state
+  const resetForm = () => {
+    setResult(null)
+    setAnswer('')
+    setSelectedOption('')
+    setSelectedLikert(null)
+    setAgeGroup('')
+    setGender('')
+    setOccupation('')
   }
 
   // === Success screen ===
@@ -116,7 +160,7 @@ export default function PublicPollForm({ poll }: { poll: PublicPoll }) {
           </div>
 
           <button
-            onClick={() => { setResult(null); setAnswer(''); setAgeGroup(''); setGender(''); setOccupation('') }}
+            onClick={resetForm}
             className="w-full px-4 py-2 border border-slate-300 rounded-lg text-sm hover:bg-slate-50"
           >
             Isi Lagi (Survei Lain?)
@@ -165,28 +209,99 @@ export default function PublicPollForm({ poll }: { poll: PublicPoll }) {
             </div>
           </div>
 
-          {/* Answer */}
-          <div>
-            <label className="block text-sm font-semibold text-slate-800 mb-2">
-              Jawaban Anda <span className="text-red-500">*</span>
-            </label>
-            <textarea
-              value={answer}
-              onChange={(e) => setAnswer(e.target.value)}
-              rows={6}
-              maxLength={5000}
-              placeholder="Tulis jawaban Anda di sini... (minimal 10 kata)"
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-y text-sm"
-              required
-              disabled={submitting}
-            />
-            <div className="flex justify-between items-center mt-1">
-              <span className="text-xs text-slate-500">
-                {wordCount} kata {wordCount < minWords && `(minimal ${minWords} kata)`}
-              </span>
-              <span className="text-xs text-slate-400">{answer.length}/5000 karakter</span>
+          {/* Answer — render sesuai pollType */}
+          {pollType === 'ESSAY' && (
+            <div>
+              <label className="block text-sm font-semibold text-slate-800 mb-2">
+                Jawaban Anda <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                value={answer}
+                onChange={(e) => setAnswer(e.target.value)}
+                rows={6}
+                maxLength={5000}
+                placeholder="Tulis jawaban Anda di sini... (minimal 10 kata)"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-y text-sm"
+                required
+                disabled={submitting}
+              />
+              <div className="flex justify-between items-center mt-1">
+                <span className="text-xs text-slate-500">
+                  {wordCount} kata {wordCount < minWords && `(minimal ${minWords} kata)`}
+                </span>
+                <span className="text-xs text-slate-400">{answer.length}/5000 karakter</span>
+              </div>
             </div>
-          </div>
+          )}
+
+          {pollType === 'MULTIPLE_CHOICE' && options.length > 0 && (
+            <div>
+              <label className="block text-sm font-semibold text-slate-800 mb-2">
+                Pilih Jawaban <span className="text-red-500">*</span>
+              </label>
+              <div className="space-y-2">
+                {options.map((opt, idx) => (
+                  <label
+                    key={idx}
+                    className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${
+                      selectedOption === opt
+                        ? 'border-purple-500 bg-purple-50'
+                        : 'border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="mc-option"
+                      value={opt}
+                      checked={selectedOption === opt}
+                      onChange={(e) => setSelectedOption(e.target.value)}
+                      disabled={submitting}
+                      className="w-4 h-4 text-purple-600"
+                    />
+                    <span className="text-sm text-slate-800">{opt}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {pollType === 'LIKERT' && (
+            <div>
+              <label className="block text-sm font-semibold text-slate-800 mb-3">
+                Berikan Rating Anda <span className="text-red-500">*</span>
+              </label>
+              <div className="space-y-2">
+                {Array.from({ length: likertScale }, (_, i) => (
+                  <label
+                    key={i}
+                    className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${
+                      selectedLikert === i
+                        ? 'border-purple-500 bg-purple-50'
+                        : 'border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="likert-option"
+                      value={i}
+                      checked={selectedLikert === i}
+                      onChange={() => setSelectedLikert(i)}
+                      disabled={submitting}
+                      className="w-4 h-4 text-purple-600"
+                    />
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-purple-100 text-purple-700 text-xs font-bold">
+                        {i + 1}
+                      </span>
+                      <span className="text-sm text-slate-800">
+                        {likertLabels[i] || `Skala ${i + 1}`}
+                      </span>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Demografi (opsional, anonim) */}
           <details className="border border-slate-200 rounded-lg">

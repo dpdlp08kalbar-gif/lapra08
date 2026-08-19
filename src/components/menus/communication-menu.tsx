@@ -1280,6 +1280,7 @@ function EssayPollsTab({ onSwitchTab }: { onSwitchTab?: (tab: string) => void })
   const [manualOpen, setManualOpen] = useState(false)
   const [detailPoll, setDetailPoll] = useState<any>(null)
   const [sharePoll, setSharePoll] = useState<any>(null)
+  const [configPoll, setConfigPoll] = useState<any>(null) // FASE 3.3.8: poll untuk config dialog
   const [aiForm, setAiForm] = useState({ sourceTopic: '', sourceUrl: '', sourceContent: '' })
   // === State untuk dialog Keyword AI & Hashtag ===
   const [keywordManagerOpen, setKeywordManagerOpen] = useState(false)
@@ -1561,6 +1562,10 @@ function EssayPollsTab({ onSwitchTab }: { onSwitchTab?: (tab: string) => void })
                         <Zap className="w-3 h-3 mr-1" /> Aktifkan
                       </Button>
                     )}
+                    {/* === FASE 3.3.8: Tombol Atur Tipe Poll === */}
+                    <Button size="sm" variant="outline" className="h-7 text-xs bg-purple-50 border-purple-300 text-purple-700 hover:bg-purple-100" onClick={() => setConfigPoll(p)}>
+                      <Hash className="w-3 h-3 mr-1" /> Atur Tipe
+                    </Button>
                     {/* === Tombol Share ke Medsos === */}
                     <Button size="sm" variant="outline" className="h-7 text-xs bg-blue-50 border-blue-300 text-blue-700 hover:bg-blue-100" onClick={() => setSharePoll(p)}>
                       <Share2 className="w-3 h-3 mr-1" /> Share
@@ -1960,6 +1965,11 @@ function EssayPollsTab({ onSwitchTab }: { onSwitchTab?: (tab: string) => void })
 
       {/* === Keyword & Hashtag Manager Dialog === */}
       <KeywordHashtagManagerDialog open={keywordManagerOpen} onOpenChange={setKeywordManagerOpen} />
+
+      {/* === FASE 3.3.8: Poll Config Dialog (set pollType + options) === */}
+      {configPoll && (
+        <PollConfigDialog poll={configPoll} onClose={() => setConfigPoll(null)} />
+      )}
 
       {/* === Surveyor Manager Dialog === */}
       <SurveyorManagerDialog open={surveyorManagerOpen} onOpenChange={setSurveyorManagerOpen} />
@@ -4589,6 +4599,276 @@ function SurveyorSyncDialog({ open, onOpenChange }: { open: boolean; onOpenChang
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Tutup</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ============================================================
+// FASE 3.3.8: POLL CONFIG DIALOG (set pollType + options)
+// ============================================================
+// Admin set tipe poll: ESSAY | MULTIPLE_CHOICE | LIKERT
+// Untuk MC: input options (min 2, max 10)
+// Untuk LIKERT: pilih skala (3-7) + label per skala
+//
+// Storage: SystemSetting key='poll_config_[pollId]' (no DB migration)
+// API: PUT /api/essay-polls/[id]/config
+// ============================================================
+function PollConfigDialog({ poll, onClose }: { poll: any; onClose: () => void }) {
+  const addToast = useToastStore((s) => s.addToast)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [pollType, setPollType] = useState<'ESSAY' | 'MULTIPLE_CHOICE' | 'LIKERT'>('ESSAY')
+  const [options, setOptions] = useState<string[]>(['', '']) // default 2 empty
+  const [likertScale, setLikertScale] = useState(5)
+  const [likertLabels, setLikertLabels] = useState<string[]>([
+    'Sangat Tidak Setuju', 'Tidak Setuju', 'Netral', 'Setuju', 'Sangat Setuju'
+  ])
+
+  // Load existing config saat dialog buka
+  useEffect(() => {
+    const loadConfig = async () => {
+      setLoading(true)
+      try {
+        const res = await api(`/api/essay-polls/${poll.id}/config`, { keepWrapper: true })
+        if (res?.success && res.data) {
+          setPollType(res.data.pollType || 'ESSAY')
+          if (res.data.options && Array.isArray(res.data.options) && res.data.options.length > 0) {
+            setOptions(res.data.options)
+          }
+          if (res.data.likertScale) setLikertScale(res.data.likertScale)
+          if (res.data.likertLabels && Array.isArray(res.data.likertLabels)) {
+            setLikertLabels(res.data.likertLabels)
+          }
+        }
+      } catch (e: any) {
+        addToast('Gagal memuat config: ' + e.message, 'error')
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadConfig()
+  }, [poll.id, addToast])
+
+  // Handler untuk options
+  const addOption = () => {
+    if (options.length >= 10) {
+      addToast('Maksimal 10 opsi', 'info')
+      return
+    }
+    setOptions([...options, ''])
+  }
+  const removeOption = (idx: number) => {
+    if (options.length <= 2) {
+      addToast('Minimal 2 opsi', 'info')
+      return
+    }
+    setOptions(options.filter((_, i) => i !== idx))
+  }
+  const updateOption = (idx: number, value: string) => {
+    const next = [...options]
+    next[idx] = value
+    setOptions(next)
+  }
+
+  // Handler untuk likert scale change
+  const handleScaleChange = (newScale: number) => {
+    setLikertScale(newScale)
+    // Adjust labels array
+    if (newScale > likertLabels.length) {
+      // Tambah label default
+      const additions = Array.from({ length: newScale - likertLabels.length }, (_, i) =>
+        `Skala ${likertLabels.length + i + 1}`
+      )
+      setLikertLabels([...likertLabels, ...additions])
+    } else if (newScale < likertLabels.length) {
+      // Trim labels
+      setLikertLabels(likertLabels.slice(0, newScale))
+    }
+  }
+
+  // Save config
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      const payload: any = { pollType }
+      if (pollType === 'MULTIPLE_CHOICE') {
+        const cleanOptions = options.map(o => o.trim()).filter(o => o.length > 0)
+        if (cleanOptions.length < 2) {
+          addToast('MULTIPLE_CHOICE butuh minimal 2 opsi terisi', 'error')
+          setSaving(false)
+          return
+        }
+        // Cek duplikat
+        const lowerSet = new Set(cleanOptions.map(o => o.toLowerCase()))
+        if (lowerSet.size !== cleanOptions.length) {
+          addToast('Opsi tidak boleh duplikat', 'error')
+          setSaving(false)
+          return
+        }
+        payload.options = cleanOptions
+      }
+      if (pollType === 'LIKERT') {
+        payload.likertScale = likertScale
+        payload.likertLabels = likertLabels
+      }
+
+      const res = await api(`/api/essay-polls/${poll.id}/config`, {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+        keepWrapper: true,
+      })
+      if (res?.success) {
+        addToast(res.message || 'Konfigurasi disimpan', 'success')
+        onClose()
+      } else {
+        addToast(res?.error || 'Gagal simpan config', 'error')
+      }
+    } catch (e: any) {
+      addToast(e.message, 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Dialog open={true} onOpenChange={(o) => { if (!o) onClose() }}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Hash className="w-5 h-5 text-purple-600" />
+            Atur Tipe Poll
+          </DialogTitle>
+          <DialogDescription>
+            Pilih tipe jawaban untuk survei <strong>"{poll.title?.substring(0, 60)}"</strong>.
+            Responden akan melihat form yang berbeda sesuai tipe yang dipilih.
+          </DialogDescription>
+        </DialogHeader>
+
+        {loading ? (
+          <div className="py-8 flex items-center justify-center">
+            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {/* === Pilih pollType === */}
+            <div>
+              <Label className="text-sm font-semibold">Tipe Jawaban</Label>
+              <div className="grid grid-cols-3 gap-2 mt-2">
+                {[
+                  { value: 'ESSAY', label: 'Esai', icon: '📝', desc: 'Jawaban bebas (min 10 kata)' },
+                  { value: 'MULTIPLE_CHOICE', label: 'Pilihan Ganda', icon: '☑️', desc: 'Pilih 1 dari N opsi' },
+                  { value: 'LIKERT', label: 'Skala Likert', icon: '📊', desc: 'Rating 1-5/7' },
+                ].map(t => (
+                  <button
+                    key={t.value}
+                    type="button"
+                    onClick={() => setPollType(t.value as any)}
+                    className={`p-3 border rounded-lg text-left transition-colors ${
+                      pollType === t.value
+                        ? 'border-purple-500 bg-purple-50'
+                        : 'border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="text-xl mb-1">{t.icon}</div>
+                    <div className="text-sm font-semibold">{t.label}</div>
+                    <div className="text-[11px] text-muted-foreground">{t.desc}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* === Options untuk MULTIPLE_CHOICE === */}
+            {pollType === 'MULTIPLE_CHOICE' && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-semibold">Opsi Jawaban (min 2, max 10)</Label>
+                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={addOption}>
+                    <Plus className="w-3 h-3 mr-1" /> Tambah Opsi
+                  </Button>
+                </div>
+                {options.map((opt, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground w-6">{idx + 1}.</span>
+                    <Input
+                      value={opt}
+                      onChange={(e) => updateOption(idx, e.target.value)}
+                      placeholder={`Opsi ${idx + 1}`}
+                      className="h-8 text-sm"
+                      maxLength={100}
+                    />
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 w-7 p-0 text-red-500 hover:bg-red-50"
+                      onClick={() => removeOption(idx)}
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  </div>
+                ))}
+                <div className="text-xs text-muted-foreground italic">
+                  {options.length} opsi. Responden hanya bisa pilih 1.
+                </div>
+              </div>
+            )}
+
+            {/* === Likert config === */}
+            {pollType === 'LIKERT' && (
+              <div className="space-y-3">
+                <div>
+                  <Label className="text-sm font-semibold">Jumlah Skala</Label>
+                  <Select value={String(likertScale)} onValueChange={(v) => handleScaleChange(parseInt(v, 10))}>
+                    <SelectTrigger className="h-8 text-sm w-32"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {[3, 4, 5, 6, 7].map(n => <SelectItem key={n} value={String(n)} className="text-sm">{n} skala</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-sm font-semibold">Label per Skala</Label>
+                  <div className="space-y-1 mt-1">
+                    {likertLabels.map((label, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-purple-100 text-purple-700 text-xs font-bold">
+                          {idx + 1}
+                        </span>
+                        <Input
+                          value={label}
+                          onChange={(e) => {
+                            const next = [...likertLabels]
+                            next[idx] = e.target.value
+                            setLikertLabels(next)
+                          }}
+                          className="h-8 text-sm"
+                          maxLength={50}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* === Info box === */}
+            <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs text-blue-900">
+              <strong>Catatan:</strong>{' '}
+              {pollType === 'ESSAY' && 'Responden menulis jawaban bebas (minimal 10 kata). AI akan analisis sentimen & kategori otomatis.'}
+              {pollType === 'MULTIPLE_CHOICE' && 'Responden pilih 1 opsi. AI tetap analisis sentimen dari opsi yang dipilih (mis. "Setuju" = POSITIVE).'}
+              {pollType === 'LIKERT' && 'Responden beri rating 1-N. Sentimen dihitung dari skala (1-2=NEGATIVE, 3=NEUTRAL, 4-5=POSITIVE untuk skala 5).'}
+              {' '}
+              Perubahan hanya berlaku untuk respon baru. Respon lama tetap tersimpan.
+            </div>
+          </div>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={saving}>Batal</Button>
+          <Button onClick={handleSave} disabled={saving || loading} className="bg-purple-600 hover:bg-purple-700 text-white">
+            {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+            Simpan Konfigurasi
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

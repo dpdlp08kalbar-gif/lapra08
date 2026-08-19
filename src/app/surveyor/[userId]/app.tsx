@@ -29,6 +29,10 @@ interface ActiveSurvey {
   createdAt: string
   pollType: string
   expiresAt?: string | null
+  // === FASE 3.3.5: poll type config ===
+  options?: string[] | null
+  likertScale?: number | null
+  likertLabels?: string[] | null
 }
 
 interface SurveyorFeed {
@@ -48,13 +52,36 @@ export default function SurveyorFeedApp({ userId, initialFeed }: { userId: strin
   const [error, setError] = useState<string | null>(null)
 
   // Form state
-  const [answer, setAnswer] = useState('')
+  const [answer, setAnswer] = useState('') // untuk ESSAY
+  const [selectedOption, setSelectedOption] = useState('') // untuk MULTIPLE_CHOICE
+  const [selectedLikert, setSelectedLikert] = useState<number | null>(null) // untuk LIKERT
   const [ageGroup, setAgeGroup] = useState('')
   const [gender, setGender] = useState('')
   const [occupation, setOccupation] = useState('')
 
+  // === FASE 3.3.5: Validasi & payload sesuai pollType ===
+  const currentPollType = selectedSurvey?.pollType || 'ESSAY'
+  const currentOptions = selectedSurvey?.options || []
+  const currentLikertScale = selectedSurvey?.likertScale || 5
+  const currentLikertLabels = selectedSurvey?.likertLabels || []
+
   const wordCount = answer.trim().split(/\s+/).filter(Boolean).length
-  const canSubmit = answer.trim().length >= 10 && wordCount >= 10 && !submitting
+  const isAnswerValid = () => {
+    if (currentPollType === 'ESSAY') return answer.trim().length >= 10 && wordCount >= 10
+    if (currentPollType === 'MULTIPLE_CHOICE') return selectedOption !== ''
+    if (currentPollType === 'LIKERT') return selectedLikert !== null
+    return false
+  }
+  const getSubmitPayload = () => {
+    if (currentPollType === 'ESSAY') return { answer: answer.trim() }
+    if (currentPollType === 'MULTIPLE_CHOICE') return { answer: selectedOption }
+    if (currentPollType === 'LIKERT') {
+      const label = currentLikertLabels[selectedLikert!] || `Skala ${selectedLikert! + 1}`
+      return { answer: `${selectedLikert! + 1}. ${label}` }
+    }
+    return { answer: answer.trim() }
+  }
+  const canSubmit = isAnswerValid() && !submitting
 
   // === Refresh feed ===
   const handleRefresh = async () => {
@@ -79,12 +106,13 @@ export default function SurveyorFeedApp({ userId, initialFeed }: { userId: strin
     setSubmitting(true)
     setError(null)
     try {
+      const payload = getSubmitPayload()
       const res = await fetch(`/api/surveyor-feed/${userId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           pollId: selectedSurvey.id,
-          answer: answer.trim(),
+          ...payload,
           respondentInfo: {
             ageGroup: ageGroup || undefined,
             gender: gender || undefined,
@@ -110,6 +138,8 @@ export default function SurveyorFeedApp({ userId, initialFeed }: { userId: strin
     setSubmitResult(null)
     setSelectedSurvey(null)
     setAnswer('')
+    setSelectedOption('')
+    setSelectedLikert(null)
     setAgeGroup('')
     setGender('')
     setOccupation('')
@@ -184,7 +214,7 @@ export default function SurveyorFeedApp({ userId, initialFeed }: { userId: strin
         <div className="max-w-2xl mx-auto">
           {/* Back button */}
           <button
-            onClick={() => { setSelectedSurvey(null); setAnswer(''); setAgeGroup(''); setGender(''); setOccupation(''); setError(null) }}
+            onClick={() => { setSelectedSurvey(null); setAnswer(''); setSelectedOption(''); setSelectedLikert(null); setAgeGroup(''); setGender(''); setOccupation(''); setError(null) }}
             className="mb-4 flex items-center gap-1 text-sm text-slate-600 hover:text-slate-800"
           >
             <ArrowLeft className="w-4 h-4" /> Kembali ke Daftar Survei
@@ -210,27 +240,99 @@ export default function SurveyorFeedApp({ userId, initialFeed }: { userId: strin
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-semibold text-slate-800 mb-2">
-                Jawaban Responden <span className="text-red-500">*</span>
-              </label>
-              <textarea
-                value={answer}
-                onChange={(e) => setAnswer(e.target.value)}
-                rows={6}
-                maxLength={5000}
-                placeholder="Tulis jawaban responden di sini... (minimal 10 kata)"
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent resize-y text-sm"
-                required
-                disabled={submitting}
-              />
-              <div className="flex justify-between items-center mt-1">
-                <span className="text-xs text-slate-500">
-                  {wordCount} kata {wordCount < 10 && '(minimal 10 kata)'}
-                </span>
-                <span className="text-xs text-slate-400">{answer.length}/5000 karakter</span>
+            {/* === FASE 3.3.5: Answer — render sesuai pollType === */}
+            {currentPollType === 'ESSAY' && (
+              <div>
+                <label className="block text-sm font-semibold text-slate-800 mb-2">
+                  Jawaban Responden <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={answer}
+                  onChange={(e) => setAnswer(e.target.value)}
+                  rows={6}
+                  maxLength={5000}
+                  placeholder="Tulis jawaban responden di sini... (minimal 10 kata)"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent resize-y text-sm"
+                  required
+                  disabled={submitting}
+                />
+                <div className="flex justify-between items-center mt-1">
+                  <span className="text-xs text-slate-500">
+                    {wordCount} kata {wordCount < 10 && '(minimal 10 kata)'}
+                  </span>
+                  <span className="text-xs text-slate-400">{answer.length}/5000 karakter</span>
+                </div>
               </div>
-            </div>
+            )}
+
+            {currentPollType === 'MULTIPLE_CHOICE' && currentOptions.length > 0 && (
+              <div>
+                <label className="block text-sm font-semibold text-slate-800 mb-2">
+                  Pilih Jawaban Responden <span className="text-red-500">*</span>
+                </label>
+                <div className="space-y-2">
+                  {currentOptions.map((opt, idx) => (
+                    <label
+                      key={idx}
+                      className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${
+                        selectedOption === opt
+                          ? 'border-orange-500 bg-orange-50'
+                          : 'border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="mc-option"
+                        value={opt}
+                        checked={selectedOption === opt}
+                        onChange={(e) => setSelectedOption(e.target.value)}
+                        disabled={submitting}
+                        className="w-4 h-4 text-orange-600"
+                      />
+                      <span className="text-sm text-slate-800">{opt}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {currentPollType === 'LIKERT' && (
+              <div>
+                <label className="block text-sm font-semibold text-slate-800 mb-3">
+                  Rating Responden <span className="text-red-500">*</span>
+                </label>
+                <div className="space-y-2">
+                  {Array.from({ length: currentLikertScale }, (_, i) => (
+                    <label
+                      key={i}
+                      className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${
+                        selectedLikert === i
+                          ? 'border-orange-500 bg-orange-50'
+                          : 'border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="likert-option"
+                        value={i}
+                        checked={selectedLikert === i}
+                        onChange={() => setSelectedLikert(i)}
+                        disabled={submitting}
+                        className="w-4 h-4 text-orange-600"
+                      />
+                      <div className="flex items-center gap-2">
+                        <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-orange-100 text-orange-700 text-xs font-bold">
+                          {i + 1}
+                        </span>
+                        <span className="text-sm text-slate-800">
+                          {currentLikertLabels[i] || `Skala ${i + 1}`}
+                        </span>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Demografi responden */}
             <details className="border border-slate-200 rounded-lg">

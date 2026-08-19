@@ -9,15 +9,33 @@
 //   - Hanya return poll dengan status ACTIVE (DRAFT/CLOSED/ARCHIVED → 404)
 //   - Tidak return responses array (hanya count)
 //
-// Rate limit:
-//   - Tidak perlu rate limit di GET (Vercel cache + CDN handle)
-//   - Rate limit di POST submit (di /responses endpoint)
+// FASE 3.3.2: Include pollType + options dari SystemSetting config
+//   - GET /api/essay-polls/[id]/config (inline, no extra HTTP call)
+//   - Default: pollType=ESSAY (backward compat)
 // ============================================================
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+
+function configKey(pollId: string) {
+  return `poll_config_${pollId}`
+}
+
+// Load config dari SystemSetting
+async function loadPollConfig(pollId: string): Promise<any> {
+  try {
+    const setting = await db.systemSetting.findUnique({
+      where: { key: configKey(pollId) },
+      select: { value: true },
+    })
+    if (!setting) return null
+    return JSON.parse(setting.value)
+  } catch {
+    return null
+  }
+}
 
 export async function GET(
   request: NextRequest,
@@ -41,9 +59,6 @@ export async function GET(
         targetOccupation: true,
         closesAt: true,
         createdAt: true,
-        // Ambil nama wilayah via join (jika ada)
-        // NOTE: essayPoll tidak punya relation ke Territory untuk province/regency
-        // Pakai raw query atau lookup manual jika perlu
         _count: { select: { responses: true } },
       },
     })
@@ -54,14 +69,12 @@ export async function GET(
 
     // Hanya expose ACTIVE poll ke publik
     if (poll.status !== 'ACTIVE') {
-      // Return 200 dengan status info (supaya UI bisa tampilkan pesan sesuai)
       return NextResponse.json({
         success: true,
         data: {
           id: poll.id,
           title: poll.title,
           status: poll.status,
-          // Field lain dikosongkan untuk poll non-active
           question: null,
           description: null,
         },
@@ -85,15 +98,28 @@ export async function GET(
       regencyName = reg?.name || null
     }
 
+    // === FASE 3.3.2: Load poll config (pollType + options) ===
+    const config = await loadPollConfig(id)
+    const pollType = config?.pollType || 'ESSAY'
+    const options = config?.options || null
+    const likertScale = config?.likertScale || null
+    const likertLabels = config?.likertLabels || null
+
+    // Strip _count, replace dengan totalResponses
+    const { _count, ...pollData } = poll
+
     return NextResponse.json({
       success: true,
       data: {
-        ...poll,
+        ...pollData,
         provinceName,
         regencyName,
-        totalResponses: poll._count.responses,
-        // Bersihkan _count dari response (tidak perlu expose internal structure)
-        _count: undefined,
+        totalResponses: _count.responses,
+        // === FASE 3.3.2: poll type config ===
+        pollType,
+        options,
+        likertScale,
+        likertLabels,
       },
     })
   } catch (e: any) {

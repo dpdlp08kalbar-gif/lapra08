@@ -22,6 +22,7 @@ import {
   invalidateDecisionDashboardCache,
 } from '@/app/api/decision-dashboard/route'
 import { invalidateEssayPollsCache } from '../../route'
+import { loadPollConfig, validateAnswerByPollType, getSubmitSuccessMessage } from '@/lib/poll-helpers'
 
 // Hash IP dengan daily salt — tidak bisa reverse ke real IP, tapi tetap konsisten
 // untuk rate limit & analytics (mis. "IP ini submit 5x hari ini")
@@ -48,9 +49,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // Catatan: jika client kirim respondentName/respondentPhone, kita ignore (no error)
     // Ini untuk mencegah attacker inject PII via API langsung
 
-    if (!answer || answer.trim().length < 10) {
-      return NextResponse.json({ success: false, error: 'Jawaban minimal 10 karakter' }, { status: 400 })
+    // === FASE 3.3.6: Validasi jawaban sesuai pollType ===
+    // Sebelumnya: hardcoded "minimal 10 karakter" untuk semua tipe
+    // Sekarang: load config → validate per pollType (ESSAY/MC/LIKERT)
+    const pollConfig = await loadPollConfig(pollId)
+    const validation = validateAnswerByPollType(answer, pollConfig)
+    if (!validation.valid) {
+      return NextResponse.json({ success: false, error: validation.error }, { status: 400 })
     }
+    const finalAnswer = validation.normalizedAnswer!
 
     // === Anti-spam: rate limit per IP (pakai real IP untuk rate limit, bukan hash) ===
     const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
@@ -65,31 +72,31 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       }, { status: 429 })
     }
 
-    // === Anti-spam: content validation ===
-    if (detectSpam(answer)) {
+    // === Anti-spam: content validation (hanya untuk ESSAY, MC/LIKERT sudah punya validasi sendiri) ===
+    if (pollConfig.pollType === 'ESSAY' && detectSpam(finalAnswer)) {
       return NextResponse.json({
         success: false,
         error: 'Jawaban terdeteksi sebagai spam. Mohon tulis jawaban yang substantif.',
       }, { status: 400 })
     }
 
-    const wordCount = answer.trim().split(/\s+/).length
+    const wordCount = finalAnswer.trim().split(/\s+/).length
 
     // === AI ANALYSIS: rule-based lexicon (Z.AI removed, no external API berbayar) ===
-    const lexiconSentiment = analyzeSentiment(answer)
-    const lexiconPriority = calculatePriority(answer, wordCount, lexiconSentiment.sentiment)
-    const loc = await detectLocationFromDB(answer)
+    const lexiconSentiment = analyzeSentiment(finalAnswer)
+    const lexiconPriority = calculatePriority(finalAnswer, wordCount, lexiconSentiment.sentiment)
+    const loc = await detectLocationFromDB(finalAnswer)
 
     let finalSentiment: 'POSITIVE' | 'NEUTRAL' | 'NEGATIVE' = lexiconSentiment.sentiment
     let finalScore = lexiconPriority.urgencyScore
     let finalCategory = lexiconPriority.category
     let finalSummary = `Sentimen: ${lexiconSentiment.sentiment}. Kategori: ${lexiconPriority.category}. ${wordCount} kata. Urgency: ${lexiconPriority.urgencyScore}/100.`
-    let finalKeywords = extractKeywords(answer)
+    let finalKeywords = extractKeywords(finalAnswer)
     let aiProvider = 'lexicon'
 
     // Try rule-based LLM-like analysis (sesuai constraint no API berbayar)
     try {
-      const llmResult = await aiAnalyzeEssayResponseLLM(answer, poll.question)
+      const llmResult = await aiAnalyzeEssayResponseLLM(finalAnswer, poll.question)
       finalSentiment = llmResult.sentiment as 'POSITIVE' | 'NEUTRAL' | 'NEGATIVE'
       finalScore = llmResult.score
       finalCategory = llmResult.category
@@ -104,7 +111,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const response = await db.essayResponse.create({
       data: {
         pollId,
-        answer: answer.substring(0, 5000),
+        answer: finalAnswer,  // sudah di-substring di validateAnswerByPollType
         wordCount,
         // === C2 FIX: PII ditolak ===
         respondentName: null,    // hardcoded null (UI tidak minta, attacker tidak bisa inject)
@@ -153,7 +160,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         aiSummary: response.aiSummary,
         // JANGAN return: respondentName, respondentPhone, ipAddress
       },
-      message: `Terima kasih! Jawaban essay Anda (${wordCount} kata) telah dikirim & dianalisis AI (${aiProvider}). Sentimen: ${finalSentiment}, urgency: ${finalScore}/100.`,
+      message: getSubmitSuccessMessage(pollConfig.pollType, wordCount, aiProvider, finalSentiment, finalScore),
       rateLimit: { remaining: rateLimit.remaining - 1, resetInMs: rateLimit.resetInMs },
     })
   } catch (e: any) {

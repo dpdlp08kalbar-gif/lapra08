@@ -32,6 +32,7 @@ import {
   detectSpam,
 } from '@/lib/ai-engine'
 import { randomBytes } from 'crypto'
+import { loadPollConfig, validateAnswerByPollType } from '@/lib/poll-helpers'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -141,6 +142,32 @@ async function saveAssignments(items: SurveyorAssignment[]): Promise<void> {
   })
 }
 
+// === FASE 3.3.3: Load poll config (pollType + options) per survey ===
+// Batch load semua config untuk activePolls dalam 1 query (avoid N+1)
+async function loadPollConfigs(pollIds: string[]): Promise<Record<string, any>> {
+  if (pollIds.length === 0) return {}
+  try {
+    const settings = await db.systemSetting.findMany({
+      where: {
+        key: { in: pollIds.map(id => `poll_config_${id}`) },
+      },
+      select: { key: true, value: true },
+    })
+    const map: Record<string, any> = {}
+    for (const s of settings) {
+      try {
+        const config = JSON.parse(s.value)
+        // Extract pollId dari key "poll_config_xxx"
+        const pollId = s.key.replace('poll_config_', '')
+        map[pollId] = config
+      } catch {}
+    }
+    return map
+  } catch {
+    return {}
+  }
+}
+
 // GET /api/surveyor-feed/[userId] — pull feed
 // PUBLIC endpoint (tidak perlu x-user-id header) — surveyor akses via URL unik
 // Next.js 16: params adalah Promise, harus di-await
@@ -207,6 +234,11 @@ export async function GET(
         })
       : []
 
+    // === FASE 3.3.3: Batch load poll configs (pollType + options) ===
+    // Single query untuk semua active surveys (avoid N+1)
+    const pollIds = activePolls.map(p => p.id)
+    const configsMap = await loadPollConfigs(pollIds)
+
     return NextResponse.json({
       success: true,
       data: {
@@ -224,15 +256,22 @@ export async function GET(
           notes: assignment.notes,
           responsesCount: assignment.responsesCount,
         },
-        activeSurveys: activePolls.map(p => ({
-          ...p,
-          // Hint untuk HP surveyor: ini poll tipe essay (model saat ini hanya essay)
-          pollType: 'ESSAY',
-          expiresAt: p.closesAt,
-        })),
+        activeSurveys: activePolls.map(p => {
+          const config = configsMap[p.id]
+          return {
+            ...p,
+            // === FASE 3.3.3: Include pollType + options dari config ===
+            // Default ESSAY jika belum ada config (backward compat)
+            pollType: config?.pollType || 'ESSAY',
+            options: config?.options || null,
+            likertScale: config?.likertScale || null,
+            likertLabels: config?.likertLabels || null,
+            expiresAt: p.closesAt,
+          }
+        }),
         lastSyncAt: now,
         serverTime: now,
-        feedVersion: '1.0',
+        feedVersion: '1.1', // bump version karena sekarang include config
       },
       message: `Sync berhasil. ${activePolls.length} survei aktif menunggu.`,
     })
@@ -275,9 +314,16 @@ export async function POST(
     const body = await request.json()
     const { pollId, answer, respondentInfo } = body
     if (!pollId) return NextResponse.json({ success: false, error: 'Field wajib: pollId' }, { status: 400 })
-    if (!answer || typeof answer !== 'string' || answer.trim().length < 10) {
-      return NextResponse.json({ success: false, error: 'Field wajib: answer (minimal 10 karakter)' }, { status: 400 })
+
+    // === FASE 3.3.7: Validasi jawaban sesuai pollType (reuse helper) ===
+    // Sebelumnya: hardcoded "minimal 10 karakter" untuk semua tipe
+    // Sekarang: load config → validate per pollType (ESSAY/MC/LIKERT)
+    const pollConfig = await loadPollConfig(pollId)
+    const answerValidation = validateAnswerByPollType(answer, pollConfig)
+    if (!answerValidation.valid) {
+      return NextResponse.json({ success: false, error: answerValidation.error }, { status: 400 })
     }
+    const finalAnswer = answerValidation.normalizedAnswer!
 
     // === FASE 0.6: Validasi enum respondentInfo ===
     const infoValidation = validateRespondentInfo(respondentInfo)
@@ -286,8 +332,8 @@ export async function POST(
     }
     const cleanedInfo = infoValidation.cleaned
 
-    // === FASE 0.6: Spam detection ===
-    if (detectSpam(answer)) {
+    // === FASE 0.6: Spam detection (hanya untuk ESSAY; MC/LIKERT sudah punya validasi sendiri) ===
+    if (pollConfig.pollType === 'ESSAY' && detectSpam(finalAnswer)) {
       return NextResponse.json({
         success: false,
         error: 'Jawaban terdeteksi sebagai spam. Mohon tulis jawaban yang substantif.',
@@ -323,24 +369,24 @@ export async function POST(
     }
 
     // Hitung word count
-    const wordCount = answer.trim().split(/\s+/).filter(Boolean).length
+    const wordCount = finalAnswer.trim().split(/\s+/).filter(Boolean).length
 
     // === FASE 0.6: AI ANALYSIS (lexicon + LLM fallback) — sama seperti public endpoint ===
     // Tanpa ini, field responses tidak masuk ke sentimen stats di dashboard (Critical #7 dari audit)
-    const lexiconSentiment = analyzeSentiment(answer)
-    const lexiconPriority = calculatePriority(answer, wordCount, lexiconSentiment.sentiment)
-    const loc = await detectLocationFromDB(answer)
+    const lexiconSentiment = analyzeSentiment(finalAnswer)
+    const lexiconPriority = calculatePriority(finalAnswer, wordCount, lexiconSentiment.sentiment)
+    const loc = await detectLocationFromDB(finalAnswer)
 
     let finalSentiment: 'POSITIVE' | 'NEUTRAL' | 'NEGATIVE' = lexiconSentiment.sentiment
     let finalScore = lexiconPriority.urgencyScore
     let finalCategory = lexiconPriority.category
     let finalSummary = `Sentimen: ${lexiconSentiment.sentiment}. Kategori: ${lexiconPriority.category}. ${wordCount} kata. Urgency: ${lexiconPriority.urgencyScore}/100.`
-    let finalKeywords = extractKeywords(answer)
+    let finalKeywords = extractKeywords(finalAnswer)
     let aiProvider = 'lexicon'
 
     // Try LLM for deeper analysis (fallback ke lexicon jika gagal)
     try {
-      const llmResult = await aiAnalyzeEssayResponseLLM(answer, poll.question)
+      const llmResult = await aiAnalyzeEssayResponseLLM(finalAnswer, poll.question)
       finalSentiment = llmResult.sentiment as 'POSITIVE' | 'NEUTRAL' | 'NEGATIVE'
       finalScore = llmResult.score
       finalCategory = llmResult.category
@@ -357,7 +403,7 @@ export async function POST(
     await db.essayResponse.create({
       data: {
         pollId,
-        answer: answer.substring(0, 5000),
+        answer: finalAnswer,  // sudah di-substring di validateAnswerByPollType
         wordCount,
         // Identitas responden — anonim untuk PDP compliance
         respondentName: null,
