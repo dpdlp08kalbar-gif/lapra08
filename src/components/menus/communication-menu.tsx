@@ -260,7 +260,7 @@ function OpinionScannerTab() {
               <p className="text-sm text-muted-foreground mb-3">
                 Sistem akan otomatis mengambil REAL mention LAPRA 08 dari YouTube (via yt-dlp) + Google News RSS,
                 lalu menganalisis sentimen, prioritas, lokasi, dan kategori setiap mention dengan AI.
-                Hasil disimpan ke database untuk tracking & decision dashboard.
+                Hasil disimpan ke database untuk tracking &amp; decision dashboard.
               </p>
               <div className="flex items-center gap-3">
                 <Button onClick={handleScan} disabled={scanning} size="lg"
@@ -648,7 +648,7 @@ function BroadcastComposerTab() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><Send className="w-5 h-5 text-orange-600" /> Buat Broadcast Baru</DialogTitle>
             <DialogDescription>
-              Pilih channel, target wilayah (DPN/DPD/DPC), isi pesan dengan variabel otomatis. Sistem akan resolve kontak dari DB & jadwalkan pengiriman anti-banned.
+              Pilih channel, target wilayah (DPN/DPD/DPC), isi pesan dengan variabel otomatis. Sistem akan resolve kontak dari DB &amp; jadwalkan pengiriman anti-banned.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSend} className="space-y-3">
@@ -1168,7 +1168,7 @@ function EssayPollsTab() {
       <Shield className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
       <div className="flex-1">
         <div className="font-bold text-amber-800 text-sm">
-          🔒 Survei Opini Publik — Netral & Anonim
+          🔒 Survei Opini Publik — Netral &amp; Anonim
         </div>
         <p className="text-xs text-amber-700 mt-1">
           Pertanyaan survei <strong>TIDAK boleh menyebut</strong> "Laskar Prabowo 08" atau "LAPRA 08". 
@@ -1359,7 +1359,7 @@ function EssayPollsTab() {
               <h3 className="font-bold text-lg mb-1">Essay Polling &amp; AI Auto-Pertanyaan</h3>
               <p className="text-sm text-muted-foreground mb-3">
                 AI menelaah berita/event otomatis → generate <strong>5 varian pertanyaan</strong> dengan pendekatan berbeda
-                (langsung, komparatif, solusi, emosional, analitis). Pilih salah satu, lalu share ke medsos & group populer.
+                (langsung, komparatif, solusi, emosional, analitis). Pilih salah satu, lalu share ke medsos &amp; group populer.
               </p>
               <div className="flex flex-wrap gap-2">
                 <Button onClick={() => { setAiGenOpen(true); setAiSuggestions([]) }} className="bg-gradient-to-r from-purple-600 to-pink-600 text-white">
@@ -1441,7 +1441,7 @@ function EssayPollsTab() {
       <div className="space-y-3">
         <div className="flex items-center gap-2">
           <div className="h-5 w-1 rounded-full bg-gradient-to-b from-blue-500 to-cyan-600" />
-          <h3 className="text-sm font-bold">📡 Kanal Distribusi & Integrasi</h3>
+          <h3 className="text-sm font-bold">📡 Kanal Distribusi &amp; Integrasi</h3>
           <span className="text-xs text-muted-foreground">— Pilih jalur pengumpulan data</span>
         </div>
         <div className="grid gap-3 md:grid-cols-3">
@@ -1524,7 +1524,7 @@ function EssayPollsTab() {
             </DialogTitle>
             <DialogDescription>
               AI akan generate 5 varian pertanyaan dengan pendekatan berbeda. Pilih salah satu untuk dibuat poll.
-              Klik <strong>"💡 Saran Topik"</strong> untuk inspirasi dari trending issues & kategori.
+              Klik <strong>"💡 Saran Topik"</strong> untuk inspirasi dari trending issues &amp; kategori.
             </DialogDescription>
           </DialogHeader>
 
@@ -2201,7 +2201,7 @@ function DecisionDashboardTab() {
                 </TableRow>
                 {/* Siaran */}
                 <TableRow className="bg-orange-50/50">
-                  <TableCell className="text-xs font-bold" colSpan={3}>📤 SIARAN & BROADCAST</TableCell>
+                  <TableCell className="text-xs font-bold" colSpan={3}>📤 SIARAN &amp; BROADCAST</TableCell>
                 </TableRow>
                 <TableRow>
                   <TableCell className="text-xs">Total Video</TableCell>
@@ -2215,7 +2215,7 @@ function DecisionDashboardTab() {
                 </TableRow>
                 {/* Survei */}
                 <TableRow className="bg-purple-50/50">
-                  <TableCell className="text-xs font-bold" colSpan={3}>🧠 SURVEI & POLLING</TableCell>
+                  <TableCell className="text-xs font-bold" colSpan={3}>🧠 SURVEI &amp; POLLING</TableCell>
                 </TableRow>
                 <TableRow>
                   <TableCell className="text-xs">Total Survei</TableCell>
@@ -2799,7 +2799,7 @@ function GatewayProvidersDialog({ open, onOpenChange }: { open: boolean; onOpenC
           </DialogTitle>
           <DialogDescription>
             Untuk broadcast massal ribuan pesan WA tanpa risiko diblokir, integrasikan dengan salah satu provider di bawah.
-            Provider Indonesia (Fonnte, Waboo, Wootalk) direkomendasikan untuk harga lokal & support bahasa.
+            Provider Indonesia (Fonnte, Waboo, Wootalk) direkomendasikan untuk harga lokal &amp; support bahasa.
           </DialogDescription>
         </DialogHeader>
 
@@ -2951,8 +2951,8 @@ Body: ${JSON.stringify(p.examplePayload.body, null, 2)}`}
                 <li>Personalisasi pesan dengan {`{nama}`} {`{wilayah}`} (sudah otomatis)</li>
                 <li>Hindari pesan identik 100% (variasikan greeting)</li>
                 <li>Pastikan kontak sudah opt-in (sudah otomatis di sistem kami)</li>
-                <li>Untuk skala 10.000+ pesan/hari: gunakan multiple device/account (Fonnte & Waboo support ini)</li>
-                <li>Wootalk & WhatsApp Business API = zero banned risk (official partner)</li>
+                <li>Untuk skala 10.000+ pesan/hari: gunakan multiple device/account (Fonnte &amp; Waboo support ini)</li>
+                <li>Wootalk &amp; WhatsApp Business API = zero banned risk (official partner)</li>
               </ol>
             </div>
           </div>
