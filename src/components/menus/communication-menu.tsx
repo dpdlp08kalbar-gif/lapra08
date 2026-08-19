@@ -1150,6 +1150,8 @@ function EssayPollsTab() {
   const [detailPoll, setDetailPoll] = useState<any>(null)
   const [sharePoll, setSharePoll] = useState<any>(null)
   const [aiForm, setAiForm] = useState({ sourceTopic: '', sourceUrl: '', sourceContent: '' })
+  // === State untuk dialog Keyword AI & Hashtag ===
+  const [keywordManagerOpen, setKeywordManagerOpen] = useState(false)
   // === State baru untuk multiple AI suggestions ===
   const [aiSuggestions, setAiSuggestions] = useState<any[]>([])
   const [aiSuggestionsMeta, setAiSuggestionsMeta] = useState<any>(null)
@@ -1459,7 +1461,7 @@ function EssayPollsTab() {
               <p className="text-xs text-muted-foreground">
                 Menangkap percakapan publik di media sosial secara otomatis dan real-time berbasis AI.
               </p>
-              <Button size="sm" variant="outline" className="w-full text-xs gap-1" onClick={() => addToast('Fitur Atur Keyword AI & Hashtag sedang dalam pengembangan', 'info')}>
+              <Button size="sm" variant="outline" className="w-full text-xs gap-1" onClick={() => setKeywordManagerOpen(true)}>
                 ⚙️ Atur Keyword AI &amp; Hashtag
               </Button>
             </CardContent>
@@ -1818,6 +1820,9 @@ function EssayPollsTab() {
       {sharePoll && (
         <ShareToSocialMediaDialog poll={sharePoll} onClose={() => setSharePoll(null)} />
       )}
+
+      {/* === Keyword & Hashtag Manager Dialog === */}
+      <KeywordHashtagManagerDialog open={keywordManagerOpen} onOpenChange={setKeywordManagerOpen} />
 
       {/* Detail dialog */}
       {detailPoll && (
@@ -2957,6 +2962,679 @@ Body: ${JSON.stringify(p.examplePayload.body, null, 2)}`}
             </div>
           </div>
         )}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Tutup</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ============================================================
+// KEYWORD & HASHTAG MANAGER DIALOG
+// ============================================================
+// Mengelola keyword/hashtag/mention yang dipakai AI untuk monitoring medsos.
+// Storage: SystemSetting key='medsos_keywords' (lihat /api/medsos-keywords)
+//
+// Fitur:
+// - List dengan filter (type, category, active, search)
+// - Statistik ringkas (total, aktif, per type, per kategori)
+// - Tambah tunggal & bulk paste
+// - Edit inline (toggle active, ganti priority/category)
+// - Hapus tunggal & bulk
+// - Import preset politik (Prabowo, Gerindra, LAPRA 08, dll)
+// ============================================================
+
+const KEYWORD_TYPES = [
+  { value: 'KEYWORD', label: 'Keyword', desc: 'Kata/frasa umum', prefix: '' },
+  { value: 'HASHTAG', label: 'Hashtag', desc: 'Diawali #', prefix: '#' },
+  { value: 'MENTION', label: 'Mention', desc: 'Akun @', prefix: '@' },
+] as const
+
+const KEYWORD_CATEGORIES = [
+  { value: 'POLITIK', label: 'Politik', color: 'bg-purple-50 text-purple-700' },
+  { value: 'EKONOMI', label: 'Ekonomi', color: 'bg-emerald-50 text-emerald-700' },
+  { value: 'SOSIAL', label: 'Sosial', color: 'bg-blue-50 text-blue-700' },
+  { value: 'HANKAM', label: 'Hankam', color: 'bg-red-50 text-red-700' },
+  { value: 'PEMERINTAHAN', label: 'Pemerintahan', color: 'bg-amber-50 text-amber-700' },
+  { value: 'LAINNYA', label: 'Lainnya', color: 'bg-slate-50 text-slate-700' },
+] as const
+
+const KEYWORD_PRIORITIES = [
+  { value: 'HIGH', label: 'Tinggi', color: 'bg-red-100 text-red-800' },
+  { value: 'MEDIUM', label: 'Sedang', color: 'bg-amber-100 text-amber-800' },
+  { value: 'LOW', label: 'Rendah', color: 'bg-slate-100 text-slate-800' },
+] as const
+
+function KeywordHashtagManagerDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+  const addToast = useToastStore((s) => s.addToast)
+  const user = useAuthStore.getState().user
+  const canEdit = user?.role === 'SUPERADMIN' || user?.role === 'ADMIN_DPN'
+
+  const [keywords, setKeywords] = useState<any[]>([])
+  const [stats, setStats] = useState<any>(null)
+  const [loading, setLoading] = useState(false)
+  const [filterType, setFilterType] = useState<string>('ALL')
+  const [filterCategory, setFilterCategory] = useState<string>('ALL')
+  const [filterActive, setFilterActive] = useState<string>('ALL')
+  const [search, setSearch] = useState('')
+
+  // Add form state
+  const [addMode, setAddMode] = useState<'single' | 'bulk'>('single')
+  const [formData, setFormData] = useState({
+    text: '',
+    type: 'KEYWORD' as 'KEYWORD' | 'HASHTAG' | 'MENTION',
+    category: 'POLITIK',
+    priority: 'MEDIUM',
+    notes: '',
+    isActive: true,
+  })
+  const [bulkText, setBulkText] = useState('')
+  const [bulkType, setBulkType] = useState<'KEYWORD' | 'HASHTAG' | 'MENTION'>('HASHTAG')
+  const [bulkCategory, setBulkCategory] = useState('POLITIK')
+  const [bulkPriority, setBulkPriority] = useState('MEDIUM')
+
+  // Edit state
+  const [editId, setEditId] = useState<string | null>(null)
+  const [editData, setEditData] = useState<any>(null)
+
+  // Selection for bulk delete
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+
+  const loadData = useCallback(async () => {
+    setLoading(true)
+    try {
+      const params = new URLSearchParams()
+      if (filterType !== 'ALL') params.set('type', filterType)
+      if (filterCategory !== 'ALL') params.set('category', filterCategory)
+      if (filterActive !== 'ALL') params.set('active', filterActive)
+      if (search.trim()) params.set('q', search.trim())
+      const res = await api(`/api/medsos-keywords?${params.toString()}`)
+      if (res.success) {
+        setKeywords(res.data || [])
+        setStats(res.stats || null)
+      } else {
+        addToast(res.error || 'Gagal memuat keyword', 'error')
+      }
+    } catch (e: any) {
+      addToast(e.message, 'error')
+    } finally {
+      setLoading(false)
+    }
+  }, [filterType, filterCategory, filterActive, search, addToast])
+
+  useEffect(() => {
+    if (open) loadData()
+  }, [open, loadData])
+
+  // === Add single ===
+  const handleAddSingle = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!formData.text.trim()) {
+      addToast('Text keyword wajib diisi', 'error')
+      return
+    }
+    try {
+      const res = await api('/api/medsos-keywords', {
+        method: 'POST',
+        body: JSON.stringify(formData),
+      })
+      if (res.success) {
+        addToast(res.message, 'success')
+        setFormData({ ...formData, text: '', notes: '' })
+        loadData()
+      } else {
+        addToast(res.error, 'error')
+      }
+    } catch (e: any) {
+      addToast(e.message, 'error')
+    }
+  }
+
+  // === Add bulk ===
+  const handleAddBulk = async () => {
+    const lines = bulkText.split('\n').map(l => l.trim()).filter(Boolean)
+    if (lines.length === 0) {
+      addToast('Paste minimal 1 keyword (1 per baris)', 'error')
+      return
+    }
+    try {
+      const res = await api('/api/medsos-keywords', {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'bulk',
+          items: lines.map(text => ({
+            text,
+            type: bulkType,
+            category: bulkCategory,
+            priority: bulkPriority,
+            isActive: true,
+          })),
+        }),
+      })
+      if (res.success) {
+        addToast(res.message, 'success')
+        setBulkText('')
+        loadData()
+      } else {
+        addToast(res.error, 'error')
+      }
+    } catch (e: any) {
+      addToast(e.message, 'error')
+    }
+  }
+
+  // === Import preset politik ===
+  const handleImportPreset = async () => {
+    if (!confirm('Import 12 preset keyword politik (Prabowo, Gerindra, LAPRA 08, Kabinet Merah Putih, dll)? Keyword yang sudah ada akan dilewati.')) return
+    try {
+      const res = await api('/api/medsos-keywords', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'preset_politik' }),
+      })
+      if (res.success) {
+        addToast(res.message, 'success')
+        loadData()
+      } else {
+        addToast(res.error, 'error')
+      }
+    } catch (e: any) {
+      addToast(e.message, 'error')
+    }
+  }
+
+  // === Toggle active ===
+  const handleToggleActive = async (id: string, currentActive: boolean) => {
+    try {
+      const res = await api('/api/medsos-keywords', {
+        method: 'PATCH',
+        body: JSON.stringify({ id, isActive: !currentActive }),
+      })
+      if (res.success) {
+        loadData()
+      } else {
+        addToast(res.error, 'error')
+      }
+    } catch (e: any) {
+      addToast(e.message, 'error')
+    }
+  }
+
+  // === Edit save ===
+  const handleSaveEdit = async () => {
+    if (!editId || !editData) return
+    try {
+      const res = await api('/api/medsos-keywords', {
+        method: 'PATCH',
+        body: JSON.stringify({ id: editId, ...editData }),
+      })
+      if (res.success) {
+        addToast(res.message, 'success')
+        setEditId(null)
+        setEditData(null)
+        loadData()
+      } else {
+        addToast(res.error, 'error')
+      }
+    } catch (e: any) {
+      addToast(e.message, 'error')
+    }
+  }
+
+  // === Delete single ===
+  const handleDelete = async (id: string, text: string) => {
+    if (!confirm(`Hapus keyword "${text}"?`)) return
+    try {
+      const res = await api('/api/medsos-keywords', {
+        method: 'DELETE',
+        body: JSON.stringify({ id }),
+      })
+      if (res.success) {
+        addToast(res.message, 'success')
+        loadData()
+      } else {
+        addToast(res.error, 'error')
+      }
+    } catch (e: any) {
+      addToast(e.message, 'error')
+    }
+  }
+
+  // === Bulk delete ===
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) {
+      addToast('Pilih keyword dulu dengan centang checkbox', 'info')
+      return
+    }
+    if (!confirm(`Hapus ${selectedIds.size} keyword terpilih?`)) return
+    try {
+      const res = await api('/api/medsos-keywords', {
+        method: 'DELETE',
+        body: JSON.stringify({ ids: Array.from(selectedIds) }),
+      })
+      if (res.success) {
+        addToast(res.message, 'success')
+        setSelectedIds(new Set())
+        loadData()
+      } else {
+        addToast(res.error, 'error')
+      }
+    } catch (e: any) {
+      addToast(e.message, 'error')
+    }
+  }
+
+  // === Toggle selection ===
+  const toggleSelection = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const startEdit = (kw: any) => {
+    setEditId(kw.id)
+    setEditData({ text: kw.text, type: kw.type, category: kw.category, priority: kw.priority, notes: kw.notes || '', isActive: kw.isActive })
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-5xl max-h-[92vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Hash className="w-5 h-5 text-blue-600" />
+            Atur Keyword AI &amp; Hashtag
+          </DialogTitle>
+          <DialogDescription>
+            Konfigurasi keyword/hashtag/mention yang dipakai AI untuk memantau percakapan publik di media sosial.
+            Keyword di sini menjadi dasar filter <strong>Feed Viral</strong>, <strong>Word Cloud</strong>, dan sumber
+            inspirasi <strong>AI Generate Pertanyaan Survei</strong>.
+          </DialogDescription>
+        </DialogHeader>
+
+        {/* === STATISTIK === */}
+        {stats && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <div className="rounded-lg border bg-card p-3">
+              <div className="text-xs text-muted-foreground">Total Keyword</div>
+              <div className="text-2xl font-bold">{stats.total}</div>
+            </div>
+            <div className="rounded-lg border bg-card p-3">
+              <div className="text-xs text-muted-foreground">Aktif</div>
+              <div className="text-2xl font-bold text-emerald-600">{stats.active}</div>
+              <div className="text-[11px] text-muted-foreground">{stats.total - stats.active} nonaktif</div>
+            </div>
+            <div className="rounded-lg border bg-card p-3 col-span-2">
+              <div className="text-xs text-muted-foreground mb-1">Komposisi Tipe</div>
+              <div className="flex gap-2 flex-wrap text-xs">
+                <Badge variant="outline" className="bg-blue-50 text-blue-700">Keyword: {stats.byType.KEYWORD}</Badge>
+                <Badge variant="outline" className="bg-purple-50 text-purple-700">Hashtag: {stats.byType.HASHTAG}</Badge>
+                <Badge variant="outline" className="bg-cyan-50 text-cyan-700">Mention: {stats.byType.MENTION}</Badge>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* === ALERT: Read-only untuk non-DPN === */}
+        {!canEdit && (
+          <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-900">
+            <AlertTriangle className="w-4 h-4 inline mr-1" />
+            Anda dalam mode <strong>read-only</strong>. Hanya admin DPN yang bisa menambah/mengubah/menghapus keyword.
+          </div>
+        )}
+
+        {/* === ADD FORM (only for DPN) === */}
+        {canEdit && (
+          <div className="rounded-lg border bg-slate-50/50 p-3 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Plus className="w-4 h-4 text-blue-600" />
+                <span className="text-sm font-semibold">Tambah Keyword</span>
+              </div>
+              <div className="flex gap-1">
+                <Button size="sm" variant={addMode === 'single' ? 'default' : 'outline'} className="h-7 text-xs" onClick={() => setAddMode('single')}>Tunggal</Button>
+                <Button size="sm" variant={addMode === 'bulk' ? 'default' : 'outline'} className="h-7 text-xs" onClick={() => setAddMode('bulk')}>Bulk Paste</Button>
+                <Button size="sm" variant="outline" className="h-7 text-xs bg-emerald-50 border-emerald-300 text-emerald-700 hover:bg-emerald-100" onClick={handleImportPreset}>
+                  <Sparkles className="w-3 h-3 mr-1" /> Preset Politik
+                </Button>
+              </div>
+            </div>
+
+            {addMode === 'single' ? (
+              <form onSubmit={handleAddSingle} className="space-y-2">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  <div className="md:col-span-2">
+                    <Label className="text-xs">Text</Label>
+                    <Input
+                      value={formData.text}
+                      onChange={(e) => setFormData({ ...formData, text: e.target.value })}
+                      placeholder={formData.type === 'HASHTAG' ? 'LAPRA08 (otomatis jadi #LAPRA08)' : formData.type === 'MENTION' ? 'prabowo (otomatis jadi @prabowo)' : 'Prabowo Subianto'}
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Tipe</Label>
+                    <Select value={formData.type} onValueChange={(v) => setFormData({ ...formData, type: v as any })}>
+                      <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {KEYWORD_TYPES.map(t => <SelectItem key={t.value} value={t.value} className="text-sm">{t.label} ({t.desc})</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Prioritas</Label>
+                    <Select value={formData.priority} onValueChange={(v) => setFormData({ ...formData, priority: v })}>
+                      <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {KEYWORD_PRIORITIES.map(p => <SelectItem key={p.value} value={p.value} className="text-sm">{p.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  <div>
+                    <Label className="text-xs">Kategori</Label>
+                    <Select value={formData.category} onValueChange={(v) => setFormData({ ...formData, category: v })}>
+                      <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {KEYWORD_CATEGORIES.map(c => <SelectItem key={c.value} value={c.value} className="text-sm">{c.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="md:col-span-2">
+                    <Label className="text-xs">Catatan (opsional)</Label>
+                    <Input
+                      value={formData.notes}
+                      onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                      placeholder="Contoh: Tokoh utama LAPRA 08"
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                  <div className="flex items-end gap-2">
+                    <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={formData.isActive}
+                        onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                        className="rounded"
+                      />
+                      Aktif
+                    </label>
+                  </div>
+                </div>
+                <Button type="submit" size="sm" className="bg-blue-600 hover:bg-blue-700 text-white">
+                  <Plus className="w-3 h-3 mr-1" /> Tambah Keyword
+                </Button>
+              </form>
+            ) : (
+              <div className="space-y-2">
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <Label className="text-xs">Tipe</Label>
+                    <Select value={bulkType} onValueChange={(v) => setBulkType(v as any)}>
+                      <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {KEYWORD_TYPES.map(t => <SelectItem key={t.value} value={t.value} className="text-sm">{t.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Kategori</Label>
+                    <Select value={bulkCategory} onValueChange={(v) => setBulkCategory(v)}>
+                      <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {KEYWORD_CATEGORIES.map(c => <SelectItem key={c.value} value={c.value} className="text-sm">{c.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Prioritas</Label>
+                    <Select value={bulkPriority} onValueChange={(v) => setBulkPriority(v)}>
+                      <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {KEYWORD_PRIORITIES.map(p => <SelectItem key={p.value} value={p.value} className="text-sm">{p.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <Textarea
+                  value={bulkText}
+                  onChange={(e) => setBulkText(e.target.value)}
+                  placeholder="Paste 1 keyword per baris...&#10;Contoh (jika tipe Hashtag):&#10;Prabowo2024&#10;Gerindra&#10;LAPRA08&#10;KabinetMerahPutih"
+                  className="text-sm min-h-[100px] font-mono"
+                />
+                <Button size="sm" onClick={handleAddBulk} className="bg-blue-600 hover:bg-blue-700 text-white">
+                  <Plus className="w-3 h-3 mr-1" /> Tambah Semua
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* === FILTERS === */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          <Select value={filterType} onValueChange={setFilterType}>
+            <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Semua Tipe" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL" className="text-sm">Semua Tipe</SelectItem>
+              {KEYWORD_TYPES.map(t => <SelectItem key={t.value} value={t.value} className="text-sm">{t.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={filterCategory} onValueChange={setFilterCategory}>
+            <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Semua Kategori" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL" className="text-sm">Semua Kategori</SelectItem>
+              {KEYWORD_CATEGORIES.map(c => <SelectItem key={c.value} value={c.value} className="text-sm">{c.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={filterActive} onValueChange={setFilterActive}>
+            <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Semua Status" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL" className="text-sm">Semua Status</SelectItem>
+              <SelectItem value="true" className="text-sm">Aktif saja</SelectItem>
+              <SelectItem value="false" className="text-sm">Nonaktif saja</SelectItem>
+            </SelectContent>
+          </Select>
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="🔍 Cari text atau catatan..."
+            className="h-8 text-sm"
+          />
+        </div>
+
+        {/* === KEYWORD LIST === */}
+        {loading ? (
+          <div className="py-12 flex items-center justify-center">
+            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : keywords.length === 0 ? (
+          <EmptyState
+            icon={Hash}
+            title="Belum ada keyword"
+            description={canEdit
+              ? 'Klik "Preset Politik" untuk import cepat 12 keyword standar, atau tambah manual di atas.'
+              : 'Admin DPN belum menambahkan keyword. Hubungi admin DPN untuk konfigurasi.'}
+          />
+        ) : (
+          <>
+            {/* Bulk action bar */}
+            {canEdit && selectedIds.size > 0 && (
+              <div className="flex items-center gap-2 p-2 rounded-lg bg-red-50 border border-red-200">
+                <span className="text-sm text-red-800 font-medium">{selectedIds.size} dipilih</span>
+                <Button size="sm" variant="destructive" className="h-7 text-xs ml-auto" onClick={handleBulkDelete}>
+                  <Trash2 className="w-3 h-3 mr-1" /> Hapus Terpilih
+                </Button>
+                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setSelectedIds(new Set())}>Batal</Button>
+              </div>
+            )}
+
+            <div className="rounded-lg border overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    {canEdit && <TableHead className="w-8"></TableHead>}
+                    <TableHead className="text-xs">Text</TableHead>
+                    <TableHead className="text-xs w-20">Tipe</TableHead>
+                    <TableHead className="text-xs w-24">Kategori</TableHead>
+                    <TableHead className="text-xs w-20">Prioritas</TableHead>
+                    <TableHead className="text-xs w-16">Status</TableHead>
+                    <TableHead className="text-xs w-28">Aksi</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {keywords.map((kw) => {
+                    const isEditing = editId === kw.id
+                    const isSelected = selectedIds.has(kw.id)
+                    const typeMeta = KEYWORD_TYPES.find(t => t.value === kw.type)
+                    const catMeta = KEYWORD_CATEGORIES.find(c => c.value === kw.category)
+                    const priMeta = KEYWORD_PRIORITIES.find(p => p.value === kw.priority)
+
+                    if (isEditing && editData) {
+                      return (
+                        <TableRow key={kw.id} className="bg-blue-50/50">
+                          {canEdit && <TableCell></TableCell>}
+                          <TableCell>
+                            <Input
+                              value={editData.text}
+                              onChange={(e) => setEditData({ ...editData, text: e.target.value })}
+                              className="h-7 text-sm"
+                            />
+                            <Input
+                              value={editData.notes}
+                              onChange={(e) => setEditData({ ...editData, notes: e.target.value })}
+                              placeholder="Catatan..."
+                              className="h-7 text-xs mt-1"
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Select value={editData.type} onValueChange={(v) => setEditData({ ...editData, type: v })}>
+                              <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                {KEYWORD_TYPES.map(t => <SelectItem key={t.value} value={t.value} className="text-xs">{t.label}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </TableCell>
+                          <TableCell>
+                            <Select value={editData.category} onValueChange={(v) => setEditData({ ...editData, category: v })}>
+                              <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                {KEYWORD_CATEGORIES.map(c => <SelectItem key={c.value} value={c.value} className="text-xs">{c.label}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </TableCell>
+                          <TableCell>
+                            <Select value={editData.priority} onValueChange={(v) => setEditData({ ...editData, priority: v })}>
+                              <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                {KEYWORD_PRIORITIES.map(p => <SelectItem key={p.value} value={p.value} className="text-xs">{p.label}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </TableCell>
+                          <TableCell>
+                            <label className="flex items-center gap-1 text-xs cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={editData.isActive}
+                                onChange={(e) => setEditData({ ...editData, isActive: e.target.checked })}
+                              />
+                              {editData.isActive ? 'Aktif' : 'Off'}
+                            </label>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex gap-1">
+                              <Button size="sm" className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleSaveEdit}>
+                                <CheckCircle2 className="w-3 h-3" />
+                              </Button>
+                              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setEditId(null); setEditData(null) }}>
+                                Batal
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    }
+
+                    return (
+                      <TableRow key={kw.id} className={isSelected ? 'bg-blue-50/40' : ''}>
+                        {canEdit && (
+                          <TableCell>
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => toggleSelection(kw.id)}
+                              className="rounded"
+                            />
+                          </TableCell>
+                        )}
+                        <TableCell>
+                          <div className="font-mono text-sm font-medium">{kw.text}</div>
+                          {kw.notes && <div className="text-xs text-muted-foreground italic">{kw.notes}</div>}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={`text-xs ${typeMeta?.value === 'HASHTAG' ? 'bg-purple-50 text-purple-700' : typeMeta?.value === 'MENTION' ? 'bg-cyan-50 text-cyan-700' : 'bg-blue-50 text-blue-700'}`}>
+                            {typeMeta?.label || kw.type}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={`text-xs ${catMeta?.color || ''}`}>{catMeta?.label || kw.category}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={`text-xs ${priMeta?.color || ''}`}>{priMeta?.label || kw.priority}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          {canEdit ? (
+                            <button
+                              onClick={() => handleToggleActive(kw.id, kw.isActive)}
+                              className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded ${kw.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}
+                            >
+                              <span className={`w-1.5 h-1.5 rounded-full ${kw.isActive ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+                              {kw.isActive ? 'Aktif' : 'Off'}
+                            </button>
+                          ) : (
+                            <Badge variant="outline" className={`text-xs ${kw.isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                              {kw.isActive ? 'Aktif' : 'Nonaktif'}
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {canEdit ? (
+                            <div className="flex gap-1">
+                              <Button size="sm" variant="outline" className="h-7 w-7 p-0" onClick={() => startEdit(kw)}>
+                                <Edit className="w-3 h-3" />
+                              </Button>
+                              <Button size="sm" variant="outline" className="h-7 w-7 p-0 text-red-600 hover:bg-red-50" onClick={() => handleDelete(kw.id, kw.text)}>
+                                <Trash2 className="w-3 h-3" />
+                              </Button>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+
+            <div className="text-xs text-muted-foreground text-center">
+              Menampilkan {keywords.length} keyword
+              {stats && ` dari total ${stats.total}`}
+            </div>
+          </>
+        )}
+
+        {/* === INFO FOOTER === */}
+        <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs text-blue-900">
+          <Brain className="w-4 h-4 inline mr-1" />
+          <strong>Cara kerja:</strong> AI secara berkala mengambil percakapan publik dari medsos yang mengandung keyword di atas,
+          lalu menganalisis sentimen &amp; klaster opini. Hasilnya tampil di <em>SurveyOutputDashboard → Medsos (Tren Sentimen, Feed Viral, Word Cloud)</em>.
+          Keyword <code>High Priority</code> dipantau lebih sering (setiap 30 menit), <code>Medium</code> setiap 2 jam, <code>Low</code> setiap 6 jam.
+        </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Tutup</Button>

@@ -3650,3 +3650,50 @@ Scrape: Google News RSS + Invidious (YouTube) + 35 RSS lokal — 100% gratis
 - Bulk Triage: auto-map 100 link per run
 - Konter Isu: generate draft broadcast per link HIGH+NEGATIVE
 - Dashboard Pemenangan: KPI cards + sentiment gauge + action items
+
+---
+Task ID: LAPRA08-KEYWORD-AI
+Agent: Main Agent (Super Z)
+Task: Implementasi fitur "Atur Keyword AI & Hashtag" yang sebelumnya hanya menampilkan toast "fitur masih dalam pengembangan"
+
+Work Log:
+- Audit lokasi stub: ditemukan di `src/components/menus/communication-menu.tsx` baris 1462, tombol "⚙️ Atur Keyword AI & Hashtag" hanya menampilkan toast info.
+- Desain fitur: konfigurasi keyword/hashtag/mention yang dipakai AI untuk monitoring medsos (Jalur Otomatis Medsos).
+- Buat API route baru: `src/app/api/medsos-keywords/route.ts` (GET/POST/PATCH/DELETE).
+  - Storage: SystemSetting key='medsos_keywords' (JSON array) — pola sama dengan dpo_assignments, no DB migration.
+  - Schema per item: { id, text, type (KEYWORD/HASHTAG/MENTION), category (POLITIK/EKONOMI/SOSIAL/HANKAM/PEMERINTAHAN/LAINNYA), priority (HIGH/MEDIUM/LOW), isActive, notes, createdAt, updatedAt, createdBy }.
+  - Normalize text: HASHTAG → pastikan # prefix; MENTION → pastikan @ prefix; KEYWORD → trim.
+  - Dedupe berdasarkan (text lowercase + type).
+  - Action khusus: `preset_politik` (12 keyword standar: Prabowo, #Prabowo, @prabowo, Gerindra, #Gerindra, Partai Gerindra, LAPRA 08, Laskar Prabowo 08, Kabinet Merah Putih, #KabinetMerahPutih, pilpres 2024, pemerintahan baru).
+  - Action `bulk` untuk paste multi-line.
+  - GET mendukung filter: type, category, active, q (search); plus return stats (total, active, byType, byCategory).
+  - RBAC: GET untuk semua admin; POST/PATCH/DELETE hanya DPN/SUPERADMIN.
+  - Audit log: logAccess() dengan resource='SYSTEM_SETTING' (tipe ditambahkan ke AuditResource union).
+- Update `src/lib/server-helpers.ts`: tambah 'SYSTEM_SETTING' ke union type AuditResource.
+- Tambah komponen `KeywordHashtagManagerDialog` di communication-menu.tsx (sekitar 670 LOC):
+  - Statistik ringkas (total, aktif, komposisi tipe).
+  - 2 mode tambah: Tunggal (form lengkap) & Bulk Paste (textarea 1-per-baris).
+  - Tombol "Preset Politik" untuk import cepat 12 keyword standar.
+  - Filter: type, category, status aktif, search text.
+  - Tabel dengan inline edit (text, type, category, priority, isActive, notes).
+  - Bulk delete via checkbox selection.
+  - Toggle aktif/nonaktif langsung dari list.
+  - Mode read-only otomatis untuk non-DPN (ADMIN_DPD/DPC).
+  - Info footer menjelaskan cara kerja AI monitoring (High=30mnt, Medium=2jam, Low=6jam).
+- Wire tombol "⚙️ Atur Keyword AI & Hashtag" di EssayPollsTab: ganti `addToast(...)` → `setKeywordManagerOpen(true)`.
+- Tambah state `keywordManagerOpen` di EssayPollsTab.
+- Render `<KeywordHashtagManagerDialog>` di akhir JSX EssayPollsTab.
+- Typecheck: tidak ada error TypeScript baru di file yang dimodifikasi.
+- Build: `next build` berhasil, route `/api/medsos-keywords` terdaftar sebagai dynamic server route.
+
+Stage Summary:
+- Fitur "Atur Keyword AI & Hashtag" sekarang berfungsi penuh (bukan stub lagi).
+- API: `/api/medsos-keywords` (GET/POST/PATCH/DELETE) dengan filter, stats, preset politik, bulk add.
+- UI: dialog dengan statistik, filter, tabel CRUD inline, bulk delete, import preset.
+- RBAC: DPN-only untuk edit; DPD/DPC read-only.
+- Audit log: setiap perubahan keyword tercatat (UU PDP compliance).
+- Storage: SystemSetting JSON (no migration, Vercel Free compatible).
+- Artefak: 
+  - `src/app/api/medsos-keywords/route.ts` (baru, ~470 LOC)
+  - `src/components/menus/communication-menu.tsx` (dialog + wire tombol)
+  - `src/lib/server-helpers.ts` (tambah SYSTEM_SETTING ke AuditResource)
