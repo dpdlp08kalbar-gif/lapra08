@@ -2240,15 +2240,33 @@ function ReviewDialog({ link, onClose, onSubmit }: { link: any, onClose: () => v
 function DecisionDashboardTab() {
   const [loading, setLoading] = useState(true)
   const [data, setData] = useState<any>(null)
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+  const [autoRefresh, setAutoRefresh] = useState(true)
 
   const loadData = useCallback(() => {
     setLoading(true)
     api('/api/decision-dashboard').then(res => {
       setData(Array.isArray(res) ? res : (res?.data || res))
+      setLastUpdated(new Date())
     }).catch(() => setData(null)).finally(() => setLoading(false))
   }, [])
 
   useEffect(() => { loadData() }, [loadData])
+
+  // === PILAR 2: Auto-refresh 30 detik (near real-time) ===
+  // Cache invalidation di backend sudah handle "instant update" saat ada respon baru.
+  // Polling 30 detik adalah safety net untuk kasus cache miss / multiple instances.
+  useEffect(() => {
+    if (!autoRefresh) return
+    const interval = setInterval(() => {
+      // Silent refresh: tidak set loading true supaya UI tidak flicker
+      api('/api/decision-dashboard').then(res => {
+        setData(Array.isArray(res) ? res : (res?.data || res))
+        setLastUpdated(new Date())
+      }).catch(() => {})
+    }, 30000) // 30 detik
+    return () => clearInterval(interval)
+  }, [autoRefresh])
 
   if (loading) return <LoadingState />
   if (!data) return <ErrorState message="Gagal memuat dashboard. Coba refresh halaman." />
@@ -2272,6 +2290,44 @@ function DecisionDashboardTab() {
 
   return (
     <div className="space-y-4">
+      {/* === PILAR 2: Live Sync Badge === */}
+      <div className="flex items-center justify-between gap-2 px-1">
+        <div className="flex items-center gap-2">
+          <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${autoRefresh ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+            <span className={`relative flex h-2 w-2 ${autoRefresh ? '' : 'opacity-50'}`}>
+              {autoRefresh && (
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              )}
+              <span className={`relative inline-flex rounded-full h-2 w-2 ${autoRefresh ? 'bg-emerald-500' : 'bg-slate-400'}`}></span>
+            </span>
+            {autoRefresh ? 'LIVE' : 'PAUSED'}
+          </div>
+          {lastUpdated && (
+            <span className="text-xs text-muted-foreground">
+              Update: {lastUpdated.toLocaleTimeString('id-ID')}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs"
+            onClick={() => setAutoRefresh(!autoRefresh)}
+          >
+            {autoRefresh ? '⏸ Pause Auto-Refresh' : '▶ Resume Auto-Refresh'}
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs"
+            onClick={loadData}
+          >
+            <RefreshCw className="w-3 h-3 mr-1" /> Refresh Manual
+          </Button>
+        </div>
+      </div>
+
       {/* === KPI CARDS: Status Elektoral + Total Berita + Positif + Negatif === */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
         <Card className={`border-2 ${electoralStatus.bg}`}>

@@ -95,6 +95,23 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       },
     })
 
+    // === PILAR 2: Invalidate dashboard cache agar dashboard auto-refresh ===
+    // Saat respon survei baru masuk → dashboard sentimen & elektabilitas harus update
+    try {
+      const { invalidateDecisionDashboardCache } = await import('@/app/api/decision-dashboard/route')
+      invalidateDecisionDashboardCache()
+    } catch (e) {
+      console.warn('[Essay Response] Dashboard cache invalidation skipped:', (e as any).message)
+    }
+
+    // === PILAR 2: Invalidate essay-polls list cache juga ===
+    try {
+      const { invalidateEssayPollsCache } = await import('../../route')
+      invalidateEssayPollsCache()
+    } catch (e) {
+      console.warn('[Essay Response] Essay polls cache invalidation skipped:', (e as any).message)
+    }
+
     return NextResponse.json({
       success: true,
       data: response,

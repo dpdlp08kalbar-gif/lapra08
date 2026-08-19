@@ -379,6 +379,20 @@ export async function POST(
     items[idx].updatedAt = new Date().toISOString()
     await saveAssignments(items)
 
+    // === PILAR 2: Invalidate caches agar dashboard & list auto-refresh ===
+    try {
+      const { invalidateDecisionDashboardCache } = await import('@/app/api/decision-dashboard/route')
+      invalidateDecisionDashboardCache()
+    } catch (e) {
+      console.warn('[SurveyorFeed] Dashboard cache invalidation skipped:', (e as any).message)
+    }
+    try {
+      const { invalidateEssayPollsCache } = await import('@/app/api/essay-polls/route')
+      invalidateEssayPollsCache()
+    } catch (e) {
+      console.warn('[SurveyorFeed] Essay polls cache invalidation skipped:', (e as any).message)
+    }
+
     // === FASE 0.5: Audit log ===
     // Buat pseudo-actor untuk surveyor (logAccess butuh field 'id', 'role', 'fullName', 'territory')
     await logAccess({
