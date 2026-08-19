@@ -1,0 +1,602 @@
+     1→'use client'
+     2→
+     3→import { useState, useEffect, useCallback } from 'react'
+     4→import { api } from '@/lib/api-client'
+     5→import { PageHeader, LoadingState, ErrorState, EmptyState, StatCard } from '@/components/ui-helpers'
+     6→import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+     7→import { Badge } from '@/components/ui/badge'
+     8→import { Button } from '@/components/ui/button'
+     9→import { Input } from '@/components/ui/input'
+    10→import { Label } from '@/components/ui/label'
+    11→import { Textarea } from '@/components/ui/textarea'
+    12→import {
+    13→  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+    14→} from '@/components/ui/dialog'
+    15→import {
+    16→  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+    17→} from '@/components/ui/alert-dialog'
+    18→import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+    19→import {
+    20→  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+    21→} from '@/components/ui/table'
+    22→import { useToastStore, useAuthStore } from '@/lib/store'
+    23→import { formatDateTimeID } from '@/lib/format'
+    24→import {
+    25→  Megaphone, Search, Send, MapPin, Lightbulb, Loader2, ExternalLink,
+    26→  CheckCircle2, AlertTriangle, Sparkles, Zap, Brain, Target,
+    27→  RefreshCw, Plus, Eye, Edit, Trash2, FileText, Users, TrendingUp,
+    28→  Calendar, Globe, Youtube, Newspaper, Twitter, Instagram, Facebook, Filter,
+    29→  ChevronRight, Home, Activity, BarChart3, PieChart as PieIcon, Award,
+    30→  Share2, Copy, MessageCircle, Mail, Linkedin, Shield, Folder, Hash, MessageSquare,
+    31→} from 'lucide-react'
+    32→import {
+    33→  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+    34→  RadialBarChart, RadialBar, Cell, PieChart, Pie, Legend, PolarAngleAxis,
+    35→} from 'recharts'
+    36→import {
+    37→  SHARE_PLATFORMS, POPULAR_GROUPS, buildShareText, openShareUrl, copyToClipboard,
+    38→  type SharePlatform, type PopularGroup,
+    39→} from '@/lib/share-social'
+    40→
+    41→// ============================================================
+    42→// MAIN: Komunikasi & Command Center — 6 Sub-menu Baru
+    43→// ============================================================
+    44→export function CommunicationMenu() {
+    45→  const [tab, setTab] = useState('opinion-scanner')
+    46→
+    47→  // === PRE-WARM: Fire all 7 tab APIs in background when menu mounts ===
+    48→  // Results cached server-side (30-60s) so subsequent tab clicks are instant.
+    49→  // We don't await — just trigger requests, results populate server cache.
+    50→  useEffect(() => {
+    51→    const userId = useAuthStore.getState().user?.id || ''
+    52→    if (!userId) return
+    53→
+    54→    const headers = { 'x-user-id': userId }
+    55→    const endpoints = [
+    56→      '/api/opinion-links?limit=100',
+    57→      '/api/broadcast-composer?type=templates',
+    58→      '/api/broadcast-composer?type=broadcasts',
+    59→      '/api/broadcast-composer?type=contacts_count',
+    60→      '/api/essay-polls',
+    61→      '/api/decision-dashboard',
+    62→    ]
+    63→
+    64→    // Fire all requests in parallel — results go to server cache, not UI state
+    65→    endpoints.forEach(url => {
+    66→      fetch(url, { headers }).catch(() => {})
+    67→    })
+    68→  }, [])
+    69→
+    70→  const tabs = [
+    71→    { key: 'broadcast', label: 'Siaran & Broadcast', icon: Send, desc: 'Multi-channel: WA, FB, IG, Email + konter isu + template siap pakai' },
+    72→    { key: 'essay-polls', label: 'Survei & Polling', icon: Brain, desc: 'Survei cepat + input manual lapangan + WhatsApp + analisis' },
+    73→    { key: 'decision', label: 'Dashboard Pemenangan', icon: Target, desc: 'Sintesis data untuk pengambil keputusan politik' },
+    74→    { key: 'opinion-scanner', label: 'Monitoring Berita', icon: Sparkles, desc: 'Scan berita LAPRA 08 + triage + konter isu otomatis' },
+    75→  ]
+    76→
+    77→  return (
+    78→    <div className="space-y-6">
+    79→      <PageHeader
+    80→        title="Komunikasi & Command Center"
+    81→        description="Sistem siaran, survei, dan monitoring berita LAPRA 08. Fokus pemenangan pemilu."
+    82→        icon={Megaphone}
+    83→      />
+    84→
+    85→      {/* Tab navigation — 4 menu fokus elektoral */}
+    86→      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+    87→        {tabs.map((t) => (
+    88→          <button key={t.key} onClick={() => setTab(t.key)}
+    89→            className={`flex flex-col items-start gap-1 p-3 rounded-lg text-left transition-all ${tab === t.key ? 'bg-gradient-to-br from-orange-600 to-red-600 text-white shadow-md' : 'border hover:bg-accent'}`}>
+    90→            <t.icon className={`w-4 h-4 ${tab === t.key ? 'text-white' : 'text-orange-600'}`} />
+    91→            <span className="text-xs font-semibold leading-tight">{t.label}</span>
+    92→          </button>
+    93→        ))}
+    94→      </div>
+    95→
+    96→      {tab === 'broadcast' && <BroadcastComposerTab />}
+    97→      {tab === 'essay-polls' && <EssayPollsTab onSwitchTab={setTab} />}
+    98→      {tab === 'decision' && <DecisionDashboardTab />}
+    99→      {tab === 'opinion-scanner' && <OpinionScannerTab />}
+   100→    </div>
+   101→  )
+   102→}
+   103→
+   104→// ============================================================
+   105→// TAB: MONITORING BERITA (gabungan Scanner + Link Analisis + Triage + Konter Isu)
+   106→// Dipindahkan dari Opini Publik Auto-Scanner + Link Analisis Publik
+   107→// ============================================================
+   108→function OpinionScannerTab() {
+   109→  const addToast = useToastStore((s) => s.addToast)
+   110→  const [scanning, setScanning] = useState(false)
+   111→  const [lastResult, setLastResult] = useState<any>(null)
+   112→  const [recentLinks, setRecentLinks] = useState<any[]>([])
+   113→  const [loading, setLoading] = useState(true)
+   114→  const [filterPriority, setFilterPriority] = useState('ALL')
+   115→  const [deletingId, setDeletingId] = useState<string | null>(null)
+   116→  const [generatingKonter, setGeneratingKonter] = useState<string | null>(null)
+   117→  const [triageLoading, setTriageLoading] = useState(false)
+   118→
+   119→  // === Handle Generate Konter Isu (dari OpinionLinksTab) ===
+   120→  const handleGenerateKonter = async (linkId: string) => {
+   121→    setGeneratingKonter(linkId)
+   122→    try {
+   123→      const res = await fetch(`/api/opinion-links/${linkId}/counter-issue`, {
+   124→        method: 'POST',
+   125→        headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+   126→      })
+   127→      const data = await res.json()
+   128→      if (!data.success) throw new Error(data.error)
+   129→      addToast(`Draft konter isu dibuat (${data.data.aiProvider}). Lihat di Siaran & Broadcast.`, 'success')
+   130→      loadRecent()
+   131→    } catch (e: any) {
+   132→      addToast(`Gagal generate konter: ${e.message}`, 'error')
+   133→    } finally {
+   134→      setGeneratingKonter(null)
+   135→    }
+   136→  }
+   137→
+   138→  // === Handle Bulk Triage (dari OpinionLinksTab) ===
+   139→  const handleBulkTriage = async () => {
+   140→    setTriageLoading(true)
+   141→    try {
+   142→      const res = await fetch('/api/opinion-links/bulk-triage', {
+   143→        method: 'POST',
+   144→        headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+   145→        body: JSON.stringify({ limit: 100 })
+   146→      })
+   147→      const data = await res.json()
+   148→      if (!data.success) throw new Error(data.error)
+   149→      const stats = data.data
+   150→      const topProvinsiStr = stats.topProvinsiList?.map((p: any) => `${p.provinsi}(${p.count})`).join(', ') || 'tidak ada'
+   151→      addToast(`Triage: ${stats.mapped}/${stats.total} link di-map. Top: ${topProvinsiStr}`, 'success')
+   152→      loadRecent()
+   153→    } catch (e: any) {
+   154→      addToast(`Gagal bulk triage: ${e.message}`, 'error')
+   155→    } finally {
+   156→      setTriageLoading(false)
+   157→    }
+   158→  }
+   159→
+   160→  // === FIX: cache-bust dengan timestamp + limit 50 (dari 15) ===
+   161→  const loadRecent = useCallback(() => {
+   162→    setLoading(true)
+   163→    const _t = Date.now() // cache-bust: bypass 30s cache di API
+   164→    api(`/api/opinion-links?limit=100&_t=${_t}`).then(res => {
+   165→      const data = Array.isArray(res) ? res : (res?.data || [])
+   166→      setRecentLinks(data)
+   167→    }).catch(() => setRecentLinks([])).finally(() => setLoading(false))
+   168→  }, [])
+   169→
+   170→  useEffect(() => { loadRecent() }, [loadRecent])
+   171→
+   172→  // === NEW: Handle delete link ===
+   173→  const handleDelete = async (linkId: string) => {
+   174→    setDeletingId(linkId)
+   175→    try {
+   176→      const res = await fetch(`/api/opinion-links/${linkId}`, {
+   177→        method: 'DELETE',
+   178→        headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+   179→      })
+   180→      const data = await res.json()
+   181→      if (!data.success) throw new Error(data.error)
+   182→      addToast('Link dihapus dari hasil scan', 'success')
+   183→      // Remove dari state langsung (instant, tanpa reload)
+   184→      setRecentLinks(prev => prev.filter(l => l.id !== linkId))
+   185→    } catch (e: any) {
+   186→      addToast(`Gagal hapus: ${e.message}`, 'error')
+   187→    } finally {
+   188→      setDeletingId(null)
+   189→    }
+   190→  }
+   191→
+   192→  // === NEW: Handle bulk delete semua yang tampil ===
+   193→  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
+   194→  const handleBulkDelete = async () => {
+   195→    setBulkDeleteOpen(false)
+   196→    const toDelete = filteredLinks
+   197→    addToast(`Menghapus ${toDelete.length} link...`, 'info')
+   198→    let success = 0, failed = 0
+   199→    for (const link of toDelete) {
+   200→      try {
+   201→        const res = await fetch(`/api/opinion-links/${link.id}`, {
+   202→          method: 'DELETE',
+   203→          headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+   204→        })
+   205→        if (res.ok) success++
+   206→        else failed++
+   207→      } catch { failed++ }
+   208→    }
+   209→    addToast(`Selesai: ${success} dihapus, ${failed} gagal`, 'success')
+   210→    loadRecent()
+   211→  }
+   212→
+   213→  const handleScan = async () => {
+   214→    setScanning(true); setLastResult(null)
+   215→    try {
+   216→      const res = await fetch('/api/opinion-links', {
+   217→        method: 'POST',
+   218→        headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+   219→        body: JSON.stringify({ action: 'scrape' }),
+   220→      })
+   221→      const data = await res.json()
+   222→      if (!res.ok || !data.success) throw new Error(data.error)
+   223→      setLastResult(data.data)
+   224→      addToast(data.message, 'success')
+   225→      loadRecent()
+   226→    } catch (e: any) { addToast(e.message, 'error') }
+   227→    finally { setScanning(false) }
+   228→  }
+   229→
+   230→  const platformIcon = (p: string) => {
+   231→    if (p === 'YOUTUBE') return <Youtube className="w-3.5 h-3.5 text-red-600" />
+   232→    if (p === 'GOOGLE') return <Newspaper className="w-3.5 h-3.5 text-blue-600" />
+   233→    if (p === 'FACEBOOK') return <Facebook className="w-3.5 h-3.5 text-blue-700" />
+   234→    if (p === 'INSTAGRAM') return <Instagram className="w-3.5 h-3.5 text-purple-600" />
+   235→    if (p === 'TWITTER_X') return <Twitter className="w-3.5 h-3.5 text-slate-700" />
+   236→    return <Globe className="w-3.5 h-3.5" />
+   237→  }
+   238→
+   239→  // === SORT: tanggal terbaru di atas (bukan by priority) ===
+   240→  const filteredLinks = recentLinks
+   241→    .filter(l => filterPriority === 'ALL' || l.priority === filterPriority)
+   242→    .sort((a, b) => {
+   243→      // publishedAt descending (terbaru di atas)
+   244→      const dateA = a.publishedAt ? new Date(a.publishedAt).getTime() : new Date(a.createdAt || 0).getTime()
+   245→      const dateB = b.publishedAt ? new Date(b.publishedAt).getTime() : new Date(b.createdAt || 0).getTime()
+   246→      return dateB - dateA
+   247→    })
+   248→
+   249→  return (
+   250→    <div className="space-y-4">
+   251→      {/* Scanner control */}
+   252→      <Card className="border-orange-200 bg-gradient-to-br from-orange-50 to-red-50">
+   253→        <CardContent className="p-5">
+   254→          <div className="flex items-start gap-4">
+   255→            <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-orange-600 to-red-600 flex items-center justify-center shadow-lg shrink-0">
+   256→              <Sparkles className="w-7 h-7 text-white" />
+   257→            </div>
+   258→            <div className="flex-1">
+   259→              <h3 className="font-bold text-lg mb-1">Audit Opini Publik Otomatis</h3>
+   260→              <p className="text-sm text-muted-foreground mb-3">
+   261→                Sistem akan otomatis mengambil REAL mention LAPRA 08 dari YouTube (via yt-dlp) + Google News RSS,
+   262→                lalu menganalisis sentimen, prioritas, lokasi, dan kategori setiap mention dengan AI.
+   263→                Hasil disimpan ke database untuk tracking &amp; decision dashboard.
+   264→              </p>
+   265→              <div className="flex items-center gap-3">
+   266→                <Button onClick={handleScan} disabled={scanning} size="lg"
+   267→                  className="bg-gradient-to-r from-orange-600 to-red-600 text-white">
+   268→                  {scanning ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Zap className="w-4 h-4 mr-2" />}
+   269→                  {scanning ? 'Sedang scan otomatis...' : 'Mulai Scan Sekarang'}
+   270→                </Button>
+   271→                <Button variant="outline" onClick={loadRecent} disabled={loading} size="lg">
+   272→                  <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+   273→                  Refresh Hasil
+   274→                </Button>
+   275→              </div>
+   276→            </div>
+   277→          </div>
+   278→
+   279→          {lastResult && (
+   280→            <div className="mt-4 p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-800">
+   281→              <CheckCircle2 className="w-4 h-4 inline mr-1" />
+   282→              <strong>Scan selesai:</strong> {lastResult.saved} link baru disimpan, {lastResult.duplicates} duplikat dilewati.
+   283→              {' '}<Badge className="ml-2 bg-red-100 text-red-800">HIGH: {lastResult.newHigh}</Badge>
+   284→              <Badge className="ml-1 bg-amber-100 text-amber-800">MEDIUM: {lastResult.newMedium}</Badge>
+   285→              {' '}Sumber: {lastResult.sources?.join(' + ')}
+   286→            </div>
+   287→          )}
+   288→        </CardContent>
+   289→      </Card>
+   290→
+   291→      {/* Filter + Bulk Triage + Bulk Delete */}
+   292→      <div className="flex items-center gap-2 flex-wrap">
+   293→        <Filter className="w-4 h-4 text-muted-foreground" />
+   294→        <span className="text-xs font-semibold text-muted-foreground">Filter:</span>
+   295→        {['ALL', 'HIGH', 'MEDIUM', 'LOW'].map(p => (
+   296→          <Button key={p} size="sm" variant={filterPriority === p ? 'default' : 'outline'}
+   297→            className={`h-7 text-xs ${filterPriority === p ? 'bg-orange-600 hover:bg-orange-700 text-white' : ''}`}
+   298→            onClick={() => setFilterPriority(p)}>
+   299→            {p === 'ALL' ? 'Semua' : p}
+   300→          </Button>
+   301→        ))}
+   302→        <div className="ml-auto flex items-center gap-2">
+   303→          <span className="text-xs text-muted-foreground">{filteredLinks.length} berita</span>
+   304→          {/* === Bulk Triage Button === */}
+   305→          <Button size="sm" variant="outline" className="h-7 text-xs text-amber-700 hover:bg-amber-50 border-amber-200"
+   306→            disabled={triageLoading}
+   307→            onClick={handleBulkTriage}>
+   308→            {triageLoading ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <MapPin className="w-3 h-3 mr-1" />}
+   309→            {triageLoading ? 'Triage...' : 'Bulk Triage'}
+   310→          </Button>
+   311→          {/* === Bulk Delete Button === */}
+   312→          {filteredLinks.length > 0 && (
+   313→            <Button size="sm" variant="outline" className="h-7 text-xs text-red-600 hover:bg-red-50 border-red-200"
+   314→              onClick={() => setBulkDeleteOpen(true)}>
+   315→              <Trash2 className="w-3 h-3 mr-1" /> Hapus Semua ({filteredLinks.length})
+   316→            </Button>
+   317→          )}
+   318→        </div>
+   319→      </div>
+   320→
+   321→      {/* Recent results */}
+   322→      {loading ? <LoadingState /> : filteredLinks.length === 0 ? (
+   323→        <EmptyState icon={Sparkles} title="Belum ada mention"
+   324→          description="Klik 'Mulai Scan Sekarang' untuk mengambil mention LAPRA 08 dari YouTube + Google News secara otomatis." />
+   325→      ) : (
+   326→        <div className="space-y-2">
+   327→          {filteredLinks.map((link) => {
+   328→            const priColor = link.priority === 'HIGH' ? 'border-l-red-500 bg-red-50/30' :
+   329→              link.priority === 'MEDIUM' ? 'border-l-amber-500 bg-amber-50/30' : 'border-l-blue-500 bg-blue-50/30'
+   330→            const priBadge = link.priority === 'HIGH' ? 'bg-red-100 text-red-800 border-red-300' :
+   331→              link.priority === 'MEDIUM' ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-blue-100 text-blue-800 border-blue-300'
+   332→            return (
+   333→              <div key={link.id} className={`rounded-xl border-l-4 p-3 ${priColor}`}>
+   334→                <div className="flex items-start gap-3">
+   335→                  <div className="flex-1 min-w-0">
+   336→                    <div className="flex items-center gap-2 flex-wrap mb-1">
+   337→                      <Badge className={`text-[13px] ${priBadge}`}>{link.priority}</Badge>
+   338→                      <Badge variant="outline" className="text-[13px] gap-1">{platformIcon(link.platform)} {link.platform}</Badge>
+   339→                      <Badge variant="outline" className={`text-[13px] ${link.sentiment === 'NEGATIVE' ? 'bg-red-50 text-red-700' : link.sentiment === 'POSITIVE' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-50 text-slate-700'}`}>
+   340→                        {link.sentiment}
+   341→                      </Badge>
+   342→                      <Badge variant="outline" className="text-[13px] bg-purple-50 text-purple-700">{link.category}</Badge>
+   343→                      {link.provinceName && <Badge variant="outline" className="text-[13px] bg-blue-50 text-blue-700"><MapPin className="w-2.5 h-2.5 mr-0.5" />{link.regencyName || link.provinceName}</Badge>}
+   344→                      <Badge variant="outline" className="text-[13px] bg-emerald-50 text-emerald-700 border-emerald-200">
+   345→                        <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1" />REAL
+   346→                      </Badge>
+   347→                    </div>
+   348→                    <div className="text-sm font-semibold">{link.title}</div>
+   349→                    {link.content && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{link.content}</p>}
+   350→                    {link.aiSummary && (
+   351→                      <div className="mt-2 p-2 rounded bg-white border text-xs">
+   352→                        <Lightbulb className="w-3 h-3 inline mr-1 text-amber-500" />
+   353→                        <strong>AI:</strong> {link.aiSummary}
+   354→                      </div>
+   355→                    )}
+   356→                    <div className="flex items-center gap-3 mt-2 text-[13px] text-muted-foreground">
+   357→                      <span>📅 {formatDateTimeID(link.publishedAt || link.createdAt)}</span>
+   358→                      {link.engagementCount > 0 && <span>💬 {link.engagementCount}</span>}
+   359→                      <span>⚡ {link.urgencyScore}/100</span>
+   360→                      {link.author && <span>✍️ {link.author}</span>}
+   361→                    </div>
+   362→                  </div>
+   363→                  <div className="flex flex-col gap-1 shrink-0">
+   364→                    <a href={link.url} target="_blank" rel="noopener noreferrer"
+   365→                      className="text-blue-600 hover:underline">
+   366→                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0">
+   367→                        <ExternalLink className="w-3.5 h-3.5" />
+   368→                      </Button>
+   369→                    </a>
+   370→                    {/* === Konter Isu Button (untuk NEGATIVE/HIGH) === */}
+   371→                    {(link.sentiment === 'NEGATIVE' || link.priority === 'HIGH') && link.status !== 'ADDRESSED' && (
+   372→                      <Button
+   373→                        size="sm"
+   374→                        variant="ghost"
+   375→                        className="h-7 w-7 p-0 text-red-600 hover:bg-red-50"
+   376→                        disabled={generatingKonter === link.id}
+   377→                        onClick={() => handleGenerateKonter(link.id)}
+   378→                        title="Generate draft konter isu">
+   379→                        {generatingKonter === link.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
+   380→                      </Button>
+   381→                    )}
+   382→                    {/* === Hapus per item === */}
+   383→                    <Button
+   384→                      size="sm"
+   385→                      variant="ghost"
+   386→                      className="h-7 w-7 p-0 text-red-500 hover:text-red-600 hover:bg-red-50"
+   387→                      disabled={deletingId === link.id}
+   388→                      onClick={() => handleDelete(link.id)}
+   389→                      title="Hapus link ini">
+   390→                      {deletingId === link.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+   391→                    </Button>
+   392→                  </div>
+   393→                </div>
+   394→              </div>
+   395→            )
+   396→          })}
+   397→        </div>
+   398→      )}
+   399→
+   400→      {/* === NEW: Konfirmasi Bulk Delete === */}
+   401→      <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+   402→        <AlertDialogContent aria-describedby={undefined}>
+   403→          <AlertDialogHeader>
+   404→            <AlertDialogTitle>Hapus {filteredLinks.length} Link?</AlertDialogTitle>
+   405→            <AlertDialogDescription>
+   406→              Yakin ingin menghapus <strong>{filteredLinks.length} link</strong> dari hasil scan?
+   407→              Tindakan ini tidak dapat dibatalkan. Link yang dihapus akan hilang dari Dashboard & Geospatial Mapping.
+   408→            </AlertDialogDescription>
+   409→          </AlertDialogHeader>
+   410→          <AlertDialogFooter>
+   411→            <AlertDialogCancel>Batal</AlertDialogCancel>
+   412→            <AlertDialogAction onClick={handleBulkDelete} className="bg-red-600 hover:bg-red-700 text-white">
+   413→              <Trash2 className="w-4 h-4 mr-2" /> Hapus {filteredLinks.length} Link
+   414→            </AlertDialogAction>
+   415→          </AlertDialogFooter>
+   416→        </AlertDialogContent>
+   417→      </AlertDialog>
+   418→    </div>
+   419→  )
+   420→}
+   421→// ============================================================
+   422→// TAB 3: BROADCAST COMPOSER — Dynamic Target + Anti-Banned Queue + Variable Personalization
+   423→// ============================================================
+   424→function BroadcastComposerTab() {
+   425→  const addToast = useToastStore((s) => s.addToast)
+   426→  const [templates, setTemplates] = useState<any[]>([])
+   427→  const [broadcasts, setBroadcasts] = useState<any[]>([])
+   428→  const [contactsStats, setContactsStats] = useState({ total: 0, optIn: 0 })
+   429→  const [loading, setLoading] = useState(true)
+   430→  const [composerOpen, setComposerOpen] = useState(false)
+   431→  const [templateOpen, setTemplateOpen] = useState(false)
+   432→  const [broadcastStatsOpen, setBroadcastStatsOpen] = useState<any>(null)
+   433→  const [gatewayOpen, setGatewayOpen] = useState(false)
+   434→
+   435→  // Composer form
+   436→  const [form, setForm] = useState({
+   437→    title: '', content: '', channels: ['WHATSAPP'],
+   438→    scheduleAt: '', imageUrl: '', attachedEssayPollId: '',
+   439→    // Target config (dynamic contact resolution)
+   440→    targetScope: 'ALL' as 'ALL' | 'NATIONAL' | 'PROVINCE' | 'REGENCY',
+   441→    targetTerritoryCode: '',
+   442→    targetOccupation: '',
+   443→    targetAgeGroup: '',
+   444→    onlyLapraMembers: false,
+   445→  })
+   446→
+   447→  // Target resolution state (preview contacts)
+   448→  const [targetPreview, setTargetPreview] = useState<any>(null)
+   449→  const [resolvingTargets, setResolvingTargets] = useState(false)
+   450→  const [sending, setSending] = useState(false)
+   451→
+   452→  // Territories for dropdown
+   453→  const [territories, setTerritories] = useState<any[]>([])
+   454→
+   455→  const loadData = useCallback(() => {
+   456→    setLoading(true)
+   457→    Promise.all([
+   458→      api('/api/broadcast-composer?type=templates'),
+   459→      api('/api/broadcast-composer?type=broadcasts'),
+   460→      api('/api/broadcast-composer?type=contacts_count'),
+   461→    ]).then(([t, b, c]) => {
+   462→      setTemplates(Array.isArray(t) ? t : (t?.data || []))
+   463→      setBroadcasts(Array.isArray(b) ? b : (b?.data || []))
+   464→      setContactsStats(c?.data || c || { total: 0, optIn: 0 })
+   465→    }).catch(() => {}).finally(() => setLoading(false))
+   466→  }, [])
+   467→
+   468→  // Load territories when target scope changes
+   469→  useEffect(() => {
+   470→    if (form.targetScope === 'PROVINCE' || form.targetScope === 'REGENCY') {
+   471→      api(`/api/broadcast-composer/targets?level=${form.targetScope}`).then(res => {
+   472→        setTerritories(Array.isArray(res) ? res : (res?.data || []))
+   473→      }).catch(() => setTerritories([]))
+   474→    } else {
+   475→      setTerritories([])
+   476→    }
+   477→  }, [form.targetScope])
+   478→
+   479→  useEffect(() => { loadData() }, [loadData])
+   480→
+   481→  // Preview target contacts (resolve dari DB)
+   482→  const handlePreviewTargets = async () => {
+   483→    setResolvingTargets(true)
+   484→    setTargetPreview(null)
+   485→    try {
+   486→      const res = await fetch('/api/broadcast-composer/targets', {
+   487→        method: 'POST', headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+   488→        body: JSON.stringify({
+   489→          scope: form.targetScope,
+   490→          territoryCode: form.targetTerritoryCode || null,
+   491→          occupation: form.targetOccupation && form.targetOccupation !== 'ALL' ? form.targetOccupation : null,
+   492→          ageGroup: form.targetAgeGroup && form.targetAgeGroup !== 'ALL' ? form.targetAgeGroup : null,
+   493→          onlyLapraMembers: form.onlyLapraMembers,
+   494→          onlyOptIn: true,
+   495→        }),
+   496→      })
+   497→      const data = await res.json()
+   498→      if (!data.success) throw new Error(data.error)
+   499→      setTargetPreview(data.data)
+   500→    } catch (e: any) {
+   501→      addToast(e.message, 'error')
+   502→    } finally {
+   503→      setResolvingTargets(false)
+   504→    }
+   505→  }
+   506→
+   507→  const handleSend = async (e: React.FormEvent) => {
+   508→    e.preventDefault()
+   509→
+   510→    // Validate target
+   511→    if ((form.targetScope === 'PROVINCE' || form.targetScope === 'REGENCY') && !form.targetTerritoryCode) {
+   512→      addToast('Pilih wilayah target (provinsi/kab-kota) dulu', 'error')
+   513→      return
+   514→    }
+   515→
+   516→    setSending(true)
+   517→    try {
+   518→      const res = await fetch('/api/broadcast-composer', {
+   519→        method: 'POST', headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+   520→        body: JSON.stringify({
+   521→          action: 'send',
+   522→          title: form.title, content: form.content,
+   523→          channels: form.channels,
+   524→          scheduleAt: form.scheduleAt || null,
+   525→          imageUrl: form.imageUrl || null,
+   526→          attachedEssayPollId: form.attachedEssayPollId || null,
+   527→          target: {
+   528→            scope: form.targetScope,
+   529→            territoryCode: form.targetTerritoryCode || null,
+   530→            occupation: form.targetOccupation && form.targetOccupation !== 'ALL' ? form.targetOccupation : null,
+   531→            ageGroup: form.targetAgeGroup && form.targetAgeGroup !== 'ALL' ? form.targetAgeGroup : null,
+   532→            onlyLapraMembers: form.onlyLapraMembers,
+   533→            onlyOptIn: true,
+   534→          },
+   535→        }),
+   536→      })
+   537→      const data = await res.json()
+   538→      if (!res.ok || !data.success) throw new Error(data.error)
+   539→      addToast(data.message, 'success')
+   540→      // Reset form
+   541→      setForm({
+   542→        title: '', content: '', channels: ['WHATSAPP'],
+   543→        scheduleAt: '', imageUrl: '', attachedEssayPollId: '',
+   544→        targetScope: 'ALL', targetTerritoryCode: '', targetOccupation: '', targetAgeGroup: '', onlyLapraMembers: false,
+   545→      })
+   546→      setTargetPreview(null)
+   547→      setComposerOpen(false); loadData()
+   548→    } catch (e: any) { addToast(e.message, 'error') }
+   549→    finally { setSending(false) }
+   550→  }
+   551→
+   552→  // Quick insert variable helper
+   553→  const insertVariable = (varName: string) => {
+   554→    setForm({ ...form, content: form.content + `{${varName}}` })
+   555→  }
+   556→
+   557→  const channels = [
+   558→    { id: 'WHATSAPP', label: 'WhatsApp', icon: Send, color: 'emerald', desc: 'Anti-banned queue + dynamic contacts' },
+   559→    { id: 'FACEBOOK', label: 'Facebook', icon: Facebook, color: 'blue', desc: 'Posting ke FB Page' },
+   560→    { id: 'INSTAGRAM', label: 'Instagram', icon: Instagram, color: 'purple', desc: 'Posting ke IG Business' },
+   561→    { id: 'EMAIL', label: 'Email', icon: FileText, color: 'slate', desc: 'Kirim email massal' },
+   562→  ]
+   563→
+   564→  const scopeOptions = [
+   565→    { value: 'ALL', label: 'Semua Indonesia (Nasional / DPN)' },
+   566→    { value: 'PROVINCE', label: 'Per Provinsi (DPD)' },
+   567→    { value: 'REGENCY', label: 'Per Kabupaten/Kota (DPC)' },
+   568→  ]
+   569→
+   570→  const occupationOptions = ['ALL', 'PETANI', 'NELAYAN', 'UMKM', 'PELAJAR', 'GURU', 'BURUH', 'LAINNYA']
+   571→  const ageGroupOptions = ['ALL', '17-21', '22-30', '31-40', '41-60', '61+']
+   572→
+   573→  if (loading) return <LoadingState />
+   574→
+   575→  return (
+   576→    <div className="space-y-4">
+   577→      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+   578→        <StatCard label="Total Kontak" value={contactsStats.total} icon={Users} color="blue" />
+   579→        <StatCard label="WA Opt-in" value={contactsStats.optIn} icon={CheckCircle2} color="emerald" />
+   580→        <StatCard label="Templates" value={templates.length} icon={FileText} color="purple" />
+   581→        <StatCard label="Broadcasts" value={broadcasts.length} icon={Send} color="orange" />
+   582→      </div>
+   583→
+   584→      <div className="flex justify-between items-center">
+   585→        <div>
+   586→          <h3 className="font-semibold text-base">Broadcast Composer</h3>
+   587→          <p className="text-sm text-muted-foreground">Dynamic target DB + anti-banned message queue + variabel otomatis {`{nama}`} {`{wilayah}`} {`{tanggal}`}</p>
+   588→        </div>
+   589→        <div className="flex gap-2">
+   590→          <Button variant="outline" onClick={() => setTemplateOpen(true)}><FileText className="w-4 h-4 mr-1" /> Template</Button>
+   591→          <Button variant="outline" onClick={() => setGatewayOpen(true)} className="bg-emerald-50 border-emerald-300 text-emerald-700 hover:bg-emerald-100">
+   592→            <Shield className="w-4 h-4 mr-1" /> WA Gateway
+   593→          </Button>
+   594→          <Button onClick={() => setComposerOpen(true)} className="bg-gradient-to-r from-orange-600 to-red-600 text-white">
+   595→            <Plus className="w-4 h-4 mr-1" /> Buat Broadcast
+   596→          </Button>
+   597→        </div>
+   598→      </div>
+   599→
+   600→      {/* Recent broadcasts */}
+
+[showing lines 1-600 of 4395; use offset=601 with limit to continue reading]

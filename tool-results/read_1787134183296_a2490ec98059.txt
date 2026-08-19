@@ -1,0 +1,702 @@
+   600→      {/* Recent broadcasts */}
+   601→      <Card>
+   602→        <CardHeader><CardTitle className="text-base">Broadcast Terbaru</CardTitle></CardHeader>
+   603→        <CardContent>
+   604→          {broadcasts.length === 0 ? (
+   605→            <EmptyState icon={Send} title="Belum ada broadcast" description="Klik 'Buat Broadcast' untuk mulai." />
+   606→          ) : (
+   607→            <Table>
+   608→              <TableHeader>
+   609→                <TableRow>
+   610→                  <TableHead>Title</TableHead>
+   611→                  <TableHead>Channel</TableHead>
+   612→                  <TableHead className="text-center">Penerima</TableHead>
+   613→                  <TableHead>Status</TableHead>
+   614→                  <TableHead>Tanggal</TableHead>
+   615→                  <TableHead></TableHead>
+   616→                </TableRow>
+   617→              </TableHeader>
+   618→              <TableBody>
+   619→                {broadcasts.map(b => (
+   620→                  <TableRow key={b.id}>
+   621→                    <TableCell className="font-medium text-sm">{b.title}</TableCell>
+   622→                    <TableCell>
+   623→                      <Badge variant="outline" className="text-[13px]">{b.channel}</Badge>
+   624→                    </TableCell>
+   625→                    <TableCell className="text-center text-sm">{b.recipientCount}</TableCell>
+   626→                    <TableCell>
+   627→                      <Badge className={`text-[13px] ${b.status === 'SENT' ? 'bg-emerald-100 text-emerald-800' : b.status === 'QUEUED' ? 'bg-amber-100 text-amber-800' : b.status === 'PARTIAL' ? 'bg-orange-100 text-orange-800' : b.status === 'FAILED' ? 'bg-red-100 text-red-800' : 'bg-slate-100 text-slate-800'}`}>
+   628→                        {b.status}
+   629→                      </Badge>
+   630→                    </TableCell>
+   631→                    <TableCell className="text-xs">{formatDateTimeID(b.createdAt)}</TableCell>
+   632→                    <TableCell>
+   633→                      <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setBroadcastStatsOpen(b)}>
+   634→                        <Eye className="w-3 h-3 mr-1" /> Stats
+   635→                      </Button>
+   636→                    </TableCell>
+   637→                  </TableRow>
+   638→                ))}
+   639→              </TableBody>
+   640→            </Table>
+   641→          )}
+   642→        </CardContent>
+   643→      </Card>
+   644→
+   645→      {/* Composer dialog — NEW with dynamic target + preview + variable personalization */}
+   646→      <Dialog open={composerOpen} onOpenChange={(o) => { setComposerOpen(o); if (!o) setTargetPreview(null) }}>
+   647→        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+   648→          <DialogHeader>
+   649→            <DialogTitle className="flex items-center gap-2"><Send className="w-5 h-5 text-orange-600" /> Buat Broadcast Baru</DialogTitle>
+   650→            <DialogDescription>
+   651→              Pilih channel, target wilayah (DPN/DPD/DPC), isi pesan dengan variabel otomatis. Sistem akan resolve kontak dari DB &amp; jadwalkan pengiriman anti-banned.
+   652→            </DialogDescription>
+   653→          </DialogHeader>
+   654→          <form onSubmit={handleSend} className="space-y-3">
+   655→            {/* Title */}
+   656→            <div className="space-y-2">
+   657→              <Label>Judul Broadcast *</Label>
+   658→              <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })}
+   659→                placeholder="cth: Pengumuman Rapat DPD 15 Agustus 2026" required />
+   660→            </div>
+   661→
+   662→            {/* Channel selector */}
+   663→            <div className="space-y-2">
+   664→              <Label>Pilih Channel (bisa lebih dari satu) *</Label>
+   665→              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+   666→                {channels.map(ch => {
+   667→                  const active = form.channels.includes(ch.id)
+   668→                  return (
+   669→                    <button key={ch.id} type="button"
+   670→                      onClick={() => setForm({ ...form, channels: active ? form.channels.filter((c: string) => c !== ch.id) : [...form.channels, ch.id] })}
+   671→                      className={`flex flex-col items-start gap-1 p-3 rounded-lg border text-left transition-all ${active ? 'bg-orange-600 text-white border-orange-600' : 'border hover:bg-accent'}`}>
+   672→                      <div className="flex items-center gap-2">
+   673→                        <ch.icon className="w-4 h-4" />
+   674→                        <span className="text-sm font-semibold">{ch.label}</span>
+   675→                      </div>
+   676→                      <span className={`text-[13px] ${active ? 'text-orange-100' : 'text-muted-foreground'}`}>{ch.desc}</span>
+   677→                    </button>
+   678→                  )
+   679→                })}
+   680→              </div>
+   681→            </div>
+   682→
+   683→            {/* === TARGET WILAYAH (Dynamic Database Contact Resolution) === */}
+   684→            {form.channels.includes('WHATSAPP') && (
+   685→              <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 space-y-3">
+   686→                <div className="flex items-center gap-2">
+   687→                  <Users className="w-4 h-4 text-emerald-700" />
+   688→                  <Label className="text-sm font-semibold text-emerald-800">Target Audiens (Dynamic Database Resolution)</Label>
+   689→                </div>
+   690→
+   691→                <div className="grid grid-cols-2 gap-3">
+   692→                  <div className="space-y-1">
+   693→                    <Label className="text-xs">Scope Wilayah *</Label>
+   694→                    <Select value={form.targetScope} onValueChange={(v) => setForm({ ...form, targetScope: v as any, targetTerritoryCode: '' })}>
+   695→                      <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+   696→                      <SelectContent>
+   697→                        {scopeOptions.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
+   698→                      </SelectContent>
+   699→                    </Select>
+   700→                  </div>
+   701→                  {(form.targetScope === 'PROVINCE' || form.targetScope === 'REGENCY') && (
+   702→                    <div className="space-y-1">
+   703→                      <Label className="text-xs">{form.targetScope === 'PROVINCE' ? 'Provinsi (DPD)' : 'Kabupaten/Kota (DPC)'} *</Label>
+   704→                      <Select value={form.targetTerritoryCode} onValueChange={(v) => setForm({ ...form, targetTerritoryCode: v })}>
+   705→                        <SelectTrigger className="h-9"><SelectValue placeholder="Pilih wilayah..." /></SelectTrigger>
+   706→                        <SelectContent>
+   707→                          {territories.map(t => <SelectItem key={t.code} value={t.code}>{t.name} ({t.contactCount} kontak)</SelectItem>)}
+   708→                        </SelectContent>
+   709→                      </Select>
+   710→                    </div>
+   711→                  )}
+   712→                </div>
+   713→
+   714→                <div className="grid grid-cols-3 gap-3">
+   715→                  <div className="space-y-1">
+   716→                    <Label className="text-xs">Profesi (opsional)</Label>
+   717→                    <Select value={form.targetOccupation} onValueChange={(v) => setForm({ ...form, targetOccupation: v })}>
+   718→                      <SelectTrigger className="h-9"><SelectValue placeholder="Semua" /></SelectTrigger>
+   719→                      <SelectContent>
+   720→                        {occupationOptions.map(o => <SelectItem key={o} value={o}>{o === 'ALL' ? 'Semua Profesi' : o}</SelectItem>)}
+   721→                      </SelectContent>
+   722→                    </Select>
+   723→                  </div>
+   724→                  <div className="space-y-1">
+   725→                    <Label className="text-xs">Kelompok Usia (opsional)</Label>
+   726→                    <Select value={form.targetAgeGroup} onValueChange={(v) => setForm({ ...form, targetAgeGroup: v })}>
+   727→                      <SelectTrigger className="h-9"><SelectValue placeholder="Semua" /></SelectTrigger>
+   728→                      <SelectContent>
+   729→                        {ageGroupOptions.map(a => <SelectItem key={a} value={a}>{a === 'ALL' ? 'Semua Usia' : a}</SelectItem>)}
+   730→                      </SelectContent>
+   731→                    </Select>
+   732→                  </div>
+   733→                  <div className="space-y-1">
+   734→                    <Label className="text-xs">Filter Khusus</Label>
+   735→                    <label className="flex items-center gap-2 h-9 cursor-pointer">
+   736→                      <input type="checkbox" checked={form.onlyLapraMembers} onChange={(e) => setForm({ ...form, onlyLapraMembers: e.target.checked })}
+   737→                        className="w-4 h-4 rounded" />
+   738→                      <span className="text-xs">Pengurus LAPRA 08 saja</span>
+   739→                    </label>
+   740→                  </div>
+   741→                </div>
+   742→
+   743→                <Button type="button" variant="outline" size="sm" onClick={handlePreviewTargets} disabled={resolvingTargets}>
+   744→                  {resolvingTargets ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Search className="w-3 h-3 mr-1" />}
+   745→                  {resolvingTargets ? 'Mengambil kontak...' : 'Preview Target Kontak'}
+   746→                </Button>
+   747→
+   748→                {/* Target preview results */}
+   749→                {targetPreview && (
+   750→                  <div className="rounded-lg bg-white border p-3 space-y-2">
+   751→                    <div className="flex items-center justify-between">
+   752→                      <div className="text-xs font-semibold text-emerald-700">{targetPreview.filterDescription}</div>
+   753→                      <Badge className="bg-emerald-100 text-emerald-800">{targetPreview.totalOptIn} WA opt-in</Badge>
+   754→                    </div>
+   755→                    <div className="grid grid-cols-3 gap-2 text-center text-xs">
+   756→                      <div className="rounded bg-emerald-50 p-1.5">
+   757→                        <div className="font-bold text-emerald-700">{targetPreview.totalFound}</div>
+   758→                        <div className="text-[13px]">Total Found</div>
+   759→                      </div>
+   760→                      <div className="rounded bg-emerald-50 p-1.5">
+   761→                        <div className="font-bold text-emerald-700">{targetPreview.totalOptIn}</div>
+   762→                        <div className="text-[13px]">WA Opt-in</div>
+   763→                      </div>
+   764→                      <div className="rounded bg-amber-50 p-1.5">
+   765→                        <div className="font-bold text-amber-700">{targetPreview.totalSkipped}</div>
+   766→                        <div className="text-[13px]">Skipped</div>
+   767→                      </div>
+   768→                    </div>
+   769→                    {targetPreview.sampleContacts && targetPreview.sampleContacts.length > 0 && (
+   770→                      <div>
+   771→                        <div className="text-[13px] font-semibold text-muted-foreground mb-1">Sample kontak (5 dari {targetPreview.totalOptIn}):</div>
+   772→                        <div className="space-y-1">
+   773→                          {targetPreview.sampleContacts.map((c: any, i: number) => (
+   774→                            <div key={i} className="text-[13px] flex items-center justify-between rounded bg-slate-50 px-2 py-1">
+   775→                              <div>
+   776→                                <span className="font-semibold">{c.name}</span>
+   777→                                <span className="text-muted-foreground ml-2">{c.phone}</span>
+   778→                              </div>
+   779→                              <div className="text-[13px]">
+   780→                                {c.territoryName} • {c.occupation || '-'} • {c.ageGroup || '-'}
+   781→                              </div>
+   782→                            </div>
+   783→                          ))}
+   784→                        </div>
+   785→                      </div>
+   786→                    )}
+   787→                  </div>
+   788→                )}
+   789→              </div>
+   790→            )}
+   791→
+   792→            {/* Message content with variable buttons */}
+   793→            <div className="space-y-2">
+   794→              <Label>Isi Pesan * <span className="text-sm text-muted-foreground">(klik variabel untuk sisipkan otomatis)</span></Label>
+   795→              <div className="flex flex-wrap gap-1 mb-1">
+   796→                {['nama', 'wilayah', 'tanggal', 'waktu', 'profesi', 'gender'].map(v => (
+   797→                  <Button key={v} type="button" size="sm" variant="outline" className="h-6 text-[13px]"
+   798→                    onClick={() => insertVariable(v)}>
+   799→                    {`{${v}}`}
+   800→                  </Button>
+   801→                ))}
+   802→              </div>
+   803→              <Textarea value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })}
+   804→                placeholder="Assalamualaikum {nama}, kami dari LAPRA 08 {wilayah} mengundang Bapak/Ibu untuk hadir rapat pada {tanggal}..." rows={5} required />
+   805→              <div className="text-sm text-muted-foreground">{form.content.length} karakter • Variabel akan otomatis di-resolve per kontak</div>
+   806→            </div>
+   807→
+   808→            {/* Schedule + image */}
+   809→            <div className="grid grid-cols-2 gap-3">
+   810→              <div className="space-y-2">
+   811→                <Label>Jadwalkan (opsional)</Label>
+   812→                <Input type="datetime-local" value={form.scheduleAt}
+   813→                  onChange={(e) => setForm({ ...form, scheduleAt: e.target.value })} />
+   814→              </div>
+   815→              <div className="space-y-2">
+   816→                <Label>Image URL (opsional)</Label>
+   817→                <Input value={form.imageUrl} onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
+   818→                  placeholder="https://..." />
+   819→              </div>
+   820→            </div>
+   821→
+   822→            {/* Estimate */}
+   823→            <div className="rounded-lg bg-blue-50 border border-blue-200 p-2 text-xs text-blue-800 flex items-start gap-2">
+   824→              <Users className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+   825→              <div>
+   826→                <strong>Estimasi pengiriman:</strong>{' '}
+   827→                {targetPreview ? (
+   828→                  <>
+   829→                    {targetPreview.totalOptIn} kontak WA opt-in akan menerima pesan personalisasi ({`{nama}`} & {`{wilayah}`} otomatis di-resolve).
+   830→                    Anti-banned: ~2-8 detik random delay per pesan, batch 20 pesan/jeda 1 menit.
+   831→                    {!targetPreview.totalOptIn && ' ⚠️ Tidak ada kontak opt-in — jalankan resolve target dulu.'}
+   832→                  </>
+   833→                ) : (
+   834→                  <>
+   835→                    {contactsStats.optIn} kontak WA opt-in tersedia. Klik "Preview Target Kontak" untuk lihat kontak yang akan menerima pesan berdasarkan filter di atas.
+   836→                  </>
+   837→                )}
+   838→              </div>
+   839→            </div>
+   840→
+   841→            <DialogFooter>
+   842→              <Button type="button" variant="outline" onClick={() => { setComposerOpen(false); setTargetPreview(null) }}>Batal</Button>
+   843→              <Button type="submit" disabled={sending || (targetPreview?.totalOptIn === 0)} className="bg-gradient-to-r from-orange-600 to-red-600 text-white">
+   844→                {sending ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Send className="w-4 h-4 mr-1" />}
+   845→                {sending ? 'Memproses & queue...' : form.scheduleAt ? 'Jadwalkan Broadcast' : 'Kirim Broadcast (Anti-Banned Queue)'}
+   846→              </Button>
+   847→            </DialogFooter>
+   848→          </form>
+   849→        </DialogContent>
+   850→      </Dialog>
+   851→
+   852→      {/* Template dialog (placeholder — user can build later) */}
+   853→      <Dialog open={templateOpen} onOpenChange={setTemplateOpen}>
+   854→        <DialogContent aria-describedby={undefined}>
+   855→          <DialogHeader>
+   856→            <DialogTitle>Template Pesan</DialogTitle>
+   857→            <DialogDescription>Template yang sudah disimpan</DialogDescription>
+   858→          </DialogHeader>
+   859→          {templates.length === 0 ? (
+   860→            <p className="text-sm text-muted-foreground text-center py-4">Belum ada template.</p>
+   861→          ) : (
+   862→            <div className="space-y-2 max-h-[60vh] overflow-y-auto">
+   863→              {templates.map(t => (
+   864→                <div key={t.id} className="rounded border p-2">
+   865→                  <div className="font-semibold text-sm">{t.name}</div>
+   866→                  <p className="text-xs text-muted-foreground line-clamp-2">{t.content}</p>
+   867→                </div>
+   868→              ))}
+   869→            </div>
+   870→          )}
+   871→          <DialogFooter><Button variant="outline" onClick={() => setTemplateOpen(false)}>Tutup</Button></DialogFooter>
+   872→        </DialogContent>
+   873→      </Dialog>
+   874→
+   875→      {/* Broadcast stats dialog */}
+   876→      {broadcastStatsOpen && (
+   877→        <BroadcastStatsDialog broadcast={broadcastStatsOpen} onClose={() => setBroadcastStatsOpen(null)} />
+   878→      )}
+   879→
+   880→      {/* WhatsApp Gateway Providers dialog */}
+   881→      <GatewayProvidersDialog open={gatewayOpen} onOpenChange={setGatewayOpen} />
+   882→    </div>
+   883→  )
+   884→}
+   885→
+   886→// === BROADCAST STATS DIALOG (queue progress + anti-banned tracking) ===
+   887→function BroadcastStatsDialog({ broadcast, onClose }: { broadcast: any; onClose: () => void }) {
+   888→  const [stats, setStats] = useState<any>(null)
+   889→  const [loading, setLoading] = useState(true)
+   890→  const [processing, setProcessing] = useState(false)
+   891→
+   892→  const loadData = useCallback(async () => {
+   893→    try {
+   894→      const res = await fetch(`/api/broadcast-composer/${broadcast.id}/stats`, {
+   895→        headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+   896→      })
+   897→      const data = await res.json()
+   898→      if (data.success) setStats(data.data)
+   899→    } catch (e) { /* ignore */ }
+   900→    finally { setLoading(false) }
+   901→  }, [broadcast.id])
+   902→
+   903→  useEffect(() => {
+   904→    loadData()
+   905→    const interval = setInterval(loadData, 15000) // 15s (was 5s — too aggressive for Vercel serverless)
+   906→    return () => clearInterval(interval)
+   907→  }, [loadData])
+   908→
+   909→  const handleProcessQueue = async () => {
+   910→    setProcessing(true)
+   911→    try {
+   912→      const res = await fetch(`/api/broadcast-composer/${broadcast.id}/queue`, {
+   913→        method: 'POST',
+   914→        headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+   915→      })
+   916→      const data = await res.json()
+   917→      if (data.success) {
+   918→        useToastStore.getState().addToast(data.message, 'success')
+   919→        loadData()
+   920→      }
+   921→    } catch (e: any) { useToastStore.getState().addToast(e.message, 'error') }
+   922→    finally { setProcessing(false) }
+   923→  }
+   924→
+   925→  if (loading) return <LoadingState />
+   926→
+   927→  return (
+   928→    <Dialog open={true} onOpenChange={onClose}>
+   929→      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+   930→        <DialogHeader>
+   931→          <DialogTitle className="flex items-center gap-2"><Activity className="w-5 h-5 text-orange-600" /> Broadcast Stats: {broadcast.title}</DialogTitle>
+   932→          <DialogDescription>Progress pengiriman + anti-banned queue tracking</DialogDescription>
+   933→        </DialogHeader>
+   934→
+   935→        {stats && (
+   936→          <div className="space-y-3">
+   937→            {/* Progress bar */}
+   938→            <div className="rounded-lg bg-slate-50 border p-3">
+   939→              <div className="flex items-center justify-between mb-2">
+   940→                <span className="text-sm font-semibold">Progress Pengiriman</span>
+   941→                <span className="text-2xl font-bold text-orange-600">{stats.stats.progress}%</span>
+   942→              </div>
+   943→              <div className="w-full bg-slate-200 rounded-full h-3 overflow-hidden">
+   944→                <div className="bg-gradient-to-r from-orange-500 to-red-600 h-full transition-all" style={{ width: `${stats.stats.progress}%` }} />
+   945→              </div>
+   946→              <div className="grid grid-cols-4 gap-2 mt-3 text-center text-xs">
+   947→                <div className="rounded bg-amber-50 p-1.5"><div className="font-bold text-amber-700">{stats.stats.queued}</div><div className="text-[13px]">Antrian</div></div>
+   948→                <div className="rounded bg-emerald-50 p-1.5"><div className="font-bold text-emerald-700">{stats.stats.sent}</div><div className="text-[13px]">Terkirim</div></div>
+   949→                <div className="rounded bg-red-50 p-1.5"><div className="font-bold text-red-700">{stats.stats.failed}</div><div className="text-[13px]">Gagal</div></div>
+   950→                <div className="rounded bg-slate-100 p-1.5"><div className="font-bold text-slate-700">{stats.stats.blocked}</div><div className="text-[13px]">Blocked</div></div>
+   951→              </div>
+   952→              <div className="text-[13px] text-muted-foreground mt-2 text-center">
+   953→                Total: {stats.stats.total} • Success rate: {stats.stats.successRate}%
+   954→              </div>
+   955→            </div>
+   956→
+   957→            {/* Process queue button */}
+   958→            {stats.stats.queued > 0 && (
+   959→              <Button onClick={handleProcessQueue} disabled={processing} className="w-full bg-gradient-to-r from-orange-600 to-red-600 text-white">
+   960→                {processing ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Zap className="w-4 h-4 mr-1" />}
+   961→                {processing ? 'Memproses batch...' : `Proses Antrian (${stats.stats.queued} pesan menunggu)`}
+   962→              </Button>
+   963→            )}
+   964→
+   965→            {/* Sample sent messages (personalized) */}
+   966→            {stats.sentMessages && stats.sentMessages.length > 0 && (
+   967→              <Card>
+   968→                <CardHeader><CardTitle className="text-sm">Sample Pesan Terkirim (Personalisasi Aktif)</CardTitle></CardHeader>
+   969→                <CardContent>
+   970→                  <div className="space-y-2 max-h-40 overflow-y-auto">
+   971→                    {stats.sentMessages.map((m: any, i: number) => (
+   972→                      <div key={i} className="rounded border p-2 text-xs">
+   973→                        <div className="flex items-center justify-between mb-1">
+   974→                          <span className="font-semibold">{m.recipientName}</span>
+   975→                          <span className="text-[13px] text-muted-foreground">{m.recipientTerritory}</span>
+   976→                        </div>
+   977→                        <p className="text-[13px] text-muted-foreground line-clamp-2">{m.personalizedContent}</p>
+   978→                      </div>
+   979→                    ))}
+   980→                  </div>
+   981→                </CardContent>
+   982→              </Card>
+   983→            )}
+   984→
+   985→            {/* Failed messages */}
+   986→            {stats.failedMessages && stats.failedMessages.length > 0 && (
+   987→              <Card className="border-red-200">
+   988→                <CardHeader><CardTitle className="text-sm text-red-700">Pesan Gagal/Blocked ({stats.failedMessages.length})</CardTitle></CardHeader>
+   989→                <CardContent>
+   990→                  <div className="space-y-2 max-h-40 overflow-y-auto">
+   991→                    {stats.failedMessages.map((m: any, i: number) => (
+   992→                      <div key={i} className="rounded border border-red-200 p-2 text-xs">
+   993→                        <div className="flex items-center justify-between mb-1">
+   994→                          <span className="font-semibold">{m.recipientName}</span>
+   995→                          <Badge variant="outline" className={`text-[13px] ${m.status === 'BLOCKED' ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'}`}>{m.status}</Badge>
+   996→                        </div>
+   997→                        <div className="text-[13px] text-red-700">{m.errorCode}: {m.errorMessage}</div>
+   998→                        <div className="text-[13px] text-muted-foreground mt-1">Retry: {m.retryCount}/3</div>
+   999→                      </div>
+  1000→                    ))}
+  1001→                  </div>
+  1002→                </CardContent>
+  1003→              </Card>
+  1004→            )}
+  1005→          </div>
+  1006→        )}
+  1007→
+  1008→        <DialogFooter><Button variant="outline" onClick={onClose}>Tutup</Button></DialogFooter>
+  1009→      </DialogContent>
+  1010→    </Dialog>
+  1011→  )
+  1012→}
+  1013→
+  1014→// ============================================================
+  1015→// SURVEY OUTPUT DASHBOARD — Bagian 3: Konsolidasi Hasil 3 Dimensi
+  1016→// ============================================================
+  1017→function SurveyOutputDashboard({ polls }: { polls: any[] }) {
+  1018→  const [outputTab, setOutputTab] = useState<'medsos' | 'online' | 'lapangan'>('medsos')
+  1019→  const totalResponses = polls.reduce((sum, p) => sum + (p._count?.responses || 0), 0)
+  1020→  const activePolls = polls.filter(p => p.status === 'ACTIVE').length
+  1021→  const aiGenerated = polls.filter(p => p.isAiGenerated).length
+  1022→  const sentimentStats = polls.reduce((acc, p) => {
+  1023→    if (p.responses) { p.responses.forEach((r: any) => { if (r.aiSentiment === 'POSITIVE') acc.positive++; else if (r.aiSentiment === 'NEGATIVE') acc.negative++; else acc.neutral++ }) }
+  1024→    return acc
+  1025→  }, { positive: 0, negative: 0, neutral: 0 })
+  1026→  const totalSentiment = sentimentStats.positive + sentimentStats.negative + sentimentStats.neutral || 1
+  1027→  const subTabs = [
+  1028→    { key: 'medsos' as const, label: '🌐 Hasil Percakapan Medsos', icon: Globe },
+  1029→    { key: 'online' as const, label: '📱 Hasil Online Broadcast', icon: Send },
+  1030→    { key: 'lapangan' as const, label: '📍 Hasil Teritorial Lapangan', icon: MapPin },
+  1031→  ]
+  1032→  return (
+  1033→    <div className="space-y-3">
+  1034→      <div className="flex items-center gap-2">
+  1035→        <div className="h-5 w-1 rounded-full bg-gradient-to-b from-emerald-500 to-teal-600" />
+  1036→        <h3 className="text-sm font-bold">📊 Dashboard Konsolidasi Hasil 3 Dimensi</h3>
+  1037→      </div>
+  1038→      <div className="flex flex-wrap gap-1 border-b pb-2">
+  1039→        {subTabs.map(t => (
+  1040→          <button key={t.key} onClick={() => setOutputTab(t.key)}
+  1041→            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-t-lg text-xs font-medium transition-all ${outputTab === t.key ? 'bg-emerald-600 text-white shadow-sm' : 'border hover:bg-accent'}`}>
+  1042→            <t.icon className="w-3.5 h-3.5" /> {t.label}
+  1043→          </button>
+  1044→        ))}
+  1045→      </div>
+  1046→
+  1047→      {/* SUB-TAB 1: Medsos */}
+  1048→      {outputTab === 'medsos' && (
+  1049→        <div className="grid gap-3 md:grid-cols-2">
+  1050→          <Card><CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><TrendingUp className="w-4 h-4 text-blue-600" /> Tren Sentimen Medsos</CardTitle></CardHeader>
+  1051→            <CardContent className="space-y-2">
+  1052→              {totalSentiment > 1 ? (
+  1053→                <>
+  1054→                  {[{l:'Positif',v:sentimentStats.positive,c:'emerald'}, {l:'Netral',v:sentimentStats.neutral,c:'amber'}, {l:'Negatif',v:sentimentStats.negative,c:'red'}].map(s => (
+  1055→                    <div key={s.l} className="space-y-1">
+  1056→                      <div className="flex items-center justify-between text-xs"><span className={`text-${s.c}-600`}>{s.l}</span><span className="font-bold">{s.v} ({Math.round(s.v/totalSentiment*100)}%)</span></div>
+  1057→                      <div className="h-2 bg-slate-100 rounded-full overflow-hidden"><div className={`h-full bg-${s.c}-500 rounded-full`} style={{width:`${s.v/totalSentiment*100}%`}} /></div>
+  1058→                    </div>
+  1059→                  ))}
+  1060→                </>
+  1061→              ) : <p className="text-xs text-muted-foreground text-center py-4">Belum ada data sentimen dari medsos</p>}
+  1062→            </CardContent>
+  1063→          </Card>
+  1064→          <Card><CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><MessageSquare className="w-4 h-4 text-purple-600" /> Feed Percakapan Viral</CardTitle></CardHeader>
+  1065→            <CardContent>
+  1066→              <p className="text-xs text-muted-foreground text-center py-4">Percakapan medsos paling viral terkait opini kepemimpinan akan tampil di sini (automatic update).</p>
+  1067→              <div className="space-y-1">{polls.filter(p => p.isAiGenerated && p._count?.responses > 0).slice(0,3).map(p => (<div key={p.id} className="text-xs p-2 rounded border bg-muted/30"><div className="font-medium truncate">{p.title}</div><div className="text-muted-foreground">{p._count?.responses || 0} respon</div></div>))}</div>
+  1068→            </CardContent>
+  1069→          </Card>
+  1070→          <Card className="md:col-span-2"><CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Hash className="w-4 h-4 text-cyan-600" /> Word Cloud — Kata Kunci Paling Sering</CardTitle></CardHeader>
+  1071→            <CardContent><p className="text-xs text-muted-foreground text-center py-4">Word cloud dari kata kunci yang paling sering diucapkan publik mengenai kepemimpinan.<br />(Fitur ini akan otomatis mengextract keyword dari jawaban survei)</p></CardContent>
+  1072→          </Card>
+  1073→        </div>
+  1074→      )}
+  1075→
+  1076→      {/* SUB-TAB 2: Online Broadcast */}
+  1077→      {outputTab === 'online' && (
+  1078→        <div className="grid gap-3 md:grid-cols-2">
+  1079→          <Card><CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><BarChart3 className="w-4 h-4 text-emerald-600" /> Diagram Hasil Pilihan Ganda &amp; Skala Opini</CardTitle></CardHeader>
+  1080→            <CardContent>
+  1081→              {totalResponses > 0 ? (
+  1082→                <div className="space-y-2">
+  1083→                  <div className="text-center"><div className="text-3xl font-bold text-emerald-600">{totalResponses}</div><div className="text-xs text-muted-foreground">Total Respon Online</div></div>
+  1084→                  <div className="grid grid-cols-3 gap-2 text-center">
+  1085→                    <div className="p-2 rounded bg-emerald-50"><div className="text-lg font-bold text-emerald-600">{sentimentStats.positive}</div><div className="text-[10px] text-muted-foreground">Positif</div></div>
+  1086→                    <div className="p-2 rounded bg-amber-50"><div className="text-lg font-bold text-amber-600">{sentimentStats.neutral}</div><div className="text-[10px] text-muted-foreground">Netral</div></div>
+  1087→                    <div className="p-2 rounded bg-red-50"><div className="text-lg font-bold text-red-600">{sentimentStats.negative}</div><div className="text-[10px] text-muted-foreground">Negatif</div></div>
+  1088→                  </div>
+  1089→                </div>
+  1090→              ) : <p className="text-xs text-muted-foreground text-center py-4">Belum ada respon dari broadcast</p>}
+  1091→            </CardContent>
+  1092→          </Card>
+  1093→          <Card><CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Brain className="w-4 h-4 text-purple-600" /> Ringkasan Kluster Jawaban Esai</CardTitle></CardHeader>
+  1094→            <CardContent>
+  1095→              <p className="text-xs text-muted-foreground mb-2">AI membaca ribuan jawaban esai masyarakat lalu merangkumnya menjadi 5 poin aspirasi terbesar.</p>
+  1096→              <div className="space-y-1">{polls.filter(p => p.status === 'ACTIVE' || p.status === 'CLOSED').slice(0,5).map((p,i) => (<div key={p.id} className="flex items-start gap-2 text-xs p-1.5 rounded bg-muted/30"><span className="font-bold text-purple-600">{i+1}.</span><span className="truncate">{p.title}</span></div>))}{polls.length === 0 && <p className="text-xs text-muted-foreground text-center py-2">Belum ada data</p>}</div>
+  1097→            </CardContent>
+  1098→          </Card>
+  1099→          <Card className="md:col-span-2"><CardContent className="p-3">
+  1100→            <div className="flex items-center justify-between text-xs">
+  1101→              <span className="text-muted-foreground">📊 Response Rate (Online Broadcast)</span>
+  1102→              <div className="flex items-center gap-2"><span className="font-bold">{totalResponses} respon</span><span className="text-muted-foreground">/ {activePolls} poll aktif</span>{aiGenerated > 0 && <Badge variant="outline" className="text-[10px]">{aiGenerated} AI-generated</Badge>}</div>
+  1103→            </div>
+  1104→          </CardContent></Card>
+  1105→        </div>
+  1106→      )}
+  1107→
+  1108→      {/* SUB-TAB 3: Teritorial Lapangan */}
+  1109→      {outputTab === 'lapangan' && (
+  1110→        <div className="space-y-3">
+  1111→          <Card><CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><MapPin className="w-4 h-4 text-orange-600" /> Peta Panas (Heatmap Teritorial)</CardTitle>
+  1112→            <CardDescription className="text-xs">Menampilkan peta wilayah target pemenangan. Warna wilayah berubah berdasarkan input dari lapangan.</CardDescription></CardHeader>
+  1113→            <CardContent>
+  1114→              <div className="grid grid-cols-3 gap-2 text-center mb-3">
+  1115→                <div className="p-3 rounded-lg bg-green-50 border border-green-200"><div className="w-4 h-4 rounded-full bg-green-500 mx-auto mb-1" /><div className="text-xs font-medium text-green-700">Sentimen Baik</div></div>
+  1116→                <div className="p-3 rounded-lg bg-yellow-50 border border-yellow-200"><div className="w-4 h-4 rounded-full bg-yellow-500 mx-auto mb-1" /><div className="text-xs font-medium text-yellow-700">Netral</div></div>
+  1117→                <div className="p-3 rounded-lg bg-red-50 border border-red-200"><div className="w-4 h-4 rounded-full bg-red-500 mx-auto mb-1" /><div className="text-xs font-medium text-red-700">Sentimen Buruk</div></div>
+  1118→              </div>
+  1119→              <div className="aspect-video bg-slate-100 rounded-lg flex items-center justify-center border-2 border-dashed border-slate-300">
+  1120→                <div className="text-center"><MapPin className="w-12 h-12 text-slate-300 mx-auto mb-2" /><p className="text-xs text-muted-foreground">Peta geospasial akan menampilkan wilayah target pemenangan<br />dengan warna berdasarkan input riil dari lapangan</p></div>
+  1121→              </div>
+  1122→            </CardContent>
+  1123→          </Card>
+  1124→          <Card><CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Users className="w-4 h-4 text-blue-600" /> Tabel Demografi Responden Lapangan</CardTitle>
+  1125→            <CardDescription className="text-xs">Data agregat demografi (Usia, Pekerjaan, Jenis Kelamin) responden door-to-door + verifikasi GPS.</CardDescription></CardHeader>
+  1126→            <CardContent>
+  1127→              <div className="overflow-x-auto">
+  1128→                <table className="w-full text-xs">
+  1129→                  <thead><tr className="border-b"><th className="text-left py-2 px-2">Wilayah</th><th className="text-center py-2 px-2">Total</th><th className="text-center py-2 px-2">L</th><th className="text-center py-2 px-2">P</th><th className="text-center py-2 px-2">17-25</th><th className="text-center py-2 px-2">26-45</th><th className="text-center py-2 px-2">46+</th><th className="text-center py-2 px-2">GPS ✓</th></tr></thead>
+  1130→                  <tbody><tr className="border-b"><td colSpan={8} className="text-center py-4 text-muted-foreground">Belum ada data dari lapangan. Data akan terisi otomatis saat surveyor menginput dari HP.</td></tr></tbody>
+  1131→                </table>
+  1132→              </div>
+  1133→            </CardContent>
+  1134→          </Card>
+  1135→        </div>
+  1136→      )}
+  1137→    </div>
+  1138→  )
+  1139→}
+  1140→
+  1141→// ============================================================
+  1142→// TAB 4: ESSAY POLLS & AI AUTO-PERTANYAAN
+  1143→// ============================================================
+  1144→function EssayPollsTab({ onSwitchTab }: { onSwitchTab?: (tab: string) => void }) {
+  1145→  const addToast = useToastStore((s) => s.addToast)
+  1146→  const [polls, setPolls] = useState<any[]>([])
+  1147→  const [loading, setLoading] = useState(true)
+  1148→  const [aiGenOpen, setAiGenOpen] = useState(false)
+  1149→  const [manualOpen, setManualOpen] = useState(false)
+  1150→  const [detailPoll, setDetailPoll] = useState<any>(null)
+  1151→  const [sharePoll, setSharePoll] = useState<any>(null)
+  1152→  const [aiForm, setAiForm] = useState({ sourceTopic: '', sourceUrl: '', sourceContent: '' })
+  1153→  // === State untuk dialog Keyword AI & Hashtag ===
+  1154→  const [keywordManagerOpen, setKeywordManagerOpen] = useState(false)
+  1155→  // === State untuk dialog Surveyor Manager & Sync ===
+  1156→  const [surveyorManagerOpen, setSurveyorManagerOpen] = useState(false)
+  1157→  const [surveyorSyncOpen, setSurveyorSyncOpen] = useState(false)
+  1158→  // === State baru untuk multiple AI suggestions ===
+  1159→  const [aiSuggestions, setAiSuggestions] = useState<any[]>([])
+  1160→  const [aiSuggestionsMeta, setAiSuggestionsMeta] = useState<any>(null)
+  1161→  const [generatingSuggestions, setGeneratingSuggestions] = useState(false)
+  1162→  const [selectedSuggestionIdx, setSelectedSuggestionIdx] = useState<number | null>(null)
+  1163→  const [creatingFromSuggestion, setCreatingFromSuggestion] = useState(false)
+  1164→  // === State untuk AI suggestions di mode Manual ===
+  1165→  const [manualSuggestions, setManualSuggestions] = useState<any[]>([])
+  1166→  const [loadingManualSuggestions, setLoadingManualSuggestions] = useState(false)
+  1167→  // === State untuk topic suggestions (auto-fill inspirasi) ===
+  1168→  const [topicSuggestions, setTopicSuggestions] = useState<any>(null)
+  1169→
+  1170→  // === BANNER: Pengingat survei harus netral ===
+  1171→  const neutralityBanner = (
+  1172→    <div className="rounded-lg bg-amber-50 border-2 border-amber-300 p-3 flex items-start gap-3">
+  1173→      <Shield className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+  1174→      <div className="flex-1">
+  1175→        <div className="font-bold text-amber-800 text-sm">
+  1176→          🔒 Survei Opini Publik — Netral &amp; Anonim
+  1177→        </div>
+  1178→        <p className="text-xs text-amber-700 mt-1">
+  1179→          Pertanyaan survei <strong>TIDAK boleh menyebut</strong> "Laskar Prabowo 08" atau "LAPRA 08". 
+  1180→          Responden harus merasa bebas menjawab jujur tanpa tekanan. 
+  1181→          Sistem AI sudah otomatis menghapus nama organisasi dari pertanyaan yang di-generate.
+  1182→        </p>
+  1183→      </div>
+  1184→    </div>
+  1185→  )
+  1186→  const [showTopicSuggestions, setShowTopicSuggestions] = useState(false)
+  1187→  const [activeCategory, setActiveCategory] = useState<string | null>(null)
+  1188→
+  1189→  const loadData = useCallback(() => {
+  1190→    setLoading(true)
+  1191→    api('/api/essay-polls').then(res => {
+  1192→      setPolls(Array.isArray(res) ? res : (res?.data || []))
+  1193→    }).catch(() => setPolls([])).finally(() => setLoading(false))
+  1194→  }, [])
+  1195→
+  1196→  useEffect(() => { loadData() }, [loadData])
+  1197→
+  1198→  // === AI Generate: dapetin dulu 5 varian pertanyaan ===
+  1199→  const handleGetSuggestions = async (e: React.FormEvent) => {
+  1200→    e.preventDefault()
+  1201→    setGeneratingSuggestions(true)
+  1202→    setAiSuggestions([])
+  1203→    setSelectedSuggestionIdx(null)
+  1204→    try {
+  1205→      const res = await fetch('/api/essay-polls/ai-suggestions', {
+  1206→        method: 'POST',
+  1207→        headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+  1208→        body: JSON.stringify({
+  1209→          sourceTopic: aiForm.sourceTopic,
+  1210→          sourceUrl: aiForm.sourceUrl,
+  1211→          sourceContent: aiForm.sourceContent,
+  1212→          count: 5,
+  1213→        }),
+  1214→      })
+  1215→      const data = await res.json()
+  1216→      if (!res.ok || !data.success) throw new Error(data.error)
+  1217→      setAiSuggestions(data.data.questions)
+  1218→      setAiSuggestionsMeta(data.data)
+  1219→      addToast(data.message, 'success')
+  1220→    } catch (e: any) {
+  1221→      addToast(e.message, 'error')
+  1222→    } finally {
+  1223→      setGeneratingSuggestions(false)
+  1224→    }
+  1225→  }
+  1226→
+  1227→  // === Pilih salah satu suggestion & buat poll ===
+  1228→  const handleCreateFromSuggestion = async (idx: number) => {
+  1229→    const suggestion = aiSuggestions[idx]
+  1230→    if (!suggestion) return
+  1231→    setCreatingFromSuggestion(true)
+  1232→    try {
+  1233→      const res = await fetch('/api/essay-polls', {
+  1234→        method: 'POST',
+  1235→        headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+  1236→        body: JSON.stringify({
+  1237→          action: 'ai_generate',
+  1238→          sourceTopic: aiForm.sourceTopic,
+  1239→          sourceUrl: aiForm.sourceUrl,
+  1240→          sourceContent: aiForm.sourceContent,
+  1241→          // Override dengan suggestion yang dipilih user
+  1242→          selectedSuggestion: suggestion,
+  1243→        }),
+  1244→      })
+  1245→      const data = await res.json()
+  1246→      if (!res.ok || !data.success) throw new Error(data.error)
+  1247→      addToast(`Poll dibuat dari saran AI #${idx + 1} (pendekatan ${suggestion.approach})`, 'success')
+  1248→      // Reset & close
+  1249→      setAiForm({ sourceTopic: '', sourceUrl: '', sourceContent: '' })
+  1250→      setAiSuggestions([])
+  1251→      setSelectedSuggestionIdx(null)
+  1252→      setAiGenOpen(false)
+  1253→      loadData()
+  1254→    } catch (e: any) {
+  1255→      addToast(e.message, 'error')
+  1256→    } finally {
+  1257→      setCreatingFromSuggestion(false)
+  1258→    }
+  1259→  }
+  1260→
+  1261→  // === Dapatkan AI suggestions untuk mode Manual (preview, tanpa simpan) ===
+  1262→  const handleGetManualSuggestions = async () => {
+  1263→    setLoadingManualSuggestions(true)
+  1264→    try {
+  1265→      const res = await fetch('/api/essay-polls/ai-suggestions', {
+  1266→        method: 'POST',
+  1267→        headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+  1268→        body: JSON.stringify({
+  1269→          sourceTopic: 'Survei opini publik umum',
+  1270→          count: 5,
+  1271→        }),
+  1272→      })
+  1273→      const data = await res.json()
+  1274→      if (!data.success) throw new Error(data.error)
+  1275→      setManualSuggestions(data.data.questions)
+  1276→      addToast(`${data.data.questions.length} saran pertanyaan AI tersedia`, 'success')
+  1277→    } catch (e: any) {
+  1278→      addToast(e.message, 'error')
+  1279→    } finally {
+  1280→      setLoadingManualSuggestions(false)
+  1281→    }
+  1282→  }
+  1283→
+  1284→  // === Apply suggestion ke form manual ===
+  1285→  const applyManualSuggestion = (suggestion: any) => {
+  1286→    const titleInput = document.getElementById('manual-title') as HTMLInputElement
+  1287→    const questionTextarea = document.getElementById('manual-question') as HTMLTextAreaElement
+  1288→    const descriptionTextarea = document.getElementById('manual-description') as HTMLTextAreaElement
+  1289→    if (titleInput) titleInput.value = suggestion.title
+  1290→    if (questionTextarea) questionTextarea.value = suggestion.question
+  1291→    if (descriptionTextarea) descriptionTextarea.value = suggestion.description
+  1292→    addToast(`Saran AI "${suggestion.approach}" diterapkan ke form`, 'success')
+  1293→  }
+  1294→
+  1295→  // === Load topic suggestions (categories + recent news + recent opinions) ===
+  1296→  const loadTopicSuggestions = useCallback(async () => {
+  1297→    if (topicSuggestions) return // already loaded
+  1298→    try {
+  1299→      const res = await fetch('/api/essay-polls/topic-suggestions', {
+
+[showing lines 600-1299 of 4395; use offset=1300 with limit to continue reading]
