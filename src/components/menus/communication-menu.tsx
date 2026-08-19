@@ -4480,7 +4480,10 @@ function SurveyorSyncDialog({ open, onOpenChange }: { open: boolean; onOpenChang
         ) : (
           <div className="space-y-2">
             {surveyors.map(svy => {
-              const feedUrl = `${origin}/api/surveyor-feed/${svy.userId}`
+              // === FASE 3.2: URL ke halaman UI (bukan API JSON) ===
+              // Sebelumnya: /api/surveyor-feed/[userId] → JSON mentah (tidak bisa dikerjakan)
+              // Sekarang: /surveyor/[userId] → halaman UI lengkap dengan form
+              const feedUrl = `${origin}/surveyor/${svy.userId}`
               const isExpanded = expandedId === svy.id
               return (
                 <Card key={svy.id} className="border-orange-200">
