@@ -1,0 +1,2002 @@
+     1→'use client'
+     2→
+     3→import { useState, useEffect, useCallback } from 'react'
+     4→import { api } from '@/lib/api-client'
+     5→import { PageHeader, LoadingState, ErrorState, EmptyState, StatCard } from '@/components/ui-helpers'
+     6→import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+     7→import { Badge } from '@/components/ui/badge'
+     8→import { Button } from '@/components/ui/button'
+     9→import { Input } from '@/components/ui/input'
+    10→import { Label } from '@/components/ui/label'
+    11→import { Textarea } from '@/components/ui/textarea'
+    12→import {
+    13→  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+    14→} from '@/components/ui/dialog'
+    15→import {
+    16→  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+    17→} from '@/components/ui/alert-dialog'
+    18→import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+    19→import {
+    20→  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+    21→} from '@/components/ui/table'
+    22→import { useToastStore, useAuthStore } from '@/lib/store'
+    23→import { formatDateTimeID } from '@/lib/format'
+    24→import {
+    25→  Megaphone, Search, Send, MapPin, Lightbulb, Loader2, ExternalLink,
+    26→  CheckCircle2, AlertTriangle, Sparkles, Zap, Brain, Target,
+    27→  RefreshCw, Plus, Eye, Edit, Trash2, FileText, Users, TrendingUp,
+    28→  Calendar, Globe, Youtube, Newspaper, Twitter, Instagram, Facebook, Filter,
+    29→  ChevronRight, Home, Activity, BarChart3, PieChart as PieIcon, Award,
+    30→  Share2, Copy, MessageCircle, Mail, Linkedin, Shield, Folder,
+    31→} from 'lucide-react'
+    32→import {
+    33→  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+    34→  RadialBarChart, RadialBar, Cell, PieChart, Pie, Legend, PolarAngleAxis,
+    35→} from 'recharts'
+    36→import {
+    37→  SHARE_PLATFORMS, POPULAR_GROUPS, buildShareText, openShareUrl, copyToClipboard,
+    38→  type SharePlatform, type PopularGroup,
+    39→} from '@/lib/share-social'
+    40→
+    41→// ============================================================
+    42→// MAIN: Komunikasi & Command Center — 6 Sub-menu Baru
+    43→// ============================================================
+    44→export function CommunicationMenu() {
+    45→  const [tab, setTab] = useState('opinion-scanner')
+    46→
+    47→  // === PRE-WARM: Fire all 7 tab APIs in background when menu mounts ===
+    48→  // Results cached server-side (30-60s) so subsequent tab clicks are instant.
+    49→  // We don't await — just trigger requests, results populate server cache.
+    50→  useEffect(() => {
+    51→    const userId = useAuthStore.getState().user?.id || ''
+    52→    if (!userId) return
+    53→
+    54→    const headers = { 'x-user-id': userId }
+    55→    const endpoints = [
+    56→      '/api/opinion-links?limit=100',
+    57→      '/api/broadcast-composer?type=templates',
+    58→      '/api/broadcast-composer?type=broadcasts',
+    59→      '/api/broadcast-composer?type=contacts_count',
+    60→      '/api/essay-polls',
+    61→      '/api/decision-dashboard',
+    62→    ]
+    63→
+    64→    // Fire all requests in parallel — results go to server cache, not UI state
+    65→    endpoints.forEach(url => {
+    66→      fetch(url, { headers }).catch(() => {})
+    67→    })
+    68→  }, [])
+    69→
+    70→  const tabs = [
+    71→    { key: 'broadcast', label: 'Siaran & Broadcast', icon: Send, desc: 'Multi-channel: WA, FB, IG, Email + konter isu + template siap pakai' },
+    72→    { key: 'essay-polls', label: 'Survei & Polling', icon: Brain, desc: 'Survei cepat + input manual lapangan + WhatsApp + analisis' },
+    73→    { key: 'decision', label: 'Dashboard Pemenangan', icon: Target, desc: 'Sintesis data untuk pengambil keputusan politik' },
+    74→    { key: 'opinion-scanner', label: 'Monitoring Berita', icon: Sparkles, desc: 'Scan berita LAPRA 08 + triage + konter isu otomatis' },
+    75→  ]
+    76→
+    77→  return (
+    78→    <div className="space-y-6">
+    79→      <PageHeader
+    80→        title="Komunikasi & Command Center"
+    81→        description="Sistem siaran, survei, dan monitoring berita LAPRA 08. Fokus pemenangan pemilu."
+    82→        icon={Megaphone}
+    83→      />
+    84→
+    85→      {/* Tab navigation — 4 menu fokus elektoral */}
+    86→      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+    87→        {tabs.map((t) => (
+    88→          <button key={t.key} onClick={() => setTab(t.key)}
+    89→            className={`flex flex-col items-start gap-1 p-3 rounded-lg text-left transition-all ${tab === t.key ? 'bg-gradient-to-br from-orange-600 to-red-600 text-white shadow-md' : 'border hover:bg-accent'}`}>
+    90→            <t.icon className={`w-4 h-4 ${tab === t.key ? 'text-white' : 'text-orange-600'}`} />
+    91→            <span className="text-xs font-semibold leading-tight">{t.label}</span>
+    92→          </button>
+    93→        ))}
+    94→      </div>
+    95→
+    96→      {tab === 'broadcast' && <BroadcastComposerTab />}
+    97→      {tab === 'essay-polls' && <EssayPollsTab />}
+    98→      {tab === 'decision' && <DecisionDashboardTab />}
+    99→      {tab === 'opinion-scanner' && <OpinionScannerTab />}
+   100→    </div>
+   101→  )
+   102→}
+   103→
+   104→// ============================================================
+   105→// TAB: MONITORING BERITA (gabungan Scanner + Link Analisis + Triage + Konter Isu)
+   106→// Dipindahkan dari Opini Publik Auto-Scanner + Link Analisis Publik
+   107→// ============================================================
+   108→function OpinionScannerTab() {
+   109→  const addToast = useToastStore((s) => s.addToast)
+   110→  const [scanning, setScanning] = useState(false)
+   111→  const [lastResult, setLastResult] = useState<any>(null)
+   112→  const [recentLinks, setRecentLinks] = useState<any[]>([])
+   113→  const [loading, setLoading] = useState(true)
+   114→  const [filterPriority, setFilterPriority] = useState('ALL')
+   115→  const [deletingId, setDeletingId] = useState<string | null>(null)
+   116→  const [generatingKonter, setGeneratingKonter] = useState<string | null>(null)
+   117→  const [triageLoading, setTriageLoading] = useState(false)
+   118→
+   119→  // === Handle Generate Konter Isu (dari OpinionLinksTab) ===
+   120→  const handleGenerateKonter = async (linkId: string) => {
+   121→    setGeneratingKonter(linkId)
+   122→    try {
+   123→      const res = await fetch(`/api/opinion-links/${linkId}/counter-issue`, {
+   124→        method: 'POST',
+   125→        headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+   126→      })
+   127→      const data = await res.json()
+   128→      if (!data.success) throw new Error(data.error)
+   129→      addToast(`Draft konter isu dibuat (${data.data.aiProvider}). Lihat di Siaran & Broadcast.`, 'success')
+   130→      loadRecent()
+   131→    } catch (e: any) {
+   132→      addToast(`Gagal generate konter: ${e.message}`, 'error')
+   133→    } finally {
+   134→      setGeneratingKonter(null)
+   135→    }
+   136→  }
+   137→
+   138→  // === Handle Bulk Triage (dari OpinionLinksTab) ===
+   139→  const handleBulkTriage = async () => {
+   140→    setTriageLoading(true)
+   141→    try {
+   142→      const res = await fetch('/api/opinion-links/bulk-triage', {
+   143→        method: 'POST',
+   144→        headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+   145→        body: JSON.stringify({ limit: 100 })
+   146→      })
+   147→      const data = await res.json()
+   148→      if (!data.success) throw new Error(data.error)
+   149→      const stats = data.data
+   150→      const topProvinsiStr = stats.topProvinsiList?.map((p: any) => `${p.provinsi}(${p.count})`).join(', ') || 'tidak ada'
+   151→      addToast(`Triage: ${stats.mapped}/${stats.total} link di-map. Top: ${topProvinsiStr}`, 'success')
+   152→      loadRecent()
+   153→    } catch (e: any) {
+   154→      addToast(`Gagal bulk triage: ${e.message}`, 'error')
+   155→    } finally {
+   156→      setTriageLoading(false)
+   157→    }
+   158→  }
+   159→
+   160→  // === FIX: cache-bust dengan timestamp + limit 50 (dari 15) ===
+   161→  const loadRecent = useCallback(() => {
+   162→    setLoading(true)
+   163→    const _t = Date.now() // cache-bust: bypass 30s cache di API
+   164→    api(`/api/opinion-links?limit=100&_t=${_t}`).then(res => {
+   165→      const data = Array.isArray(res) ? res : (res?.data || [])
+   166→      setRecentLinks(data)
+   167→    }).catch(() => setRecentLinks([])).finally(() => setLoading(false))
+   168→  }, [])
+   169→
+   170→  useEffect(() => { loadRecent() }, [loadRecent])
+   171→
+   172→  // === NEW: Handle delete link ===
+   173→  const handleDelete = async (linkId: string) => {
+   174→    setDeletingId(linkId)
+   175→    try {
+   176→      const res = await fetch(`/api/opinion-links/${linkId}`, {
+   177→        method: 'DELETE',
+   178→        headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+   179→      })
+   180→      const data = await res.json()
+   181→      if (!data.success) throw new Error(data.error)
+   182→      addToast('Link dihapus dari hasil scan', 'success')
+   183→      // Remove dari state langsung (instant, tanpa reload)
+   184→      setRecentLinks(prev => prev.filter(l => l.id !== linkId))
+   185→    } catch (e: any) {
+   186→      addToast(`Gagal hapus: ${e.message}`, 'error')
+   187→    } finally {
+   188→      setDeletingId(null)
+   189→    }
+   190→  }
+   191→
+   192→  // === NEW: Handle bulk delete semua yang tampil ===
+   193→  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
+   194→  const handleBulkDelete = async () => {
+   195→    setBulkDeleteOpen(false)
+   196→    const toDelete = filteredLinks
+   197→    addToast(`Menghapus ${toDelete.length} link...`, 'info')
+   198→    let success = 0, failed = 0
+   199→    for (const link of toDelete) {
+   200→      try {
+   201→        const res = await fetch(`/api/opinion-links/${link.id}`, {
+   202→          method: 'DELETE',
+   203→          headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+   204→        })
+   205→        if (res.ok) success++
+   206→        else failed++
+   207→      } catch { failed++ }
+   208→    }
+   209→    addToast(`Selesai: ${success} dihapus, ${failed} gagal`, 'success')
+   210→    loadRecent()
+   211→  }
+   212→
+   213→  const handleScan = async () => {
+   214→    setScanning(true); setLastResult(null)
+   215→    try {
+   216→      const res = await fetch('/api/opinion-links', {
+   217→        method: 'POST',
+   218→        headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+   219→        body: JSON.stringify({ action: 'scrape' }),
+   220→      })
+   221→      const data = await res.json()
+   222→      if (!res.ok || !data.success) throw new Error(data.error)
+   223→      setLastResult(data.data)
+   224→      addToast(data.message, 'success')
+   225→      loadRecent()
+   226→    } catch (e: any) { addToast(e.message, 'error') }
+   227→    finally { setScanning(false) }
+   228→  }
+   229→
+   230→  const platformIcon = (p: string) => {
+   231→    if (p === 'YOUTUBE') return <Youtube className="w-3.5 h-3.5 text-red-600" />
+   232→    if (p === 'GOOGLE') return <Newspaper className="w-3.5 h-3.5 text-blue-600" />
+   233→    if (p === 'FACEBOOK') return <Facebook className="w-3.5 h-3.5 text-blue-700" />
+   234→    if (p === 'INSTAGRAM') return <Instagram className="w-3.5 h-3.5 text-purple-600" />
+   235→    if (p === 'TWITTER_X') return <Twitter className="w-3.5 h-3.5 text-slate-700" />
+   236→    return <Globe className="w-3.5 h-3.5" />
+   237→  }
+   238→
+   239→  // === SORT: tanggal terbaru di atas (bukan by priority) ===
+   240→  const filteredLinks = recentLinks
+   241→    .filter(l => filterPriority === 'ALL' || l.priority === filterPriority)
+   242→    .sort((a, b) => {
+   243→      // publishedAt descending (terbaru di atas)
+   244→      const dateA = a.publishedAt ? new Date(a.publishedAt).getTime() : new Date(a.createdAt || 0).getTime()
+   245→      const dateB = b.publishedAt ? new Date(b.publishedAt).getTime() : new Date(b.createdAt || 0).getTime()
+   246→      return dateB - dateA
+   247→    })
+   248→
+   249→  return (
+   250→    <div className="space-y-4">
+   251→      {/* Scanner control */}
+   252→      <Card className="border-orange-200 bg-gradient-to-br from-orange-50 to-red-50">
+   253→        <CardContent className="p-5">
+   254→          <div className="flex items-start gap-4">
+   255→            <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-orange-600 to-red-600 flex items-center justify-center shadow-lg shrink-0">
+   256→              <Sparkles className="w-7 h-7 text-white" />
+   257→            </div>
+   258→            <div className="flex-1">
+   259→              <h3 className="font-bold text-lg mb-1">Audit Opini Publik Otomatis</h3>
+   260→              <p className="text-sm text-muted-foreground mb-3">
+   261→                Sistem akan otomatis mengambil REAL mention LAPRA 08 dari YouTube (via yt-dlp) + Google News RSS,
+   262→                lalu menganalisis sentimen, prioritas, lokasi, dan kategori setiap mention dengan AI.
+   263→                Hasil disimpan ke database untuk tracking & decision dashboard.
+   264→              </p>
+   265→              <div className="flex items-center gap-3">
+   266→                <Button onClick={handleScan} disabled={scanning} size="lg"
+   267→                  className="bg-gradient-to-r from-orange-600 to-red-600 text-white">
+   268→                  {scanning ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Zap className="w-4 h-4 mr-2" />}
+   269→                  {scanning ? 'Sedang scan otomatis...' : 'Mulai Scan Sekarang'}
+   270→                </Button>
+   271→                <Button variant="outline" onClick={loadRecent} disabled={loading} size="lg">
+   272→                  <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+   273→                  Refresh Hasil
+   274→                </Button>
+   275→              </div>
+   276→            </div>
+   277→          </div>
+   278→
+   279→          {lastResult && (
+   280→            <div className="mt-4 p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-800">
+   281→              <CheckCircle2 className="w-4 h-4 inline mr-1" />
+   282→              <strong>Scan selesai:</strong> {lastResult.saved} link baru disimpan, {lastResult.duplicates} duplikat dilewati.
+   283→              {' '}<Badge className="ml-2 bg-red-100 text-red-800">HIGH: {lastResult.newHigh}</Badge>
+   284→              <Badge className="ml-1 bg-amber-100 text-amber-800">MEDIUM: {lastResult.newMedium}</Badge>
+   285→              {' '}Sumber: {lastResult.sources?.join(' + ')}
+   286→            </div>
+   287→          )}
+   288→        </CardContent>
+   289→      </Card>
+   290→
+   291→      {/* Filter + Bulk Triage + Bulk Delete */}
+   292→      <div className="flex items-center gap-2 flex-wrap">
+   293→        <Filter className="w-4 h-4 text-muted-foreground" />
+   294→        <span className="text-xs font-semibold text-muted-foreground">Filter:</span>
+   295→        {['ALL', 'HIGH', 'MEDIUM', 'LOW'].map(p => (
+   296→          <Button key={p} size="sm" variant={filterPriority === p ? 'default' : 'outline'}
+   297→            className={`h-7 text-xs ${filterPriority === p ? 'bg-orange-600 hover:bg-orange-700 text-white' : ''}`}
+   298→            onClick={() => setFilterPriority(p)}>
+   299→            {p === 'ALL' ? 'Semua' : p}
+   300→          </Button>
+   301→        ))}
+   302→        <div className="ml-auto flex items-center gap-2">
+   303→          <span className="text-xs text-muted-foreground">{filteredLinks.length} berita</span>
+   304→          {/* === Bulk Triage Button === */}
+   305→          <Button size="sm" variant="outline" className="h-7 text-xs text-amber-700 hover:bg-amber-50 border-amber-200"
+   306→            disabled={triageLoading}
+   307→            onClick={handleBulkTriage}>
+   308→            {triageLoading ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <MapPin className="w-3 h-3 mr-1" />}
+   309→            {triageLoading ? 'Triage...' : 'Bulk Triage'}
+   310→          </Button>
+   311→          {/* === Bulk Delete Button === */}
+   312→          {filteredLinks.length > 0 && (
+   313→            <Button size="sm" variant="outline" className="h-7 text-xs text-red-600 hover:bg-red-50 border-red-200"
+   314→              onClick={() => setBulkDeleteOpen(true)}>
+   315→              <Trash2 className="w-3 h-3 mr-1" /> Hapus Semua ({filteredLinks.length})
+   316→            </Button>
+   317→          )}
+   318→        </div>
+   319→      </div>
+   320→
+   321→      {/* Recent results */}
+   322→      {loading ? <LoadingState /> : filteredLinks.length === 0 ? (
+   323→        <EmptyState icon={Sparkles} title="Belum ada mention"
+   324→          description="Klik 'Mulai Scan Sekarang' untuk mengambil mention LAPRA 08 dari YouTube + Google News secara otomatis." />
+   325→      ) : (
+   326→        <div className="space-y-2">
+   327→          {filteredLinks.map((link) => {
+   328→            const priColor = link.priority === 'HIGH' ? 'border-l-red-500 bg-red-50/30' :
+   329→              link.priority === 'MEDIUM' ? 'border-l-amber-500 bg-amber-50/30' : 'border-l-blue-500 bg-blue-50/30'
+   330→            const priBadge = link.priority === 'HIGH' ? 'bg-red-100 text-red-800 border-red-300' :
+   331→              link.priority === 'MEDIUM' ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-blue-100 text-blue-800 border-blue-300'
+   332→            return (
+   333→              <div key={link.id} className={`rounded-xl border-l-4 p-3 ${priColor}`}>
+   334→                <div className="flex items-start gap-3">
+   335→                  <div className="flex-1 min-w-0">
+   336→                    <div className="flex items-center gap-2 flex-wrap mb-1">
+   337→                      <Badge className={`text-[13px] ${priBadge}`}>{link.priority}</Badge>
+   338→                      <Badge variant="outline" className="text-[13px] gap-1">{platformIcon(link.platform)} {link.platform}</Badge>
+   339→                      <Badge variant="outline" className={`text-[13px] ${link.sentiment === 'NEGATIVE' ? 'bg-red-50 text-red-700' : link.sentiment === 'POSITIVE' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-50 text-slate-700'}`}>
+   340→                        {link.sentiment}
+   341→                      </Badge>
+   342→                      <Badge variant="outline" className="text-[13px] bg-purple-50 text-purple-700">{link.category}</Badge>
+   343→                      {link.provinceName && <Badge variant="outline" className="text-[13px] bg-blue-50 text-blue-700"><MapPin className="w-2.5 h-2.5 mr-0.5" />{link.regencyName || link.provinceName}</Badge>}
+   344→                      <Badge variant="outline" className="text-[13px] bg-emerald-50 text-emerald-700 border-emerald-200">
+   345→                        <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1" />REAL
+   346→                      </Badge>
+   347→                    </div>
+   348→                    <div className="text-sm font-semibold">{link.title}</div>
+   349→                    {link.content && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{link.content}</p>}
+   350→                    {link.aiSummary && (
+   351→                      <div className="mt-2 p-2 rounded bg-white border text-xs">
+   352→                        <Lightbulb className="w-3 h-3 inline mr-1 text-amber-500" />
+   353→                        <strong>AI:</strong> {link.aiSummary}
+   354→                      </div>
+   355→                    )}
+   356→                    <div className="flex items-center gap-3 mt-2 text-[13px] text-muted-foreground">
+   357→                      <span>📅 {formatDateTimeID(link.publishedAt || link.createdAt)}</span>
+   358→                      {link.engagementCount > 0 && <span>💬 {link.engagementCount}</span>}
+   359→                      <span>⚡ {link.urgencyScore}/100</span>
+   360→                      {link.author && <span>✍️ {link.author}</span>}
+   361→                    </div>
+   362→                  </div>
+   363→                  <div className="flex flex-col gap-1 shrink-0">
+   364→                    <a href={link.url} target="_blank" rel="noopener noreferrer"
+   365→                      className="text-blue-600 hover:underline">
+   366→                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0">
+   367→                        <ExternalLink className="w-3.5 h-3.5" />
+   368→                      </Button>
+   369→                    </a>
+   370→                    {/* === Konter Isu Button (untuk NEGATIVE/HIGH) === */}
+   371→                    {(link.sentiment === 'NEGATIVE' || link.priority === 'HIGH') && link.status !== 'ADDRESSED' && (
+   372→                      <Button
+   373→                        size="sm"
+   374→                        variant="ghost"
+   375→                        className="h-7 w-7 p-0 text-red-600 hover:bg-red-50"
+   376→                        disabled={generatingKonter === link.id}
+   377→                        onClick={() => handleGenerateKonter(link.id)}
+   378→                        title="Generate draft konter isu">
+   379→                        {generatingKonter === link.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
+   380→                      </Button>
+   381→                    )}
+   382→                    {/* === Hapus per item === */}
+   383→                    <Button
+   384→                      size="sm"
+   385→                      variant="ghost"
+   386→                      className="h-7 w-7 p-0 text-red-500 hover:text-red-600 hover:bg-red-50"
+   387→                      disabled={deletingId === link.id}
+   388→                      onClick={() => handleDelete(link.id)}
+   389→                      title="Hapus link ini">
+   390→                      {deletingId === link.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+   391→                    </Button>
+   392→                  </div>
+   393→                </div>
+   394→              </div>
+   395→            )
+   396→          })}
+   397→        </div>
+   398→      )}
+   399→
+   400→      {/* === NEW: Konfirmasi Bulk Delete === */}
+   401→      <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+   402→        <AlertDialogContent aria-describedby={undefined}>
+   403→          <AlertDialogHeader>
+   404→            <AlertDialogTitle>Hapus {filteredLinks.length} Link?</AlertDialogTitle>
+   405→            <AlertDialogDescription>
+   406→              Yakin ingin menghapus <strong>{filteredLinks.length} link</strong> dari hasil scan?
+   407→              Tindakan ini tidak dapat dibatalkan. Link yang dihapus akan hilang dari Dashboard & Geospatial Mapping.
+   408→            </AlertDialogDescription>
+   409→          </AlertDialogHeader>
+   410→          <AlertDialogFooter>
+   411→            <AlertDialogCancel>Batal</AlertDialogCancel>
+   412→            <AlertDialogAction onClick={handleBulkDelete} className="bg-red-600 hover:bg-red-700 text-white">
+   413→              <Trash2 className="w-4 h-4 mr-2" /> Hapus {filteredLinks.length} Link
+   414→            </AlertDialogAction>
+   415→          </AlertDialogFooter>
+   416→        </AlertDialogContent>
+   417→      </AlertDialog>
+   418→    </div>
+   419→  )
+   420→}
+   421→// ============================================================
+   422→// TAB 3: BROADCAST COMPOSER — Dynamic Target + Anti-Banned Queue + Variable Personalization
+   423→// ============================================================
+   424→function BroadcastComposerTab() {
+   425→  const addToast = useToastStore((s) => s.addToast)
+   426→  const [templates, setTemplates] = useState<any[]>([])
+   427→  const [broadcasts, setBroadcasts] = useState<any[]>([])
+   428→  const [contactsStats, setContactsStats] = useState({ total: 0, optIn: 0 })
+   429→  const [loading, setLoading] = useState(true)
+   430→  const [composerOpen, setComposerOpen] = useState(false)
+   431→  const [templateOpen, setTemplateOpen] = useState(false)
+   432→  const [broadcastStatsOpen, setBroadcastStatsOpen] = useState<any>(null)
+   433→  const [gatewayOpen, setGatewayOpen] = useState(false)
+   434→
+   435→  // Composer form
+   436→  const [form, setForm] = useState({
+   437→    title: '', content: '', channels: ['WHATSAPP'],
+   438→    scheduleAt: '', imageUrl: '', attachedEssayPollId: '',
+   439→    // Target config (dynamic contact resolution)
+   440→    targetScope: 'ALL' as 'ALL' | 'NATIONAL' | 'PROVINCE' | 'REGENCY',
+   441→    targetTerritoryCode: '',
+   442→    targetOccupation: '',
+   443→    targetAgeGroup: '',
+   444→    onlyLapraMembers: false,
+   445→  })
+   446→
+   447→  // Target resolution state (preview contacts)
+   448→  const [targetPreview, setTargetPreview] = useState<any>(null)
+   449→  const [resolvingTargets, setResolvingTargets] = useState(false)
+   450→  const [sending, setSending] = useState(false)
+   451→
+   452→  // Territories for dropdown
+   453→  const [territories, setTerritories] = useState<any[]>([])
+   454→
+   455→  const loadData = useCallback(() => {
+   456→    setLoading(true)
+   457→    Promise.all([
+   458→      api('/api/broadcast-composer?type=templates'),
+   459→      api('/api/broadcast-composer?type=broadcasts'),
+   460→      api('/api/broadcast-composer?type=contacts_count'),
+   461→    ]).then(([t, b, c]) => {
+   462→      setTemplates(Array.isArray(t) ? t : (t?.data || []))
+   463→      setBroadcasts(Array.isArray(b) ? b : (b?.data || []))
+   464→      setContactsStats(c?.data || c || { total: 0, optIn: 0 })
+   465→    }).catch(() => {}).finally(() => setLoading(false))
+   466→  }, [])
+   467→
+   468→  // Load territories when target scope changes
+   469→  useEffect(() => {
+   470→    if (form.targetScope === 'PROVINCE' || form.targetScope === 'REGENCY') {
+   471→      api(`/api/broadcast-composer/targets?level=${form.targetScope}`).then(res => {
+   472→        setTerritories(Array.isArray(res) ? res : (res?.data || []))
+   473→      }).catch(() => setTerritories([]))
+   474→    } else {
+   475→      setTerritories([])
+   476→    }
+   477→  }, [form.targetScope])
+   478→
+   479→  useEffect(() => { loadData() }, [loadData])
+   480→
+   481→  // Preview target contacts (resolve dari DB)
+   482→  const handlePreviewTargets = async () => {
+   483→    setResolvingTargets(true)
+   484→    setTargetPreview(null)
+   485→    try {
+   486→      const res = await fetch('/api/broadcast-composer/targets', {
+   487→        method: 'POST', headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+   488→        body: JSON.stringify({
+   489→          scope: form.targetScope,
+   490→          territoryCode: form.targetTerritoryCode || null,
+   491→          occupation: form.targetOccupation && form.targetOccupation !== 'ALL' ? form.targetOccupation : null,
+   492→          ageGroup: form.targetAgeGroup && form.targetAgeGroup !== 'ALL' ? form.targetAgeGroup : null,
+   493→          onlyLapraMembers: form.onlyLapraMembers,
+   494→          onlyOptIn: true,
+   495→        }),
+   496→      })
+   497→      const data = await res.json()
+   498→      if (!data.success) throw new Error(data.error)
+   499→      setTargetPreview(data.data)
+   500→    } catch (e: any) {
+   501→      addToast(e.message, 'error')
+   502→    } finally {
+   503→      setResolvingTargets(false)
+   504→    }
+   505→  }
+   506→
+   507→  const handleSend = async (e: React.FormEvent) => {
+   508→    e.preventDefault()
+   509→
+   510→    // Validate target
+   511→    if ((form.targetScope === 'PROVINCE' || form.targetScope === 'REGENCY') && !form.targetTerritoryCode) {
+   512→      addToast('Pilih wilayah target (provinsi/kab-kota) dulu', 'error')
+   513→      return
+   514→    }
+   515→
+   516→    setSending(true)
+   517→    try {
+   518→      const res = await fetch('/api/broadcast-composer', {
+   519→        method: 'POST', headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+   520→        body: JSON.stringify({
+   521→          action: 'send',
+   522→          title: form.title, content: form.content,
+   523→          channels: form.channels,
+   524→          scheduleAt: form.scheduleAt || null,
+   525→          imageUrl: form.imageUrl || null,
+   526→          attachedEssayPollId: form.attachedEssayPollId || null,
+   527→          target: {
+   528→            scope: form.targetScope,
+   529→            territoryCode: form.targetTerritoryCode || null,
+   530→            occupation: form.targetOccupation && form.targetOccupation !== 'ALL' ? form.targetOccupation : null,
+   531→            ageGroup: form.targetAgeGroup && form.targetAgeGroup !== 'ALL' ? form.targetAgeGroup : null,
+   532→            onlyLapraMembers: form.onlyLapraMembers,
+   533→            onlyOptIn: true,
+   534→          },
+   535→        }),
+   536→      })
+   537→      const data = await res.json()
+   538→      if (!res.ok || !data.success) throw new Error(data.error)
+   539→      addToast(data.message, 'success')
+   540→      // Reset form
+   541→      setForm({
+   542→        title: '', content: '', channels: ['WHATSAPP'],
+   543→        scheduleAt: '', imageUrl: '', attachedEssayPollId: '',
+   544→        targetScope: 'ALL', targetTerritoryCode: '', targetOccupation: '', targetAgeGroup: '', onlyLapraMembers: false,
+   545→      })
+   546→      setTargetPreview(null)
+   547→      setComposerOpen(false); loadData()
+   548→    } catch (e: any) { addToast(e.message, 'error') }
+   549→    finally { setSending(false) }
+   550→  }
+   551→
+   552→  // Quick insert variable helper
+   553→  const insertVariable = (varName: string) => {
+   554→    setForm({ ...form, content: form.content + `{${varName}}` })
+   555→  }
+   556→
+   557→  const channels = [
+   558→    { id: 'WHATSAPP', label: 'WhatsApp', icon: Send, color: 'emerald', desc: 'Anti-banned queue + dynamic contacts' },
+   559→    { id: 'FACEBOOK', label: 'Facebook', icon: Facebook, color: 'blue', desc: 'Posting ke FB Page' },
+   560→    { id: 'INSTAGRAM', label: 'Instagram', icon: Instagram, color: 'purple', desc: 'Posting ke IG Business' },
+   561→    { id: 'EMAIL', label: 'Email', icon: FileText, color: 'slate', desc: 'Kirim email massal' },
+   562→  ]
+   563→
+   564→  const scopeOptions = [
+   565→    { value: 'ALL', label: 'Semua Indonesia (Nasional / DPN)' },
+   566→    { value: 'PROVINCE', label: 'Per Provinsi (DPD)' },
+   567→    { value: 'REGENCY', label: 'Per Kabupaten/Kota (DPC)' },
+   568→  ]
+   569→
+   570→  const occupationOptions = ['ALL', 'PETANI', 'NELAYAN', 'UMKM', 'PELAJAR', 'GURU', 'BURUH', 'LAINNYA']
+   571→  const ageGroupOptions = ['ALL', '17-21', '22-30', '31-40', '41-60', '61+']
+   572→
+   573→  if (loading) return <LoadingState />
+   574→
+   575→  return (
+   576→    <div className="space-y-4">
+   577→      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+   578→        <StatCard label="Total Kontak" value={contactsStats.total} icon={Users} color="blue" />
+   579→        <StatCard label="WA Opt-in" value={contactsStats.optIn} icon={CheckCircle2} color="emerald" />
+   580→        <StatCard label="Templates" value={templates.length} icon={FileText} color="purple" />
+   581→        <StatCard label="Broadcasts" value={broadcasts.length} icon={Send} color="orange" />
+   582→      </div>
+   583→
+   584→      <div className="flex justify-between items-center">
+   585→        <div>
+   586→          <h3 className="font-semibold text-base">Broadcast Composer</h3>
+   587→          <p className="text-sm text-muted-foreground">Dynamic target DB + anti-banned message queue + variabel otomatis {`{nama}`} {`{wilayah}`} {`{tanggal}`}</p>
+   588→        </div>
+   589→        <div className="flex gap-2">
+   590→          <Button variant="outline" onClick={() => setTemplateOpen(true)}><FileText className="w-4 h-4 mr-1" /> Template</Button>
+   591→          <Button variant="outline" onClick={() => setGatewayOpen(true)} className="bg-emerald-50 border-emerald-300 text-emerald-700 hover:bg-emerald-100">
+   592→            <Shield className="w-4 h-4 mr-1" /> WA Gateway
+   593→          </Button>
+   594→          <Button onClick={() => setComposerOpen(true)} className="bg-gradient-to-r from-orange-600 to-red-600 text-white">
+   595→            <Plus className="w-4 h-4 mr-1" /> Buat Broadcast
+   596→          </Button>
+   597→        </div>
+   598→      </div>
+   599→
+   600→      {/* Recent broadcasts */}
+   601→      <Card>
+   602→        <CardHeader><CardTitle className="text-base">Broadcast Terbaru</CardTitle></CardHeader>
+   603→        <CardContent>
+   604→          {broadcasts.length === 0 ? (
+   605→            <EmptyState icon={Send} title="Belum ada broadcast" description="Klik 'Buat Broadcast' untuk mulai." />
+   606→          ) : (
+   607→            <Table>
+   608→              <TableHeader>
+   609→                <TableRow>
+   610→                  <TableHead>Title</TableHead>
+   611→                  <TableHead>Channel</TableHead>
+   612→                  <TableHead className="text-center">Penerima</TableHead>
+   613→                  <TableHead>Status</TableHead>
+   614→                  <TableHead>Tanggal</TableHead>
+   615→                  <TableHead></TableHead>
+   616→                </TableRow>
+   617→              </TableHeader>
+   618→              <TableBody>
+   619→                {broadcasts.map(b => (
+   620→                  <TableRow key={b.id}>
+   621→                    <TableCell className="font-medium text-sm">{b.title}</TableCell>
+   622→                    <TableCell>
+   623→                      <Badge variant="outline" className="text-[13px]">{b.channel}</Badge>
+   624→                    </TableCell>
+   625→                    <TableCell className="text-center text-sm">{b.recipientCount}</TableCell>
+   626→                    <TableCell>
+   627→                      <Badge className={`text-[13px] ${b.status === 'SENT' ? 'bg-emerald-100 text-emerald-800' : b.status === 'QUEUED' ? 'bg-amber-100 text-amber-800' : b.status === 'PARTIAL' ? 'bg-orange-100 text-orange-800' : b.status === 'FAILED' ? 'bg-red-100 text-red-800' : 'bg-slate-100 text-slate-800'}`}>
+   628→                        {b.status}
+   629→                      </Badge>
+   630→                    </TableCell>
+   631→                    <TableCell className="text-xs">{formatDateTimeID(b.createdAt)}</TableCell>
+   632→                    <TableCell>
+   633→                      <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setBroadcastStatsOpen(b)}>
+   634→                        <Eye className="w-3 h-3 mr-1" /> Stats
+   635→                      </Button>
+   636→                    </TableCell>
+   637→                  </TableRow>
+   638→                ))}
+   639→              </TableBody>
+   640→            </Table>
+   641→          )}
+   642→        </CardContent>
+   643→      </Card>
+   644→
+   645→      {/* Composer dialog — NEW with dynamic target + preview + variable personalization */}
+   646→      <Dialog open={composerOpen} onOpenChange={(o) => { setComposerOpen(o); if (!o) setTargetPreview(null) }}>
+   647→        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+   648→          <DialogHeader>
+   649→            <DialogTitle className="flex items-center gap-2"><Send className="w-5 h-5 text-orange-600" /> Buat Broadcast Baru</DialogTitle>
+   650→            <DialogDescription>
+   651→              Pilih channel, target wilayah (DPN/DPD/DPC), isi pesan dengan variabel otomatis. Sistem akan resolve kontak dari DB & jadwalkan pengiriman anti-banned.
+   652→            </DialogDescription>
+   653→          </DialogHeader>
+   654→          <form onSubmit={handleSend} className="space-y-3">
+   655→            {/* Title */}
+   656→            <div className="space-y-2">
+   657→              <Label>Judul Broadcast *</Label>
+   658→              <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })}
+   659→                placeholder="cth: Pengumuman Rapat DPD 15 Agustus 2026" required />
+   660→            </div>
+   661→
+   662→            {/* Channel selector */}
+   663→            <div className="space-y-2">
+   664→              <Label>Pilih Channel (bisa lebih dari satu) *</Label>
+   665→              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+   666→                {channels.map(ch => {
+   667→                  const active = form.channels.includes(ch.id)
+   668→                  return (
+   669→                    <button key={ch.id} type="button"
+   670→                      onClick={() => setForm({ ...form, channels: active ? form.channels.filter((c: string) => c !== ch.id) : [...form.channels, ch.id] })}
+   671→                      className={`flex flex-col items-start gap-1 p-3 rounded-lg border text-left transition-all ${active ? 'bg-orange-600 text-white border-orange-600' : 'border hover:bg-accent'}`}>
+   672→                      <div className="flex items-center gap-2">
+   673→                        <ch.icon className="w-4 h-4" />
+   674→                        <span className="text-sm font-semibold">{ch.label}</span>
+   675→                      </div>
+   676→                      <span className={`text-[13px] ${active ? 'text-orange-100' : 'text-muted-foreground'}`}>{ch.desc}</span>
+   677→                    </button>
+   678→                  )
+   679→                })}
+   680→              </div>
+   681→            </div>
+   682→
+   683→            {/* === TARGET WILAYAH (Dynamic Database Contact Resolution) === */}
+   684→            {form.channels.includes('WHATSAPP') && (
+   685→              <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 space-y-3">
+   686→                <div className="flex items-center gap-2">
+   687→                  <Users className="w-4 h-4 text-emerald-700" />
+   688→                  <Label className="text-sm font-semibold text-emerald-800">Target Audiens (Dynamic Database Resolution)</Label>
+   689→                </div>
+   690→
+   691→                <div className="grid grid-cols-2 gap-3">
+   692→                  <div className="space-y-1">
+   693→                    <Label className="text-xs">Scope Wilayah *</Label>
+   694→                    <Select value={form.targetScope} onValueChange={(v) => setForm({ ...form, targetScope: v as any, targetTerritoryCode: '' })}>
+   695→                      <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+   696→                      <SelectContent>
+   697→                        {scopeOptions.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
+   698→                      </SelectContent>
+   699→                    </Select>
+   700→                  </div>
+   701→                  {(form.targetScope === 'PROVINCE' || form.targetScope === 'REGENCY') && (
+   702→                    <div className="space-y-1">
+   703→                      <Label className="text-xs">{form.targetScope === 'PROVINCE' ? 'Provinsi (DPD)' : 'Kabupaten/Kota (DPC)'} *</Label>
+   704→                      <Select value={form.targetTerritoryCode} onValueChange={(v) => setForm({ ...form, targetTerritoryCode: v })}>
+   705→                        <SelectTrigger className="h-9"><SelectValue placeholder="Pilih wilayah..." /></SelectTrigger>
+   706→                        <SelectContent>
+   707→                          {territories.map(t => <SelectItem key={t.code} value={t.code}>{t.name} ({t.contactCount} kontak)</SelectItem>)}
+   708→                        </SelectContent>
+   709→                      </Select>
+   710→                    </div>
+   711→                  )}
+   712→                </div>
+   713→
+   714→                <div className="grid grid-cols-3 gap-3">
+   715→                  <div className="space-y-1">
+   716→                    <Label className="text-xs">Profesi (opsional)</Label>
+   717→                    <Select value={form.targetOccupation} onValueChange={(v) => setForm({ ...form, targetOccupation: v })}>
+   718→                      <SelectTrigger className="h-9"><SelectValue placeholder="Semua" /></SelectTrigger>
+   719→                      <SelectContent>
+   720→                        {occupationOptions.map(o => <SelectItem key={o} value={o}>{o === 'ALL' ? 'Semua Profesi' : o}</SelectItem>)}
+   721→                      </SelectContent>
+   722→                    </Select>
+   723→                  </div>
+   724→                  <div className="space-y-1">
+   725→                    <Label className="text-xs">Kelompok Usia (opsional)</Label>
+   726→                    <Select value={form.targetAgeGroup} onValueChange={(v) => setForm({ ...form, targetAgeGroup: v })}>
+   727→                      <SelectTrigger className="h-9"><SelectValue placeholder="Semua" /></SelectTrigger>
+   728→                      <SelectContent>
+   729→                        {ageGroupOptions.map(a => <SelectItem key={a} value={a}>{a === 'ALL' ? 'Semua Usia' : a}</SelectItem>)}
+   730→                      </SelectContent>
+   731→                    </Select>
+   732→                  </div>
+   733→                  <div className="space-y-1">
+   734→                    <Label className="text-xs">Filter Khusus</Label>
+   735→                    <label className="flex items-center gap-2 h-9 cursor-pointer">
+   736→                      <input type="checkbox" checked={form.onlyLapraMembers} onChange={(e) => setForm({ ...form, onlyLapraMembers: e.target.checked })}
+   737→                        className="w-4 h-4 rounded" />
+   738→                      <span className="text-xs">Pengurus LAPRA 08 saja</span>
+   739→                    </label>
+   740→                  </div>
+   741→                </div>
+   742→
+   743→                <Button type="button" variant="outline" size="sm" onClick={handlePreviewTargets} disabled={resolvingTargets}>
+   744→                  {resolvingTargets ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Search className="w-3 h-3 mr-1" />}
+   745→                  {resolvingTargets ? 'Mengambil kontak...' : 'Preview Target Kontak'}
+   746→                </Button>
+   747→
+   748→                {/* Target preview results */}
+   749→                {targetPreview && (
+   750→                  <div className="rounded-lg bg-white border p-3 space-y-2">
+   751→                    <div className="flex items-center justify-between">
+   752→                      <div className="text-xs font-semibold text-emerald-700">{targetPreview.filterDescription}</div>
+   753→                      <Badge className="bg-emerald-100 text-emerald-800">{targetPreview.totalOptIn} WA opt-in</Badge>
+   754→                    </div>
+   755→                    <div className="grid grid-cols-3 gap-2 text-center text-xs">
+   756→                      <div className="rounded bg-emerald-50 p-1.5">
+   757→                        <div className="font-bold text-emerald-700">{targetPreview.totalFound}</div>
+   758→                        <div className="text-[13px]">Total Found</div>
+   759→                      </div>
+   760→                      <div className="rounded bg-emerald-50 p-1.5">
+   761→                        <div className="font-bold text-emerald-700">{targetPreview.totalOptIn}</div>
+   762→                        <div className="text-[13px]">WA Opt-in</div>
+   763→                      </div>
+   764→                      <div className="rounded bg-amber-50 p-1.5">
+   765→                        <div className="font-bold text-amber-700">{targetPreview.totalSkipped}</div>
+   766→                        <div className="text-[13px]">Skipped</div>
+   767→                      </div>
+   768→                    </div>
+   769→                    {targetPreview.sampleContacts && targetPreview.sampleContacts.length > 0 && (
+   770→                      <div>
+   771→                        <div className="text-[13px] font-semibold text-muted-foreground mb-1">Sample kontak (5 dari {targetPreview.totalOptIn}):</div>
+   772→                        <div className="space-y-1">
+   773→                          {targetPreview.sampleContacts.map((c: any, i: number) => (
+   774→                            <div key={i} className="text-[13px] flex items-center justify-between rounded bg-slate-50 px-2 py-1">
+   775→                              <div>
+   776→                                <span className="font-semibold">{c.name}</span>
+   777→                                <span className="text-muted-foreground ml-2">{c.phone}</span>
+   778→                              </div>
+   779→                              <div className="text-[13px]">
+   780→                                {c.territoryName} • {c.occupation || '-'} • {c.ageGroup || '-'}
+   781→                              </div>
+   782→                            </div>
+   783→                          ))}
+   784→                        </div>
+   785→                      </div>
+   786→                    )}
+   787→                  </div>
+   788→                )}
+   789→              </div>
+   790→            )}
+   791→
+   792→            {/* Message content with variable buttons */}
+   793→            <div className="space-y-2">
+   794→              <Label>Isi Pesan * <span className="text-sm text-muted-foreground">(klik variabel untuk sisipkan otomatis)</span></Label>
+   795→              <div className="flex flex-wrap gap-1 mb-1">
+   796→                {['nama', 'wilayah', 'tanggal', 'waktu', 'profesi', 'gender'].map(v => (
+   797→                  <Button key={v} type="button" size="sm" variant="outline" className="h-6 text-[13px]"
+   798→                    onClick={() => insertVariable(v)}>
+   799→                    {`{${v}}`}
+   800→                  </Button>
+   801→                ))}
+   802→              </div>
+   803→              <Textarea value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })}
+   804→                placeholder="Assalamualaikum {nama}, kami dari LAPRA 08 {wilayah} mengundang Bapak/Ibu untuk hadir rapat pada {tanggal}..." rows={5} required />
+   805→              <div className="text-sm text-muted-foreground">{form.content.length} karakter • Variabel akan otomatis di-resolve per kontak</div>
+   806→            </div>
+   807→
+   808→            {/* Schedule + image */}
+   809→            <div className="grid grid-cols-2 gap-3">
+   810→              <div className="space-y-2">
+   811→                <Label>Jadwalkan (opsional)</Label>
+   812→                <Input type="datetime-local" value={form.scheduleAt}
+   813→                  onChange={(e) => setForm({ ...form, scheduleAt: e.target.value })} />
+   814→              </div>
+   815→              <div className="space-y-2">
+   816→                <Label>Image URL (opsional)</Label>
+   817→                <Input value={form.imageUrl} onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
+   818→                  placeholder="https://..." />
+   819→              </div>
+   820→            </div>
+   821→
+   822→            {/* Estimate */}
+   823→            <div className="rounded-lg bg-blue-50 border border-blue-200 p-2 text-xs text-blue-800 flex items-start gap-2">
+   824→              <Users className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+   825→              <div>
+   826→                <strong>Estimasi pengiriman:</strong>{' '}
+   827→                {targetPreview ? (
+   828→                  <>
+   829→                    {targetPreview.totalOptIn} kontak WA opt-in akan menerima pesan personalisasi ({`{nama}`} & {`{wilayah}`} otomatis di-resolve).
+   830→                    Anti-banned: ~2-8 detik random delay per pesan, batch 20 pesan/jeda 1 menit.
+   831→                    {!targetPreview.totalOptIn && ' ⚠️ Tidak ada kontak opt-in — jalankan resolve target dulu.'}
+   832→                  </>
+   833→                ) : (
+   834→                  <>
+   835→                    {contactsStats.optIn} kontak WA opt-in tersedia. Klik "Preview Target Kontak" untuk lihat kontak yang akan menerima pesan berdasarkan filter di atas.
+   836→                  </>
+   837→                )}
+   838→              </div>
+   839→            </div>
+   840→
+   841→            <DialogFooter>
+   842→              <Button type="button" variant="outline" onClick={() => { setComposerOpen(false); setTargetPreview(null) }}>Batal</Button>
+   843→              <Button type="submit" disabled={sending || (targetPreview?.totalOptIn === 0)} className="bg-gradient-to-r from-orange-600 to-red-600 text-white">
+   844→                {sending ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Send className="w-4 h-4 mr-1" />}
+   845→                {sending ? 'Memproses & queue...' : form.scheduleAt ? 'Jadwalkan Broadcast' : 'Kirim Broadcast (Anti-Banned Queue)'}
+   846→              </Button>
+   847→            </DialogFooter>
+   848→          </form>
+   849→        </DialogContent>
+   850→      </Dialog>
+   851→
+   852→      {/* Template dialog (placeholder — user can build later) */}
+   853→      <Dialog open={templateOpen} onOpenChange={setTemplateOpen}>
+   854→        <DialogContent aria-describedby={undefined}>
+   855→          <DialogHeader>
+   856→            <DialogTitle>Template Pesan</DialogTitle>
+   857→            <DialogDescription>Template yang sudah disimpan</DialogDescription>
+   858→          </DialogHeader>
+   859→          {templates.length === 0 ? (
+   860→            <p className="text-sm text-muted-foreground text-center py-4">Belum ada template.</p>
+   861→          ) : (
+   862→            <div className="space-y-2 max-h-[60vh] overflow-y-auto">
+   863→              {templates.map(t => (
+   864→                <div key={t.id} className="rounded border p-2">
+   865→                  <div className="font-semibold text-sm">{t.name}</div>
+   866→                  <p className="text-xs text-muted-foreground line-clamp-2">{t.content}</p>
+   867→                </div>
+   868→              ))}
+   869→            </div>
+   870→          )}
+   871→          <DialogFooter><Button variant="outline" onClick={() => setTemplateOpen(false)}>Tutup</Button></DialogFooter>
+   872→        </DialogContent>
+   873→      </Dialog>
+   874→
+   875→      {/* Broadcast stats dialog */}
+   876→      {broadcastStatsOpen && (
+   877→        <BroadcastStatsDialog broadcast={broadcastStatsOpen} onClose={() => setBroadcastStatsOpen(null)} />
+   878→      )}
+   879→
+   880→      {/* WhatsApp Gateway Providers dialog */}
+   881→      <GatewayProvidersDialog open={gatewayOpen} onOpenChange={setGatewayOpen} />
+   882→    </div>
+   883→  )
+   884→}
+   885→
+   886→// === BROADCAST STATS DIALOG (queue progress + anti-banned tracking) ===
+   887→function BroadcastStatsDialog({ broadcast, onClose }: { broadcast: any; onClose: () => void }) {
+   888→  const [stats, setStats] = useState<any>(null)
+   889→  const [loading, setLoading] = useState(true)
+   890→  const [processing, setProcessing] = useState(false)
+   891→
+   892→  const loadData = useCallback(async () => {
+   893→    try {
+   894→      const res = await fetch(`/api/broadcast-composer/${broadcast.id}/stats`, {
+   895→        headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+   896→      })
+   897→      const data = await res.json()
+   898→      if (data.success) setStats(data.data)
+   899→    } catch (e) { /* ignore */ }
+   900→    finally { setLoading(false) }
+   901→  }, [broadcast.id])
+   902→
+   903→  useEffect(() => {
+   904→    loadData()
+   905→    const interval = setInterval(loadData, 15000) // 15s (was 5s — too aggressive for Vercel serverless)
+   906→    return () => clearInterval(interval)
+   907→  }, [loadData])
+   908→
+   909→  const handleProcessQueue = async () => {
+   910→    setProcessing(true)
+   911→    try {
+   912→      const res = await fetch(`/api/broadcast-composer/${broadcast.id}/queue`, {
+   913→        method: 'POST',
+   914→        headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+   915→      })
+   916→      const data = await res.json()
+   917→      if (data.success) {
+   918→        useToastStore.getState().addToast(data.message, 'success')
+   919→        loadData()
+   920→      }
+   921→    } catch (e: any) { useToastStore.getState().addToast(e.message, 'error') }
+   922→    finally { setProcessing(false) }
+   923→  }
+   924→
+   925→  if (loading) return <LoadingState />
+   926→
+   927→  return (
+   928→    <Dialog open={true} onOpenChange={onClose}>
+   929→      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+   930→        <DialogHeader>
+   931→          <DialogTitle className="flex items-center gap-2"><Activity className="w-5 h-5 text-orange-600" /> Broadcast Stats: {broadcast.title}</DialogTitle>
+   932→          <DialogDescription>Progress pengiriman + anti-banned queue tracking</DialogDescription>
+   933→        </DialogHeader>
+   934→
+   935→        {stats && (
+   936→          <div className="space-y-3">
+   937→            {/* Progress bar */}
+   938→            <div className="rounded-lg bg-slate-50 border p-3">
+   939→              <div className="flex items-center justify-between mb-2">
+   940→                <span className="text-sm font-semibold">Progress Pengiriman</span>
+   941→                <span className="text-2xl font-bold text-orange-600">{stats.stats.progress}%</span>
+   942→              </div>
+   943→              <div className="w-full bg-slate-200 rounded-full h-3 overflow-hidden">
+   944→                <div className="bg-gradient-to-r from-orange-500 to-red-600 h-full transition-all" style={{ width: `${stats.stats.progress}%` }} />
+   945→              </div>
+   946→              <div className="grid grid-cols-4 gap-2 mt-3 text-center text-xs">
+   947→                <div className="rounded bg-amber-50 p-1.5"><div className="font-bold text-amber-700">{stats.stats.queued}</div><div className="text-[13px]">Antrian</div></div>
+   948→                <div className="rounded bg-emerald-50 p-1.5"><div className="font-bold text-emerald-700">{stats.stats.sent}</div><div className="text-[13px]">Terkirim</div></div>
+   949→                <div className="rounded bg-red-50 p-1.5"><div className="font-bold text-red-700">{stats.stats.failed}</div><div className="text-[13px]">Gagal</div></div>
+   950→                <div className="rounded bg-slate-100 p-1.5"><div className="font-bold text-slate-700">{stats.stats.blocked}</div><div className="text-[13px]">Blocked</div></div>
+   951→              </div>
+   952→              <div className="text-[13px] text-muted-foreground mt-2 text-center">
+   953→                Total: {stats.stats.total} • Success rate: {stats.stats.successRate}%
+   954→              </div>
+   955→            </div>
+   956→
+   957→            {/* Process queue button */}
+   958→            {stats.stats.queued > 0 && (
+   959→              <Button onClick={handleProcessQueue} disabled={processing} className="w-full bg-gradient-to-r from-orange-600 to-red-600 text-white">
+   960→                {processing ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Zap className="w-4 h-4 mr-1" />}
+   961→                {processing ? 'Memproses batch...' : `Proses Antrian (${stats.stats.queued} pesan menunggu)`}
+   962→              </Button>
+   963→            )}
+   964→
+   965→            {/* Sample sent messages (personalized) */}
+   966→            {stats.sentMessages && stats.sentMessages.length > 0 && (
+   967→              <Card>
+   968→                <CardHeader><CardTitle className="text-sm">Sample Pesan Terkirim (Personalisasi Aktif)</CardTitle></CardHeader>
+   969→                <CardContent>
+   970→                  <div className="space-y-2 max-h-40 overflow-y-auto">
+   971→                    {stats.sentMessages.map((m: any, i: number) => (
+   972→                      <div key={i} className="rounded border p-2 text-xs">
+   973→                        <div className="flex items-center justify-between mb-1">
+   974→                          <span className="font-semibold">{m.recipientName}</span>
+   975→                          <span className="text-[13px] text-muted-foreground">{m.recipientTerritory}</span>
+   976→                        </div>
+   977→                        <p className="text-[13px] text-muted-foreground line-clamp-2">{m.personalizedContent}</p>
+   978→                      </div>
+   979→                    ))}
+   980→                  </div>
+   981→                </CardContent>
+   982→              </Card>
+   983→            )}
+   984→
+   985→            {/* Failed messages */}
+   986→            {stats.failedMessages && stats.failedMessages.length > 0 && (
+   987→              <Card className="border-red-200">
+   988→                <CardHeader><CardTitle className="text-sm text-red-700">Pesan Gagal/Blocked ({stats.failedMessages.length})</CardTitle></CardHeader>
+   989→                <CardContent>
+   990→                  <div className="space-y-2 max-h-40 overflow-y-auto">
+   991→                    {stats.failedMessages.map((m: any, i: number) => (
+   992→                      <div key={i} className="rounded border border-red-200 p-2 text-xs">
+   993→                        <div className="flex items-center justify-between mb-1">
+   994→                          <span className="font-semibold">{m.recipientName}</span>
+   995→                          <Badge variant="outline" className={`text-[13px] ${m.status === 'BLOCKED' ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'}`}>{m.status}</Badge>
+   996→                        </div>
+   997→                        <div className="text-[13px] text-red-700">{m.errorCode}: {m.errorMessage}</div>
+   998→                        <div className="text-[13px] text-muted-foreground mt-1">Retry: {m.retryCount}/3</div>
+   999→                      </div>
+  1000→                    ))}
+  1001→                  </div>
+  1002→                </CardContent>
+  1003→              </Card>
+  1004→            )}
+  1005→          </div>
+  1006→        )}
+  1007→
+  1008→        <DialogFooter><Button variant="outline" onClick={onClose}>Tutup</Button></DialogFooter>
+  1009→      </DialogContent>
+  1010→    </Dialog>
+  1011→  )
+  1012→}
+  1013→
+  1014→// ============================================================
+  1015→// TAB 4: ESSAY POLLS & AI AUTO-PERTANYAAN
+  1016→// ============================================================
+  1017→function EssayPollsTab() {
+  1018→  const addToast = useToastStore((s) => s.addToast)
+  1019→  const [polls, setPolls] = useState<any[]>([])
+  1020→  const [loading, setLoading] = useState(true)
+  1021→  const [aiGenOpen, setAiGenOpen] = useState(false)
+  1022→  const [manualOpen, setManualOpen] = useState(false)
+  1023→  const [detailPoll, setDetailPoll] = useState<any>(null)
+  1024→  const [sharePoll, setSharePoll] = useState<any>(null)
+  1025→  const [aiForm, setAiForm] = useState({ sourceTopic: '', sourceUrl: '', sourceContent: '' })
+  1026→  // === State baru untuk multiple AI suggestions ===
+  1027→  const [aiSuggestions, setAiSuggestions] = useState<any[]>([])
+  1028→  const [aiSuggestionsMeta, setAiSuggestionsMeta] = useState<any>(null)
+  1029→  const [generatingSuggestions, setGeneratingSuggestions] = useState(false)
+  1030→  const [selectedSuggestionIdx, setSelectedSuggestionIdx] = useState<number | null>(null)
+  1031→  const [creatingFromSuggestion, setCreatingFromSuggestion] = useState(false)
+  1032→  // === State untuk AI suggestions di mode Manual ===
+  1033→  const [manualSuggestions, setManualSuggestions] = useState<any[]>([])
+  1034→  const [loadingManualSuggestions, setLoadingManualSuggestions] = useState(false)
+  1035→  // === State untuk topic suggestions (auto-fill inspirasi) ===
+  1036→  const [topicSuggestions, setTopicSuggestions] = useState<any>(null)
+  1037→
+  1038→  // === BANNER: Pengingat survei harus netral ===
+  1039→  const neutralityBanner = (
+  1040→    <div className="rounded-lg bg-amber-50 border-2 border-amber-300 p-3 flex items-start gap-3">
+  1041→      <Shield className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+  1042→      <div className="flex-1">
+  1043→        <div className="font-bold text-amber-800 text-sm">
+  1044→          🔒 Survei Opini Publik — Netral & Anonim
+  1045→        </div>
+  1046→        <p className="text-xs text-amber-700 mt-1">
+  1047→          Pertanyaan survei <strong>TIDAK boleh menyebut</strong> "Laskar Prabowo 08" atau "LAPRA 08". 
+  1048→          Responden harus merasa bebas menjawab jujur tanpa tekanan. 
+  1049→          Sistem AI sudah otomatis menghapus nama organisasi dari pertanyaan yang di-generate.
+  1050→        </p>
+  1051→      </div>
+  1052→    </div>
+  1053→  )
+  1054→  const [showTopicSuggestions, setShowTopicSuggestions] = useState(false)
+  1055→  const [activeCategory, setActiveCategory] = useState<string | null>(null)
+  1056→
+  1057→  const loadData = useCallback(() => {
+  1058→    setLoading(true)
+  1059→    api('/api/essay-polls').then(res => {
+  1060→      setPolls(Array.isArray(res) ? res : (res?.data || []))
+  1061→    }).catch(() => setPolls([])).finally(() => setLoading(false))
+  1062→  }, [])
+  1063→
+  1064→  useEffect(() => { loadData() }, [loadData])
+  1065→
+  1066→  // === AI Generate: dapetin dulu 5 varian pertanyaan ===
+  1067→  const handleGetSuggestions = async (e: React.FormEvent) => {
+  1068→    e.preventDefault()
+  1069→    setGeneratingSuggestions(true)
+  1070→    setAiSuggestions([])
+  1071→    setSelectedSuggestionIdx(null)
+  1072→    try {
+  1073→      const res = await fetch('/api/essay-polls/ai-suggestions', {
+  1074→        method: 'POST',
+  1075→        headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+  1076→        body: JSON.stringify({
+  1077→          sourceTopic: aiForm.sourceTopic,
+  1078→          sourceUrl: aiForm.sourceUrl,
+  1079→          sourceContent: aiForm.sourceContent,
+  1080→          count: 5,
+  1081→        }),
+  1082→      })
+  1083→      const data = await res.json()
+  1084→      if (!res.ok || !data.success) throw new Error(data.error)
+  1085→      setAiSuggestions(data.data.questions)
+  1086→      setAiSuggestionsMeta(data.data)
+  1087→      addToast(data.message, 'success')
+  1088→    } catch (e: any) {
+  1089→      addToast(e.message, 'error')
+  1090→    } finally {
+  1091→      setGeneratingSuggestions(false)
+  1092→    }
+  1093→  }
+  1094→
+  1095→  // === Pilih salah satu suggestion & buat poll ===
+  1096→  const handleCreateFromSuggestion = async (idx: number) => {
+  1097→    const suggestion = aiSuggestions[idx]
+  1098→    if (!suggestion) return
+  1099→    setCreatingFromSuggestion(true)
+  1100→    try {
+  1101→      const res = await fetch('/api/essay-polls', {
+  1102→        method: 'POST',
+  1103→        headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+  1104→        body: JSON.stringify({
+  1105→          action: 'ai_generate',
+  1106→          sourceTopic: aiForm.sourceTopic,
+  1107→          sourceUrl: aiForm.sourceUrl,
+  1108→          sourceContent: aiForm.sourceContent,
+  1109→          // Override dengan suggestion yang dipilih user
+  1110→          selectedSuggestion: suggestion,
+  1111→        }),
+  1112→      })
+  1113→      const data = await res.json()
+  1114→      if (!res.ok || !data.success) throw new Error(data.error)
+  1115→      addToast(`Poll dibuat dari saran AI #${idx + 1} (pendekatan ${suggestion.approach})`, 'success')
+  1116→      // Reset & close
+  1117→      setAiForm({ sourceTopic: '', sourceUrl: '', sourceContent: '' })
+  1118→      setAiSuggestions([])
+  1119→      setSelectedSuggestionIdx(null)
+  1120→      setAiGenOpen(false)
+  1121→      loadData()
+  1122→    } catch (e: any) {
+  1123→      addToast(e.message, 'error')
+  1124→    } finally {
+  1125→      setCreatingFromSuggestion(false)
+  1126→    }
+  1127→  }
+  1128→
+  1129→  // === Dapatkan AI suggestions untuk mode Manual (preview, tanpa simpan) ===
+  1130→  const handleGetManualSuggestions = async () => {
+  1131→    setLoadingManualSuggestions(true)
+  1132→    try {
+  1133→      const res = await fetch('/api/essay-polls/ai-suggestions', {
+  1134→        method: 'POST',
+  1135→        headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+  1136→        body: JSON.stringify({
+  1137→          sourceTopic: 'Survei opini publik umum',
+  1138→          count: 5,
+  1139→        }),
+  1140→      })
+  1141→      const data = await res.json()
+  1142→      if (!data.success) throw new Error(data.error)
+  1143→      setManualSuggestions(data.data.questions)
+  1144→      addToast(`${data.data.questions.length} saran pertanyaan AI tersedia`, 'success')
+  1145→    } catch (e: any) {
+  1146→      addToast(e.message, 'error')
+  1147→    } finally {
+  1148→      setLoadingManualSuggestions(false)
+  1149→    }
+  1150→  }
+  1151→
+  1152→  // === Apply suggestion ke form manual ===
+  1153→  const applyManualSuggestion = (suggestion: any) => {
+  1154→    const titleInput = document.getElementById('manual-title') as HTMLInputElement
+  1155→    const questionTextarea = document.getElementById('manual-question') as HTMLTextAreaElement
+  1156→    const descriptionTextarea = document.getElementById('manual-description') as HTMLTextAreaElement
+  1157→    if (titleInput) titleInput.value = suggestion.title
+  1158→    if (questionTextarea) questionTextarea.value = suggestion.question
+  1159→    if (descriptionTextarea) descriptionTextarea.value = suggestion.description
+  1160→    addToast(`Saran AI "${suggestion.approach}" diterapkan ke form`, 'success')
+  1161→  }
+  1162→
+  1163→  // === Load topic suggestions (categories + recent news + recent opinions) ===
+  1164→  const loadTopicSuggestions = useCallback(async () => {
+  1165→    if (topicSuggestions) return // already loaded
+  1166→    try {
+  1167→      const res = await fetch('/api/essay-polls/topic-suggestions', {
+  1168→        headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+  1169→      })
+  1170→      const data = await res.json()
+  1171→      if (data.success) setTopicSuggestions(data.data)
+  1172→    } catch (e: any) {
+  1173→      console.error('[TopicSuggestions] Error:', e.message)
+  1174→    }
+  1175→  }, [topicSuggestions])
+  1176→
+  1177→  // === Apply topic suggestion (auto-fill form) ===
+  1178→  const applyTopicSuggestion = (topic: string, occupation?: string, sourceUrl?: string) => {
+  1179→    setAiForm({
+  1180→      ...aiForm,
+  1181→      sourceTopic: topic,
+  1182→      sourceUrl: sourceUrl || '',
+  1183→    })
+  1184→    addToast(`Topik "${topic.substring(0, 60)}..." diisi otomatis${occupation ? ` (target: ${occupation})` : ''}`, 'success')
+  1185→  }
+  1186→
+  1187→  // === Apply recent opinion link as topic ===
+  1188→  const applyOpinionAsTopic = (opinion: any) => {
+  1189→    setAiForm({
+  1190→      ...aiForm,
+  1191→      sourceTopic: opinion.title,
+  1192→      sourceUrl: '', // opinion links don't have public URL we'd share
+  1193→    })
+  1194→    addToast(`Topik dari opinion link diisi otomatis (sentiment: ${opinion.sentiment})`, 'success')
+  1195→  }
+  1196→
+  1197→  const handleActivate = async (pollId: string) => {
+  1198→    try {
+  1199→      const res = await fetch(`/api/essay-polls/${pollId}`, {
+  1200→        method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+  1201→        body: JSON.stringify({ status: 'ACTIVE' }),
+  1202→      })
+  1203→      const data = await res.json()
+  1204→      if (!res.ok || !data.success) throw new Error(data.error)
+  1205→      addToast(`Poll diaktifkan. Responden bisa kirim jawaban sekarang.`, 'success')
+  1206→      loadData()
+  1207→    } catch (e: any) { addToast(e.message, 'error') }
+  1208→  }
+  1209→
+  1210→  const handleViewDetail = async (pollId: string) => {
+  1211→    try {
+  1212→      const res = await fetch(`/api/essay-polls/${pollId}`, { headers: { 'x-user-id': useAuthStore.getState().user?.id || '' } })
+  1213→      const data = await res.json()
+  1214→      if (data.success) setDetailPoll(data.data)
+  1215→    } catch (e: any) { addToast(e.message, 'error') }
+  1216→  }
+  1217→
+  1218→  if (loading) return <LoadingState />
+  1219→
+  1220→  return (
+  1221→    <div className="space-y-4">
+  1222→      {neutralityBanner}
+  1223→
+  1224→      {/* Header */}
+  1225→      <Card className="border-purple-200 bg-gradient-to-br from-purple-50 to-pink-50">
+  1226→        <CardContent className="p-5">
+  1227→          <div className="flex items-start gap-4">
+  1228→            <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center shadow-lg shrink-0">
+  1229→              <Brain className="w-7 h-7 text-white" />
+  1230→            </div>
+  1231→            <div className="flex-1">
+  1232→              <h3 className="font-bold text-lg mb-1">Essay Polling &amp; AI Auto-Pertanyaan</h3>
+  1233→              <p className="text-sm text-muted-foreground mb-3">
+  1234→                AI menelaah berita/event otomatis → generate <strong>5 varian pertanyaan</strong> dengan pendekatan berbeda
+  1235→                (langsung, komparatif, solusi, emosional, analitis). Pilih salah satu, lalu share ke medsos & group populer.
+  1236→              </p>
+  1237→              <div className="flex gap-2">
+  1238→                <Button onClick={() => { setAiGenOpen(true); setAiSuggestions([]) }} className="bg-gradient-to-r from-purple-600 to-pink-600 text-white">
+  1239→                  <Sparkles className="w-4 h-4 mr-1" /> AI Generate Pertanyaan
+  1240→                </Button>
+  1241→                <Button variant="outline" onClick={() => setManualOpen(true)}>
+  1242→                  <Plus className="w-4 h-4 mr-1" /> Buat Manual + Saran AI
+  1243→                </Button>
+  1244→              </div>
+  1245→            </div>
+  1246→          </div>
+  1247→        </CardContent>
+  1248→      </Card>
+  1249→
+  1250→      {/* Polls list */}
+  1251→      {polls.length === 0 ? (
+  1252→        <EmptyState icon={Brain} title="Belum ada essay poll"
+  1253→          description="Klik 'AI Generate Pertanyaan' untuk membuat 5 varian pertanyaan essay otomatis dari topik berita/event." />
+  1254→      ) : (
+  1255→        <div className="space-y-2">
+  1256→          {polls.map(p => (
+  1257→            <Card key={p.id} className="hover:shadow-md transition-shadow">
+  1258→              <CardContent className="p-4">
+  1259→                <div className="flex items-start justify-between gap-3">
+  1260→                  <div className="flex-1 min-w-0">
+  1261→                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+  1262→                      {p.isAiGenerated && (
+  1263→                        <Badge className="text-[13px] bg-purple-100 text-purple-800">
+  1264→                          <Sparkles className="w-2.5 h-2.5 mr-0.5" />AI GENERATED
+  1265→                        </Badge>
+  1266→                      )}
+  1267→                      <Badge variant="outline" className={`text-[13px] ${p.status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-700' : p.status === 'CLOSED' ? 'bg-slate-50 text-slate-700' : 'bg-amber-50 text-amber-700'}`}>
+  1268→                        {p.status}
+  1269→                      </Badge>
+  1270→                      {p.sourceSentiment && (
+  1271→                        <Badge variant="outline" className={`text-[13px] ${p.sourceSentiment === 'NEGATIVE' ? 'bg-red-50 text-red-700' : p.sourceSentiment === 'POSITIVE' ? 'bg-emerald-50 text-emerald-700' : ''}`}>
+  1272→                          {p.sourceSentiment}
+  1273→                        </Badge>
+  1274→                      )}
+  1275→                      {p.targetOccupation && <Badge variant="outline" className="text-[13px] bg-blue-50 text-blue-700">{p.targetOccupation}</Badge>}
+  1276→                      {p.provinceName && <Badge variant="outline" className="text-[13px] bg-blue-50 text-blue-700"><MapPin className="w-2.5 h-2.5 mr-0.5" />{p.regencyName || p.provinceName}</Badge>}
+  1277→                      <Badge variant="outline" className="text-[13px]">{p._count?.responses || 0} respon</Badge>
+  1278→                    </div>
+  1279→                    <div className="font-semibold text-sm">{p.title}</div>
+  1280→                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{p.question}</p>
+  1281→                    {p.description && <p className="text-xs text-purple-700 mt-1 italic line-clamp-1">{p.description}</p>}
+  1282→                    <div className="text-[13px] text-muted-foreground mt-2">
+  1283→                      📅 {formatDateTimeID(p.createdAt)} • oleh {p.createdBy?.fullName || '?'}
+  1284→                    </div>
+  1285→                  </div>
+  1286→                  <div className="flex flex-col gap-1 shrink-0">
+  1287→                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleViewDetail(p.id)}>
+  1288→                      <Eye className="w-3 h-3 mr-1" /> Detail
+  1289→                    </Button>
+  1290→                    {p.status === 'DRAFT' && (
+  1291→                      <Button size="sm" className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => handleActivate(p.id)}>
+  1292→                        <Zap className="w-3 h-3 mr-1" /> Aktifkan
+  1293→                      </Button>
+  1294→                    )}
+  1295→                    {/* === Tombol Share ke Medsos === */}
+  1296→                    <Button size="sm" variant="outline" className="h-7 text-xs bg-blue-50 border-blue-300 text-blue-700 hover:bg-blue-100" onClick={() => setSharePoll(p)}>
+  1297→                      <Share2 className="w-3 h-3 mr-1" /> Share
+  1298→                    </Button>
+  1299→                  </div>
+  1300→                </div>
+  1301→              </CardContent>
+  1302→            </Card>
+  1303→          ))}
+  1304→        </div>
+  1305→      )}
+  1306→
+  1307→      {/* === AI Generate Dialog (Multiple Suggestions) — Enhanced with Topic Suggestions === */}
+  1308→      <Dialog open={aiGenOpen} onOpenChange={(o) => { setAiGenOpen(o); if (!o) { setAiSuggestions([]); setSelectedSuggestionIdx(null); setShowTopicSuggestions(false); setActiveCategory(null) } }}>
+  1309→        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+  1310→          <DialogHeader>
+  1311→            <DialogTitle className="flex items-center gap-2">
+  1312→              <Sparkles className="w-5 h-5 text-purple-600" /> AI Generate Pertanyaan Essay (Multi-Saran)
+  1313→            </DialogTitle>
+  1314→            <DialogDescription>
+  1315→              AI akan generate 5 varian pertanyaan dengan pendekatan berbeda. Pilih salah satu untuk dibuat poll.
+  1316→              Klik <strong>"💡 Saran Topik"</strong> untuk inspirasi dari trending issues & kategori.
+  1317→            </DialogDescription>
+  1318→          </DialogHeader>
+  1319→
+  1320→          {/* === Topic Suggestions Panel (auto-fill inspirasi) === */}
+  1321→          {aiSuggestions.length === 0 && (
+  1322→            <div className="rounded-lg bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-200 p-3 space-y-2">
+  1323→              <div className="flex items-center justify-between">
+  1324→                <Label className="text-xs font-semibold text-purple-800">💡 Saran Topik Otomatis (AI-curated)</Label>
+  1325→                <Button type="button" size="sm" variant="outline" className="h-7 text-xs"
+  1326→                  onClick={() => {
+  1327→                    if (!showTopicSuggestions) loadTopicSuggestions()
+  1328→                    setShowTopicSuggestions(!showTopicSuggestions)
+  1329→                  }}>
+  1330→                  {showTopicSuggestions ? '▲ Sembunyikan' : '▼ Tampilkan Saran'}
+  1331→                </Button>
+  1332→              </div>
+  1333→              {showTopicSuggestions && topicSuggestions && (
+  1334→                <div className="space-y-3">
+  1335→                  {/* Quick stats */}
+  1336→                  <div className="text-[13px] text-purple-700">
+  1337→                    {topicSuggestions.stats.totalCategories} kategori • {topicSuggestions.stats.totalSuggestedTopics} topik siap pakai • {topicSuggestions.stats.recentOpinionsCount} opinion links terbaru • {topicSuggestions.stats.recentNewsCount} berita LAPRA 08
+  1338→                  </div>
+  1339→
+  1340→                  {/* Category chips */}
+  1341→                  <div>
+  1342→                    <div className="text-[13px] font-semibold text-muted-foreground mb-1">📚 Pilih Kategori Isu:</div>
+  1343→                    <div className="flex flex-wrap gap-1">
+  1344→                      {topicSuggestions.categories.map(cat => (
+  1345→                        <button key={cat.id} type="button"
+  1346→                          onClick={() => setActiveCategory(activeCategory === cat.id ? null : cat.id)}
+  1347→                          className={`px-2 py-1 rounded-full text-[13px] font-medium border transition-all ${activeCategory === cat.id ? `bg-${cat.color}-500 text-white border-${cat.color}-500` : 'border hover:bg-accent'}`}>
+  1348→                          {cat.icon} {cat.label}
+  1349→                        </button>
+  1350→                      ))}
+  1351→                    </div>
+  1352→                  </div>
+  1353→
+  1354→                  {/* Suggested topics for active category */}
+  1355→                  {activeCategory && (() => {
+  1356→                    const cat = topicSuggestions.categories.find(c => c.id === activeCategory)
+  1357→                    if (!cat) return null
+  1358→                    return (
+  1359→                      <div className="rounded bg-white border p-2 space-y-1">
+  1360→                        <div className="text-[13px] font-semibold text-muted-foreground mb-1">
+  1361→                          {cat.icon} {cat.label} — {cat.description}
+  1362→                        </div>
+  1363→                        <div className="space-y-1">
+  1364→                          {cat.suggestedTopics.map((t: any, i: number) => (
+  1365→                            <button key={i} type="button"
+  1366→                              onClick={() => applyTopicSuggestion(t.topic, t.occupation)}
+  1367→                              className="w-full text-left p-1.5 rounded border hover:bg-accent text-[13px] transition-all">
+  1368→                              <div className="flex items-start justify-between gap-2">
+  1369→                                <span className="flex-1">{t.topic}</span>
+  1370→                                <div className="flex gap-1 shrink-0">
+  1371→                                  {t.occupation && t.occupation !== 'UMUM' && <Badge variant="outline" className="text-[13px]">{t.occupation}</Badge>}
+  1372→                                  <Badge variant="outline" className={`text-[13px] ${t.sentiment === 'NEGATIVE' ? 'bg-red-50 text-red-700' : t.sentiment === 'POSITIVE' ? 'bg-emerald-50 text-emerald-700' : ''}`}>
+  1373→                                    {t.sentiment}
+  1374→                                  </Badge>
+  1375→                                </div>
+  1376→                              </div>
+  1377→                            </button>
+  1378→                          ))}
+  1379→                        </div>
+  1380→                      </div>
+  1381→                    )
+  1382→                  })()}
+  1383→
+  1384→                  {/* Recent trending opinions (auto-detected from DB) */}
+  1385→                  {topicSuggestions.recentOpinions && topicSuggestions.recentOpinions.length > 0 && (
+  1386→                    <div>
+  1387→                      <div className="text-[13px] font-semibold text-muted-foreground mb-1">🔥 Trending Issues (dari Opinion Scanner terbaru):</div>
+  1388→                      <div className="space-y-1 max-h-32 overflow-y-auto">
+  1389→                        {topicSuggestions.recentOpinions.slice(0, 5).map((o: any, i: number) => (
+  1390→                          <button key={i} type="button"
+  1391→                            onClick={() => applyOpinionAsTopic(o)}
+  1392→                            className="w-full text-left p-1.5 rounded border hover:bg-accent text-[13px] transition-all">
+  1393→                            <div className="flex items-start justify-between gap-2">
+  1394→                              <span className="flex-1 line-clamp-1">{o.title}</span>
+  1395→                              <div className="flex gap-1 shrink-0">
+  1396→                                <Badge variant="outline" className={`text-[13px] ${o.priority === 'HIGH' ? 'bg-red-50 text-red-700' : o.priority === 'MEDIUM' ? 'bg-amber-50 text-amber-700' : ''}`}>{o.priority}</Badge>
+  1397→                                <Badge variant="outline" className={`text-[13px] ${o.sentiment === 'NEGATIVE' ? 'bg-red-50 text-red-700' : o.sentiment === 'POSITIVE' ? 'bg-emerald-50 text-emerald-700' : ''}`}>{o.sentiment}</Badge>
+  1398→                              </div>
+  1399→                            </div>
+  1400→                            {o.location && o.location !== 'Nasional' && <div className="text-[13px] text-muted-foreground mt-0.5">📍 {o.location} • 💬 {o.engagement} engagement</div>}
+  1401→                          </button>
+  1402→                        ))}
+  1403→                      </div>
+  1404→                    </div>
+  1405→                  )}
+  1406→
+  1407→                  {/* Recent LAPRA 08 news */}
+  1408→                  {topicSuggestions.recentNews && topicSuggestions.recentNews.length > 0 && (
+  1409→                    <div>
+  1410→                      <div className="text-[13px] font-semibold text-muted-foreground mb-1">📰 Berita LAPRA 08 Terbaru (auto-sync):</div>
+  1411→                      <div className="space-y-1 max-h-32 overflow-y-auto">
+  1412→                        {topicSuggestions.recentNews.slice(0, 5).map((n: any, i: number) => (
+  1413→                          <button key={i} type="button"
+  1414→                            onClick={() => applyTopicSuggestion(n.title, n.occupation)}
+  1415→                            className="w-full text-left p-1.5 rounded border hover:bg-accent text-[13px] transition-all">
+  1416→                            <div className="flex items-start justify-between gap-2">
+  1417→                              <span className="flex-1 line-clamp-1">{n.title}</span>
+  1418→                              <Badge variant="outline" className="text-[13px]">{n.source}</Badge>
+  1419→                            </div>
+  1420→                          </button>
+  1421→                        ))}
+  1422→                      </div>
+  1423→                    </div>
+  1424→                  )}
+  1425→                </div>
+  1426→              )}
+  1427→              {showTopicSuggestions && !topicSuggestions && (
+  1428→                <div className="text-[13px] text-purple-700 italic">Loading topic suggestions...</div>
+  1429→              )}
+  1430→            </div>
+  1431→          )}
+  1432→
+  1433→          {/* Step 1: Input form */}
+  1434→          <form onSubmit={handleGetSuggestions} className="space-y-3">
+  1435→            <div className="space-y-2">
+  1436→              <Label>Topik Isu / Berita * <span className="text-[13px] text-muted-foreground">(atau klik saran di atas untuk auto-fill)</span></Label>
+  1437→              <Input value={aiForm.sourceTopic} onChange={(e) => setAiForm({ ...aiForm, sourceTopic: e.target.value })}
+  1438→                placeholder="cth: Kenaikan harga pupuk bersubsidi di Grobogan" required disabled={generatingSuggestions || aiSuggestions.length > 0} />
+  1439→            </div>
+  1440→            <div className="space-y-2">
+  1441→              <Label>URL Sumber (opsional)</Label>
+  1442→              <Input value={aiForm.sourceUrl} onChange={(e) => setAiForm({ ...aiForm, sourceUrl: e.target.value })}
+  1443→                placeholder="https://..." disabled={generatingSuggestions || aiSuggestions.length > 0} />
+  1444→            </div>
+  1445→            <div className="space-y-2">
+  1446→              <Label>Isi Berita / Konten (opsional)</Label>
+  1447→              <Textarea value={aiForm.sourceContent} onChange={(e) => setAiForm({ ...aiForm, sourceContent: e.target.value })}
+  1448→                placeholder="Paste isi berita atau ringkasan isu di sini..." rows={3} disabled={generatingSuggestions || aiSuggestions.length > 0} />
+  1449→            </div>
+  1450→            {aiSuggestions.length === 0 && (
+  1451→              <div className="flex justify-end">
+  1452→                <Button type="submit" disabled={generatingSuggestions} className="bg-gradient-to-r from-purple-600 to-pink-600 text-white">
+  1453→                  {generatingSuggestions ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Sparkles className="w-4 h-4 mr-1" />}
+  1454→                  {generatingSuggestions ? 'Menunggu AI generate 5 varian...' : 'Generate 5 Varian Pertanyaan'}
+  1455→                </Button>
+  1456→              </div>
+  1457→            )}
+  1458→          </form>
+  1459→
+  1460→          {/* Step 2: Hasil multiple suggestions */}
+  1461→          {aiSuggestions.length > 0 && aiSuggestionsMeta && (
+  1462→            <div className="space-y-3">
+  1463→              <div className="rounded-lg bg-purple-50 border border-purple-200 p-3 text-xs text-purple-800">
+  1464→                <strong>Analisis AI:</strong> Lokasi: {aiSuggestionsMeta.detectedLocation} • Target: {aiSuggestionsMeta.detectedOccupation} •
+  1465→                Sentimen: {aiSuggestionsMeta.detectedSentiment} • Provider: {aiSuggestionsMeta.aiProvider}
+  1466→              </div>
+  1467→              <div className="text-sm font-semibold">Pilih salah satu varian pertanyaan (klik untuk pilih):</div>
+  1468→              <div className="space-y-2">
+  1469→                {aiSuggestions.map((q, i) => {
+  1470→                  const isSelected = selectedSuggestionIdx === i
+  1471→                  const approachLabels: Record<string, string> = {
+  1472→                    direct: '🎯 Langsung',
+  1473→                    comparative: '📊 Komparatif',
+  1474→                    'solution-oriented': '💡 Solusi',
+  1475→                    emotional: '💖 Emosional',
+  1476→                    analytical: '🔬 Analitis',
+  1477→                    aspiratif: '🙏 Aspiratif',
+  1478→                  }
+  1479→                  return (
+  1480→                    <button key={i} type="button" onClick={() => setSelectedSuggestionIdx(i)}
+  1481→                      className={`w-full text-left rounded-lg border-2 p-3 transition-all ${isSelected ? 'border-purple-500 bg-purple-50 shadow-md' : 'border-slate-200 hover:border-purple-300 hover:bg-accent'}`}>
+  1482→                      <div className="flex items-center justify-between mb-1">
+  1483→                        <Badge variant="outline" className="text-[13px] bg-purple-100 text-purple-800">
+  1484→                          {approachLabels[q.approach] || q.approach} #{i + 1}
+  1485→                        </Badge>
+  1486→                        <Badge variant="outline" className="text-[13px]">{q.targetOccupation}</Badge>
+  1487→                      </div>
+  1488→                      <div className="font-semibold text-sm mb-1">{q.title}</div>
+  1489→                      <p className="text-xs text-muted-foreground line-clamp-3">{q.question}</p>
+  1490→                      <p className="text-[13px] text-purple-700 italic mt-1 line-clamp-1">{q.description}</p>
+  1491→                    </button>
+  1492→                  )
+  1493→                })}
+  1494→              </div>
+  1495→              <div className="flex items-center justify-between gap-2 pt-3 border-t">
+  1496→                <Button type="button" variant="outline" size="sm" onClick={() => { setAiSuggestions([]); setSelectedSuggestionIdx(null) }}>
+  1497→                  <RefreshCw className="w-3 h-3 mr-1" /> Mulai Ulang
+  1498→                </Button>
+  1499→                <Button
+  1500→                  type="button"
+  1501→                  disabled={selectedSuggestionIdx === null || creatingFromSuggestion}
+  1502→                  onClick={() => selectedSuggestionIdx !== null && handleCreateFromSuggestion(selectedSuggestionIdx)}
+  1503→                  className="bg-gradient-to-r from-purple-600 to-pink-600 text-white"
+  1504→                >
+  1505→                  {creatingFromSuggestion ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-1" />}
+  1506→                  {creatingFromSuggestion ? 'Membuat Poll...' : selectedSuggestionIdx !== null ? `Buat Poll dari Varian #${selectedSuggestionIdx + 1}` : 'Pilih varian dulu'}
+  1507→                </Button>
+  1508→              </div>
+  1509→            </div>
+  1510→          )}
+  1511→        </DialogContent>
+  1512→      </Dialog>
+  1513→
+  1514→      {/* === Manual Create Dialog with AI Suggestions === */}
+  1515→      <Dialog open={manualOpen} onOpenChange={(o) => { setManualOpen(o); if (!o) setManualSuggestions([]) }}>
+  1516→        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+  1517→          <DialogHeader>
+  1518→            <DialogTitle className="flex items-center gap-2">
+  1519→              <Plus className="w-5 h-5 text-purple-600" /> Buat Essay Poll Manual + Saran AI
+  1520→            </DialogTitle>
+  1521→            <DialogDescription>
+  1522→              Tulis pertanyaan essay sendiri, atau klik "Dapatkan Saran AI" untuk generate 5 varian pertanyaan yang bisa Anda pilih sebagai starting point.
+  1523→            </DialogDescription>
+  1524→          </DialogHeader>
+  1525→
+  1526→          {/* AI Suggestions panel */}
+  1527→          <div className="rounded-lg bg-purple-50 border border-purple-200 p-3">
+  1528→            <div className="flex items-center justify-between mb-2">
+  1529→              <div className="text-xs font-semibold text-purple-800">Saran Pertanyaan dari AI (opsional)</div>
+  1530→              <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={handleGetManualSuggestions} disabled={loadingManualSuggestions}>
+  1531→                {loadingManualSuggestions ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Sparkles className="w-3 h-3 mr-1" />}
+  1532→                {loadingManualSuggestions ? 'Loading...' : manualSuggestions.length > 0 ? 'Refresh Saran' : 'Dapatkan Saran AI'}
+  1533→              </Button>
+  1534→            </div>
+  1535→            {manualSuggestions.length > 0 && (
+  1536→              <div className="space-y-1.5 max-h-60 overflow-y-auto">
+  1537→                {manualSuggestions.map((q, i) => {
+  1538→                  const approachLabels: Record<string, string> = {
+  1539→                    direct: '🎯 Langsung',
+  1540→                    comparative: '📊 Komparatif',
+  1541→                    'solution-oriented': '💡 Solusi',
+  1542→                    emotional: '💖 Emosional',
+  1543→                    analytical: '🔬 Analitis',
+  1544→                    aspiratif: '🙏 Aspiratif',
+  1545→                  }
+  1546→                  return (
+  1547→                    <div key={i} className="rounded border bg-white p-2">
+  1548→                      <div className="flex items-center justify-between mb-1">
+  1549→                        <Badge variant="outline" className="text-[13px]">{approachLabels[q.approach] || q.approach}</Badge>
+  1550→                        <Button type="button" size="sm" variant="ghost" className="h-6 text-xs" onClick={() => applyManualSuggestion(q)}>
+  1551→                          <Plus className="w-3 h-3 mr-0.5" /> Pakai
+  1552→                        </Button>
+  1553→                      </div>
+  1554→                      <div className="text-xs font-semibold">{q.title}</div>
+  1555→                      <p className="text-[13px] text-muted-foreground line-clamp-2 mt-0.5">{q.question}</p>
+  1556→                    </div>
+  1557→                  )
+  1558→                })}
+  1559→              </div>
+  1560→            )}
+  1561→            {!loadingManualSuggestions && manualSuggestions.length === 0 && (
+  1562→              <p className="text-[13px] text-purple-700 italic">Klik tombol di kanan atas untuk generate 5 varian pertanyaan AI. Anda bisa pakai sebagai starting point, lalu edit sesuai kebutuhan.</p>
+  1563→            )}
+  1564→          </div>
+  1565→
+  1566→          <form onSubmit={async (e) => {
+  1567→            e.preventDefault()
+  1568→            const fd = new FormData(e.target as HTMLFormElement)
+  1569→            const data = Object.fromEntries(fd.entries())
+  1570→            try {
+  1571→              const res = await fetch('/api/essay-polls', {
+  1572→                method: 'POST', headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+  1573→                body: JSON.stringify({
+  1574→                  title: data.title, question: data.question, description: data.description,
+  1575→                  targetScope: data.targetScope || 'NATIONAL',
+  1576→                }),
+  1577→              })
+  1578→              const r = await res.json()
+  1579→              if (!res.ok || !r.success) throw new Error(r.error)
+  1580→              addToast('Essay poll dibuat', 'success')
+  1581→              setManualOpen(false); setManualSuggestions([]); loadData()
+  1582→            } catch (err: any) { addToast(err.message, 'error') }
+  1583→          }} className="space-y-3">
+  1584→            <div className="space-y-2"><Label>Judul *</Label><Input id="manual-title" name="title" required /></div>
+  1585→            <div className="space-y-2"><Label>Pertanyaan Essay *</Label><Textarea id="manual-question" name="question" rows={4} required /></div>
+  1586→            <div className="space-y-2"><Label>Deskripsi (opsional)</Label><Textarea id="manual-description" name="description" rows={2} /></div>
+  1587→            <div className="space-y-2">
+  1588→              <Label>Target Scope</Label>
+  1589→              <Select name="targetScope" defaultValue="NATIONAL">
+  1590→                <SelectTrigger><SelectValue /></SelectTrigger>
+  1591→                <SelectContent>
+  1592→                  <SelectItem value="NATIONAL">Nasional (semua DPC)</SelectItem>
+  1593→                  <SelectItem value="PROVINCE">Provinsi (DPD)</SelectItem>
+  1594→                  <SelectItem value="REGENCY">Kab/Kota (DPC)</SelectItem>
+  1595→                </SelectContent>
+  1596→              </Select>
+  1597→            </div>
+  1598→            <DialogFooter>
+  1599→              <Button type="button" variant="outline" onClick={() => { setManualOpen(false); setManualSuggestions([]) }}>Batal</Button>
+  1600→              <Button type="submit" className="bg-purple-600 hover:bg-purple-700 text-white">Simpan Poll</Button>
+  1601→            </DialogFooter>
+  1602→          </form>
+  1603→        </DialogContent>
+  1604→      </Dialog>
+  1605→
+  1606→      {/* === Share to Social Media Dialog === */}
+  1607→      {sharePoll && (
+  1608→        <ShareToSocialMediaDialog poll={sharePoll} onClose={() => setSharePoll(null)} />
+  1609→      )}
+  1610→
+  1611→      {/* Detail dialog */}
+  1612→      {detailPoll && (
+  1613→        <Dialog open={true} onOpenChange={() => setDetailPoll(null)}>
+  1614→          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+  1615→            <DialogHeader>
+  1616→              <DialogTitle className="flex items-center gap-2">
+  1617→                <Brain className="w-5 h-5 text-purple-600" />
+  1618→                {detailPoll.title}
+  1619→              </DialogTitle>
+  1620→              <DialogDescription>
+  1621→                {detailPoll.totalResponses} respon • {detailPoll.sentimentStats?.POSITIVE || 0} positif • {detailPoll.sentimentStats?.NEGATIVE || 0} negatif • {detailPoll.sentimentStats?.UNPROCESSED || 0} belum diproses
+  1622→              </DialogDescription>
+  1623→            </DialogHeader>
+  1624→            <div className="space-y-3">
+  1625→              <div className="p-3 rounded bg-purple-50 border border-purple-200">
+  1626→                <Label className="text-xs font-semibold">Pertanyaan:</Label>
+  1627→                <p className="text-sm mt-1">{detailPoll.question}</p>
+  1628→              </div>
+  1629→              {detailPoll.description && (
+  1630→                <div className="text-xs text-muted-foreground italic">{detailPoll.description}</div>
+  1631→              )}
+  1632→              <div className="grid grid-cols-3 gap-2 text-center">
+  1633→                <div className="rounded border bg-emerald-50 p-2">
+  1634→                  <div className="text-2xl font-bold text-emerald-700">{detailPoll.sentimentStats?.POSITIVE || 0}</div>
+  1635→                  <div className="text-[13px]">Positif</div>
+  1636→                </div>
+  1637→                <div className="rounded border bg-slate-50 p-2">
+  1638→                  <div className="text-2xl font-bold text-slate-700">{detailPoll.sentimentStats?.NEUTRAL || 0}</div>
+  1639→                  <div className="text-[13px]">Netral</div>
+  1640→                </div>
+  1641→                <div className="rounded border bg-red-50 p-2">
+  1642→                  <div className="text-2xl font-bold text-red-700">{detailPoll.sentimentStats?.NEGATIVE || 0}</div>
+  1643→                  <div className="text-[13px]">Negatif</div>
+  1644→                </div>
+  1645→              </div>
+  1646→              <div>
+  1647→                <Label className="text-xs font-semibold">Top Wilayah Responden:</Label>
+  1648→                <div className="flex flex-wrap gap-1 mt-1">
+  1649→                  {(detailPoll.topLocations || []).map((loc: any) => (
+  1650→                    <Badge key={loc.code} variant="outline" className="text-[13px]">{loc.code}: {loc.count}</Badge>
+  1651→                  ))}
+  1652→                  {(detailPoll.topLocations || []).length === 0 && <span className="text-sm text-muted-foreground">Belum ada responden</span>}
+  1653→                </div>
+  1654→              </div>
+  1655→              {detailPoll.responses && detailPoll.responses.length > 0 && (
+  1656→                <div>
+  1657→                  <Label className="text-xs font-semibold">Respon Terbaru:</Label>
+  1658→                  <div className="space-y-2 mt-2 max-h-[40vh] overflow-y-auto">
+  1659→                    {detailPoll.responses.slice(0, 10).map((r: any) => (
+  1660→                      <div key={r.id} className="rounded border p-2 text-xs">
+  1661→                        <div className="flex items-center gap-2 mb-1">
+  1662→                          <Badge variant="outline" className={`text-[13px] ${r.aiSentiment === 'NEGATIVE' ? 'bg-red-50 text-red-700' : r.aiSentiment === 'POSITIVE' ? 'bg-emerald-50 text-emerald-700' : ''}`}>
+  1663→                            {r.aiSentiment || 'BELUM'}
+  1664→                          </Badge>
+  1665→                          {r.occupation && <Badge variant="outline" className="text-[13px]">{r.occupation}</Badge>}
+  1666→                          {r.ageGroup && <Badge variant="outline" className="text-[13px]">{r.ageGroup}</Badge>}
+  1667→                          {r.regencyCode && <Badge variant="outline" className="text-[13px]">{r.regencyCode}</Badge>}
+  1668→                          <span className="text-[13px] text-muted-foreground ml-auto">{r.wordCount} kata</span>
+  1669→                        </div>
+  1670→                        <p className="text-xs line-clamp-3">{r.answer}</p>
+  1671→                        {r.aiSummary && <p className="text-[13px] text-purple-700 mt-1 italic">{r.aiSummary}</p>}
+  1672→                      </div>
+  1673→                    ))}
+  1674→                  </div>
+  1675→                </div>
+  1676→              )}
+  1677→            </div>
+  1678→            <DialogFooter>
+  1679→              <Button variant="outline" onClick={() => setSharePoll(sharePoll || detailPoll)}>
+  1680→                <Share2 className="w-4 h-4 mr-1" /> Share ke Medsos
+  1681→              </Button>
+  1682→              <Button variant="outline" onClick={() => setDetailPoll(null)}>Tutup</Button>
+  1683→            </DialogFooter>
+  1684→          </DialogContent>
+  1685→        </Dialog>
+  1686→      )}
+  1687→    </div>
+  1688→  )
+  1689→}
+  1690→
+  1691→// ============================================================
+  1692→// SHARE TO SOCIAL MEDIA DIALOG — Bagikan poll ke WA/FB/IG/X/Telegram/Email + Group Populer
+  1693→// ============================================================
+  1694→function ShareToSocialMediaDialog({ poll, onClose }: { poll: any; onClose: () => void }) {
+  1695→  const addToast = useToastStore((s) => s.addToast)
+  1696→  const [customText, setCustomText] = useState('')
+  1697→  const [activeTab, setActiveTab] = useState<'platforms' | 'groups'>('platforms')
+  1698→
+  1699→  const pollUrl = `${typeof window !== 'undefined' ? window.location.origin : 'https://lapra08.id'}/poll/${poll.id}`
+  1700→  const shareText = customText || buildShareText(poll)
+  1701→
+  1702→  const handleShare = async (platform: SharePlatform) => {
+  1703→    if (platform.id === 'copy_link') {
+  1704→      const success = await copyToClipboard(`${shareText}\n\n${pollUrl}`)
+  1705→      addToast(success ? 'Link & teks berhasil disalin ke clipboard' : 'Gagal menyalin', success ? 'success' : 'error')
+  1706→      return
+  1707→    }
+  1708→    const url = platform.buildUrl(shareText, pollUrl)
+  1709→    openShareUrl(url)
+  1710→    addToast(`Membuka ${platform.label}...`, 'success')
+  1711→  }
+  1712→
+  1713→  const handleShareToGroup = (group: PopularGroup) => {
+  1714→    // Untuk grup, tetap pakai share URL standard tapi user pilih grup manual di platformnya
+  1715→    const platform = group.platform === 'whatsapp' ? SHARE_PLATFORMS.find(p => p.id === 'whatsapp_web') :
+  1716→                     group.platform === 'facebook' ? SHARE_PLATFORMS.find(p => p.id === 'facebook_group') :
+  1717→                     SHARE_PLATFORMS.find(p => p.id === 'telegram_personal')
+  1718→    if (!platform) return
+  1719→    const url = platform.buildUrl(shareText, pollUrl)
+  1720→    openShareUrl(url)
+  1721→    addToast(`Membuka ${platform.label} — ${group.shareHint}`, 'success')
+  1722→  }
+  1723→
+  1724→  return (
+  1725→    <Dialog open={true} onOpenChange={onClose}>
+  1726→      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+  1727→        <DialogHeader>
+  1728→          <DialogTitle className="flex items-center gap-2">
+  1729→            <Share2 className="w-5 h-5 text-purple-600" /> Share Poll ke Media Sosial
+  1730→          </DialogTitle>
+  1731→          <DialogDescription>
+  1732→            Bagikan survei essay ini ke medsos & grup populer yang sering dikunjungi calon pemilih / masyarakat.
+  1733→          </DialogDescription>
+  1734→        </DialogHeader>
+  1735→
+  1736→        <div className="space-y-3">
+  1737→          {/* Poll preview */}
+  1738→          <div className="rounded-lg bg-slate-50 border p-3">
+  1739→            <div className="text-xs font-semibold text-muted-foreground mb-1">Poll yang akan dibagikan:</div>
+  1740→            <div className="font-semibold text-sm">{poll.title}</div>
+  1741→            <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{poll.question}</p>
+  1742→            <div className="mt-2 flex items-center gap-2 flex-wrap">
+  1743→              {poll.targetOccupation && poll.targetOccupation !== 'UMUM' && <Badge variant="outline" className="text-[13px]">{poll.targetOccupation}</Badge>}
+  1744→              {poll.provinceName && <Badge variant="outline" className="text-[13px]"><MapPin className="w-2.5 h-2.5 mr-0.5" />{poll.regencyName || poll.provinceName}</Badge>}
+  1745→            </div>
+  1746→          </div>
+  1747→
+  1748→          {/* Custom text editor */}
+  1749→          <div className="space-y-2">
+  1750→            <Label className="text-xs font-semibold">Teks Share (bisa edit):</Label>
+  1751→            <Textarea value={customText || shareText} onChange={(e) => setCustomText(e.target.value)} rows={4}
+  1752→              placeholder="Teks yang akan dibagikan ke medsos..." />
+  1753→            <div className="text-[13px] text-muted-foreground">{(customText || shareText).length} karakter + URL</div>
+  1754→          </div>
+  1755→
+  1756→          {/* Poll URL */}
+  1757→          <div className="rounded-lg bg-blue-50 border border-blue-200 p-2 text-xs text-blue-800">
+  1758→            <strong>URL Poll:</strong> <code className="break-all">{pollUrl}</code>
+  1759→          </div>
+  1760→
+  1761→          {/* Tabs: Platforms / Groups */}
+  1762→          <div className="flex gap-2 border-b">
+  1763→            <button onClick={() => setActiveTab('platforms')}
+  1764→              className={`px-3 py-1.5 text-xs font-semibold border-b-2 transition-all ${activeTab === 'platforms' ? 'border-purple-600 text-purple-600' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
+  1765→              <Send className="w-3 h-3 inline mr-1" /> Platform Medsos ({SHARE_PLATFORMS.length})
+  1766→            </button>
+  1767→            <button onClick={() => setActiveTab('groups')}
+  1768→              className={`px-3 py-1.5 text-xs font-semibold border-b-2 transition-all ${activeTab === 'groups' ? 'border-purple-600 text-purple-600' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
+  1769→              <Users className="w-3 h-3 inline mr-1" /> Grup Populer ({POPULAR_GROUPS.length})
+  1770→            </button>
+  1771→          </div>
+  1772→
+  1773→          {/* Platforms tab */}
+  1774→          {activeTab === 'platforms' && (
+  1775→            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+  1776→              {SHARE_PLATFORMS.map(platform => (
+  1777→                <button key={platform.id} onClick={() => handleShare(platform)}
+  1778→                  className={`flex items-center gap-2 px-3 py-2.5 rounded-lg text-xs font-semibold transition-all ${platform.color}`}>
+  1779→                  <span className="text-base">{platform.icon}</span>
+  1780→                  <span className="text-left leading-tight">{platform.label}</span>
+  1781→                </button>
+  1782→              ))}
+  1783→            </div>
+  1784→          )}
+  1785→
+  1786→          {/* Groups tab */}
+  1787→          {activeTab === 'groups' && (
+  1788→            <div className="space-y-3">
+  1789→              <div className="rounded-lg bg-amber-50 border border-amber-200 p-2 text-[13px] text-amber-800">
+  1790→                <AlertTriangle className="w-3.5 h-3.5 inline mr-1" />
+  1791→                Klik grup untuk membuka platform share. Anda akan diarahkan ke WhatsApp Web / Facebook / Telegram,
+  1792→                lalu pilih grup spesifik di akun Anda.
+  1793→              </div>
+  1794→              {['Komunitas Lokal', 'Kelompok Profesi', 'Pemuda', 'Politik', 'Agama', 'Pendidikan'].map(cat => {
+  1795→                const groups = POPULAR_GROUPS.filter(g => g.category === cat)
+  1796→                if (groups.length === 0) return null
+  1797→                return (
+  1798→                  <div key={cat}>
+  1799→                    <div className="text-xs font-semibold text-muted-foreground mb-1.5">{cat}:</div>
+  1800→                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+  1801→                      {groups.map(group => {
+  1802→                        const platformIcon = group.platform === 'whatsapp' ? '💬' : group.platform === 'facebook' ? '📘' : '✈️'
+  1803→                        const platformColor = group.platform === 'whatsapp' ? 'border-emerald-300 hover:bg-emerald-50' :
+  1804→                                               group.platform === 'facebook' ? 'border-blue-300 hover:bg-blue-50' :
+  1805→                                               'border-sky-300 hover:bg-sky-50'
+  1806→                        return (
+  1807→                          <button key={group.id} onClick={() => handleShareToGroup(group)}
+  1808→                            className={`text-left rounded border p-2 transition-all ${platformColor}`}>
+  1809→                            <div className="flex items-start gap-2">
+  1810→                              <span className="text-base">{platformIcon}</span>
+  1811→                              <div className="flex-1 min-w-0">
+  1812→                                <div className="font-semibold text-xs">{group.name}</div>
+  1813→                                <div className="text-[13px] text-muted-foreground line-clamp-1">{group.description}</div>
+  1814→                                <div className="text-[13px] text-purple-600 italic mt-0.5">{group.shareHint}</div>
+  1815→                              </div>
+  1816→                            </div>
+  1817→                          </button>
+  1818→                        )
+  1819→                      })}
+  1820→                    </div>
+  1821→                  </div>
+  1822→                )
+  1823→              })}
+  1824→            </div>
+  1825→          )}
+  1826→        </div>
+  1827→
+  1828→        <DialogFooter>
+  1829→          <Button variant="outline" onClick={onClose}>Tutup</Button>
+  1830→        </DialogFooter>
+  1831→      </DialogContent>
+  1832→    </Dialog>
+  1833→  )
+  1834→}
+  1835→
+  1836→function ReviewDialog({ link, onClose, onSubmit }: { link: any, onClose: () => void, onSubmit: (id: string, status: string, notes: string) => void }) {
+  1837→  const [status, setStatus] = useState('REVIEWED')
+  1838→  const [notes, setNotes] = useState('')
+  1839→  return (
+  1840→    <Dialog open={true} onOpenChange={onClose}>
+  1841→      <DialogContent aria-describedby={undefined}>
+  1842→        <DialogHeader>
+  1843→          <DialogTitle>Review Link Opini</DialogTitle>
+  1844→          <DialogDescription className="line-clamp-2">{link.title}</DialogDescription>
+  1845→        </DialogHeader>
+  1846→        <div className="space-y-3">
+  1847→          <a href={link.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 text-xs hover:underline">
+  1848→            Buka link asli →
+  1849→          </a>
+  1850→          <div className="space-y-2">
+  1851→            <Label>Status</Label>
+  1852→            <Select value={status} onValueChange={setStatus}>
+  1853→              <SelectTrigger><SelectValue /></SelectTrigger>
+  1854→              <SelectContent>
+  1855→                <SelectItem value="REVIEWED">Sudah Direview</SelectItem>
+  1856→                <SelectItem value="ADDRESSED">Sudah Ditangani</SelectItem>
+  1857→                <SelectItem value="ARCHIVED">Arsip</SelectItem>
+  1858→              </SelectContent>
+  1859→            </Select>
+  1860→          </div>
+  1861→          <div className="space-y-2">
+  1862→            <Label>Catatan Review</Label>
+  1863→            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={4}
+  1864→              placeholder="cth: Sudah diklarifikasi via broadcast WA, ditindaklanjuti DPC setempat..." />
+  1865→          </div>
+  1866→        </div>
+  1867→        <DialogFooter>
+  1868→          <Button variant="outline" onClick={onClose}>Batal</Button>
+  1869→          <Button onClick={() => onSubmit(link.id, status, notes)} className="bg-orange-600 hover:bg-orange-700 text-white">
+  1870→            Simpan Review
+  1871→          </Button>
+  1872→        </DialogFooter>
+  1873→      </DialogContent>
+  1874→    </Dialog>
+  1875→  )
+  1876→}
+  1877→
+  1878→// ============================================================
+  1879→// TAB: DASHBOARD PEMENANGAN
+  1880→// ============================================================
+  1881→function DecisionDashboardTab() {
+  1882→  const [loading, setLoading] = useState(true)
+  1883→  const [data, setData] = useState<any>(null)
+  1884→
+  1885→  const loadData = useCallback(() => {
+  1886→    setLoading(true)
+  1887→    api('/api/decision-dashboard').then(res => {
+  1888→      setData(Array.isArray(res) ? res : (res?.data || res))
+  1889→    }).catch(() => setData(null)).finally(() => setLoading(false))
+  1890→  }, [])
+  1891→
+  1892→  useEffect(() => { loadData() }, [loadData])
+  1893→
+  1894→  if (loading) return <LoadingState />
+  1895→  if (!data) return <ErrorState message="Gagal memuat dashboard. Coba refresh halaman." />
+  1896→
+  1897→  const sentimentPct = data.sentimentTrend?.total > 0 ? {
+  1898→    pos: Math.round((data.sentimentTrend.positive / data.sentimentTrend.total) * 100),
+  1899→    neu: Math.round((data.sentimentTrend.neutral / data.sentimentTrend.total) * 100),
+  1900→    neg: Math.round((data.sentimentTrend.negative / data.sentimentTrend.total) * 100),
+  1901→  } : { pos: 0, neu: 0, neg: 0 }
+  1902→
+  1903→  const totalLinks = data.stats?.totalOpinionLinks || 0
+  1904→  const negCount = data.sentimentTrend?.negative || 0
+  1905→  const posCount = data.sentimentTrend?.positive || 0
+  1906→  const sentimentIdx = data.sentimentIndex || 0
+  1907→
+  1908→  const electoralStatus = sentimentIdx >= 50 ? { label: 'SANGAT BAIK', color: 'text-emerald-600', bg: 'bg-emerald-50', icon: '🟢' } :
+  1909→    sentimentIdx >= 20 ? { label: 'BAIK', color: 'text-emerald-600', bg: 'bg-emerald-50', icon: '🟢' } :
+  1910→    sentimentIdx >= 0 ? { label: 'NETRAL', color: 'text-amber-600', bg: 'bg-amber-50', icon: '🟡' } :
+  1911→    sentimentIdx >= -20 ? { label: 'WASPADA', color: 'text-orange-600', bg: 'bg-orange-50', icon: '🟠' } :
+  1912→    { label: 'KRITIS', color: 'text-red-600', bg: 'bg-red-50', icon: '🔴' }
+  1913→
+  1914→  return (
+  1915→    <div className="space-y-4">
+  1916→      {/* === KPI CARDS: Status Elektoral + Total Berita + Positif + Negatif === */}
+  1917→      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+  1918→        <Card className={`border-2 ${electoralStatus.bg}`}>
+  1919→          <CardContent className="p-4 text-center">
+  1920→            <div className="text-3xl mb-1">{electoralStatus.icon}</div>
+  1921→            <div className={`text-lg font-bold ${electoralStatus.color}`}>{electoralStatus.label}</div>
+  1922→            <div className="text-xs text-muted-foreground mt-1">Status Elektoral LAPRA 08</div>
+  1923→          </CardContent>
+  1924→        </Card>
+  1925→        <Card>
+  1926→          <CardContent className="p-4 text-center">
+  1927→            <Newspaper className="w-6 h-6 text-blue-600 mx-auto mb-1" />
+  1928→            <div className="text-2xl font-bold text-blue-600">{totalLinks}</div>
+  1929→            <div className="text-xs text-muted-foreground">Total Berita LAPRA 08</div>
+  1930→          </CardContent>
+  1931→        </Card>
+  1932→        <Card>
+  1933→          <CardContent className="p-4 text-center">
+  1934→            <CheckCircle2 className="w-6 h-6 text-emerald-600 mx-auto mb-1" />
+  1935→            <div className="text-2xl font-bold text-emerald-600">{posCount}</div>
+  1936→            <div className="text-xs text-muted-foreground">Berita Positif</div>
+  1937→          </CardContent>
+  1938→        </Card>
+  1939→        <Card className={negCount > 0 ? 'border-2 border-red-300 bg-red-50' : ''}>
+  1940→          <CardContent className="p-4 text-center">
+  1941→            <AlertTriangle className={`w-6 h-6 mx-auto mb-1 ${negCount > 0 ? 'text-red-600' : 'text-slate-400'}`} />
+  1942→            <div className={`text-2xl font-bold ${negCount > 0 ? 'text-red-600' : 'text-slate-400'}`}>{negCount}</div>
+  1943→            <div className="text-xs text-muted-foreground">Berita Negatif</div>
+  1944→          </CardContent>
+  1945→        </Card>
+  1946→      </div>
+  1947→      {/* === BAR CHART + TABEL RINGKASAN BERDAMPINGAN (2 kolom) === */}
+  1948→      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+  1949→        {/* KIRI: TABEL RINGKASAN */}
+  1950→        <Card className="border-2 border-blue-300">
+  1951→          <CardHeader>
+  1952→            <CardTitle className="text-base flex items-center gap-2">
+  1953→              <PieIcon className="w-5 h-5 text-purple-600" />
+  1954→              Tabel Ringkasan — Data Lengkap
+  1955→            </CardTitle>
+  1956→          </CardHeader>
+  1957→          <CardContent>
+  1958→            <Table>
+  1959→              <TableHeader>
+  1960→                <TableRow className="bg-slate-100">
+  1961→                  <TableHead className="text-xs">Kategori</TableHead>
+  1962→                  <TableHead className="text-xs text-right">Jumlah</TableHead>
+  1963→                  <TableHead className="text-xs text-right">Persentase</TableHead>
+  1964→                </TableRow>
+  1965→              </TableHeader>
+  1966→              <TableBody>
+  1967→                {/* Monitoring Berita */}
+  1968→                <TableRow className="bg-blue-50/50">
+  1969→                  <TableCell className="text-xs font-bold" colSpan={3}>📰 MONITORING BERITA</TableCell>
+  1970→                </TableRow>
+  1971→                <TableRow>
+  1972→                  <TableCell className="text-xs">Total Berita LAPRA 08</TableCell>
+  1973→                  <TableCell className="text-xs text-right font-bold">{data.newsStats?.total || 0}</TableCell>
+  1974→                  <TableCell className="text-xs text-right">100%</TableCell>
+  1975→                </TableRow>
+  1976→                <TableRow>
+  1977→                  <TableCell className="text-xs">🟢 Sentimen Positif</TableCell>
+  1978→                  <TableCell className="text-xs text-right font-bold text-emerald-600">{data.newsStats?.positive || 0}</TableCell>
+  1979→                  <TableCell className="text-xs text-right text-emerald-600">{data.newsStats?.total ? Math.round((data.newsStats.positive / data.newsStats.total) * 100) : 0}%</TableCell>
+  1980→                </TableRow>
+  1981→                <TableRow>
+  1982→                  <TableCell className="text-xs">🔴 Sentimen Negatif</TableCell>
+  1983→                  <TableCell className="text-xs text-right font-bold text-red-600">{data.newsStats?.negative || 0}</TableCell>
+  1984→                  <TableCell className="text-xs text-right text-red-600">{data.newsStats?.total ? Math.round((data.newsStats.negative / data.newsStats.total) * 100) : 0}%</TableCell>
+  1985→                </TableRow>
+  1986→                <TableRow>
+  1987→                  <TableCell className="text-xs">📍 Ter-map ke Wilayah</TableCell>
+  1988→                  <TableCell className="text-xs text-right font-bold text-blue-600">{data.newsStats?.mapped || 0}</TableCell>
+  1989→                  <TableCell className="text-xs text-right text-blue-600">{data.newsStats?.total ? Math.round((data.newsStats.mapped / data.newsStats.total) * 100) : 0}%</TableCell>
+  1990→                </TableRow>
+  1991→                {/* Siaran */}
+  1992→                <TableRow className="bg-orange-50/50">
+  1993→                  <TableCell className="text-xs font-bold" colSpan={3}>📤 SIARAN & BROADCAST</TableCell>
+  1994→                </TableRow>
+  1995→                <TableRow>
+  1996→                  <TableCell className="text-xs">Total Video</TableCell>
+  1997→                  <TableCell className="text-xs text-right font-bold">{data.broadcastStats?.total || 0}</TableCell>
+  1998→                  <TableCell className="text-xs text-right">100%</TableCell>
+  1999→                </TableRow>
+  2000→                <TableRow>
+
+[showing lines 1-2000 of 2757; use offset=2001 with limit to continue reading]

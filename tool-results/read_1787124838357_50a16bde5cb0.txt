@@ -1,0 +1,682 @@
+  1017→function EssayPollsTab() {
+  1018→  const addToast = useToastStore((s) => s.addToast)
+  1019→  const [polls, setPolls] = useState<any[]>([])
+  1020→  const [loading, setLoading] = useState(true)
+  1021→  const [aiGenOpen, setAiGenOpen] = useState(false)
+  1022→  const [manualOpen, setManualOpen] = useState(false)
+  1023→  const [detailPoll, setDetailPoll] = useState<any>(null)
+  1024→  const [sharePoll, setSharePoll] = useState<any>(null)
+  1025→  const [aiForm, setAiForm] = useState({ sourceTopic: '', sourceUrl: '', sourceContent: '' })
+  1026→  // === State baru untuk multiple AI suggestions ===
+  1027→  const [aiSuggestions, setAiSuggestions] = useState<any[]>([])
+  1028→  const [aiSuggestionsMeta, setAiSuggestionsMeta] = useState<any>(null)
+  1029→  const [generatingSuggestions, setGeneratingSuggestions] = useState(false)
+  1030→  const [selectedSuggestionIdx, setSelectedSuggestionIdx] = useState<number | null>(null)
+  1031→  const [creatingFromSuggestion, setCreatingFromSuggestion] = useState(false)
+  1032→  // === State untuk AI suggestions di mode Manual ===
+  1033→  const [manualSuggestions, setManualSuggestions] = useState<any[]>([])
+  1034→  const [loadingManualSuggestions, setLoadingManualSuggestions] = useState(false)
+  1035→  // === State untuk topic suggestions (auto-fill inspirasi) ===
+  1036→  const [topicSuggestions, setTopicSuggestions] = useState<any>(null)
+  1037→
+  1038→  // === BANNER: Pengingat survei harus netral ===
+  1039→  const neutralityBanner = (
+  1040→    <div className="rounded-lg bg-amber-50 border-2 border-amber-300 p-3 flex items-start gap-3">
+  1041→      <Shield className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+  1042→      <div className="flex-1">
+  1043→        <div className="font-bold text-amber-800 text-sm">
+  1044→          🔒 Survei Opini Publik — Netral & Anonim
+  1045→        </div>
+  1046→        <p className="text-xs text-amber-700 mt-1">
+  1047→          Pertanyaan survei <strong>TIDAK boleh menyebut</strong> "Laskar Prabowo 08" atau "LAPRA 08". 
+  1048→          Responden harus merasa bebas menjawab jujur tanpa tekanan. 
+  1049→          Sistem AI sudah otomatis menghapus nama organisasi dari pertanyaan yang di-generate.
+  1050→        </p>
+  1051→      </div>
+  1052→    </div>
+  1053→  )
+  1054→  const [showTopicSuggestions, setShowTopicSuggestions] = useState(false)
+  1055→  const [activeCategory, setActiveCategory] = useState<string | null>(null)
+  1056→
+  1057→  const loadData = useCallback(() => {
+  1058→    setLoading(true)
+  1059→    api('/api/essay-polls').then(res => {
+  1060→      setPolls(Array.isArray(res) ? res : (res?.data || []))
+  1061→    }).catch(() => setPolls([])).finally(() => setLoading(false))
+  1062→  }, [])
+  1063→
+  1064→  useEffect(() => { loadData() }, [loadData])
+  1065→
+  1066→  // === AI Generate: dapetin dulu 5 varian pertanyaan ===
+  1067→  const handleGetSuggestions = async (e: React.FormEvent) => {
+  1068→    e.preventDefault()
+  1069→    setGeneratingSuggestions(true)
+  1070→    setAiSuggestions([])
+  1071→    setSelectedSuggestionIdx(null)
+  1072→    try {
+  1073→      const res = await fetch('/api/essay-polls/ai-suggestions', {
+  1074→        method: 'POST',
+  1075→        headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+  1076→        body: JSON.stringify({
+  1077→          sourceTopic: aiForm.sourceTopic,
+  1078→          sourceUrl: aiForm.sourceUrl,
+  1079→          sourceContent: aiForm.sourceContent,
+  1080→          count: 5,
+  1081→        }),
+  1082→      })
+  1083→      const data = await res.json()
+  1084→      if (!res.ok || !data.success) throw new Error(data.error)
+  1085→      setAiSuggestions(data.data.questions)
+  1086→      setAiSuggestionsMeta(data.data)
+  1087→      addToast(data.message, 'success')
+  1088→    } catch (e: any) {
+  1089→      addToast(e.message, 'error')
+  1090→    } finally {
+  1091→      setGeneratingSuggestions(false)
+  1092→    }
+  1093→  }
+  1094→
+  1095→  // === Pilih salah satu suggestion & buat poll ===
+  1096→  const handleCreateFromSuggestion = async (idx: number) => {
+  1097→    const suggestion = aiSuggestions[idx]
+  1098→    if (!suggestion) return
+  1099→    setCreatingFromSuggestion(true)
+  1100→    try {
+  1101→      const res = await fetch('/api/essay-polls', {
+  1102→        method: 'POST',
+  1103→        headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+  1104→        body: JSON.stringify({
+  1105→          action: 'ai_generate',
+  1106→          sourceTopic: aiForm.sourceTopic,
+  1107→          sourceUrl: aiForm.sourceUrl,
+  1108→          sourceContent: aiForm.sourceContent,
+  1109→          // Override dengan suggestion yang dipilih user
+  1110→          selectedSuggestion: suggestion,
+  1111→        }),
+  1112→      })
+  1113→      const data = await res.json()
+  1114→      if (!res.ok || !data.success) throw new Error(data.error)
+  1115→      addToast(`Poll dibuat dari saran AI #${idx + 1} (pendekatan ${suggestion.approach})`, 'success')
+  1116→      // Reset & close
+  1117→      setAiForm({ sourceTopic: '', sourceUrl: '', sourceContent: '' })
+  1118→      setAiSuggestions([])
+  1119→      setSelectedSuggestionIdx(null)
+  1120→      setAiGenOpen(false)
+  1121→      loadData()
+  1122→    } catch (e: any) {
+  1123→      addToast(e.message, 'error')
+  1124→    } finally {
+  1125→      setCreatingFromSuggestion(false)
+  1126→    }
+  1127→  }
+  1128→
+  1129→  // === Dapatkan AI suggestions untuk mode Manual (preview, tanpa simpan) ===
+  1130→  const handleGetManualSuggestions = async () => {
+  1131→    setLoadingManualSuggestions(true)
+  1132→    try {
+  1133→      const res = await fetch('/api/essay-polls/ai-suggestions', {
+  1134→        method: 'POST',
+  1135→        headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+  1136→        body: JSON.stringify({
+  1137→          sourceTopic: 'Survei opini publik umum',
+  1138→          count: 5,
+  1139→        }),
+  1140→      })
+  1141→      const data = await res.json()
+  1142→      if (!data.success) throw new Error(data.error)
+  1143→      setManualSuggestions(data.data.questions)
+  1144→      addToast(`${data.data.questions.length} saran pertanyaan AI tersedia`, 'success')
+  1145→    } catch (e: any) {
+  1146→      addToast(e.message, 'error')
+  1147→    } finally {
+  1148→      setLoadingManualSuggestions(false)
+  1149→    }
+  1150→  }
+  1151→
+  1152→  // === Apply suggestion ke form manual ===
+  1153→  const applyManualSuggestion = (suggestion: any) => {
+  1154→    const titleInput = document.getElementById('manual-title') as HTMLInputElement
+  1155→    const questionTextarea = document.getElementById('manual-question') as HTMLTextAreaElement
+  1156→    const descriptionTextarea = document.getElementById('manual-description') as HTMLTextAreaElement
+  1157→    if (titleInput) titleInput.value = suggestion.title
+  1158→    if (questionTextarea) questionTextarea.value = suggestion.question
+  1159→    if (descriptionTextarea) descriptionTextarea.value = suggestion.description
+  1160→    addToast(`Saran AI "${suggestion.approach}" diterapkan ke form`, 'success')
+  1161→  }
+  1162→
+  1163→  // === Load topic suggestions (categories + recent news + recent opinions) ===
+  1164→  const loadTopicSuggestions = useCallback(async () => {
+  1165→    if (topicSuggestions) return // already loaded
+  1166→    try {
+  1167→      const res = await fetch('/api/essay-polls/topic-suggestions', {
+  1168→        headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+  1169→      })
+  1170→      const data = await res.json()
+  1171→      if (data.success) setTopicSuggestions(data.data)
+  1172→    } catch (e: any) {
+  1173→      console.error('[TopicSuggestions] Error:', e.message)
+  1174→    }
+  1175→  }, [topicSuggestions])
+  1176→
+  1177→  // === Apply topic suggestion (auto-fill form) ===
+  1178→  const applyTopicSuggestion = (topic: string, occupation?: string, sourceUrl?: string) => {
+  1179→    setAiForm({
+  1180→      ...aiForm,
+  1181→      sourceTopic: topic,
+  1182→      sourceUrl: sourceUrl || '',
+  1183→    })
+  1184→    addToast(`Topik "${topic.substring(0, 60)}..." diisi otomatis${occupation ? ` (target: ${occupation})` : ''}`, 'success')
+  1185→  }
+  1186→
+  1187→  // === Apply recent opinion link as topic ===
+  1188→  const applyOpinionAsTopic = (opinion: any) => {
+  1189→    setAiForm({
+  1190→      ...aiForm,
+  1191→      sourceTopic: opinion.title,
+  1192→      sourceUrl: '', // opinion links don't have public URL we'd share
+  1193→    })
+  1194→    addToast(`Topik dari opinion link diisi otomatis (sentiment: ${opinion.sentiment})`, 'success')
+  1195→  }
+  1196→
+  1197→  const handleActivate = async (pollId: string) => {
+  1198→    try {
+  1199→      const res = await fetch(`/api/essay-polls/${pollId}`, {
+  1200→        method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+  1201→        body: JSON.stringify({ status: 'ACTIVE' }),
+  1202→      })
+  1203→      const data = await res.json()
+  1204→      if (!res.ok || !data.success) throw new Error(data.error)
+  1205→      addToast(`Poll diaktifkan. Responden bisa kirim jawaban sekarang.`, 'success')
+  1206→      loadData()
+  1207→    } catch (e: any) { addToast(e.message, 'error') }
+  1208→  }
+  1209→
+  1210→  const handleViewDetail = async (pollId: string) => {
+  1211→    try {
+  1212→      const res = await fetch(`/api/essay-polls/${pollId}`, { headers: { 'x-user-id': useAuthStore.getState().user?.id || '' } })
+  1213→      const data = await res.json()
+  1214→      if (data.success) setDetailPoll(data.data)
+  1215→    } catch (e: any) { addToast(e.message, 'error') }
+  1216→  }
+  1217→
+  1218→  if (loading) return <LoadingState />
+  1219→
+  1220→  return (
+  1221→    <div className="space-y-4">
+  1222→      {neutralityBanner}
+  1223→
+  1224→      {/* Header */}
+  1225→      <Card className="border-purple-200 bg-gradient-to-br from-purple-50 to-pink-50">
+  1226→        <CardContent className="p-5">
+  1227→          <div className="flex items-start gap-4">
+  1228→            <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center shadow-lg shrink-0">
+  1229→              <Brain className="w-7 h-7 text-white" />
+  1230→            </div>
+  1231→            <div className="flex-1">
+  1232→              <h3 className="font-bold text-lg mb-1">Essay Polling &amp; AI Auto-Pertanyaan</h3>
+  1233→              <p className="text-sm text-muted-foreground mb-3">
+  1234→                AI menelaah berita/event otomatis → generate <strong>5 varian pertanyaan</strong> dengan pendekatan berbeda
+  1235→                (langsung, komparatif, solusi, emosional, analitis). Pilih salah satu, lalu share ke medsos & group populer.
+  1236→              </p>
+  1237→              <div className="flex gap-2">
+  1238→                <Button onClick={() => { setAiGenOpen(true); setAiSuggestions([]) }} className="bg-gradient-to-r from-purple-600 to-pink-600 text-white">
+  1239→                  <Sparkles className="w-4 h-4 mr-1" /> AI Generate Pertanyaan
+  1240→                </Button>
+  1241→                <Button variant="outline" onClick={() => setManualOpen(true)}>
+  1242→                  <Plus className="w-4 h-4 mr-1" /> Buat Manual + Saran AI
+  1243→                </Button>
+  1244→              </div>
+  1245→            </div>
+  1246→          </div>
+  1247→        </CardContent>
+  1248→      </Card>
+  1249→
+  1250→      {/* Polls list */}
+  1251→      {polls.length === 0 ? (
+  1252→        <EmptyState icon={Brain} title="Belum ada essay poll"
+  1253→          description="Klik 'AI Generate Pertanyaan' untuk membuat 5 varian pertanyaan essay otomatis dari topik berita/event." />
+  1254→      ) : (
+  1255→        <div className="space-y-2">
+  1256→          {polls.map(p => (
+  1257→            <Card key={p.id} className="hover:shadow-md transition-shadow">
+  1258→              <CardContent className="p-4">
+  1259→                <div className="flex items-start justify-between gap-3">
+  1260→                  <div className="flex-1 min-w-0">
+  1261→                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+  1262→                      {p.isAiGenerated && (
+  1263→                        <Badge className="text-[13px] bg-purple-100 text-purple-800">
+  1264→                          <Sparkles className="w-2.5 h-2.5 mr-0.5" />AI GENERATED
+  1265→                        </Badge>
+  1266→                      )}
+  1267→                      <Badge variant="outline" className={`text-[13px] ${p.status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-700' : p.status === 'CLOSED' ? 'bg-slate-50 text-slate-700' : 'bg-amber-50 text-amber-700'}`}>
+  1268→                        {p.status}
+  1269→                      </Badge>
+  1270→                      {p.sourceSentiment && (
+  1271→                        <Badge variant="outline" className={`text-[13px] ${p.sourceSentiment === 'NEGATIVE' ? 'bg-red-50 text-red-700' : p.sourceSentiment === 'POSITIVE' ? 'bg-emerald-50 text-emerald-700' : ''}`}>
+  1272→                          {p.sourceSentiment}
+  1273→                        </Badge>
+  1274→                      )}
+  1275→                      {p.targetOccupation && <Badge variant="outline" className="text-[13px] bg-blue-50 text-blue-700">{p.targetOccupation}</Badge>}
+  1276→                      {p.provinceName && <Badge variant="outline" className="text-[13px] bg-blue-50 text-blue-700"><MapPin className="w-2.5 h-2.5 mr-0.5" />{p.regencyName || p.provinceName}</Badge>}
+  1277→                      <Badge variant="outline" className="text-[13px]">{p._count?.responses || 0} respon</Badge>
+  1278→                    </div>
+  1279→                    <div className="font-semibold text-sm">{p.title}</div>
+  1280→                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{p.question}</p>
+  1281→                    {p.description && <p className="text-xs text-purple-700 mt-1 italic line-clamp-1">{p.description}</p>}
+  1282→                    <div className="text-[13px] text-muted-foreground mt-2">
+  1283→                      📅 {formatDateTimeID(p.createdAt)} • oleh {p.createdBy?.fullName || '?'}
+  1284→                    </div>
+  1285→                  </div>
+  1286→                  <div className="flex flex-col gap-1 shrink-0">
+  1287→                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleViewDetail(p.id)}>
+  1288→                      <Eye className="w-3 h-3 mr-1" /> Detail
+  1289→                    </Button>
+  1290→                    {p.status === 'DRAFT' && (
+  1291→                      <Button size="sm" className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => handleActivate(p.id)}>
+  1292→                        <Zap className="w-3 h-3 mr-1" /> Aktifkan
+  1293→                      </Button>
+  1294→                    )}
+  1295→                    {/* === Tombol Share ke Medsos === */}
+  1296→                    <Button size="sm" variant="outline" className="h-7 text-xs bg-blue-50 border-blue-300 text-blue-700 hover:bg-blue-100" onClick={() => setSharePoll(p)}>
+  1297→                      <Share2 className="w-3 h-3 mr-1" /> Share
+  1298→                    </Button>
+  1299→                  </div>
+  1300→                </div>
+  1301→              </CardContent>
+  1302→            </Card>
+  1303→          ))}
+  1304→        </div>
+  1305→      )}
+  1306→
+  1307→      {/* === AI Generate Dialog (Multiple Suggestions) — Enhanced with Topic Suggestions === */}
+  1308→      <Dialog open={aiGenOpen} onOpenChange={(o) => { setAiGenOpen(o); if (!o) { setAiSuggestions([]); setSelectedSuggestionIdx(null); setShowTopicSuggestions(false); setActiveCategory(null) } }}>
+  1309→        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+  1310→          <DialogHeader>
+  1311→            <DialogTitle className="flex items-center gap-2">
+  1312→              <Sparkles className="w-5 h-5 text-purple-600" /> AI Generate Pertanyaan Essay (Multi-Saran)
+  1313→            </DialogTitle>
+  1314→            <DialogDescription>
+  1315→              AI akan generate 5 varian pertanyaan dengan pendekatan berbeda. Pilih salah satu untuk dibuat poll.
+  1316→              Klik <strong>"💡 Saran Topik"</strong> untuk inspirasi dari trending issues & kategori.
+  1317→            </DialogDescription>
+  1318→          </DialogHeader>
+  1319→
+  1320→          {/* === Topic Suggestions Panel (auto-fill inspirasi) === */}
+  1321→          {aiSuggestions.length === 0 && (
+  1322→            <div className="rounded-lg bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-200 p-3 space-y-2">
+  1323→              <div className="flex items-center justify-between">
+  1324→                <Label className="text-xs font-semibold text-purple-800">💡 Saran Topik Otomatis (AI-curated)</Label>
+  1325→                <Button type="button" size="sm" variant="outline" className="h-7 text-xs"
+  1326→                  onClick={() => {
+  1327→                    if (!showTopicSuggestions) loadTopicSuggestions()
+  1328→                    setShowTopicSuggestions(!showTopicSuggestions)
+  1329→                  }}>
+  1330→                  {showTopicSuggestions ? '▲ Sembunyikan' : '▼ Tampilkan Saran'}
+  1331→                </Button>
+  1332→              </div>
+  1333→              {showTopicSuggestions && topicSuggestions && (
+  1334→                <div className="space-y-3">
+  1335→                  {/* Quick stats */}
+  1336→                  <div className="text-[13px] text-purple-700">
+  1337→                    {topicSuggestions.stats.totalCategories} kategori • {topicSuggestions.stats.totalSuggestedTopics} topik siap pakai • {topicSuggestions.stats.recentOpinionsCount} opinion links terbaru • {topicSuggestions.stats.recentNewsCount} berita LAPRA 08
+  1338→                  </div>
+  1339→
+  1340→                  {/* Category chips */}
+  1341→                  <div>
+  1342→                    <div className="text-[13px] font-semibold text-muted-foreground mb-1">📚 Pilih Kategori Isu:</div>
+  1343→                    <div className="flex flex-wrap gap-1">
+  1344→                      {topicSuggestions.categories.map(cat => (
+  1345→                        <button key={cat.id} type="button"
+  1346→                          onClick={() => setActiveCategory(activeCategory === cat.id ? null : cat.id)}
+  1347→                          className={`px-2 py-1 rounded-full text-[13px] font-medium border transition-all ${activeCategory === cat.id ? `bg-${cat.color}-500 text-white border-${cat.color}-500` : 'border hover:bg-accent'}`}>
+  1348→                          {cat.icon} {cat.label}
+  1349→                        </button>
+  1350→                      ))}
+  1351→                    </div>
+  1352→                  </div>
+  1353→
+  1354→                  {/* Suggested topics for active category */}
+  1355→                  {activeCategory && (() => {
+  1356→                    const cat = topicSuggestions.categories.find(c => c.id === activeCategory)
+  1357→                    if (!cat) return null
+  1358→                    return (
+  1359→                      <div className="rounded bg-white border p-2 space-y-1">
+  1360→                        <div className="text-[13px] font-semibold text-muted-foreground mb-1">
+  1361→                          {cat.icon} {cat.label} — {cat.description}
+  1362→                        </div>
+  1363→                        <div className="space-y-1">
+  1364→                          {cat.suggestedTopics.map((t: any, i: number) => (
+  1365→                            <button key={i} type="button"
+  1366→                              onClick={() => applyTopicSuggestion(t.topic, t.occupation)}
+  1367→                              className="w-full text-left p-1.5 rounded border hover:bg-accent text-[13px] transition-all">
+  1368→                              <div className="flex items-start justify-between gap-2">
+  1369→                                <span className="flex-1">{t.topic}</span>
+  1370→                                <div className="flex gap-1 shrink-0">
+  1371→                                  {t.occupation && t.occupation !== 'UMUM' && <Badge variant="outline" className="text-[13px]">{t.occupation}</Badge>}
+  1372→                                  <Badge variant="outline" className={`text-[13px] ${t.sentiment === 'NEGATIVE' ? 'bg-red-50 text-red-700' : t.sentiment === 'POSITIVE' ? 'bg-emerald-50 text-emerald-700' : ''}`}>
+  1373→                                    {t.sentiment}
+  1374→                                  </Badge>
+  1375→                                </div>
+  1376→                              </div>
+  1377→                            </button>
+  1378→                          ))}
+  1379→                        </div>
+  1380→                      </div>
+  1381→                    )
+  1382→                  })()}
+  1383→
+  1384→                  {/* Recent trending opinions (auto-detected from DB) */}
+  1385→                  {topicSuggestions.recentOpinions && topicSuggestions.recentOpinions.length > 0 && (
+  1386→                    <div>
+  1387→                      <div className="text-[13px] font-semibold text-muted-foreground mb-1">🔥 Trending Issues (dari Opinion Scanner terbaru):</div>
+  1388→                      <div className="space-y-1 max-h-32 overflow-y-auto">
+  1389→                        {topicSuggestions.recentOpinions.slice(0, 5).map((o: any, i: number) => (
+  1390→                          <button key={i} type="button"
+  1391→                            onClick={() => applyOpinionAsTopic(o)}
+  1392→                            className="w-full text-left p-1.5 rounded border hover:bg-accent text-[13px] transition-all">
+  1393→                            <div className="flex items-start justify-between gap-2">
+  1394→                              <span className="flex-1 line-clamp-1">{o.title}</span>
+  1395→                              <div className="flex gap-1 shrink-0">
+  1396→                                <Badge variant="outline" className={`text-[13px] ${o.priority === 'HIGH' ? 'bg-red-50 text-red-700' : o.priority === 'MEDIUM' ? 'bg-amber-50 text-amber-700' : ''}`}>{o.priority}</Badge>
+  1397→                                <Badge variant="outline" className={`text-[13px] ${o.sentiment === 'NEGATIVE' ? 'bg-red-50 text-red-700' : o.sentiment === 'POSITIVE' ? 'bg-emerald-50 text-emerald-700' : ''}`}>{o.sentiment}</Badge>
+  1398→                              </div>
+  1399→                            </div>
+  1400→                            {o.location && o.location !== 'Nasional' && <div className="text-[13px] text-muted-foreground mt-0.5">📍 {o.location} • 💬 {o.engagement} engagement</div>}
+  1401→                          </button>
+  1402→                        ))}
+  1403→                      </div>
+  1404→                    </div>
+  1405→                  )}
+  1406→
+  1407→                  {/* Recent LAPRA 08 news */}
+  1408→                  {topicSuggestions.recentNews && topicSuggestions.recentNews.length > 0 && (
+  1409→                    <div>
+  1410→                      <div className="text-[13px] font-semibold text-muted-foreground mb-1">📰 Berita LAPRA 08 Terbaru (auto-sync):</div>
+  1411→                      <div className="space-y-1 max-h-32 overflow-y-auto">
+  1412→                        {topicSuggestions.recentNews.slice(0, 5).map((n: any, i: number) => (
+  1413→                          <button key={i} type="button"
+  1414→                            onClick={() => applyTopicSuggestion(n.title, n.occupation)}
+  1415→                            className="w-full text-left p-1.5 rounded border hover:bg-accent text-[13px] transition-all">
+  1416→                            <div className="flex items-start justify-between gap-2">
+  1417→                              <span className="flex-1 line-clamp-1">{n.title}</span>
+  1418→                              <Badge variant="outline" className="text-[13px]">{n.source}</Badge>
+  1419→                            </div>
+  1420→                          </button>
+  1421→                        ))}
+  1422→                      </div>
+  1423→                    </div>
+  1424→                  )}
+  1425→                </div>
+  1426→              )}
+  1427→              {showTopicSuggestions && !topicSuggestions && (
+  1428→                <div className="text-[13px] text-purple-700 italic">Loading topic suggestions...</div>
+  1429→              )}
+  1430→            </div>
+  1431→          )}
+  1432→
+  1433→          {/* Step 1: Input form */}
+  1434→          <form onSubmit={handleGetSuggestions} className="space-y-3">
+  1435→            <div className="space-y-2">
+  1436→              <Label>Topik Isu / Berita * <span className="text-[13px] text-muted-foreground">(atau klik saran di atas untuk auto-fill)</span></Label>
+  1437→              <Input value={aiForm.sourceTopic} onChange={(e) => setAiForm({ ...aiForm, sourceTopic: e.target.value })}
+  1438→                placeholder="cth: Kenaikan harga pupuk bersubsidi di Grobogan" required disabled={generatingSuggestions || aiSuggestions.length > 0} />
+  1439→            </div>
+  1440→            <div className="space-y-2">
+  1441→              <Label>URL Sumber (opsional)</Label>
+  1442→              <Input value={aiForm.sourceUrl} onChange={(e) => setAiForm({ ...aiForm, sourceUrl: e.target.value })}
+  1443→                placeholder="https://..." disabled={generatingSuggestions || aiSuggestions.length > 0} />
+  1444→            </div>
+  1445→            <div className="space-y-2">
+  1446→              <Label>Isi Berita / Konten (opsional)</Label>
+  1447→              <Textarea value={aiForm.sourceContent} onChange={(e) => setAiForm({ ...aiForm, sourceContent: e.target.value })}
+  1448→                placeholder="Paste isi berita atau ringkasan isu di sini..." rows={3} disabled={generatingSuggestions || aiSuggestions.length > 0} />
+  1449→            </div>
+  1450→            {aiSuggestions.length === 0 && (
+  1451→              <div className="flex justify-end">
+  1452→                <Button type="submit" disabled={generatingSuggestions} className="bg-gradient-to-r from-purple-600 to-pink-600 text-white">
+  1453→                  {generatingSuggestions ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Sparkles className="w-4 h-4 mr-1" />}
+  1454→                  {generatingSuggestions ? 'Menunggu AI generate 5 varian...' : 'Generate 5 Varian Pertanyaan'}
+  1455→                </Button>
+  1456→              </div>
+  1457→            )}
+  1458→          </form>
+  1459→
+  1460→          {/* Step 2: Hasil multiple suggestions */}
+  1461→          {aiSuggestions.length > 0 && aiSuggestionsMeta && (
+  1462→            <div className="space-y-3">
+  1463→              <div className="rounded-lg bg-purple-50 border border-purple-200 p-3 text-xs text-purple-800">
+  1464→                <strong>Analisis AI:</strong> Lokasi: {aiSuggestionsMeta.detectedLocation} • Target: {aiSuggestionsMeta.detectedOccupation} •
+  1465→                Sentimen: {aiSuggestionsMeta.detectedSentiment} • Provider: {aiSuggestionsMeta.aiProvider}
+  1466→              </div>
+  1467→              <div className="text-sm font-semibold">Pilih salah satu varian pertanyaan (klik untuk pilih):</div>
+  1468→              <div className="space-y-2">
+  1469→                {aiSuggestions.map((q, i) => {
+  1470→                  const isSelected = selectedSuggestionIdx === i
+  1471→                  const approachLabels: Record<string, string> = {
+  1472→                    direct: '🎯 Langsung',
+  1473→                    comparative: '📊 Komparatif',
+  1474→                    'solution-oriented': '💡 Solusi',
+  1475→                    emotional: '💖 Emosional',
+  1476→                    analytical: '🔬 Analitis',
+  1477→                    aspiratif: '🙏 Aspiratif',
+  1478→                  }
+  1479→                  return (
+  1480→                    <button key={i} type="button" onClick={() => setSelectedSuggestionIdx(i)}
+  1481→                      className={`w-full text-left rounded-lg border-2 p-3 transition-all ${isSelected ? 'border-purple-500 bg-purple-50 shadow-md' : 'border-slate-200 hover:border-purple-300 hover:bg-accent'}`}>
+  1482→                      <div className="flex items-center justify-between mb-1">
+  1483→                        <Badge variant="outline" className="text-[13px] bg-purple-100 text-purple-800">
+  1484→                          {approachLabels[q.approach] || q.approach} #{i + 1}
+  1485→                        </Badge>
+  1486→                        <Badge variant="outline" className="text-[13px]">{q.targetOccupation}</Badge>
+  1487→                      </div>
+  1488→                      <div className="font-semibold text-sm mb-1">{q.title}</div>
+  1489→                      <p className="text-xs text-muted-foreground line-clamp-3">{q.question}</p>
+  1490→                      <p className="text-[13px] text-purple-700 italic mt-1 line-clamp-1">{q.description}</p>
+  1491→                    </button>
+  1492→                  )
+  1493→                })}
+  1494→              </div>
+  1495→              <div className="flex items-center justify-between gap-2 pt-3 border-t">
+  1496→                <Button type="button" variant="outline" size="sm" onClick={() => { setAiSuggestions([]); setSelectedSuggestionIdx(null) }}>
+  1497→                  <RefreshCw className="w-3 h-3 mr-1" /> Mulai Ulang
+  1498→                </Button>
+  1499→                <Button
+  1500→                  type="button"
+  1501→                  disabled={selectedSuggestionIdx === null || creatingFromSuggestion}
+  1502→                  onClick={() => selectedSuggestionIdx !== null && handleCreateFromSuggestion(selectedSuggestionIdx)}
+  1503→                  className="bg-gradient-to-r from-purple-600 to-pink-600 text-white"
+  1504→                >
+  1505→                  {creatingFromSuggestion ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-1" />}
+  1506→                  {creatingFromSuggestion ? 'Membuat Poll...' : selectedSuggestionIdx !== null ? `Buat Poll dari Varian #${selectedSuggestionIdx + 1}` : 'Pilih varian dulu'}
+  1507→                </Button>
+  1508→              </div>
+  1509→            </div>
+  1510→          )}
+  1511→        </DialogContent>
+  1512→      </Dialog>
+  1513→
+  1514→      {/* === Manual Create Dialog with AI Suggestions === */}
+  1515→      <Dialog open={manualOpen} onOpenChange={(o) => { setManualOpen(o); if (!o) setManualSuggestions([]) }}>
+  1516→        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+  1517→          <DialogHeader>
+  1518→            <DialogTitle className="flex items-center gap-2">
+  1519→              <Plus className="w-5 h-5 text-purple-600" /> Buat Essay Poll Manual + Saran AI
+  1520→            </DialogTitle>
+  1521→            <DialogDescription>
+  1522→              Tulis pertanyaan essay sendiri, atau klik "Dapatkan Saran AI" untuk generate 5 varian pertanyaan yang bisa Anda pilih sebagai starting point.
+  1523→            </DialogDescription>
+  1524→          </DialogHeader>
+  1525→
+  1526→          {/* AI Suggestions panel */}
+  1527→          <div className="rounded-lg bg-purple-50 border border-purple-200 p-3">
+  1528→            <div className="flex items-center justify-between mb-2">
+  1529→              <div className="text-xs font-semibold text-purple-800">Saran Pertanyaan dari AI (opsional)</div>
+  1530→              <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={handleGetManualSuggestions} disabled={loadingManualSuggestions}>
+  1531→                {loadingManualSuggestions ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Sparkles className="w-3 h-3 mr-1" />}
+  1532→                {loadingManualSuggestions ? 'Loading...' : manualSuggestions.length > 0 ? 'Refresh Saran' : 'Dapatkan Saran AI'}
+  1533→              </Button>
+  1534→            </div>
+  1535→            {manualSuggestions.length > 0 && (
+  1536→              <div className="space-y-1.5 max-h-60 overflow-y-auto">
+  1537→                {manualSuggestions.map((q, i) => {
+  1538→                  const approachLabels: Record<string, string> = {
+  1539→                    direct: '🎯 Langsung',
+  1540→                    comparative: '📊 Komparatif',
+  1541→                    'solution-oriented': '💡 Solusi',
+  1542→                    emotional: '💖 Emosional',
+  1543→                    analytical: '🔬 Analitis',
+  1544→                    aspiratif: '🙏 Aspiratif',
+  1545→                  }
+  1546→                  return (
+  1547→                    <div key={i} className="rounded border bg-white p-2">
+  1548→                      <div className="flex items-center justify-between mb-1">
+  1549→                        <Badge variant="outline" className="text-[13px]">{approachLabels[q.approach] || q.approach}</Badge>
+  1550→                        <Button type="button" size="sm" variant="ghost" className="h-6 text-xs" onClick={() => applyManualSuggestion(q)}>
+  1551→                          <Plus className="w-3 h-3 mr-0.5" /> Pakai
+  1552→                        </Button>
+  1553→                      </div>
+  1554→                      <div className="text-xs font-semibold">{q.title}</div>
+  1555→                      <p className="text-[13px] text-muted-foreground line-clamp-2 mt-0.5">{q.question}</p>
+  1556→                    </div>
+  1557→                  )
+  1558→                })}
+  1559→              </div>
+  1560→            )}
+  1561→            {!loadingManualSuggestions && manualSuggestions.length === 0 && (
+  1562→              <p className="text-[13px] text-purple-700 italic">Klik tombol di kanan atas untuk generate 5 varian pertanyaan AI. Anda bisa pakai sebagai starting point, lalu edit sesuai kebutuhan.</p>
+  1563→            )}
+  1564→          </div>
+  1565→
+  1566→          <form onSubmit={async (e) => {
+  1567→            e.preventDefault()
+  1568→            const fd = new FormData(e.target as HTMLFormElement)
+  1569→            const data = Object.fromEntries(fd.entries())
+  1570→            try {
+  1571→              const res = await fetch('/api/essay-polls', {
+  1572→                method: 'POST', headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+  1573→                body: JSON.stringify({
+  1574→                  title: data.title, question: data.question, description: data.description,
+  1575→                  targetScope: data.targetScope || 'NATIONAL',
+  1576→                }),
+  1577→              })
+  1578→              const r = await res.json()
+  1579→              if (!res.ok || !r.success) throw new Error(r.error)
+  1580→              addToast('Essay poll dibuat', 'success')
+  1581→              setManualOpen(false); setManualSuggestions([]); loadData()
+  1582→            } catch (err: any) { addToast(err.message, 'error') }
+  1583→          }} className="space-y-3">
+  1584→            <div className="space-y-2"><Label>Judul *</Label><Input id="manual-title" name="title" required /></div>
+  1585→            <div className="space-y-2"><Label>Pertanyaan Essay *</Label><Textarea id="manual-question" name="question" rows={4} required /></div>
+  1586→            <div className="space-y-2"><Label>Deskripsi (opsional)</Label><Textarea id="manual-description" name="description" rows={2} /></div>
+  1587→            <div className="space-y-2">
+  1588→              <Label>Target Scope</Label>
+  1589→              <Select name="targetScope" defaultValue="NATIONAL">
+  1590→                <SelectTrigger><SelectValue /></SelectTrigger>
+  1591→                <SelectContent>
+  1592→                  <SelectItem value="NATIONAL">Nasional (semua DPC)</SelectItem>
+  1593→                  <SelectItem value="PROVINCE">Provinsi (DPD)</SelectItem>
+  1594→                  <SelectItem value="REGENCY">Kab/Kota (DPC)</SelectItem>
+  1595→                </SelectContent>
+  1596→              </Select>
+  1597→            </div>
+  1598→            <DialogFooter>
+  1599→              <Button type="button" variant="outline" onClick={() => { setManualOpen(false); setManualSuggestions([]) }}>Batal</Button>
+  1600→              <Button type="submit" className="bg-purple-600 hover:bg-purple-700 text-white">Simpan Poll</Button>
+  1601→            </DialogFooter>
+  1602→          </form>
+  1603→        </DialogContent>
+  1604→      </Dialog>
+  1605→
+  1606→      {/* === Share to Social Media Dialog === */}
+  1607→      {sharePoll && (
+  1608→        <ShareToSocialMediaDialog poll={sharePoll} onClose={() => setSharePoll(null)} />
+  1609→      )}
+  1610→
+  1611→      {/* Detail dialog */}
+  1612→      {detailPoll && (
+  1613→        <Dialog open={true} onOpenChange={() => setDetailPoll(null)}>
+  1614→          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+  1615→            <DialogHeader>
+  1616→              <DialogTitle className="flex items-center gap-2">
+  1617→                <Brain className="w-5 h-5 text-purple-600" />
+  1618→                {detailPoll.title}
+  1619→              </DialogTitle>
+  1620→              <DialogDescription>
+  1621→                {detailPoll.totalResponses} respon • {detailPoll.sentimentStats?.POSITIVE || 0} positif • {detailPoll.sentimentStats?.NEGATIVE || 0} negatif • {detailPoll.sentimentStats?.UNPROCESSED || 0} belum diproses
+  1622→              </DialogDescription>
+  1623→            </DialogHeader>
+  1624→            <div className="space-y-3">
+  1625→              <div className="p-3 rounded bg-purple-50 border border-purple-200">
+  1626→                <Label className="text-xs font-semibold">Pertanyaan:</Label>
+  1627→                <p className="text-sm mt-1">{detailPoll.question}</p>
+  1628→              </div>
+  1629→              {detailPoll.description && (
+  1630→                <div className="text-xs text-muted-foreground italic">{detailPoll.description}</div>
+  1631→              )}
+  1632→              <div className="grid grid-cols-3 gap-2 text-center">
+  1633→                <div className="rounded border bg-emerald-50 p-2">
+  1634→                  <div className="text-2xl font-bold text-emerald-700">{detailPoll.sentimentStats?.POSITIVE || 0}</div>
+  1635→                  <div className="text-[13px]">Positif</div>
+  1636→                </div>
+  1637→                <div className="rounded border bg-slate-50 p-2">
+  1638→                  <div className="text-2xl font-bold text-slate-700">{detailPoll.sentimentStats?.NEUTRAL || 0}</div>
+  1639→                  <div className="text-[13px]">Netral</div>
+  1640→                </div>
+  1641→                <div className="rounded border bg-red-50 p-2">
+  1642→                  <div className="text-2xl font-bold text-red-700">{detailPoll.sentimentStats?.NEGATIVE || 0}</div>
+  1643→                  <div className="text-[13px]">Negatif</div>
+  1644→                </div>
+  1645→              </div>
+  1646→              <div>
+  1647→                <Label className="text-xs font-semibold">Top Wilayah Responden:</Label>
+  1648→                <div className="flex flex-wrap gap-1 mt-1">
+  1649→                  {(detailPoll.topLocations || []).map((loc: any) => (
+  1650→                    <Badge key={loc.code} variant="outline" className="text-[13px]">{loc.code}: {loc.count}</Badge>
+  1651→                  ))}
+  1652→                  {(detailPoll.topLocations || []).length === 0 && <span className="text-sm text-muted-foreground">Belum ada responden</span>}
+  1653→                </div>
+  1654→              </div>
+  1655→              {detailPoll.responses && detailPoll.responses.length > 0 && (
+  1656→                <div>
+  1657→                  <Label className="text-xs font-semibold">Respon Terbaru:</Label>
+  1658→                  <div className="space-y-2 mt-2 max-h-[40vh] overflow-y-auto">
+  1659→                    {detailPoll.responses.slice(0, 10).map((r: any) => (
+  1660→                      <div key={r.id} className="rounded border p-2 text-xs">
+  1661→                        <div className="flex items-center gap-2 mb-1">
+  1662→                          <Badge variant="outline" className={`text-[13px] ${r.aiSentiment === 'NEGATIVE' ? 'bg-red-50 text-red-700' : r.aiSentiment === 'POSITIVE' ? 'bg-emerald-50 text-emerald-700' : ''}`}>
+  1663→                            {r.aiSentiment || 'BELUM'}
+  1664→                          </Badge>
+  1665→                          {r.occupation && <Badge variant="outline" className="text-[13px]">{r.occupation}</Badge>}
+  1666→                          {r.ageGroup && <Badge variant="outline" className="text-[13px]">{r.ageGroup}</Badge>}
+  1667→                          {r.regencyCode && <Badge variant="outline" className="text-[13px]">{r.regencyCode}</Badge>}
+  1668→                          <span className="text-[13px] text-muted-foreground ml-auto">{r.wordCount} kata</span>
+  1669→                        </div>
+  1670→                        <p className="text-xs line-clamp-3">{r.answer}</p>
+  1671→                        {r.aiSummary && <p className="text-[13px] text-purple-700 mt-1 italic">{r.aiSummary}</p>}
+  1672→                      </div>
+  1673→                    ))}
+  1674→                  </div>
+  1675→                </div>
+  1676→              )}
+  1677→            </div>
+  1678→            <DialogFooter>
+  1679→              <Button variant="outline" onClick={() => setSharePoll(sharePoll || detailPoll)}>
+  1680→                <Share2 className="w-4 h-4 mr-1" /> Share ke Medsos
+  1681→              </Button>
+  1682→              <Button variant="outline" onClick={() => setDetailPoll(null)}>Tutup</Button>
+  1683→            </DialogFooter>
+  1684→          </DialogContent>
+  1685→        </Dialog>
+  1686→      )}
+  1687→    </div>
+  1688→  )
+  1689→}
+  1690→
+  1691→// ============================================================
+  1692→// SHARE TO SOCIAL MEDIA DIALOG — Bagikan poll ke WA/FB/IG/X/Telegram/Email + Group Populer
+  1693→// ============================================================
+  1694→function ShareToSocialMediaDialog({ poll, onClose }: { poll: any; onClose: () => void }) {
+  1695→  const addToast = useToastStore((s) => s.addToast)
+  1696→  const [customText, setCustomText] = useState('')
+
+[showing lines 1017-1696 of 2757; use offset=1697 with limit to continue reading]

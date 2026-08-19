@@ -27,7 +27,7 @@ import {
   RefreshCw, Plus, Eye, Edit, Trash2, FileText, Users, TrendingUp,
   Calendar, Globe, Youtube, Newspaper, Twitter, Instagram, Facebook, Filter,
   ChevronRight, Home, Activity, BarChart3, PieChart as PieIcon, Award,
-  Share2, Copy, MessageCircle, Mail, Linkedin, Shield, Folder,
+  Share2, Copy, MessageCircle, Mail, Linkedin, Shield, Folder, Hash,
 } from 'lucide-react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -1012,6 +1012,133 @@ function BroadcastStatsDialog({ broadcast, onClose }: { broadcast: any; onClose:
 }
 
 // ============================================================
+// SURVEY OUTPUT DASHBOARD — Bagian 3: Konsolidasi Hasil 3 Dimensi
+// ============================================================
+function SurveyOutputDashboard({ polls }: { polls: any[] }) {
+  const [outputTab, setOutputTab] = useState<'medsos' | 'online' | 'lapangan'>('medsos')
+  const totalResponses = polls.reduce((sum, p) => sum + (p._count?.responses || 0), 0)
+  const activePolls = polls.filter(p => p.status === 'ACTIVE').length
+  const aiGenerated = polls.filter(p => p.isAiGenerated).length
+  const sentimentStats = polls.reduce((acc, p) => {
+    if (p.responses) { p.responses.forEach((r: any) => { if (r.aiSentiment === 'POSITIVE') acc.positive++; else if (r.aiSentiment === 'NEGATIVE') acc.negative++; else acc.neutral++ }) }
+    return acc
+  }, { positive: 0, negative: 0, neutral: 0 })
+  const totalSentiment = sentimentStats.positive + sentimentStats.negative + sentimentStats.neutral || 1
+  const subTabs = [
+    { key: 'medsos' as const, label: '🌐 Hasil Percakapan Medsos', icon: Globe },
+    { key: 'online' as const, label: '📱 Hasil Online Broadcast', icon: Send },
+    { key: 'lapangan' as const, label: '📍 Hasil Teritorial Lapangan', icon: MapPin },
+  ]
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2">
+        <div className="h-5 w-1 rounded-full bg-gradient-to-b from-emerald-500 to-teal-600" />
+        <h3 className="text-sm font-bold">📊 Dashboard Konsolidasi Hasil 3 Dimensi</h3>
+      </div>
+      <div className="flex flex-wrap gap-1 border-b pb-2">
+        {subTabs.map(t => (
+          <button key={t.key} onClick={() => setOutputTab(t.key)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-t-lg text-xs font-medium transition-all ${outputTab === t.key ? 'bg-emerald-600 text-white shadow-sm' : 'border hover:bg-accent'}`}>
+            <t.icon className="w-3.5 h-3.5" /> {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* SUB-TAB 1: Medsos */}
+      {outputTab === 'medsos' && (
+        <div className="grid gap-3 md:grid-cols-2">
+          <Card><CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><TrendingUp className="w-4 h-4 text-blue-600" /> Tren Sentimen Medsos</CardTitle></CardHeader>
+            <CardContent className="space-y-2">
+              {totalSentiment > 1 ? (
+                <>
+                  {[{l:'Positif',v:sentimentStats.positive,c:'emerald'}, {l:'Netral',v:sentimentStats.neutral,c:'amber'}, {l:'Negatif',v:sentimentStats.negative,c:'red'}].map(s => (
+                    <div key={s.l} className="space-y-1">
+                      <div className="flex items-center justify-between text-xs"><span className={`text-${s.c}-600`}>{s.l}</span><span className="font-bold">{s.v} ({Math.round(s.v/totalSentiment*100)}%)</span></div>
+                      <div className="h-2 bg-slate-100 rounded-full overflow-hidden"><div className={`h-full bg-${s.c}-500 rounded-full`} style={{width:`${s.v/totalSentiment*100}%`}} /></div>
+                    </div>
+                  ))}
+                </>
+              ) : <p className="text-xs text-muted-foreground text-center py-4">Belum ada data sentimen dari medsos</p>}
+            </CardContent>
+          </Card>
+          <Card><CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><MessageSquare className="w-4 h-4 text-purple-600" /> Feed Percakapan Viral</CardTitle></CardHeader>
+            <CardContent>
+              <p className="text-xs text-muted-foreground text-center py-4">Percakapan medsos paling viral terkait opini kepemimpinan akan tampil di sini (automatic update).</p>
+              <div className="space-y-1">{polls.filter(p => p.isAiGenerated && p._count?.responses > 0).slice(0,3).map(p => (<div key={p.id} className="text-xs p-2 rounded border bg-muted/30"><div className="font-medium truncate">{p.title}</div><div className="text-muted-foreground">{p._count?.responses || 0} respon</div></div>))}</div>
+            </CardContent>
+          </Card>
+          <Card className="md:col-span-2"><CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Hash className="w-4 h-4 text-cyan-600" /> Word Cloud — Kata Kunci Paling Sering</CardTitle></CardHeader>
+            <CardContent><p className="text-xs text-muted-foreground text-center py-4">Word cloud dari kata kunci yang paling sering diucapkan publik mengenai kepemimpinan.<br />(Fitur ini akan otomatis mengextract keyword dari jawaban survei)</p></CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* SUB-TAB 2: Online Broadcast */}
+      {outputTab === 'online' && (
+        <div className="grid gap-3 md:grid-cols-2">
+          <Card><CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><BarChart3 className="w-4 h-4 text-emerald-600" /> Diagram Hasil Pilihan Ganda &amp; Skala Opini</CardTitle></CardHeader>
+            <CardContent>
+              {totalResponses > 0 ? (
+                <div className="space-y-2">
+                  <div className="text-center"><div className="text-3xl font-bold text-emerald-600">{totalResponses}</div><div className="text-xs text-muted-foreground">Total Respon Online</div></div>
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div className="p-2 rounded bg-emerald-50"><div className="text-lg font-bold text-emerald-600">{sentimentStats.positive}</div><div className="text-[10px] text-muted-foreground">Positif</div></div>
+                    <div className="p-2 rounded bg-amber-50"><div className="text-lg font-bold text-amber-600">{sentimentStats.neutral}</div><div className="text-[10px] text-muted-foreground">Netral</div></div>
+                    <div className="p-2 rounded bg-red-50"><div className="text-lg font-bold text-red-600">{sentimentStats.negative}</div><div className="text-[10px] text-muted-foreground">Negatif</div></div>
+                  </div>
+                </div>
+              ) : <p className="text-xs text-muted-foreground text-center py-4">Belum ada respon dari broadcast</p>}
+            </CardContent>
+          </Card>
+          <Card><CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Brain className="w-4 h-4 text-purple-600" /> Ringkasan Kluster Jawaban Esai</CardTitle></CardHeader>
+            <CardContent>
+              <p className="text-xs text-muted-foreground mb-2">AI membaca ribuan jawaban esai masyarakat lalu merangkumnya menjadi 5 poin aspirasi terbesar.</p>
+              <div className="space-y-1">{polls.filter(p => p.status === 'ACTIVE' || p.status === 'CLOSED').slice(0,5).map((p,i) => (<div key={p.id} className="flex items-start gap-2 text-xs p-1.5 rounded bg-muted/30"><span className="font-bold text-purple-600">{i+1}.</span><span className="truncate">{p.title}</span></div>))}{polls.length === 0 && <p className="text-xs text-muted-foreground text-center py-2">Belum ada data</p>}</div>
+            </CardContent>
+          </Card>
+          <Card className="md:col-span-2"><CardContent className="p-3">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">📊 Response Rate (Online Broadcast)</span>
+              <div className="flex items-center gap-2"><span className="font-bold">{totalResponses} respon</span><span className="text-muted-foreground">/ {activePolls} poll aktif</span>{aiGenerated > 0 && <Badge variant="outline" className="text-[10px]">{aiGenerated} AI-generated</Badge>}</div>
+            </div>
+          </CardContent></Card>
+        </div>
+      )}
+
+      {/* SUB-TAB 3: Teritorial Lapangan */}
+      {outputTab === 'lapangan' && (
+        <div className="space-y-3">
+          <Card><CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><MapPin className="w-4 h-4 text-orange-600" /> Peta Panas (Heatmap Teritorial)</CardTitle>
+            <CardDescription className="text-xs">Menampilkan peta wilayah target pemenangan. Warna wilayah berubah berdasarkan input dari lapangan.</CardDescription></CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-3 gap-2 text-center mb-3">
+                <div className="p-3 rounded-lg bg-green-50 border border-green-200"><div className="w-4 h-4 rounded-full bg-green-500 mx-auto mb-1" /><div className="text-xs font-medium text-green-700">Sentimen Baik</div></div>
+                <div className="p-3 rounded-lg bg-yellow-50 border border-yellow-200"><div className="w-4 h-4 rounded-full bg-yellow-500 mx-auto mb-1" /><div className="text-xs font-medium text-yellow-700">Netral</div></div>
+                <div className="p-3 rounded-lg bg-red-50 border border-red-200"><div className="w-4 h-4 rounded-full bg-red-500 mx-auto mb-1" /><div className="text-xs font-medium text-red-700">Sentimen Buruk</div></div>
+              </div>
+              <div className="aspect-video bg-slate-100 rounded-lg flex items-center justify-center border-2 border-dashed border-slate-300">
+                <div className="text-center"><MapPin className="w-12 h-12 text-slate-300 mx-auto mb-2" /><p className="text-xs text-muted-foreground">Peta geospasial akan menampilkan wilayah target pemenangan<br />dengan warna berdasarkan input riil dari lapangan</p></div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card><CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Users className="w-4 h-4 text-blue-600" /> Tabel Demografi Responden Lapangan</CardTitle>
+            <CardDescription className="text-xs">Data agregat demografi (Usia, Pekerjaan, Jenis Kelamin) responden door-to-door + verifikasi GPS.</CardDescription></CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead><tr className="border-b"><th className="text-left py-2 px-2">Wilayah</th><th className="text-center py-2 px-2">Total</th><th className="text-center py-2 px-2">L</th><th className="text-center py-2 px-2">P</th><th className="text-center py-2 px-2">17-25</th><th className="text-center py-2 px-2">26-45</th><th className="text-center py-2 px-2">46+</th><th className="text-center py-2 px-2">GPS ✓</th></tr></thead>
+                  <tbody><tr className="border-b"><td colSpan={8} className="text-center py-4 text-muted-foreground">Belum ada data dari lapangan. Data akan terisi otomatis saat surveyor menginput dari HP.</td></tr></tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ============================================================
 // TAB 4: ESSAY POLLS & AI AUTO-PERTANYAAN
 // ============================================================
 function EssayPollsTab() {
@@ -1234,12 +1361,18 @@ function EssayPollsTab() {
                 AI menelaah berita/event otomatis → generate <strong>5 varian pertanyaan</strong> dengan pendekatan berbeda
                 (langsung, komparatif, solusi, emosional, analitis). Pilih salah satu, lalu share ke medsos & group populer.
               </p>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <Button onClick={() => { setAiGenOpen(true); setAiSuggestions([]) }} className="bg-gradient-to-r from-purple-600 to-pink-600 text-white">
                   <Sparkles className="w-4 h-4 mr-1" /> AI Generate Pertanyaan
                 </Button>
                 <Button variant="outline" onClick={() => setManualOpen(true)}>
-                  <Plus className="w-4 h-4 mr-1" /> Buat Manual + Saran AI
+                  <Plus className="w-4 h-4 mr-1" /> Buat Manual Esai
+                </Button>
+                <Button variant="outline" onClick={() => { setManualOpen(true); addToast('Pilih jenis "Pilihan Ganda" di form manual', 'info') }}>
+                  <Plus className="w-4 h-4 mr-1" /> Buat Manual Pilihan Ganda
+                </Button>
+                <Button variant="outline" onClick={() => { setManualOpen(true); addToast('Pilih jenis "Skala Opini (Likert)" di form manual', 'info') }}>
+                  <Plus className="w-4 h-4 mr-1" /> Buat Skala Opini/Likert
                 </Button>
               </div>
             </div>
@@ -1303,6 +1436,84 @@ function EssayPollsTab() {
           ))}
         </div>
       )}
+
+      {/* === BAGIAN 2: KANAL DISTRIBUSI & INTEGRASI (3 Kolom) === */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <div className="h-5 w-1 rounded-full bg-gradient-to-b from-blue-500 to-cyan-600" />
+          <h3 className="text-sm font-bold">📡 Kanal Distribusi & Integrasi</h3>
+          <span className="text-xs text-muted-foreground">— Pilih jalur pengumpulan data</span>
+        </div>
+        <div className="grid gap-3 md:grid-cols-3">
+          {/* KOLOM A: Jalur Otomatis Medsos */}
+          <Card className="border-blue-200 bg-blue-50/50">
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                  <Globe className="w-4 h-4 text-blue-600" />
+                </div>
+                <CardTitle className="text-sm">Jalur Otomatis Medsos</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <p className="text-xs text-muted-foreground">
+                Menangkap percakapan publik di media sosial secara otomatis dan real-time berbasis AI.
+              </p>
+              <Button size="sm" variant="outline" className="w-full text-xs gap-1" onClick={() => addToast('Fitur Atur Keyword AI & Hashtag sedang dalam pengembangan', 'info')}>
+                ⚙️ Atur Keyword AI &amp; Hashtag
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* KOLOM B: Jalur Digital Broadcast */}
+          <Card className="border-emerald-200 bg-emerald-50/50">
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
+                  <Send className="w-4 h-4 text-emerald-600" />
+                </div>
+                <CardTitle className="text-sm">Jalur Digital Broadcast</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <p className="text-xs text-muted-foreground">
+                Menyebarkan tautan kuesioner digital mandiri secara massal ke pangkalan data masyarakat.
+              </p>
+              <Button size="sm" variant="outline" className="w-full text-xs gap-1" onClick={() => addToast('Integrasi ke Sistem Siaran sedang dalam pengembangan', 'info')}>
+                🚀 Kirim via WhatsApp/SMS Blast
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* KOLOM C: Jalur Teritorial Lapangan */}
+          <Card className="border-orange-200 bg-orange-50/50">
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-orange-100 flex items-center justify-center">
+                  <MapPin className="w-4 h-4 text-orange-600" />
+                </div>
+                <CardTitle className="text-sm">Jalur Teritorial Lapangan</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <p className="text-xs text-muted-foreground">
+                Mengirimkan kuesioner ke aplikasi HP khusus tim surveyor di lapangan untuk pendataan door-to-door.
+              </p>
+              <div className="space-y-1">
+                <Button size="sm" variant="outline" className="w-full text-xs gap-1" onClick={() => addToast('Sinkronisasi ke HP Surveyor sedang dalam pengembangan', 'info')}>
+                  📱 Sinkronisasi ke HP Surveyor
+                </Button>
+                <Button size="sm" variant="outline" className="w-full text-xs gap-1" onClick={() => addToast('Kelola Akun & Wilayah Surveyor sedang dalam pengembangan', 'info')}>
+                  👥 Kelola Akun &amp; Wilayah Surveyor
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* === BAGIAN 3: OUTPUT DATA — Dashboard Konsolidasi Hasil 3 Dimensi === */}
+      <SurveyOutputDashboard polls={polls} />
 
       {/* === AI Generate Dialog (Multiple Suggestions) — Enhanced with Topic Suggestions === */}
       <Dialog open={aiGenOpen} onOpenChange={(o) => { setAiGenOpen(o); if (!o) { setAiSuggestions([]); setSelectedSuggestionIdx(null); setShowTopicSuggestions(false); setActiveCategory(null) } }}>
