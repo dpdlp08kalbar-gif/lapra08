@@ -8,34 +8,12 @@
 //   - Hanya return field yang aman untuk publik (tidak expose PII creator)
 //   - Hanya return poll dengan status ACTIVE (DRAFT/CLOSED/ARCHIVED → 404)
 //   - Tidak return responses array (hanya count)
-//
-// FASE 3.3.2: Include pollType + options dari SystemSetting config
-//   - GET /api/essay-polls/[id]/config (inline, no extra HTTP call)
-//   - Default: pollType=ESSAY (backward compat)
 // ============================================================
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-
-function configKey(pollId: string) {
-  return `poll_config_${pollId}`
-}
-
-// Load config dari SystemSetting
-async function loadPollConfig(pollId: string): Promise<any> {
-  try {
-    const setting = await db.systemSetting.findUnique({
-      where: { key: configKey(pollId) },
-      select: { value: true },
-    })
-    if (!setting) return null
-    return JSON.parse(setting.value)
-  } catch {
-    return null
-  }
-}
 
 export async function GET(
   request: NextRequest,
@@ -98,13 +76,6 @@ export async function GET(
       regencyName = reg?.name || null
     }
 
-    // === FASE 3.3.2: Load poll config (pollType + options) ===
-    const config = await loadPollConfig(id)
-    const pollType = config?.pollType || 'ESSAY'
-    const options = config?.options || null
-    const likertScale = config?.likertScale || null
-    const likertLabels = config?.likertLabels || null
-
     // Strip _count, replace dengan totalResponses
     const { _count, ...pollData } = poll
 
@@ -115,11 +86,6 @@ export async function GET(
         provinceName,
         regencyName,
         totalResponses: _count.responses,
-        // === FASE 3.3.2: poll type config ===
-        pollType,
-        options,
-        likertScale,
-        likertLabels,
       },
     })
   } catch (e: any) {

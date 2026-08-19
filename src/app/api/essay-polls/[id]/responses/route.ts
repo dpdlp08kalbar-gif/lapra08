@@ -22,7 +22,6 @@ import {
   invalidateDecisionDashboardCache,
 } from '@/app/api/decision-dashboard/route'
 import { invalidateEssayPollsCache } from '../../route'
-import { loadPollConfig, validateAnswerByPollType, getSubmitSuccessMessage } from '@/lib/poll-helpers'
 
 // Hash IP dengan daily salt — tidak bisa reverse ke real IP, tapi tetap konsisten
 // untuk rate limit & analytics (mis. "IP ini submit 5x hari ini")
@@ -49,15 +48,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // Catatan: jika client kirim respondentName/respondentPhone, kita ignore (no error)
     // Ini untuk mencegah attacker inject PII via API langsung
 
-    // === FASE 3.3.6: Validasi jawaban sesuai pollType ===
-    // Sebelumnya: hardcoded "minimal 10 karakter" untuk semua tipe
-    // Sekarang: load config → validate per pollType (ESSAY/MC/LIKERT)
-    const pollConfig = await loadPollConfig(pollId)
-    const validation = validateAnswerByPollType(answer, pollConfig)
-    if (!validation.valid) {
-      return NextResponse.json({ success: false, error: validation.error }, { status: 400 })
+    // === Validasi jawaban (ESSAY only — pilihan ganda/likert dihapus) ===
+    if (!answer || answer.trim().length < 10) {
+      return NextResponse.json({ success: false, error: 'Jawaban minimal 10 karakter' }, { status: 400 })
     }
-    const finalAnswer = validation.normalizedAnswer!
+    const finalAnswer = answer.trim().substring(0, 5000)
 
     // === Anti-spam: rate limit per IP (pakai real IP untuk rate limit, bukan hash) ===
     const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
@@ -72,8 +67,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       }, { status: 429 })
     }
 
-    // === Anti-spam: content validation (hanya untuk ESSAY, MC/LIKERT sudah punya validasi sendiri) ===
-    if (pollConfig.pollType === 'ESSAY' && detectSpam(finalAnswer)) {
+    // === Anti-spam: content validation ===
+    if (detectSpam(finalAnswer)) {
       return NextResponse.json({
         success: false,
         error: 'Jawaban terdeteksi sebagai spam. Mohon tulis jawaban yang substantif.',
@@ -167,7 +162,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         aiSummary: response.aiSummary,
         // JANGAN return: respondentName, respondentPhone, ipAddress
       },
-      message: getSubmitSuccessMessage(pollConfig.pollType, wordCount, aiProvider, finalSentiment, finalScore),
+      message: `Terima kasih! Jawaban essay Anda (${wordCount} kata) telah dikirim & dianalisis AI (${aiProvider}). Sentimen: ${finalSentiment}, urgency: ${finalScore}/100.`,
       rateLimit: { remaining: rateLimit.remaining - 1, resetInMs: rateLimit.resetInMs },
     })
   } catch (e: any) {
