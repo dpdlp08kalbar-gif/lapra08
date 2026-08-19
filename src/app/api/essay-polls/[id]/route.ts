@@ -133,13 +133,22 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   try {
     const { id } = await params
+
+    // === FASE 3.5.3: Pagination support ===
+    // ?page=1&limit=20 (default), max limit=100
+    const { searchParams } = new URL(request.url)
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20', 10)))
+    const skip = (page - 1) * limit
+
     const poll = await db.essayPoll.findUnique({
       where: { id },
       include: {
         createdBy: { select: { fullName: true } },
         responses: {
           orderBy: { submittedAt: 'desc' },
-          take: 100,
+          skip,
+          take: limit,
           select: {
             // === FASE 0.4: Jangan expose PII responden ===
             // PII yang DILINDUNGI: respondentName, respondentPhone, ipAddress
@@ -225,6 +234,15 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         topLocations,
         // === FASE 0.7: pakai _count.responses (akurat), bukan responses.length (capped 100) ===
         totalResponses: poll._count.responses,
+        // === FASE 3.5.3: Pagination metadata ===
+        pagination: {
+          page,
+          limit,
+          total: poll._count.responses,
+          totalPages: Math.ceil(poll._count.responses / limit),
+          hasNext: page * limit < poll._count.responses,
+          hasPrev: page > 1,
+        },
       },
     })
   } catch (e: any) {

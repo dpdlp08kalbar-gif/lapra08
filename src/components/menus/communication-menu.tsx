@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { api } from '@/lib/api-client'
+import { useDebounce } from '@/lib/use-debounce'
 import { PageHeader, LoadingState, ErrorState, EmptyState, StatCard } from '@/components/ui-helpers'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -1800,12 +1801,66 @@ function EssayPollsTab({ onSwitchTab }: { onSwitchTab?: (tab: string) => void })
     } catch (e: any) { addToast(e.message, 'error') }
   }
 
-  const handleViewDetail = async (pollId: string) => {
+  // === FASE 3.5.1: Handler Close & Archive poll ===
+  const handleClose = async (pollId: string, title: string) => {
+    if (!confirm(`Tutup poll "${title.substring(0, 60)}"? Poll tidak akan menerima respon baru. Respon yang sudah ada tetap tersimpan.`)) return
     try {
-      const res = await fetch(`/api/essay-polls/${pollId}`, { headers: { 'x-user-id': useAuthStore.getState().user?.id || '' } })
+      const res = await fetch(`/api/essay-polls/${pollId}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+        body: JSON.stringify({ status: 'CLOSED' }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) throw new Error(data.error)
+      addToast(`Poll ditutup. Respon existing tetap tersimpan.`, 'success')
+      loadData()
+    } catch (e: any) { addToast(e.message, 'error') }
+  }
+
+  const handleArchive = async (pollId: string, title: string) => {
+    if (!confirm(`Arsipkan poll "${title.substring(0, 60)}"? Poll akan disembunyikan dari list aktif tapi data tetap tersimpan untuk audit.`)) return
+    try {
+      const res = await fetch(`/api/essay-polls/${pollId}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+        body: JSON.stringify({ status: 'ARCHIVED' }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) throw new Error(data.error)
+      addToast(`Poll diarsipkan.`, 'success')
+      loadData()
+    } catch (e: any) { addToast(e.message, 'error') }
+  }
+
+  // === FASE 3.5.1: Handler Delete poll (irreversible) ===
+  const handleDelete = async (pollId: string, title: string) => {
+    if (!confirm(`⚠️ HAPUS PERMANEN poll "${title.substring(0, 60)}"?\n\nSemua data terkait (respon, AI analysis, audit log reference) akan dihapus permanen.\nTindakan ini TIDAK BISA dibatalkan.\n\nDisarankan: gunakan 'Arsipkan' jika hanya ingin menyembunyikan.`)) return
+    // Konfirmasi kedua untuk hapus
+    if (!confirm(`Konfirmasi sekali lagi: Yakin hapus "${title.substring(0, 40)}" PERMANEN?`)) return
+    try {
+      const res = await fetch(`/api/essay-polls/${pollId}`, {
+        method: 'DELETE', headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) throw new Error(data.error)
+      addToast(`Poll "${title.substring(0, 40)}" dihapus permanen.`, 'success')
+      loadData()
+    } catch (e: any) { addToast(e.message, 'error') }
+  }
+
+  const handleViewDetail = async (pollId: string, page: number = 1) => {
+    try {
+      // === FASE 3.5.3: Pakai pagination (page + limit) ===
+      const res = await fetch(`/api/essay-polls/${pollId}?page=${page}&limit=20`, {
+        headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+      })
       const data = await res.json()
       if (data.success) setDetailPoll(data.data)
     } catch (e: any) { addToast(e.message, 'error') }
+  }
+
+  // === FASE 3.5.3: Handler untuk ganti page di detail dialog ===
+  const handleDetailPageChange = (newPage: number) => {
+    if (!detailPoll) return
+    handleViewDetail(detailPoll.id, newPage)
   }
 
   if (loading) return <LoadingState />
@@ -1898,6 +1953,22 @@ function EssayPollsTab({ onSwitchTab }: { onSwitchTab?: (tab: string) => void })
                     {/* === Tombol Share ke Medsos === */}
                     <Button size="sm" variant="outline" className="h-7 text-xs bg-blue-50 border-blue-300 text-blue-700 hover:bg-blue-100" onClick={() => setSharePoll(p)}>
                       <Share2 className="w-3 h-3 mr-1" /> Share
+                    </Button>
+                    {/* === FASE 3.5.1: Tombol Close & Archive (untuk ACTIVE poll) === */}
+                    {p.status === 'ACTIVE' && (
+                      <Button size="sm" variant="outline" className="h-7 text-xs bg-amber-50 border-amber-300 text-amber-700 hover:bg-amber-100" onClick={() => handleClose(p.id, p.title)}>
+                        <AlertTriangle className="w-3 h-3 mr-1" /> Tutup
+                      </Button>
+                    )}
+                    {/* === FASE 3.5.1: Tombol Archive (untuk CLOSED/DRAFT poll) === */}
+                    {(p.status === 'CLOSED' || p.status === 'DRAFT') && (
+                      <Button size="sm" variant="outline" className="h-7 text-xs bg-slate-50 border-slate-300 text-slate-700 hover:bg-slate-100" onClick={() => handleArchive(p.id, p.title)}>
+                        <Folder className="w-3 h-3 mr-1" /> Arsipkan
+                      </Button>
+                    )}
+                    {/* === FASE 3.5.1: Tombol Delete (irreversible, dengan konfirmasi 2x) === */}
+                    <Button size="sm" variant="outline" className="h-7 text-xs bg-red-50 border-red-300 text-red-700 hover:bg-red-100" onClick={() => handleDelete(p.id, p.title)}>
+                      <Trash2 className="w-3 h-3 mr-1" /> Hapus
                     </Button>
                   </div>
                 </div>
@@ -2352,9 +2423,11 @@ function EssayPollsTab({ onSwitchTab }: { onSwitchTab?: (tab: string) => void })
               </div>
               {detailPoll.responses && detailPoll.responses.length > 0 && (
                 <div>
-                  <Label className="text-xs font-semibold">Respon Terbaru:</Label>
+                  <Label className="text-xs font-semibold">
+                    Respon (Page {detailPoll.pagination?.page || 1} dari {detailPoll.pagination?.totalPages || 1} — Total {detailPoll.totalResponses || detailPoll.responses.length}):
+                  </Label>
                   <div className="space-y-2 mt-2 max-h-[40vh] overflow-y-auto">
-                    {detailPoll.responses.slice(0, 10).map((r: any) => (
+                    {detailPoll.responses.map((r: any) => (
                       <div key={r.id} className="rounded border p-2 text-xs">
                         <div className="flex items-center gap-2 mb-1">
                           <Badge variant="outline" className={`text-[13px] ${r.aiSentiment === 'NEGATIVE' ? 'bg-red-50 text-red-700' : r.aiSentiment === 'POSITIVE' ? 'bg-emerald-50 text-emerald-700' : ''}`}>
@@ -2370,6 +2443,32 @@ function EssayPollsTab({ onSwitchTab }: { onSwitchTab?: (tab: string) => void })
                       </div>
                     ))}
                   </div>
+                  {/* === FASE 3.5.3: Pagination controls === */}
+                  {detailPoll.pagination && detailPoll.pagination.totalPages > 1 && (
+                    <div className="flex items-center justify-between gap-2 mt-3 pt-2 border-t">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs"
+                        disabled={!detailPoll.pagination.hasPrev}
+                        onClick={() => handleDetailPageChange((detailPoll.pagination.page || 1) - 1)}
+                      >
+                        ← Sebelumnya
+                      </Button>
+                      <span className="text-xs text-muted-foreground">
+                        {(detailPoll.pagination.page || 1)} / {detailPoll.pagination.totalPages}
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs"
+                        disabled={!detailPoll.pagination.hasNext}
+                        onClick={() => handleDetailPageChange((detailPoll.pagination.page || 1) + 1)}
+                      >
+                        Berikutnya →
+                      </Button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -3557,6 +3656,8 @@ function KeywordHashtagManagerDialog({ open, onOpenChange }: { open: boolean; on
   const [filterCategory, setFilterCategory] = useState<string>('ALL')
   const [filterActive, setFilterActive] = useState<string>('ALL')
   const [search, setSearch] = useState('')
+  // === FASE 3.5.2: Debounce search (300ms) untuk hindari API call per keystroke ===
+  const debouncedSearch = useDebounce(search, 300)
 
   // Add form state
   const [addMode, setAddMode] = useState<'single' | 'bulk'>('single')
@@ -3587,7 +3688,7 @@ function KeywordHashtagManagerDialog({ open, onOpenChange }: { open: boolean; on
       if (filterType !== 'ALL') params.set('type', filterType)
       if (filterCategory !== 'ALL') params.set('category', filterCategory)
       if (filterActive !== 'ALL') params.set('active', filterActive)
-      if (search.trim()) params.set('q', search.trim())
+      if (debouncedSearch.trim()) params.set('q', debouncedSearch.trim())
       const res = await api(`/api/medsos-keywords?${params.toString()}`, { keepWrapper: true })
       if (res?.success) {
         setKeywords(res.data || [])
@@ -3600,7 +3701,7 @@ function KeywordHashtagManagerDialog({ open, onOpenChange }: { open: boolean; on
     } finally {
       setLoading(false)
     }
-  }, [filterType, filterCategory, filterActive, search, addToast])
+  }, [filterType, filterCategory, filterActive, debouncedSearch, addToast])
 
   useEffect(() => {
     if (open) loadData()
@@ -4211,6 +4312,8 @@ function SurveyorManagerDialog({ open, onOpenChange }: { open: boolean; onOpenCh
   const [stats, setStats] = useState<any>(null)
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
+  // === FASE 3.5.2: Debounce search (300ms) ===
+  const debouncedSearch = useDebounce(search, 300)
   const [filterActive, setFilterActive] = useState<string>('ALL')
 
   // Form state
@@ -4236,7 +4339,7 @@ function SurveyorManagerDialog({ open, onOpenChange }: { open: boolean; onOpenCh
     try {
       const params = new URLSearchParams()
       if (filterActive !== 'ALL') params.set('active', filterActive)
-      if (search.trim()) params.set('q', search.trim())
+      if (debouncedSearch.trim()) params.set('q', debouncedSearch.trim())
       const res = await api(`/api/surveyors?${params.toString()}`, { keepWrapper: true })
       if (res?.success) {
         setSurveyors(res.data || [])
@@ -4249,7 +4352,7 @@ function SurveyorManagerDialog({ open, onOpenChange }: { open: boolean; onOpenCh
     } finally {
       setLoading(false)
     }
-  }, [filterActive, search, addToast])
+  }, [filterActive, debouncedSearch, addToast])
 
   useEffect(() => {
     if (open) loadData()
