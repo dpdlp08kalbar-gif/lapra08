@@ -27,7 +27,7 @@ import {
   RefreshCw, Plus, Eye, Edit, Trash2, FileText, Users, TrendingUp,
   Calendar, Globe, Youtube, Newspaper, Twitter, Instagram, Facebook, Filter,
   ChevronRight, Home, Activity, BarChart3, PieChart as PieIcon, Award,
-  Share2, Copy, MessageCircle, Mail, Linkedin, Shield, Folder, Hash,
+  Share2, Copy, MessageCircle, Mail, Linkedin, Shield, Folder, Hash, MessageSquare,
 } from 'lucide-react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
