@@ -114,7 +114,72 @@ function OpinionScannerTab() {
   const [filterPriority, setFilterPriority] = useState('ALL')
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [generatingKonter, setGeneratingKonter] = useState<string | null>(null)
+  const [generatingSurvey, setGeneratingSurvey] = useState<string | null>(null)
+  const [batchSurveyRunning, setBatchSurveyRunning] = useState(false)
+  const [batchPreview, setBatchPreview] = useState<any>(null)
   const [triageLoading, setTriageLoading] = useState(false)
+
+  // === PILAR 1: Handle Auto-draft Survei dari opinion link (single) ===
+  const handleAutoSurvey = async (linkId: string) => {
+    setGeneratingSurvey(linkId)
+    try {
+      const res = await api(`/api/opinion-links/${linkId}/auto-survey`, {
+        method: 'POST',
+        keepWrapper: true,
+      })
+      if (res?.success) {
+        addToast(res.message || 'Draft survei dibuat', 'success')
+        loadRecent()
+      } else {
+        addToast(res?.error || 'Gagal generate survei', 'error')
+      }
+    } catch (e: any) {
+      addToast(e.message, 'error')
+    } finally {
+      setGeneratingSurvey(null)
+    }
+  }
+
+  // === PILAR 1: Handle Batch Auto-survey (cron trigger manual) ===
+  const handleBatchAutoSurvey = async () => {
+    if (!confirm('Jalankan batch auto-survey? Sistem akan mencari semua opinion link NEGATIVE+HIGH dan generate draft survei (max 10 per run).')) return
+    setBatchSurveyRunning(true)
+    try {
+      const res = await api('/api/opinion-links/auto-survey-batch', {
+        method: 'POST',
+        keepWrapper: true,
+      })
+      if (res?.success) {
+        const stats = res.stats
+        addToast(
+          `Batch selesai: ${stats.generated} draft baru, ${stats.deduped} dedup, ${stats.errors} error`,
+          stats.generated > 0 ? 'success' : 'info'
+        )
+        setBatchPreview(null) // force re-fetch on next preview
+      } else {
+        addToast(res?.error || 'Gagal run batch', 'error')
+      }
+    } catch (e: any) {
+      addToast(e.message, 'error')
+    } finally {
+      setBatchSurveyRunning(false)
+    }
+  }
+
+  // === PILAR 1: Preview kandidat batch (tanpa generate) ===
+  const handlePreviewBatch = async () => {
+    try {
+      const res = await api('/api/opinion-links/auto-survey-batch', { keepWrapper: true })
+      if (res?.success) {
+        setBatchPreview(res)
+        addToast(res.message || `${res.data?.length || 0} kandidat ditemukan`, 'info')
+      } else {
+        addToast(res?.error || 'Gagal preview', 'error')
+      }
+    } catch (e: any) {
+      addToast(e.message, 'error')
+    }
+  }
 
   // === Handle Generate Konter Isu (dari OpinionLinksTab) ===
   const handleGenerateKonter = async (linkId: string) => {
@@ -301,6 +366,19 @@ function OpinionScannerTab() {
         ))}
         <div className="ml-auto flex items-center gap-2">
           <span className="text-xs text-muted-foreground">{filteredLinks.length} berita</span>
+          {/* === PILAR 1: Auto-Survey Batch Button === */}
+          <Button size="sm" variant="outline" className="h-7 text-xs text-purple-700 hover:bg-purple-50 border-purple-200"
+            disabled={batchSurveyRunning}
+            onClick={handleBatchAutoSurvey}
+            title="Generate draft survei otomatis dari semua berita NEGATIVE+HIGH">
+            {batchSurveyRunning ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Sparkles className="w-3 h-3 mr-1" />}
+            {batchSurveyRunning ? 'Memproses...' : 'Auto-Survey Batch'}
+          </Button>
+          <Button size="sm" variant="ghost" className="h-7 text-xs"
+            onClick={handlePreviewBatch}
+            title="Preview kandidat auto-survey tanpa generate">
+            <Eye className="w-3 h-3 mr-1" /> Preview
+          </Button>
           {/* === Bulk Triage Button === */}
           <Button size="sm" variant="outline" className="h-7 text-xs text-amber-700 hover:bg-amber-50 border-amber-200"
             disabled={triageLoading}
@@ -317,6 +395,47 @@ function OpinionScannerTab() {
           )}
         </div>
       </div>
+
+      {/* === PILAR 1: Batch Preview Panel === */}
+      {batchPreview && batchPreview.success && (
+        <Card className="border-purple-200 bg-purple-50/30">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-purple-600" />
+                Preview Auto-Survey Batch
+              </CardTitle>
+              <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={() => setBatchPreview(null)}>✕</Button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <div className="text-xs text-muted-foreground">
+              {batchPreview.stats.total} kandidat ditemukan ({batchPreview.stats.readyToGenerate} siap generate, {batchPreview.stats.deduped} sudah punya draft dalam 7 hari)
+            </div>
+            {batchPreview.data && batchPreview.data.length > 0 ? (
+              <div className="space-y-1 max-h-48 overflow-y-auto">
+                {batchPreview.data.map((item: any) => (
+                  <div key={item.id} className="flex items-center gap-2 text-xs p-2 rounded border bg-white">
+                    <Badge variant="outline" className="text-[10px] bg-red-50 text-red-700">{item.sentiment}</Badge>
+                    <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700">{item.priority}</Badge>
+                    {item.alreadyHasDraft && (
+                      <Badge variant="outline" className="text-[10px] bg-slate-100 text-slate-600">DRAFT ADA</Badge>
+                    )}
+                    <span className="flex-1 truncate font-medium">{item.title}</span>
+                    {item.provinceName && <span className="text-muted-foreground">{item.provinceName}</span>}
+                    <span className="text-muted-foreground">urgency: {item.urgencyScore?.toFixed(0)}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-xs text-muted-foreground italic">Tidak ada kandidat saat ini.</div>
+            )}
+            <div className="text-xs text-purple-700 bg-purple-100/50 p-2 rounded">
+              💡 Klik <strong>"Auto-Survey Batch"</strong> untuk generate draft survei otomatis. Setiap draft berstatus <strong>DRAFT</strong> dan perlu aktivasi manual di menu Survei & Polling.
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Recent results */}
       {loading ? <LoadingState /> : filteredLinks.length === 0 ? (
@@ -377,6 +496,18 @@ function OpinionScannerTab() {
                         onClick={() => handleGenerateKonter(link.id)}
                         title="Generate draft konter isu">
                         {generatingKonter === link.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
+                      </Button>
+                    )}
+                    {/* === PILAR 1: Auto-draft Survei Button (untuk NEGATIVE+HIGH) === */}
+                    {link.sentiment === 'NEGATIVE' && link.priority === 'HIGH' && link.status !== 'ADDRESSED' && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 w-7 p-0 text-purple-600 hover:bg-purple-50"
+                        disabled={generatingSurvey === link.id}
+                        onClick={() => handleAutoSurvey(link.id)}
+                        title="Generate draft survei dari isu ini (PILAR 1: AI Early Warning)">
+                        {generatingSurvey === link.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Brain className="w-3.5 h-3.5" />}
                       </Button>
                     )}
                     {/* === Hapus per item === */}
