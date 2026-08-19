@@ -4789,7 +4789,7 @@ function KtaInfoLayanan() {
             { step: 1, title: 'Isi Formulir Online', desc: 'Lengkapi data diri (nama, NIK, kontak, pekerjaan, dll) di formulir pendaftaran online.', icon: FileText, color: 'bg-blue-500' },
             { step: 2, title: 'Upload Dokumen', desc: 'Upload pass foto (latar merah/biru) dan scan KTP/Paspor. Format JPG/PNG/PDF.', icon: Camera, color: 'bg-purple-500' },
             { step: 3, title: 'Pilih Wilayah Tujuan', desc: 'Pilih DPN (khusus Pengurus Tingkat Nasional), DPD (khusus Pengurus Tingkat Provinsi), atau DPC (Pengurus Tingkat Kab/Kota dan anggota baru) sesuai domisili untuk verifikasi.', icon: MapPin, color: 'bg-amber-500' },
-            { step: 4, title: 'Submit & Tunggu Review', desc: 'Tim DPC akan verifikasi data & dokumen dalam 1x24 jam via WhatsApp.', icon: Clock, color: 'bg-orange-500' },
+            { step: 4, title: 'Submit & Tunggu Review', desc: 'Tim Admin akan verifikasi data & dokumen dalam 1x24 jam via WhatsApp.', icon: Clock, color: 'bg-orange-500' },
             { step: 5, title: 'KTA Diterbitkan', desc: 'Setelah disetujui, KTA digital aktif dengan masa berlaku 5 tahun. Cetak fisik opsional.', icon: CheckCircle2, color: 'bg-emerald-500' },
           ].map((s) => {
             const Icon = s.icon
