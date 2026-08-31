@@ -94,7 +94,7 @@ export function CommunicationMenu() {
       </div>
 
       {tab === 'broadcast' && <BroadcastComposerTab />}
-      {tab === 'essay-polls' && <EssayPollsTab onSwitchTab={setTab} />}
+      {tab === 'essay-polls' && <EssayPollsTab />}
       {tab === 'decision' && <DecisionDashboardTab />}
       {tab === 'opinion-scanner' && <OpinionScannerTab />}
     </div>
@@ -1218,610 +1218,142 @@ function BroadcastStatsDialog({ broadcast, onClose }: { broadcast: any; onClose:
 }
 
 // ============================================================
-// SURVEY OUTPUT DASHBOARD — Bagian 3: Konsolidasi Hasil 3 Dimensi
+// TAB: SURVEI & POLLING (dibuat ulang dari nol — sederhana & praktis)
 // ============================================================
-// FASE 3.4: Pakai API /api/essay-polls/analytics untuk agregasi data
-// - Sentimen stats dari DB aggregate (bukan dari polls[].responses yang capped)
-// - Word Cloud dari aiKeywords sample 100 terbaru
-// - Demografi Lapangan dari filter ipAddress LIKE 'FIELD:%'
-// - Heatmap dari topLocations (groupBy regencyCode)
-// - Aspirasi Top dari aiCategory aggregate
-function SurveyOutputDashboard({ polls }: { polls: any[] }) {
-  const [outputTab, setOutputTab] = useState<'medsos' | 'online' | 'lapangan'>('medsos')
-  const [analytics, setAnalytics] = useState<any>(null)
-  const [loadingAnalytics, setLoadingAnalytics] = useState(true)
-
-  // Fallback stat dari polls (jika analytics belum load)
-  const totalResponses = polls.reduce((sum, p) => sum + (p._count?.responses || 0), 0)
-  const activePolls = polls.filter(p => p.status === 'ACTIVE').length
-  const aiGenerated = polls.filter(p => p.isAiGenerated).length
-
-  // Load analytics (scope sesuai tab aktif)
-  const loadAnalytics = useCallback(async () => {
-    try {
-      const scope = outputTab === 'medsos' ? 'all' : outputTab === 'online' ? 'online' : 'lapangan'
-      const res = await api(`/api/essay-polls/analytics?scope=${scope}`, { keepWrapper: true })
-      if (res?.success) {
-        setAnalytics(res.data)
-      }
-    } catch (e) {
-      console.error('[Analytics] load error:', e)
-    } finally {
-      setLoadingAnalytics(false)
-    }
-  }, [outputTab])
-
-  useEffect(() => {
-    setLoadingAnalytics(true)
-    loadAnalytics()
-    const interval = setInterval(() => {
-      if (document.visibilityState === 'visible') {
-        loadAnalytics()
-      }
-    }, 60000)
-    return () => clearInterval(interval)
-  }, [loadAnalytics])
-
-  const sentimentStats = analytics?.sentimentStats || { POSITIVE: 0, NEUTRAL: 0, NEGATIVE: 0, UNPROCESSED: 0 }
-  const totalSentiment = (sentimentStats.POSITIVE || 0) + (sentimentStats.NEUTRAL || 0) + (sentimentStats.NEGATIVE || 0) || 1
-  const wordCloud = analytics?.wordCloud || []
-  const demography = analytics?.demography || { ageGroups: {}, genders: {}, occupations: {} }
-  const topLocations = analytics?.topLocations || []
-  const channelSplit = analytics?.channelSplit || { online: 0, field: 0 }
-  const aspirasiTop = analytics?.aspirasiTop || []
-  const pollsList = analytics?.polls || []
-  const totalResponsesFromAnalytics = analytics?.totalResponses || 0
-
-  const subTabs = [
-    { key: 'medsos' as const, label: '🌐 Hasil Percakapan Medsos', icon: Globe },
-    { key: 'online' as const, label: '📱 Hasil Online Broadcast', icon: Send },
-    { key: 'lapangan' as const, label: '📍 Hasil Teritorial Lapangan', icon: MapPin },
-  ]
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-2">
-        <div className="h-5 w-1 rounded-full bg-gradient-to-b from-emerald-500 to-teal-600" />
-        <h3 className="text-sm font-bold">📊 Dashboard Konsolidasi Hasil 3 Dimensi</h3>
-        {loadingAnalytics && <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />}
-        {!loadingAnalytics && analytics && (
-          <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-700">
-            {totalResponsesFromAnalytics} respon teragregasi
-          </Badge>
-        )}
-      </div>
-      <div className="flex flex-wrap gap-1 border-b pb-2">
-        {subTabs.map(t => (
-          <button key={t.key} onClick={() => setOutputTab(t.key)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-t-lg text-xs font-medium transition-all ${outputTab === t.key ? 'bg-emerald-600 text-white shadow-sm' : 'border hover:bg-accent'}`}>
-            <t.icon className="w-3.5 h-3.5" /> {t.label}
-          </button>
-        ))}
-      </div>
-
-      {/* SUB-TAB 1: Medsos */}
-      {outputTab === 'medsos' && (
-        <div className="grid gap-3 md:grid-cols-2">
-          <Card><CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><TrendingUp className="w-4 h-4 text-blue-600" /> Tren Sentimen Medsos</CardTitle></CardHeader>
-            <CardContent className="space-y-2">
-              {totalSentiment > 1 ? (
-                <>
-                  {[
-                    { l: 'Positif', v: sentimentStats.POSITIVE || 0, bg: 'bg-emerald-500', text: 'text-emerald-600' },
-                    { l: 'Netral', v: sentimentStats.NEUTRAL || 0, bg: 'bg-amber-500', text: 'text-amber-600' },
-                    { l: 'Negatif', v: sentimentStats.NEGATIVE || 0, bg: 'bg-red-500', text: 'text-red-600' },
-                  ].map(s => (
-                    <div key={s.l} className="space-y-1">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className={s.text}>{s.l}</span>
-                        <span className="font-bold">{s.v} ({Math.round(s.v / totalSentiment * 100)}%)</span>
-                      </div>
-                      <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                        <div className={`h-full ${s.bg} rounded-full transition-all`} style={{ width: `${s.v / totalSentiment * 100}%` }} />
-                      </div>
-                    </div>
-                  ))}
-                  {sentimentStats.UNPROCESSED > 0 && (
-                    <div className="text-[10px] text-muted-foreground text-center pt-1">
-                      + {sentimentStats.UNPROCESSED} respon belum diproses AI
-                    </div>
-                  )}
-                </>
-              ) : (
-                <p className="text-xs text-muted-foreground text-center py-4">
-                  {loadingAnalytics ? 'Memuat data sentimen...' : 'Belum ada data sentimen dari medsos'}
-                </p>
-              )}
-            </CardContent>
-          </Card>
-          <Card><CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><MessageSquare className="w-4 h-4 text-purple-600" /> Feed Percakapan Viral</CardTitle></CardHeader>
-            <CardContent>
-              {pollsList.length > 0 ? (
-                <div className="space-y-1">
-                  {pollsList.map((p: any) => (
-                    <div key={p.id} className="text-xs p-2 rounded border bg-muted/30 hover:bg-muted/50 transition-colors">
-                      <div className="font-medium truncate">{p.title}</div>
-                      <div className="text-muted-foreground flex items-center gap-2 mt-0.5">
-                        <span>💬 {p.responseCount} respon</span>
-                        {p.isAiGenerated && <Badge variant="outline" className="text-[10px] bg-purple-50 text-purple-700">AI</Badge>}
-                        <Badge variant="outline" className="text-[10px]">{p.status}</Badge>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs text-muted-foreground text-center py-4">
-                  {loadingAnalytics ? 'Memuat...' : 'Belum ada poll dengan respon'}
-                </p>
-              )}
-            </CardContent>
-          </Card>
-          <Card className="md:col-span-2"><CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Hash className="w-4 h-4 text-cyan-600" /> Word Cloud — Kata Kunci Paling Sering</CardTitle></CardHeader>
-            <CardContent>
-              {wordCloud.length > 0 ? (
-                <WordCloudViz words={wordCloud} />
-              ) : (
-                <p className="text-xs text-muted-foreground text-center py-4">
-                  {loadingAnalytics ? 'Memuat word cloud...' : 'Belum ada keywords. Akan terisi otomatis setelah ada respon survei dengan AI analysis.'}
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {/* SUB-TAB 2: Online Broadcast */}
-      {outputTab === 'online' && (
-        <div className="grid gap-3 md:grid-cols-2">
-          <Card><CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><BarChart3 className="w-4 h-4 text-emerald-600" /> Diagram Hasil Pilihan Ganda &amp; Skala Opini</CardTitle></CardHeader>
-            <CardContent>
-              {totalResponsesFromAnalytics > 0 ? (
-                <div className="space-y-2">
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-emerald-600">{channelSplit.online}</div>
-                    <div className="text-xs text-muted-foreground">Total Respon Online Broadcast</div>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 text-center">
-                    <div className="p-2 rounded bg-emerald-50"><div className="text-lg font-bold text-emerald-600">{sentimentStats.POSITIVE || 0}</div><div className="text-[10px] text-muted-foreground">Positif</div></div>
-                    <div className="p-2 rounded bg-amber-50"><div className="text-lg font-bold text-amber-600">{sentimentStats.NEUTRAL || 0}</div><div className="text-[10px] text-muted-foreground">Netral</div></div>
-                    <div className="p-2 rounded bg-red-50"><div className="text-lg font-bold text-red-600">{sentimentStats.NEGATIVE || 0}</div><div className="text-[10px] text-muted-foreground">Negatif</div></div>
-                  </div>
-                  {channelSplit.field > 0 && (
-                    <div className="text-[11px] text-muted-foreground text-center pt-1">
-                      + {channelSplit.field} respon dari jalur lapangan (lihat tab Lapangan)
-                    </div>
-                  )}
-                </div>
-              ) : <p className="text-xs text-muted-foreground text-center py-4">{loadingAnalytics ? 'Memuat...' : 'Belum ada respon dari broadcast'}</p>}
-            </CardContent>
-          </Card>
-          <Card><CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Brain className="w-4 h-4 text-purple-600" /> Ringkasan Kluster Jawaban Esai</CardTitle></CardHeader>
-            <CardContent>
-              {aspirasiTop.length > 0 ? (
-                <div className="space-y-2">
-                  <p className="text-xs text-muted-foreground mb-2">Top 5 kategori aspirasi dari AI analysis jawaban esai:</p>
-                  <div className="space-y-1">
-                    {aspirasiTop.map((a: any, i: number) => (
-                      <div key={i} className="flex items-center gap-2 text-xs p-2 rounded bg-muted/30">
-                        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-purple-100 text-purple-700 text-[10px] font-bold">{i + 1}</span>
-                        <span className="flex-1 truncate font-medium">{a.category}</span>
-                        <Badge variant="outline" className="text-[10px] bg-purple-50 text-purple-700">{a.count} respon</Badge>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <p className="text-xs text-muted-foreground text-center py-4">
-                  {loadingAnalytics ? 'Memuat...' : 'AI akan merangkum aspirasi setelah ada respon dengan kategori analysis'}
-                </p>
-              )}
-            </CardContent>
-          </Card>
-          <Card className="md:col-span-2"><CardContent className="p-3">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">📊 Response Rate (Online Broadcast)</span>
-              <div className="flex items-center gap-2">
-                <span className="font-bold">{channelSplit.online} respon online</span>
-                <span className="text-muted-foreground">/ {activePolls} poll aktif</span>
-                {aiGenerated > 0 && <Badge variant="outline" className="text-[10px]">{aiGenerated} AI-generated</Badge>}
-              </div>
-            </div>
-          </CardContent></Card>
-        </div>
-      )}
-
-      {/* SUB-TAB 3: Teritorial Lapangan */}
-      {outputTab === 'lapangan' && (
-        <div className="space-y-3">
-          <Card><CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><MapPin className="w-4 h-4 text-orange-600" /> Peta Panas (Heatmap Teritorial)</CardTitle>
-            <CardDescription className="text-xs">Top 10 wilayah dengan respon terbanyak dari surveyor lapangan</CardDescription></CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-3 gap-2 text-center mb-3">
-                <div className="p-3 rounded-lg bg-green-50 border border-green-200"><div className="w-4 h-4 rounded-full bg-green-500 mx-auto mb-1" /><div className="text-xs font-medium text-green-700">Sentimen Baik</div></div>
-                <div className="p-3 rounded-lg bg-yellow-50 border border-yellow-200"><div className="w-4 h-4 rounded-full bg-yellow-500 mx-auto mb-1" /><div className="text-xs font-medium text-yellow-700">Netral</div></div>
-                <div className="p-3 rounded-lg bg-red-50 border border-red-200"><div className="w-4 h-4 rounded-full bg-red-500 mx-auto mb-1" /><div className="text-xs font-medium text-red-700">Sentimen Buruk</div></div>
-              </div>
-              <HeatmapViz locations={topLocations} loading={loadingAnalytics} />
-            </CardContent>
-          </Card>
-          <Card><CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Users className="w-4 h-4 text-blue-600" /> Tabel Demografi Responden Lapangan</CardTitle>
-            <CardDescription className="text-xs">Data agregat demografi (Usia, Pekerjaan, Jenis Kelamin) responden door-to-door.</CardDescription></CardHeader>
-            <CardContent>
-              <DemographyTable demography={demography} topLocations={topLocations} channelSplit={channelSplit} loading={loadingAnalytics} />
-            </CardContent>
-          </Card>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ============================================================
-// FASE 3.4: WORD CLOUD COMPONENT
-// ============================================================
-// Render word cloud dari aggregate aiKeywords
-// - Font size berdasarkan frequency (count)
-// - Color berdasarkan rank (top 5 merah, dst)
-// - No external library (pure CSS, hemat bundle)
-// ============================================================
-function WordCloudViz({ words }: { words: Array<{ text: string; count: number }> }) {
-  if (words.length === 0) return null
-  const maxCount = words[0].count
-  const minCount = words[words.length - 1].count
-  const range = Math.max(1, maxCount - minCount)
-
-  const getColor = (idx: number) => {
-    if (idx < 5) return 'text-red-600'
-    if (idx < 15) return 'text-orange-600'
-    return 'text-slate-600'
-  }
-  const getFontSize = (count: number) => {
-    const normalized = (count - minCount) / range
-    return Math.round(12 + normalized * 20) // 12-32px
-  }
-  const getWeight = (idx: number) => idx < 5 ? 'font-bold' : idx < 15 ? 'font-semibold' : 'font-normal'
-
-  return (
-    <div className="flex flex-wrap gap-2 items-center justify-center p-4 min-h-[120px]">
-      {words.map((w, idx) => (
-        <span
-          key={w.text}
-          className={`${getColor(idx)} ${getWeight(idx)} transition-all hover:scale-110 cursor-default`}
-          style={{ fontSize: `${getFontSize(w.count)}px` }}
-          title={`${w.text}: ${w.count}x disebut`}
-        >
-          {w.text}
-        </span>
-      ))}
-    </div>
-  )
-}
-
-// ============================================================
-// FASE 3.4: HEATMAP COMPONENT
-// ============================================================
-// Visualisasi top locations sebagai "heatmap" berbasis list
-// (bukan peta geospasial nyata — itu butuh library berat seperti Leaflet)
-// Color intensity berdasarkan count
-// ============================================================
-function HeatmapViz({ locations, loading }: { locations: Array<{ regencyCode: string | null; regencyName: string | null; provinceName: string | null; count: number }>; loading: boolean }) {
-  if (loading) {
-    return (
-      <div className="aspect-video bg-slate-100 rounded-lg flex items-center justify-center border-2 border-dashed border-slate-300">
-        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-      </div>
-    )
-  }
-  if (locations.length === 0) {
-    return (
-      <div className="aspect-video bg-slate-100 rounded-lg flex items-center justify-center border-2 border-dashed border-slate-300">
-        <div className="text-center">
-          <MapPin className="w-12 h-12 text-slate-300 mx-auto mb-2" />
-          <p className="text-xs text-muted-foreground">
-            Belum ada data lokasi dari lapangan.<br />
-            Data akan terisi saat surveyor submit respon dengan regencyCode.
-          </p>
-        </div>
-      </div>
-    )
-  }
-  const maxCount = locations[0].count
-  return (
-    <div className="space-y-1.5">
-      {locations.map((loc, idx) => {
-        const intensity = loc.count / maxCount
-        const bgColor = intensity > 0.7 ? 'bg-red-200' : intensity > 0.4 ? 'bg-amber-200' : 'bg-emerald-200'
-        const textColor = intensity > 0.7 ? 'text-red-800' : intensity > 0.4 ? 'text-amber-800' : 'text-emerald-800'
-        const barWidth = `${Math.max(10, intensity * 100)}%`
-        return (
-          <div key={loc.regencyCode || idx} className="flex items-center gap-2 text-xs">
-            <div className="w-32 truncate font-medium">{loc.regencyName || loc.regencyCode || 'Unknown'}</div>
-            <div className="text-[10px] text-muted-foreground w-24 truncate">{loc.provinceName || '—'}</div>
-            <div className="flex-1 relative h-6 bg-slate-100 rounded">
-              <div
-                className={`h-full ${bgColor} rounded transition-all flex items-center px-2`}
-                style={{ width: barWidth }}
-              >
-                <span className={`${textColor} font-semibold`}>{loc.count}</span>
-              </div>
-            </div>
-          </div>
-        )
-      })}
-      <div className="text-[10px] text-muted-foreground text-center pt-2">
-        Total {locations.length} wilayah • Top: {locations[0]?.regencyName || '—'} ({locations[0]?.count || 0} respon)
-      </div>
-    </div>
-  )
-}
-
-// ============================================================
-// FASE 3.4: DEMOGRAPHY TABLE COMPONENT
-// ============================================================
-function DemographyTable({ demography, topLocations, channelSplit, loading }: {
-  demography: { ageGroups: Record<string, number>; genders: Record<string, number>; occupations: Record<string, number> }
-  topLocations: Array<{ regencyName: string | null; count: number }>
-  channelSplit: { online: number; field: number }
-  loading: boolean
-}) {
-  if (loading) {
-    return (
-      <div className="text-center py-4">
-        <Loader2 className="w-4 h-4 animate-spin text-muted-foreground mx-auto" />
-      </div>
-    )
-  }
-  if (channelSplit.field === 0) {
-    return (
-      <div className="text-center py-4 text-xs text-muted-foreground">
-        Belum ada data dari lapangan. Data akan terisi otomatis saat surveyor menginput dari HP.
-      </div>
-    )
-  }
-
-  const ageGroups = demography.ageGroups || {}
-  const age17to25 = (ageGroups['18-25'] || 0)
-  const age26to45 = (ageGroups['26-35'] || 0) + (ageGroups['36-50'] || 0)
-  const age46plus = (ageGroups['51+'] || 0)
-
-  const genders = demography.genders || {}
-  const totalL = genders['LAKI-LAKI'] || 0
-  const totalP = genders['PEREMPUAN'] || 0
-
-  return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-4 gap-2 text-center">
-        <div className="p-2 rounded bg-orange-50 border border-orange-200">
-          <div className="text-lg font-bold text-orange-700">{channelSplit.field}</div>
-          <div className="text-[10px] text-muted-foreground">Total Lapangan</div>
-        </div>
-        <div className="p-2 rounded bg-blue-50 border border-blue-200">
-          <div className="text-lg font-bold text-blue-700">{totalL}</div>
-          <div className="text-[10px] text-muted-foreground">Laki-laki</div>
-        </div>
-        <div className="p-2 rounded bg-pink-50 border border-pink-200">
-          <div className="text-lg font-bold text-pink-700">{totalP}</div>
-          <div className="text-[10px] text-muted-foreground">Perempuan</div>
-        </div>
-        <div className="p-2 rounded bg-purple-50 border border-purple-200">
-          <div className="text-lg font-bold text-purple-700">{Object.keys(demography.occupations || {}).length}</div>
-          <div className="text-[10px] text-muted-foreground">Pekerjaan</div>
-        </div>
-      </div>
-
-      <div className="overflow-x-auto">
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="border-b bg-slate-50">
-              <th className="text-left py-2 px-2">Wilayah</th>
-              <th className="text-center py-2 px-2">Total</th>
-              <th className="text-center py-2 px-2">% dari Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {topLocations.slice(0, 10).map((loc, idx) => (
-              <tr key={idx} className="border-b hover:bg-slate-50">
-                <td className="py-2 px-2 font-medium">{loc.regencyName || 'Unknown'}</td>
-                <td className="text-center py-2 px-2 font-bold">{loc.count}</td>
-                <td className="text-center py-2 px-2 text-muted-foreground">
-                  {channelSplit.field > 0 ? Math.round((loc.count / channelSplit.field) * 100) : 0}%
-                </td>
-              </tr>
-            ))}
-            {topLocations.length === 0 && (
-              <tr><td colSpan={3} className="text-center py-4 text-muted-foreground">Belum ada data wilayah spesifik</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="grid grid-cols-3 gap-2 text-xs">
-        <div className="p-2 rounded border">
-          <div className="font-semibold mb-1 text-slate-700">Kelompok Usia</div>
-          <div className="space-y-0.5">
-            <div className="flex justify-between"><span>17-25</span><span className="font-bold">{age17to25}</span></div>
-            <div className="flex justify-between"><span>26-45</span><span className="font-bold">{age26to45}</span></div>
-            <div className="flex justify-between"><span>46+</span><span className="font-bold">{age46plus}</span></div>
-          </div>
-        </div>
-        <div className="p-2 rounded border">
-          <div className="font-semibold mb-1 text-slate-700">Pekerjaan (Top 5)</div>
-          <div className="space-y-0.5">
-            {Object.entries(demography.occupations || {})
-              .sort(([, a], [, b]) => (b as number) - (a as number))
-              .slice(0, 5)
-              .map(([occ, count]) => (
-                <div key={occ} className="flex justify-between">
-                  <span className="truncate">{occ}</span>
-                  <span className="font-bold">{count as number}</span>
-                </div>
-              ))}
-            {Object.keys(demography.occupations || {}).length === 0 && (
-              <div className="text-muted-foreground italic">Belum ada data</div>
-            )}
-          </div>
-        </div>
-        <div className="p-2 rounded border">
-          <div className="font-semibold mb-1 text-slate-700">Gender</div>
-          <div className="space-y-0.5">
-            <div className="flex justify-between"><span>Laki-laki</span><span className="font-bold">{totalL}</span></div>
-            <div className="flex justify-between"><span>Perempuan</span><span className="font-bold">{totalP}</span></div>
-            <div className="flex justify-between text-muted-foreground"><span>Ratio L:P</span><span>{totalP > 0 ? (totalL / totalP).toFixed(2) : '—'}</span></div>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ============================================================
-// TAB 4: ESSAY POLLS & AI AUTO-PERTANYAAN
-// ============================================================
-function EssayPollsTab({ onSwitchTab }: { onSwitchTab?: (tab: string) => void }) {
+function EssayPollsTab() {
   const addToast = useToastStore((s) => s.addToast)
   const user = useAuthStore.getState().user
   const [polls, setPolls] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [showForm, setShowForm] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [detailPoll, setDetailPoll] = useState<any>(null)
-  const [sharePoll, setSharePoll] = useState<any>(null)
-  const [createOpen, setCreateOpen] = useState(false)
-  const [creating, setCreating] = useState(false)
 
-  // Form state untuk buat survei manual
-  const [formData, setFormData] = useState({
-    title: '',
-    question: '',
-    pollType: 'ESSAY' as 'ESSAY' | 'MULTIPLE_CHOICE',
-    options: ['', ''] as string[],
-    targetScope: 'NATIONAL' as string,
-  })
+  // Form state
+  const [title, setTitle] = useState('')
+  const [question, setQuestion] = useState('')
+  const [pollType, setPollType] = useState<'ESSAY' | 'MULTIPLE_CHOICE'>('ESSAY')
+  const [options, setOptions] = useState<string[]>(['', ''])
 
-  // === Banner: Pengingat survei harus netral ===
-  const neutralityBanner = (
-    <div className="rounded-lg bg-amber-50 border-2 border-amber-300 p-3 flex items-start gap-3">
-      <Shield className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-      <div className="flex-1">
-        <div className="font-bold text-amber-800 text-sm">
-          Survei Opini Publik — Netral &amp; Anonim
-        </div>
-        <p className="text-xs text-amber-700 mt-1">
-          Pertanyaan survei <strong>TIDAK boleh menyebut</strong> "Laskar Prabowo 08" atau "LAPRA 08".
-          Responden harus merasa bebas menjawab jujur tanpa tekanan.
-        </p>
-      </div>
-    </div>
-  )
-
+  // Load list survei
   const loadData = useCallback(() => {
     setLoading(true)
     api('/api/essay-polls').then(res => {
-      setPolls(Array.isArray(res) ? res : (res?.data || []))
+      const data = Array.isArray(res) ? res : (res?.data || [])
+      setPolls(data.filter((p: any) => p.status !== 'ARCHIVED'))
     }).catch(() => setPolls([])).finally(() => setLoading(false))
   }, [])
 
   useEffect(() => { loadData() }, [loadData])
 
-  // === Handler: Buat survei manual ===
+  // Reset form
+  const resetForm = () => {
+    setTitle('')
+    setQuestion('')
+    setPollType('ESSAY')
+    setOptions(['', ''])
+  }
+
+  // Buat survei baru
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!formData.title.trim() || !formData.question.trim()) {
+    if (!title.trim() || !question.trim()) {
       addToast('Judul dan pertanyaan wajib diisi', 'error')
       return
     }
-    if (formData.pollType === 'MULTIPLE_CHOICE') {
-      const cleanOptions = formData.options.map(o => o.trim()).filter(o => o.length > 0)
-      if (cleanOptions.length < 2) {
+    if (pollType === 'MULTIPLE_CHOICE') {
+      const clean = options.map(o => o.trim()).filter(o => o)
+      if (clean.length < 2) {
         addToast('Pilihan ganda butuh minimal 2 opsi', 'error')
         return
       }
     }
-    setCreating(true)
+    setSaving(true)
     try {
-      const body: any = {
-        title: formData.title.trim(),
-        question: formData.question.trim(),
-        description: null,
-        targetScope: formData.targetScope,
-      }
+      // Step 1: Create poll
       const res = await fetch('/api/essay-polls', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-user-id': user?.id || '' },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          title: title.trim(),
+          question: question.trim(),
+          targetScope: 'NATIONAL',
+        }),
       })
       const data = await res.json()
       if (!res.ok || !data.success) throw new Error(data.error)
 
-      // Jika MULTIPLE_CHOICE, set config via API
-      if (formData.pollType === 'MULTIPLE_CHOICE' && data.data?.id) {
-        const cleanOptions = formData.options.map(o => o.trim()).filter(o => o.length > 0)
-        try {
-          await fetch(`/api/essay-polls/${data.data.id}/config`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json', 'x-user-id': user?.id || '' },
-            body: JSON.stringify({ pollType: 'MULTIPLE_CHOICE', options: cleanOptions }),
-          })
-        } catch (e: any) {
-          console.warn('[Create] Config set failed:', e.message)
-        }
+      // Step 2: If MULTIPLE_CHOICE, set config
+      if (pollType === 'MULTIPLE_CHOICE' && data.data?.id) {
+        const clean = options.map(o => o.trim()).filter(o => o)
+        await fetch(`/api/essay-polls/${data.data.id}/config`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'x-user-id': user?.id || '' },
+          body: JSON.stringify({ pollType: 'MULTIPLE_CHOICE', options: clean }),
+        }).catch(() => {})
       }
 
-      addToast(`Survei "${formData.title.substring(0, 40)}" dibuat (status: DRAFT)`, 'success')
-      setFormData({ title: '', question: '', pollType: 'ESSAY', options: ['', ''], targetScope: 'NATIONAL' })
-      setCreateOpen(false)
+      addToast(`Survei "${title.substring(0, 40)}" dibuat (DRAFT)`, 'success')
+      resetForm()
+      setShowForm(false)
       loadData()
     } catch (e: any) {
       addToast(e.message, 'error')
     } finally {
-      setCreating(false)
+      setSaving(false)
     }
   }
 
-  // === Handler: Activate poll ===
-  const handleActivate = async (pollId: string) => {
+  // Aktifkan survei
+  const handleActivate = async (id: string) => {
     try {
-      const res = await fetch(`/api/essay-polls/${pollId}`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-user-id': user?.id || '' },
+      const res = await fetch(`/api/essay-polls/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': user?.id || '' },
         body: JSON.stringify({ status: 'ACTIVE' }),
       })
       const data = await res.json()
       if (!res.ok || !data.success) throw new Error(data.error)
-      addToast('Survei diaktifkan. Responden bisa kirim jawaban sekarang.', 'success')
+      addToast('Survei diaktifkan', 'success')
       loadData()
     } catch (e: any) { addToast(e.message, 'error') }
   }
 
-  // === Handler: Close poll ===
-  const handleClose = async (pollId: string, title: string) => {
-    if (!confirm(`Tutup survei "${title.substring(0, 60)}?" Survei tidak akan menerima respon baru.`)) return
+  // Tutup survei
+  const handleClose = async (id: string, t: string) => {
+    if (!confirm(`Tutup survei "${t.substring(0, 50)}"?`)) return
     try {
-      const res = await fetch(`/api/essay-polls/${pollId}`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-user-id': user?.id || '' },
+      const res = await fetch(`/api/essay-polls/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': user?.id || '' },
         body: JSON.stringify({ status: 'CLOSED' }),
       })
       const data = await res.json()
       if (!res.ok || !data.success) throw new Error(data.error)
-      addToast('Survei ditutup.', 'success')
+      addToast('Survei ditutup', 'success')
       loadData()
     } catch (e: any) { addToast(e.message, 'error') }
   }
 
-  // === Handler: Delete poll ===
-  const handleDelete = async (pollId: string, title: string) => {
-    if (!confirm(`Hapus survei "${title.substring(0, 60)}" PERMANEN? Tidak bisa dibatalkan.`)) return
+  // Hapus survei
+  const handleDelete = async (id: string, t: string) => {
+    if (!confirm(`Hapus survei "${t.substring(0, 50)}" permanen?`)) return
     try {
-      const res = await fetch(`/api/essay-polls/${pollId}`, {
-        method: 'DELETE', headers: { 'x-user-id': user?.id || '' },
+      const res = await fetch(`/api/essay-polls/${id}`, {
+        method: 'DELETE',
+        headers: { 'x-user-id': user?.id || '' },
       })
       const data = await res.json()
       if (!res.ok || !data.success) throw new Error(data.error)
-      addToast('Survei dihapus.', 'success')
+      addToast('Survei dihapus', 'success')
       loadData()
     } catch (e: any) { addToast(e.message, 'error') }
   }
 
-  // === Handler: View detail ===
-  const handleViewDetail = async (pollId: string, page: number = 1) => {
+  // Lihat detail
+  const handleDetail = async (id: string) => {
     try {
-      const res = await fetch(`/api/essay-polls/${pollId}?page=${page}&limit=20`, {
+      const res = await fetch(`/api/essay-polls/${id}`, {
         headers: { 'x-user-id': user?.id || '' },
       })
       const data = await res.json()
@@ -1829,90 +1361,86 @@ function EssayPollsTab({ onSwitchTab }: { onSwitchTab?: (tab: string) => void })
     } catch (e: any) { addToast(e.message, 'error') }
   }
 
-  const handleDetailPageChange = (newPage: number) => {
-    if (!detailPoll) return
-    handleViewDetail(detailPoll.id, newPage)
-  }
-
-  // === Helper: add/remove option ===
-  const addOption = () => {
-    if (formData.options.length >= 5) {
-      addToast('Maksimal 5 opsi', 'info')
-      return
-    }
-    setFormData({ ...formData, options: [...formData.options, ''] })
-  }
-  const removeOption = (idx: number) => {
-    if (formData.options.length <= 2) return
-    setFormData({ ...formData, options: formData.options.filter((_, i) => i !== idx) })
-  }
-  const updateOption = (idx: number, value: string) => {
-    const next = [...formData.options]
-    next[idx] = value
-    setFormData({ ...formData, options: next })
+  // Share link
+  const handleShare = (poll: any) => {
+    const url = `${window.location.origin}/poll/${poll.id}`
+    navigator.clipboard.writeText(url).then(() => {
+      addToast(`Link survei disalin: ${url}`, 'success')
+    }).catch(() => {
+      addToast(`Link: ${url}`, 'info')
+    })
   }
 
   if (loading) return <LoadingState />
 
-  // Filter out ARCHIVED polls
-  const visiblePolls = polls.filter(p => p.status !== 'ARCHIVED')
-  const activeCount = visiblePolls.filter(p => p.status === 'ACTIVE').length
-  const totalResponses = visiblePolls.reduce((sum, p) => sum + (p._count?.responses || 0), 0)
-
   return (
     <div className="space-y-4">
-      {neutralityBanner}
+      {/* Banner netralitas */}
+      <div className="rounded-lg bg-amber-50 border-2 border-amber-300 p-3 flex items-start gap-3">
+        <Shield className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+        <div className="flex-1">
+          <div className="font-bold text-amber-800 text-sm">Survei Opini Publik — Netral &amp; Anonim</div>
+          <p className="text-xs text-amber-700 mt-1">
+            Pertanyaan survei <strong>TIDAK boleh menyebut</strong> "Laskar Prabowo 08" atau "LAPRA 08".
+            Responden harus merasa bebas menjawab jujur tanpa tekanan.
+          </p>
+        </div>
+      </div>
 
-      {/* === HEADER SIMPEL: 1 tombol Buat Survei === */}
+      {/* Header + tombol buat */}
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="h-5 w-1 rounded-full bg-gradient-to-b from-purple-500 to-pink-600" />
-          <div>
-            <h3 className="text-sm font-bold">Daftar Survei</h3>
-            <p className="text-xs text-muted-foreground">
-              {visiblePolls.length} survei • {activeCount} aktif • {totalResponses} respon
-            </p>
-          </div>
+        <div>
+          <h3 className="text-sm font-bold">Daftar Survei</h3>
+          <p className="text-xs text-muted-foreground">
+            {polls.length} survei • {polls.filter(p => p.status === 'ACTIVE').length} aktif •{' '}
+            {polls.reduce((s, p) => s + (p._count?.responses || 0), 0)} respon
+          </p>
         </div>
         <Button
-          onClick={() => setCreateOpen(true)}
-          className="bg-gradient-to-r from-purple-600 to-pink-600 text-white"
+          onClick={() => setShowForm(true)}
+          className="bg-purple-600 hover:bg-purple-700 text-white"
         >
           <Plus className="w-4 h-4 mr-1" /> Buat Survei Baru
         </Button>
       </div>
 
-      {/* === LIST SURVEI (sederhana) === */}
-      {visiblePolls.length === 0 ? (
+      {/* List survei */}
+      {polls.length === 0 ? (
         <EmptyState
           icon={Brain}
           title="Belum ada survei"
-          description="Klik 'Buat Survei Baru' untuk membuat survei pertama Anda. Survei juga bisa dibuat otomatis dari menu Monitoring Berita."
+          description="Klik tombol 'Buat Survei Baru' untuk membuat survei pertama Anda."
         />
       ) : (
         <div className="space-y-2">
-          {visiblePolls.map(p => (
+          {polls.map(p => (
             <Card key={p.id} className="hover:shadow-md transition-shadow">
               <CardContent className="p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <Badge variant="outline" className={`text-xs ${p.status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-700' : p.status === 'CLOSED' ? 'bg-slate-50 text-slate-700' : 'bg-amber-50 text-amber-700'}`}>
+                      <Badge variant="outline" className={`text-xs ${
+                        p.status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-700' :
+                        p.status === 'CLOSED' ? 'bg-slate-50 text-slate-600' :
+                        'bg-amber-50 text-amber-700'
+                      }`}>
                         {p.status}
                       </Badge>
                       {p.isAiGenerated && (
                         <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700">AI</Badge>
                       )}
-                      <Badge variant="outline" className="text-xs">{p._count?.responses || 0} respon</Badge>
+                      <Badge variant="outline" className="text-xs">
+                        {p._count?.responses || 0} respon
+                      </Badge>
                     </div>
                     <div className="font-semibold text-sm">{p.title}</div>
                     <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{p.question}</p>
                     <div className="text-xs text-muted-foreground mt-1">
-                      {formatDateTimeID(p.createdAt)} • oleh {p.createdBy?.fullName || '?'}
+                      {formatDateTimeID(p.createdAt)} • {p.createdBy?.fullName || 'Unknown'}
                     </div>
                   </div>
                   <div className="flex flex-col gap-1 shrink-0">
-                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleViewDetail(p.id)}>
+                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleDetail(p.id)}>
                       <Eye className="w-3 h-3 mr-1" /> Detail
                     </Button>
                     {p.status === 'DRAFT' && (
@@ -1920,15 +1448,15 @@ function EssayPollsTab({ onSwitchTab }: { onSwitchTab?: (tab: string) => void })
                         <Zap className="w-3 h-3 mr-1" /> Aktifkan
                       </Button>
                     )}
-                    <Button size="sm" variant="outline" className="h-7 text-xs bg-blue-50 border-blue-300 text-blue-700 hover:bg-blue-100" onClick={() => setSharePoll(p)}>
+                    <Button size="sm" variant="outline" className="h-7 text-xs bg-blue-50 border-blue-300 text-blue-700" onClick={() => handleShare(p)}>
                       <Share2 className="w-3 h-3 mr-1" /> Share
                     </Button>
                     {p.status === 'ACTIVE' && (
-                      <Button size="sm" variant="outline" className="h-7 text-xs bg-amber-50 border-amber-300 text-amber-700 hover:bg-amber-100" onClick={() => handleClose(p.id, p.title)}>
+                      <Button size="sm" variant="outline" className="h-7 text-xs bg-amber-50 border-amber-300 text-amber-700" onClick={() => handleClose(p.id, p.title)}>
                         Tutup
                       </Button>
                     )}
-                    <Button size="sm" variant="outline" className="h-7 text-xs bg-red-50 border-red-300 text-red-700 hover:bg-red-100" onClick={() => handleDelete(p.id, p.title)}>
+                    <Button size="sm" variant="outline" className="h-7 text-xs bg-red-50 border-red-300 text-red-700" onClick={() => handleDelete(p.id, p.title)}>
                       <Trash2 className="w-3 h-3 mr-1" /> Hapus
                     </Button>
                   </div>
@@ -1939,96 +1467,92 @@ function EssayPollsTab({ onSwitchTab }: { onSwitchTab?: (tab: string) => void })
         </div>
       )}
 
-      {/* === DASHBOARD HASIL === */}
-      <SurveyOutputDashboard polls={visiblePolls} />
-
-      {/* === DIALOG: BUAT SURVEI BARU === */}
-      <Dialog open={createOpen} onOpenChange={(o) => { setCreateOpen(o); if (!o) setFormData({ title: '', question: '', pollType: 'ESSAY', options: ['', ''], targetScope: 'NATIONAL' }) }}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+      {/* === DIALOG: Buat Survei Baru === */}
+      <Dialog open={showForm} onOpenChange={(o) => { setShowForm(o); if (!o) resetForm() }}>
+        <DialogContent className="max-w-lg" aria-describedby={undefined}>
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Plus className="w-5 h-5 text-purple-600" /> Buat Survei Baru
-            </DialogTitle>
-            <DialogDescription>
-              Isi form di bawah untuk membuat survei. Survei akan disimpan dengan status DRAFT.
-              Aktifkan manual setelah review.
-            </DialogDescription>
+            <DialogTitle>Buat Survei Baru</DialogTitle>
+            <DialogDescription>Isi form di bawah. Survei disimpan sebagai DRAFT.</DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleCreate} className="space-y-4">
-            {/* Judul */}
+          <form onSubmit={handleCreate} className="space-y-3">
             <div>
-              <Label className="text-sm font-semibold">Judul Survei <span className="text-red-500">*</span></Label>
+              <Label className="text-sm">Judul <span className="text-red-500">*</span></Label>
               <Input
-                value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                placeholder="cth: Survei Opini Publik tentang Kebijakan Pemerintah"
-                className="mt-1"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="cth: Survei Opini Publik tentang Kebijakan"
                 required
-                disabled={creating}
+                disabled={saving}
                 maxLength={200}
               />
             </div>
-
-            {/* Pertanyaan */}
             <div>
-              <Label className="text-sm font-semibold">Pertanyaan <span className="text-red-500">*</span></Label>
+              <Label className="text-sm">Pertanyaan <span className="text-red-500">*</span></Label>
               <Textarea
-                value={formData.question}
-                onChange={(e) => setFormData({ ...formData, question: e.target.value })}
-                placeholder="Tulis pertanyaan survei di sini..."
-                className="mt-1"
-                rows={3}
+                value={question}
+                onChange={(e) => setQuestion(e.target.value)}
+                placeholder="Tulis pertanyaan survei..."
                 required
-                disabled={creating}
+                disabled={saving}
+                rows={3}
                 maxLength={1000}
               />
             </div>
-
-            {/* Tipe Jawaban */}
             <div>
-              <Label className="text-sm font-semibold">Tipe Jawaban</Label>
+              <Label className="text-sm">Tipe Jawaban</Label>
               <div className="grid grid-cols-2 gap-2 mt-1">
                 <button
                   type="button"
-                  onClick={() => setFormData({ ...formData, pollType: 'ESSAY' })}
-                  className={`p-3 border rounded-lg text-left transition-colors ${formData.pollType === 'ESSAY' ? 'border-purple-500 bg-purple-50' : 'border-slate-200 hover:bg-slate-50'}`}
+                  onClick={() => setPollType('ESSAY')}
+                  className={`p-2 border rounded text-left ${pollType === 'ESSAY' ? 'border-purple-500 bg-purple-50' : 'border-slate-200'}`}
                 >
-                  <div className="text-sm font-semibold">Esai</div>
-                  <div className="text-xs text-muted-foreground">Responden tulis jawaban bebas</div>
+                  <div className="text-sm font-medium">Esai</div>
+                  <div className="text-xs text-muted-foreground">Jawaban bebas</div>
                 </button>
                 <button
                   type="button"
-                  onClick={() => setFormData({ ...formData, pollType: 'MULTIPLE_CHOICE' })}
-                  className={`p-3 border rounded-lg text-left transition-colors ${formData.pollType === 'MULTIPLE_CHOICE' ? 'border-purple-500 bg-purple-50' : 'border-slate-200 hover:bg-slate-50'}`}
+                  onClick={() => setPollType('MULTIPLE_CHOICE')}
+                  className={`p-2 border rounded text-left ${pollType === 'MULTIPLE_CHOICE' ? 'border-purple-500 bg-purple-50' : 'border-slate-200'}`}
                 >
-                  <div className="text-sm font-semibold">Pilihan Ganda</div>
-                  <div className="text-xs text-muted-foreground">Responden pilih 1 opsi</div>
+                  <div className="text-sm font-medium">Pilihan Ganda</div>
+                  <div className="text-xs text-muted-foreground">Pilih 1 opsi</div>
                 </button>
               </div>
             </div>
-
-            {/* Options (jika MULTIPLE_CHOICE) */}
-            {formData.pollType === 'MULTIPLE_CHOICE' && (
-              <div className="space-y-2">
+            {pollType === 'MULTIPLE_CHOICE' && (
+              <div className="space-y-1">
                 <div className="flex items-center justify-between">
-                  <Label className="text-sm font-semibold">Opsi Jawaban (min 2, max 5)</Label>
-                  <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={addOption} disabled={formData.options.length >= 5 || creating}>
-                    <Plus className="w-3 h-3 mr-1" /> Tambah
-                  </Button>
+                  <Label className="text-sm">Opsi (2-5)</Label>
+                  {options.length < 5 && (
+                    <Button type="button" size="sm" variant="ghost" className="h-6 text-xs" onClick={() => setOptions([...options, ''])}>
+                      <Plus className="w-3 h-3 mr-1" /> Tambah
+                    </Button>
+                  )}
                 </div>
-                {formData.options.map((opt, idx) => (
-                  <div key={idx} className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground w-6">{idx + 1}.</span>
+                {options.map((opt, idx) => (
+                  <div key={idx} className="flex items-center gap-1">
+                    <span className="text-xs text-muted-foreground w-4">{idx + 1}.</span>
                     <Input
                       value={opt}
-                      onChange={(e) => updateOption(idx, e.target.value)}
+                      onChange={(e) => {
+                        const next = [...options]
+                        next[idx] = e.target.value
+                        setOptions(next)
+                      }}
                       placeholder={`Opsi ${idx + 1}`}
                       className="h-8 text-sm"
                       maxLength={100}
-                      disabled={creating}
+                      disabled={saving}
                     />
-                    {formData.options.length > 2 && (
-                      <Button type="button" size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-500" onClick={() => removeOption(idx)} disabled={creating}>
+                    {options.length > 2 && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 w-7 p-0 text-red-500"
+                        onClick={() => setOptions(options.filter((_, i) => i !== idx))}
+                        disabled={saving}
+                      >
                         <Trash2 className="w-3 h-3" />
                       </Button>
                     )}
@@ -2036,105 +1560,78 @@ function EssayPollsTab({ onSwitchTab }: { onSwitchTab?: (tab: string) => void })
                 ))}
               </div>
             )}
-
-            {/* Target Wilayah */}
-            <div>
-              <Label className="text-sm font-semibold">Target Wilayah</Label>
-              <Select value={formData.targetScope} onValueChange={(v) => setFormData({ ...formData, targetScope: v })} disabled={creating}>
-                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="NATIONAL">Nasional (semua Indonesia)</SelectItem>
-                  <SelectItem value="PROVINCE">Provinsi (admin DPD)</SelectItem>
-                  <SelectItem value="REGENCY">Kab/Kota (admin DPC)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
             <div className="flex justify-end gap-2 pt-2">
-              <Button type="button" variant="outline" onClick={() => setCreateOpen(false)} disabled={creating}>Batal</Button>
-              <Button type="submit" disabled={creating} className="bg-purple-600 hover:bg-purple-700 text-white">
-                {creating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
-                {creating ? 'Menyimpan...' : 'Simpan sebagai Draft'}
+              <Button type="button" variant="outline" onClick={() => setShowForm(false)} disabled={saving}>Batal</Button>
+              <Button type="submit" disabled={saving} className="bg-purple-600 hover:bg-purple-700 text-white">
+                {saving && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
+                {saving ? 'Menyimpan...' : 'Simpan'}
               </Button>
             </div>
           </form>
         </DialogContent>
       </Dialog>
 
-      {/* === Share Dialog === */}
-      {sharePoll && (
-        <ShareToSocialMediaDialog poll={sharePoll} onClose={() => setSharePoll(null)} />
-      )}
-
-      {/* === Detail Dialog === */}
+      {/* === DIALOG: Detail Survei === */}
       {detailPoll && (
         <Dialog open={true} onOpenChange={() => setDetailPoll(null)}>
-          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+          <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto" aria-describedby={undefined}>
             <DialogHeader>
               <DialogTitle>Detail Survei</DialogTitle>
             </DialogHeader>
             <div className="space-y-3">
               <div>
-                <Label className="text-xs font-semibold">Judul:</Label>
+                <Label className="text-xs font-semibold">Judul</Label>
                 <p className="text-sm">{detailPoll.title}</p>
               </div>
               <div>
-                <Label className="text-xs font-semibold">Pertanyaan:</Label>
+                <Label className="text-xs font-semibold">Pertanyaan</Label>
                 <p className="text-sm">{detailPoll.question}</p>
               </div>
-              <div className="grid grid-cols-3 gap-2">
-                <div className="rounded border p-2 text-center">
-                  <div className="text-lg font-bold text-emerald-600">{detailPoll.sentimentStats?.POSITIVE || 0}</div>
-                  <div className="text-xs text-muted-foreground">Positif</div>
-                </div>
-                <div className="rounded border p-2 text-center">
-                  <div className="text-lg font-bold text-amber-600">{detailPoll.sentimentStats?.NEUTRAL || 0}</div>
-                  <div className="text-xs text-muted-foreground">Netral</div>
-                </div>
-                <div className="rounded border p-2 text-center">
-                  <div className="text-lg font-bold text-red-600">{detailPoll.sentimentStats?.NEGATIVE || 0}</div>
-                  <div className="text-xs text-muted-foreground">Negatif</div>
-                </div>
+              <div>
+                <Label className="text-xs font-semibold">Status</Label>
+                <Badge variant="outline" className="text-xs ml-2">{detailPoll.status}</Badge>
               </div>
-              <div className="text-xs text-muted-foreground text-center">
-                Total: {detailPoll.totalResponses || 0} respon
-              </div>
-              {detailPoll.responses && detailPoll.responses.length > 0 && (
-                <div>
-                  <Label className="text-xs font-semibold">
-                    Respon (Page {detailPoll.pagination?.page || 1} dari {detailPoll.pagination?.totalPages || 1}):
-                  </Label>
-                  <div className="space-y-2 mt-2 max-h-[40vh] overflow-y-auto">
-                    {detailPoll.responses.map((r: any) => (
-                      <div key={r.id} className="rounded border p-2 text-xs">
-                        <div className="flex items-center gap-2 mb-1">
-                          <Badge variant="outline" className={`text-xs ${r.aiSentiment === 'NEGATIVE' ? 'bg-red-50 text-red-700' : r.aiSentiment === 'POSITIVE' ? 'bg-emerald-50 text-emerald-700' : ''}`}>
-                            {r.aiSentiment || 'BELUM'}
-                          </Badge>
-                          {r.occupation && <Badge variant="outline" className="text-xs">{r.occupation}</Badge>}
-                          <span className="text-xs text-muted-foreground ml-auto">{r.wordCount} kata</span>
-                        </div>
-                        <p className="text-xs line-clamp-3">{r.answer}</p>
-                      </div>
-                    ))}
+              {detailPoll.totalResponses > 0 && (
+                <>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="rounded border p-2 text-center">
+                      <div className="text-lg font-bold text-emerald-600">{detailPoll.sentimentStats?.POSITIVE || 0}</div>
+                      <div className="text-xs text-muted-foreground">Positif</div>
+                    </div>
+                    <div className="rounded border p-2 text-center">
+                      <div className="text-lg font-bold text-amber-600">{detailPoll.sentimentStats?.NEUTRAL || 0}</div>
+                      <div className="text-xs text-muted-foreground">Netral</div>
+                    </div>
+                    <div className="rounded border p-2 text-center">
+                      <div className="text-lg font-bold text-red-600">{detailPoll.sentimentStats?.NEGATIVE || 0}</div>
+                      <div className="text-xs text-muted-foreground">Negatif</div>
+                    </div>
                   </div>
-                  {detailPoll.pagination && detailPoll.pagination.totalPages > 1 && (
-                    <div className="flex items-center justify-between gap-2 mt-3 pt-2 border-t">
-                      <Button size="sm" variant="outline" className="h-7 text-xs" disabled={!detailPoll.pagination.hasPrev} onClick={() => handleDetailPageChange((detailPoll.pagination.page || 1) - 1)}>
-                        Sebelumnya
-                      </Button>
-                      <span className="text-xs text-muted-foreground">{(detailPoll.pagination.page || 1)} / {detailPoll.pagination.totalPages}</span>
-                      <Button size="sm" variant="outline" className="h-7 text-xs" disabled={!detailPoll.pagination.hasNext} onClick={() => handleDetailPageChange((detailPoll.pagination.page || 1) + 1)}>
-                        Berikutnya
-                      </Button>
+                  {detailPoll.responses && detailPoll.responses.length > 0 && (
+                    <div>
+                      <Label className="text-xs font-semibold">Respon Terbaru</Label>
+                      <div className="space-y-1 mt-1 max-h-60 overflow-y-auto">
+                        {detailPoll.responses.map((r: any) => (
+                          <div key={r.id} className="rounded border p-2 text-xs">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Badge variant="outline" className="text-xs">
+                                {r.aiSentiment || 'BELUM'}
+                              </Badge>
+                              {r.occupation && <Badge variant="outline" className="text-xs">{r.occupation}</Badge>}
+                              <span className="text-xs text-muted-foreground ml-auto">{r.wordCount} kata</span>
+                            </div>
+                            <p className="line-clamp-2">{r.answer}</p>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
-                </div>
+                </>
               )}
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setSharePoll(sharePoll || detailPoll)}>
-                <Share2 className="w-4 h-4 mr-2" /> Share
+              <Button variant="outline" onClick={() => handleShare(detailPoll)}>
+                <Share2 className="w-4 h-4 mr-1" /> Share Link
               </Button>
               <Button variant="outline" onClick={() => setDetailPoll(null)}>Tutup</Button>
             </DialogFooter>
@@ -2144,6 +1641,8 @@ function EssayPollsTab({ onSwitchTab }: { onSwitchTab?: (tab: string) => void })
     </div>
   )
 }
+
+
 function ShareToSocialMediaDialog({ poll, onClose }: { poll: any; onClose: () => void }) {
   const addToast = useToastStore((s) => s.addToast)
   const [customText, setCustomText] = useState('')
