@@ -1,0 +1,60 @@
+============================================================
+  CARA DEPLOY LAPRA 08 KE NETLIFY (3 Langkah)
+============================================================
+
+MASALAH: Vercel webhook putus, kode baru tidak ter-deploy.
+SOLUSI: Pindah ke Netlify (gratis, lebih reliable).
+
+------------------------------------------------------------
+LANGKAH 1: Buka Netlify (2 menit)
+------------------------------------------------------------
+1. Buka https://app.netlify.com/start
+2. Klik "Import from Git"
+3. Pilih "GitHub"
+4. Authorize Netlify (kasih akses ke repo)
+5. Cari dan pilih repo: dpdlp08kalbar-gif/lapra08
+
+------------------------------------------------------------
+LANGKAH 2: Konfigurasi Build (1 menit)
+------------------------------------------------------------
+Netlify akan auto-detect Next.js. Verifikasi:
+- Build command: npm run build
+- Publish directory: .next
+- (Sudah ada netlify.toml, jadi auto-config)
+
+Klik "Deploy site"
+
+------------------------------------------------------------
+LANGKAH 3: Tunggu & Akses (3-5 menit)
+------------------------------------------------------------
+1. Netlify akan build (3-5 menit)
+2. Status: "Building" → "Deployed" (hijau)
+3. URL baru: https://[nama-random].netlify.app
+   (bisa rename jadi lapra08.netlify.app di Settings)
+4. Buka URL tersebut
+
+------------------------------------------------------------
+SELESAI!
+------------------------------------------------------------
+Anda akan lihat:
+- ✅ Halaman login (bukan versi lama)
+- ✅ Menu Survei & Polling SEDERHANA
+  (1 tombol "Buat Survei Baru", tidak ada Kanal Distribusi)
+- ✅ Tidak ada "Essay Polling & AI Auto-Pertanyaan"
+- ✅ Tidak ada "Atur Keyword"
+- ✅ Tidak ada toast "sedang dalam pengembangan"
+
+------------------------------------------------------------
+CATATAN PENTING:
+------------------------------------------------------------
+1. Database: Netlify butuh DATABASE_URL (PostgreSQL external)
+   - Bisa pakai: Supabase (gratis), Neon (gratis), Railway
+   - Set di Netlify: Site Settings → Environment Variables
+   - DATABASE_URL=postgresql://...
+
+2. URL lama lapra08.vercel.app TETAP ADA (sampai Anda hapus
+   project di Vercel). Tapi jangan dipakai — pakai URL Netlify.
+
+3. Kalau mau custom domain (lapra08.id), bisa set di:
+   Netlify → Site Settings → Domain Management
+============================================================
