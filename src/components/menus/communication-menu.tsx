@@ -1227,9 +1227,6 @@ function BroadcastStatsDialog({ broadcast, onClose }: { broadcast: any; onClose:
 // 4. Detail dengan respon & sentimen
 //
 // TIDAK ADA:
-// - AI Generate Pertanyaan
-// - Kanal Distribusi & Integrasi
-// - Atur Keyword AI & Hashtag
 // - Surveyor / Lapangan
 // - Dashboard 3 Dimensi
 // - Word Cloud / Heatmap / Demografi
