@@ -1,0 +1,10 @@
+const { PrismaClient } = require('@prisma/client')
+const prisma = new PrismaClient()
+;(async () => {
+  const polls = await prisma.poll.count()
+  const pollResponses = await prisma.pollResponse.count()
+  const crisisZones = await prisma.crisisZone.count()
+  const aspirations = await prisma.aspiration.count()
+  const voters = await prisma.voterContact.count()
+  console.log(`Polls: ${polls}, Responses: ${pollResponses}, CrisisZones: ${crisisZones}, Aspirations: ${aspirations}, Voters: ${voters}`)
+})().catch(e => console.error(e)).finally(() => prisma.$disconnect())

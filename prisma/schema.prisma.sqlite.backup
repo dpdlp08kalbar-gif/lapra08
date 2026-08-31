@@ -1,0 +1,1426 @@
+// LAPRA 08 - Sistem Informasi Internal
+// Database Schema - 100% Dinamis Multi-Tenant
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// TERRITORY - Hierarki Wilayah 3 Level (Sesuai Struktur LAPRA 08)
+// Level: COUNTRY | PROVINCE | REGENCY | DISTRICT | VILLAGE
+//   COUNTRY  = Negara (Indonesia, USA, dll) - DPN pusat
+//   PROVINCE = Provinsi / Negara LN - DPD
+//   REGENCY  = Kabupaten/Kota - DPC
+// ============================================================
+model Territory {
+  id          String      @id @default(cuid())
+  code        String      @unique // Kode wilayah: ID, 61, 6171, US, LAX, dst
+  name        String
+  level       String      // COUNTRY | PROVINCE | REGENCY | DISTRICT | VILLAGE
+  category    String      @default("DOMESTIC") // DOMESTIC | INTERNATIONAL
+  parentId    String?
+  parent      Territory?  @relation("TerritoryHierarchy", fields: [parentId], references: [id])
+  children    Territory[] @relation("TerritoryHierarchy")
+  isActive    Boolean     @default(true)
+  metadata    String?     // JSON string untuk data tambahan (koordinat, populasi, dll)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  users       User[]
+  members     Member[]
+  assets      Asset[]
+  events      Event[]
+  announcements Announcement[]
+  financeTxns FinanceTransaction[]
+  distributionsFrom Distribution[] @relation("DistFrom")
+  distributionsTo   Distribution[] @relation("DistTo")
+  orgPositions OrgPosition[]
+  skDocuments SKDocument[]
+  ktaApplications KtaApplication[]
+  polls         Poll[]
+  crisisZones   CrisisZone[]
+  voterContacts VoterContact[]
+  contacts      Contact[]
+  essayPolls    EssayPoll[]
+}
+
+// ============================================================
+// USER - Akun login pengurus
+// ============================================================
+model User {
+  id            String   @id @default(cuid())
+  username      String   @unique
+  password      String   // hashed
+  fullName      String
+  email         String?
+  phone         String?
+  avatar        String?
+  role          String   @default("ADMIN_DPC") // SUPERADMIN | ADMIN_DPN | ADMIN_DPD | ADMIN_DPC
+  territoryId   String
+  territory     Territory @relation(fields: [territoryId], references: [id])
+  isActive      Boolean  @default(true)
+  lastLogin     DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  members       Member[]   @relation("MemberRegistrar")   // anggota yang diinput oleh user ini
+  verifiedMembers Member[] @relation("MemberVerifier")
+  events        Event[]    @relation("EventCreator")
+  broadcasts    Broadcast[]
+  audienceSegments AudienceSegment[]
+  messageTemplates MessageTemplate[]
+  announcements Announcement[]
+  financeTxns   FinanceTransaction[]
+  tickets       SupportTicket[] @relation("TicketReporter")
+  ticketReplies SupportTicketReply[]
+  attendance    EventAttendance[]
+  distributions Distribution[] @relation("DistReceiver")
+  pollsCreated  Poll[]
+  crisisZonesResolved CrisisZone[] @relation("CrisisResolver")
+  aspirationsReviewed Aspiration[] @relation("AspirationReviewer")
+  alertNotifications AlertNotification[]
+  aiRecommendations AIRecommendation[]
+  auditScans     AuditScan[]
+  essayPollsCreated EssayPoll[]
+  opinionLinksReviewed PublicOpinionLink[] @relation("OpinionReviewer")
+}
+
+// ============================================================
+// MEMBER - Data Keanggotaan
+// ============================================================
+model Member {
+  id              String   @id @default(cuid())
+  memberNumber    String   @unique // LAPRA08.ID.61.71.26.00001
+  fullName        String
+  // Domestik
+  nik             String?  @unique // ANTI-DUPLIKASI: NIK unik
+  passportNumber  String?  @unique // ANTI-DUPLIKASI: Paspor unik
+  // Kontak
+  phone           String   @unique // ANTI-DUPLIKASI: WA unik
+  email           String?
+  // Alamat
+  address         String?
+  // Atribut
+  shirtSize       String?  // S/M/L/XL/XXL
+  profession      String?
+  gender          String?  // L | P
+  birthDate       DateTime?
+  birthPlace      String?
+  bloodType       String?
+  maritalStatus   String?
+  // Foto & dokumen
+  photoUrl        String?
+  idCardUrl       String?  // KTP / Paspor
+  // Lokasi
+  territoryId     String
+  territory       Territory @relation(fields: [territoryId], references: [id])
+  // Status
+  status          String   @default("PENDING") // PENDING | VERIFIED | ACTIVE | REJECTED | INACTIVE
+  verifiedAt      DateTime?
+  verifiedById    String?
+  verifiedBy      User?    @relation("MemberVerifier", fields: [verifiedById], references: [id])
+  registeredAt    DateTime @default(now())
+  registeredById  String?
+  registeredBy    User?    @relation("MemberRegistrar", fields: [registeredById], references: [id])
+  // Dynamic fields (JSON)
+  dynamicFields   String?  // JSON string {fieldKey: value}
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  attendance      EventAttendance[]
+}
+
+// ============================================================
+// DYNAMIC MENU BUILDER
+// ============================================================
+model MenuItem {
+  id          String      @id @default(cuid())
+  key         String      @unique // dashboard, territory, membership, dll
+  label       String
+  icon        String      // Lucide icon name
+  order       Int         @default(0)
+  parentId    String?
+  parent      MenuItem?   @relation("MenuHierarchy", fields: [parentId], references: [id])
+  children    MenuItem[]  @relation("MenuHierarchy")
+  isVisible   Boolean     @default(true)
+  // Role-based visibility
+  roles       String      @default("SUPERADMIN,ADMIN_DPN,ADMIN_DPD,ADMIN_DPC")
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+// ============================================================
+// DYNAMIC FORM FIELDS - Untuk form pendaftaran anggota
+// ============================================================
+model FormField {
+  id            String   @id @default(cuid())
+  formType      String   // MEMBER_DOMESTIC | MEMBER_INTERNATIONAL | EVENT | dll
+  fieldKey      String   // nik, shirtSize, dll
+  fieldLabel    String
+  fieldType     String   // text | number | select | textarea | date | file | radio | checkbox
+  fieldOptions  String?  // JSON array untuk select/radio/checkbox
+  isRequired    Boolean  @default(false)
+  isVisible     Boolean  @default(true)
+  order         Int      @default(0)
+  placeholder   String?
+  helpText      String?
+  validation    String?  // JSON: minLength, maxLength, pattern, dll
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ============================================================
+// ORGANIZATION STRUCTURE - Struktur Pengurus
+// ============================================================
+// ANTI-DUPLIKASI: Unique constraint (territoryId, positionName, isActive)
+// Cegah 2 pengurus dengan jabatan sama di wilayah sama
+model OrgPosition {
+  id              String   @id @default(cuid())
+  fullName        String
+  positionName    String   // Ketua, Wakil, Sekretaris, Bendahara, dll
+  level           String   // DPN | DPD | DPC
+  territoryId     String
+  territory       Territory @relation(fields: [territoryId], references: [id])
+  phone           String?
+  email           String?
+  photoUrl        String?
+  idCardUrl       String?  // KTP / Paspor / identitas pengurus
+  startDate       DateTime?
+  endDate         DateTime?
+  isActive        Boolean  @default(true)
+  approvalStatus  String   @default("APPROVED") // PENDING | APPROVED | REJECTED
+  approvedById    String?
+  approvedAt      DateTime?
+  source          String   @default("MANUAL") // MANUAL | OCR_EXTRACT
+  order           Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// ============================================================
+// E-SK - Surat Keputusan Digital (with OCR support)
+// ============================================================
+model SKDocument {
+  id            String   @id @default(cuid())
+  skNumber      String   @unique // ANTI-DUPLIKASI: Cegah nomor SK ganda
+  title         String
+  description   String?
+  fileUrl       String
+  fileName      String?
+  fileType      String?  // pdf, jpg, png, doc, docx, scan
+  fileSize      Int?     // bytes
+  ocrStatus     String   @default("PENDING") // PENDING | PROCESSING | COMPLETED | FAILED
+  extractedText String?  // hasil OCR
+  ocrMetadata   String?  // JSON: nomor SK, tanggal, pihak yang dilantik (auto-detected)
+  issuedAt      DateTime
+  issuedBy      String
+  territoryId   String
+  territory     Territory @relation(fields: [territoryId], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ============================================================
+// ASSET MANAGEMENT - Logistik & Atribut
+// ============================================================
+model Asset {
+  id            String   @id @default(cuid())
+  name          String
+  category      String   // KEMEJA | SERAGAM | BENDERA | PLAKAT | LAINNYA
+  sku           String?
+  stock         Int      @default(0)
+  unit          String   @default("pcs")
+  minStock      Int      @default(0)
+  description   String?
+  photoUrl      String?
+  territoryId   String
+  territory     Territory @relation(fields: [territoryId], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  distributions Distribution[]
+}
+
+model Distribution {
+  id            String   @id @default(cuid())
+  assetId       String
+  asset         Asset     @relation(fields: [assetId], references: [id])
+  fromTerritoryId String
+  fromTerritory Territory @relation("DistFrom", fields: [fromTerritoryId], references: [id])
+  toTerritoryId String
+  toTerritory   Territory @relation("DistTo", fields: [toTerritoryId], references: [id])
+  quantity      Int
+  notes         String?
+  status        String   @default("PENDING") // PENDING | IN_TRANSIT | RECEIVED | CANCELLED
+  sentAt        DateTime?
+  receivedAt    DateTime?
+  receivedById  String?
+  receivedBy    User?    @relation("DistReceiver", fields: [receivedById], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ============================================================
+// EVENT & MOBILISASI
+// ============================================================
+model Event {
+  id            String   @id @default(cuid())
+  title         String
+  description   String?
+  type          String   // PELANTIKAN | MOBILISASI | RAPAT | SOSIAL | LAINNYA
+  startDate     DateTime
+  endDate       DateTime?
+  location      String?
+  territoryId   String
+  territory     Territory @relation(fields: [territoryId], references: [id])
+  createdById   String
+  createdBy     User     @relation("EventCreator", fields: [createdById], references: [id])
+  status        String   @default("SCHEDULED") // SCHEDULED | ONGOING | COMPLETED | CANCELLED
+  targetAttendance Int?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  attendance    EventAttendance[]
+  reports       EventReport[]
+}
+
+model EventAttendance {
+  id            String   @id @default(cuid())
+  eventId       String
+  event         Event     @relation(fields: [eventId], references: [id])
+  memberId      String
+  member        Member    @relation(fields: [memberId], references: [id])
+  status        String   @default("PRESENT") // PRESENT | ABSENT | EXCUSED
+  checkInTime   DateTime?
+  notes         String?
+  recordedById  String?
+  recordedBy    User?     @relation(fields: [recordedById], references: [id])
+  createdAt     DateTime @default(now())
+}
+
+model EventReport {
+  id            String   @id @default(cuid())
+  eventId       String
+  event         Event     @relation(fields: [eventId], references: [id])
+  title         String
+  content       String
+  photoUrls     String?  // JSON array
+  videoUrls     String?  // JSON array
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ============================================================
+// KOMUNIKASI & BROADCAST
+// ============================================================
+model Broadcast {
+  id            String   @id @default(cuid())
+  title         String
+  message       String
+  channels      String   @default("[\"WHATSAPP\"]")
+  channel       String   @default("WHATSAPP") // WHATSAPP | FACEBOOK | INSTAGRAM | SMS | EMAIL
+  status        String   @default("DRAFT") // DRAFT | QUEUED | SENT | FAILED | PARTIAL
+  targetScope   String   // JSON: {territoryId, level, filter}
+  recipientCount Int     @default(0)
+  imageUrl      String?
+  videoUrl      String?
+  linkUrl       String?
+  channelStats  String?
+  channelPostIds String?
+  crisisZoneId  String?
+  pollId        String?
+  sentById      String
+  sentBy        User     @relation(fields: [sentById], references: [id])
+  scheduledAt   DateTime?
+  sentAt        DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  deliveryLogs  BroadcastDeliveryLog[]
+  messages      BroadcastMessage[] // queue per-recipient personalized
+
+  @@index([channel, status])
+}
+
+// ============================================================
+// BROADCAST INFRASTRUCTURE - Real System
+// ============================================================
+
+// Contact Database - daftar nomor WA/FB/IG yang real
+model Contact {
+  id              String   @id @default(cuid())
+  name            String
+  phone           String?  @unique
+  email           String?
+  facebookId      String?
+  instagramId     String?
+  whatsappOptIn   Boolean  @default(false)
+  facebookOptIn   Boolean  @default(false)
+  instagramOptIn  Boolean  @default(false)
+  optInDate       DateTime?
+  optInSource     String?
+  ageGroup        String?
+  gender          String?
+  occupation      String?
+  religion        String?
+  path            String
+  countryCode     String   @default("ID")
+  provinceCode    String?
+  regencyCode     String?
+  districtCode    String?
+  villageCode     String?
+  territoryId     String
+  territory       Territory @relation(fields: [territoryId], references: [id])
+  tags            String   @default("[]")
+  isActive        Boolean  @default(true)
+  isVerified      Boolean  @default(false)
+  verifiedAt      DateTime?
+  lastContactedAt DateTime?
+  contactCount    Int      @default(0)
+  responseCount   Int      @default(0)
+  source          String   @default("MANUAL")
+  registeredAt    DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([path])
+  @@index([territoryId])
+  @@index([provinceCode])
+  @@index([whatsappOptIn, isActive])
+  @@index([occupation, provinceCode])
+}
+
+// Audience Segment
+model AudienceSegment {
+  id              String   @id @default(cuid())
+  name            String
+  description     String?
+  filterCriteria  String
+  contactCount    Int      @default(0)
+  createdById     String
+  createdBy       User     @relation(fields: [createdById], references: [id])
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([createdById])
+}
+
+// Message Template
+model MessageTemplate {
+  id              String   @id @default(cuid())
+  name            String
+  category        String   @default("UMUM")
+  subject         String?
+  content         String
+  variables        String   @default("[]")
+  whatsappContent String?
+  facebookContent String?
+  instagramContent String?
+  defaultImageUrl String?
+  defaultVideoUrl String?
+  createdById     String
+  createdBy       User     @relation(fields: [createdById], references: [id])
+  useCount        Int      @default(0)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([category])
+  @@index([createdById])
+}
+
+// API Integration
+model ApiIntegration {
+  id              String   @id @default(cuid())
+  platform        String   @unique
+  status          String   @default("DISCONNECTED")
+  apiKey          String?
+  apiSecret       String?
+  phoneNumberId   String?
+  businessAccountId String?
+  pageId          String?
+  pageAccessToken String?
+  igBusinessAccountId String?
+  igAccessToken   String?
+  webhookUrl      String?
+  webhookVerified Boolean  @default(false)
+  displayName     String?
+  phoneNumber     String?
+  lastConnectedAt DateTime?
+  lastError       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// Broadcast Delivery Log
+model BroadcastDeliveryLog {
+  id              String   @id @default(cuid())
+  broadcastId     String
+  broadcast       Broadcast @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
+  contactId       String?
+  recipientName   String?
+  recipientPhone  String?
+  channel         String
+  status          String   @default("PENDING")
+  platformMessageId String?
+  sentAt          DateTime?
+  deliveredAt     DateTime?
+  readAt          DateTime?
+  errorCode       String?
+  errorMessage    String?
+  retryCount      Int      @default(0)
+  createdAt       DateTime @default(now())
+
+  @@index([broadcastId, status])
+  @@index([contactId])
+}
+
+model Announcement {
+  id            String   @id @default(cuid())
+  title         String
+  content       String
+  type          String   @default("INFO") // INFO | WARNING | URGENT
+  category      String   @default("BERITA") // BERITA | PENGUMUMAN | SIRANAN_PERS
+  isPinned      Boolean  @default(false)
+  isActive      Boolean  @default(true)
+  photoUrl      String?
+  publishDate   DateTime?
+  expiresAt     DateTime?
+  source        String   @default("MANUAL") // MANUAL (admin buat) | WEB_SYNC (dari web lain, READ-ONLY)
+  sourceUrl     String?  // URL asli jika WEB_SYNC
+  sourceName    String?  // Nama media sumber (cth: MetroTV, RRI, dll)
+  territoryId   String
+  territory     Territory @relation(fields: [territoryId], references: [id])
+  createdById   String
+  createdBy     User     @relation(fields: [createdById], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ============================================================
+// KAS & KEUANGAN
+// ============================================================
+model FinanceTransaction {
+  id            String   @id @default(cuid())
+  type          String   // INCOME | EXPENSE
+  category      String   // IURAN | DONASI | SEWA | CETAK | OPERASIONAL | LAINNYA
+  amount        Float
+  description   String?
+  receiptUrl    String?
+  transactionDate DateTime
+  territoryId   String
+  territory     Territory @relation(fields: [territoryId], references: [id])
+  recordedById  String
+  recordedBy    User     @relation(fields: [recordedById], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ============================================================
+// HELP DESK - Tiket Laporan Error
+// ============================================================
+model SupportTicket {
+  id            String   @id @default(cuid())
+  ticketNumber  String   @unique
+  title         String
+  description   String
+  category      String   @default("BUG") // BUG | QUESTION | FEATURE_REQUEST | OTHER
+  priority      String   @default("MEDIUM") // LOW | MEDIUM | HIGH | URGENT
+  status        String   @default("OPEN") // OPEN | IN_PROGRESS | RESOLVED | CLOSED
+  reporterId    String
+  reporter      User     @relation("TicketReporter", fields: [reporterId], references: [id])
+  assignedTo    String?
+  screenshotUrl String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  replies       SupportTicketReply[]
+}
+
+model SupportTicketReply {
+  id            String   @id @default(cuid())
+  ticketId      String
+  ticket        SupportTicket @relation(fields: [ticketId], references: [id])
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  message       String
+  createdAt     DateTime @default(now())
+}
+
+// ============================================================
+// SECURITY SETTINGS - Saklar Keamanan (Fase Finishing)
+// ============================================================
+model SecuritySetting {
+  id            String   @id @default(cuid())
+  key           String   @unique
+  value         String   // JSON atau string sederhana
+  isActive      Boolean  @default(false)
+  description   String?
+  updatedAt     DateTime @updatedAt
+}
+
+// ============================================================
+// SYSTEM SETTINGS - Konfigurasi global dinamis
+// ============================================================
+model SystemSetting {
+  id            String   @id @default(cuid())
+  key           String   @unique
+  value         String
+  category      String   @default("GENERAL")
+  description   String?
+  updatedAt     DateTime @updatedAt
+}
+
+// ============================================================
+// KTA DIGITAL - PERMOHOON KTA ONLINE
+// ============================================================
+model KtaApplication {
+  id              String   @id @default(cuid())
+  // Nomor pendaftaran untuk tracking pemohon
+  applicationNumber String @unique // APP-LAPRA08-YYYYMMDD-XXXX
+  // Data Pemohon
+  fullName        String
+  gender          String?  // L | P
+  birthPlace      String?
+  birthDate       DateTime?
+  bloodType       String?
+  maritalStatus   String?
+  occupation      String?
+  shirtSize       String?  // S/M/L/XL/XXL
+  // Identitas
+  nik             String?  // untuk WNI
+  passportNumber  String?  // untuk WNA/LN
+  phone           String   @unique // WA aktif
+  email           String?
+  address         String?
+  // Dokumen upload
+  photoUrl        String?  // Pass foto 3x4/4x6
+  idCardUrl       String?  // KTP / Paspor
+  signatureUrl    String?  // Tanda tangan digital (opsional)
+  // Wilayah tujuan
+  territoryId     String
+  territory       Territory @relation(fields: [territoryId], references: [id])
+  // Catatan pemohon
+  applicantNotes  String?
+  // Status workflow
+  status          String   @default("PENDING") // PENDING | REVIEWING | APPROVED | REJECTED | ISSUED
+  // Review admin
+  reviewedById    String?
+  reviewedAt      DateTime?
+  reviewNotes     String?
+  rejectionReason String?
+  // Setelah approved → auto-generate KTA
+  memberId        String?  // link ke Member table
+  ktaNumber       String?  // LAPRA08.ID.61.71.26.00001
+  ktaIssuedAt     DateTime?
+  ktaExpiryDate   DateTime? // biasanya 5 tahun
+  // Metadata
+  submittedById   String?  // null = pemohon publik (no login)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// ============================================================
+// COMMAND CENTER - SENTIMEN PRESIDEN & PEMENANGAN PILPRES
+// ============================================================
+
+// 1. PRESIDENTIAL SENTIMENT DASHBOARD - Polling kepuasan publik
+model Poll {
+  id              String   @id @default(cuid())
+  title           String
+  question        String
+  description     String?
+  triggerEvent    String?
+  triggerUrl      String?
+  options         String   // JSON array of {id, label, sentiment}
+  targetDemographics String?
+  status          String   @default("DRAFT") // DRAFT | ACTIVE | CLOSED | ARCHIVED
+  territoryId     String
+  territory       Territory @relation(fields: [territoryId], references: [id])
+  scheduledAt     DateTime?
+  broadcastSentAt DateTime?
+  broadcastRecipientCount Int @default(0)
+  closesAt        DateTime?
+  createdById     String
+  createdBy       User     @relation(fields: [createdById], references: [id])
+  aspirations     Aspiration[]
+  responses       PollResponse[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model PollResponse {
+  id              String   @id @default(cuid())
+  pollId          String
+  poll            Poll     @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  respondentPhone String?
+  respondentName  String?
+  ageGroup        String?
+  gender          String?
+  occupation      String?
+  provinceCode    String?
+  regencyCode     String?
+  districtCode    String?
+  optionId        String
+  sentiment       String
+  feedback        String?
+  ipAddress       String?
+  userAgent       String?
+  submittedAt     DateTime @default(now())
+
+  @@index([pollId, sentiment])
+  @@index([pollId, ageGroup])
+  @@index([pollId, occupation])
+  @@index([pollId, provinceCode])
+}
+
+// 2. CRISIS ZONE - Geo-Fencing klarifikasi isu negatif
+model CrisisZone {
+  id              String   @id @default(cuid())
+  title           String
+  description     String
+  issueCategory   String
+  issueSource     String?
+  sentimentScore  Float    @default(0)
+  territoryId     String
+  territory       Territory @relation(fields: [territoryId], references: [id])
+  isLocked        Boolean  @default(true)
+  status          String   @default("ACTIVE")
+  severity        String   @default("MEDIUM")
+  clarificationMessage String?
+  clarificationVideoUrl String?
+  clarificationQuote String?
+  broadcastSentAt DateTime?
+  broadcastRecipientCount Int @default(0)
+  resolvedAt      DateTime?
+  resolvedById    String?
+  resolvedBy      User?    @relation("CrisisResolver", fields: [resolvedById], references: [id])
+  resolutionNotes String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// 3. ASPIRASI RAKYAT - Microsite Solusi
+model Aspiration {
+  id              String   @id @default(cuid())
+  pollId          String?
+  poll            Poll?    @relation(fields: [pollId], references: [id])
+  senderName      String?
+  senderPhone     String?
+  senderEmail     String?
+  category        String   @default("LAINNYA")
+  subCategory     String?
+  provinceCode    String?
+  regencyCode     String?
+  districtCode    String?
+  ageGroup        String?
+  gender          String?
+  occupation      String?
+  title           String
+  message         String
+  sourceUrl       String?
+  sentiment       String   @default("NEUTRAL")
+  priority        String   @default("NORMAL")
+  status          String   @default("NEW")
+  reviewedById   String?
+  reviewedBy      User?    @relation("AspirationReviewer", fields: [reviewedById], references: [id])
+  reviewedAt      DateTime?
+  reviewNotes     String?
+  aiCluster       String?
+  submittedAt     DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// 4. VOTER CONTACT DATABASE
+model VoterContact {
+  id              String   @id @default(cuid())
+  name            String
+  phone           String   @unique
+  whatsappOptIn   Boolean  @default(true)
+  email           String?
+  ageGroup        String?
+  gender          String?
+  occupation      String?
+  religion        String?
+  path            String
+  countryCode     String   @default("ID")
+  provinceCode    String?
+  regencyCode     String?
+  districtCode    String?
+  villageCode     String?
+  rtCode          String?
+  rwCode          String?
+  territoryId     String
+  territory       Territory @relation(fields: [territoryId], references: [id])
+  isActive        Boolean  @default(true)
+  isVerified      Boolean  @default(false)
+  lastContactedAt DateTime?
+  contactCount    Int      @default(0)
+  responseCount   Int      @default(0)
+  registeredAt    DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([path])
+  @@index([territoryId])
+  @@index([provinceCode])
+  @@index([occupation, provinceCode])
+  @@index([whatsappOptIn, isActive])
+}
+
+// ============================================================
+// SOCIAL LISTENING & COMMAND LASKAR AI (Rp0 API Cost)
+// ============================================================
+
+// Data Sources - platform yang di-monitor
+model SocialSource {
+  id              String   @id @default(cuid())
+  platform        String   // GOOGLE_NEWS | TWITTER_X | YOUTUBE | TIKTOK | FACEBOOK | INSTAGRAM | RSS_FEED
+  name            String   // cth: "Google News - Prabowo", "RSS Detik", "Twitter @prabowo"
+  url             String?  // source URL or RSS feed URL
+  isActive        Boolean  @default(true)
+  // Keywords to monitor (JSON array)
+  keywords        String   @default("[]") // cth: ["Prabowo","Laskar Prabowo","Kabinet Merah Putih"]
+  // Last sync info
+  lastSyncAt      DateTime?
+  lastSyncStatus  String?  // SUCCESS | ERROR | PARTIAL
+  lastSyncCount   Int      @default(0)
+  mentions        SocialMention[]
+  // RBAC scope
+  scope           String   @default("NATIONAL") // NATIONAL | PROVINCE | REGENCY
+  provinceCode    String?
+  regencyCode     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([platform, isActive])
+  @@index([scope, provinceCode])
+}
+
+// Social Mentions - individual mentions/posts found
+model SocialMention {
+  id              String   @id @default(cuid())
+  sourceId        String
+  source          SocialSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  // Original content
+  platform        String   // GOOGLE_NEWS | TWITTER_X | YOUTUBE | TIKTOK | FACEBOOK | INSTAGRAM
+  title           String
+  content         String   // snippet/excerpt
+  url             String   // link to original
+  author          String?  // author/account name
+  authorFollowers Int?
+  // Metadata
+  publishedAt     DateTime
+  engagementCount Int      @default(0) // likes + comments + shares
+  // Location (for geo-filtering)
+  provinceCode    String?
+  regencyCode     String?
+  // AI Analysis (filled by NLP engine)
+  sentiment       String?  // POSITIVE | NEUTRAL | NEGATIVE
+  sentimentScore  Float?   // -1.0 to 1.0
+  category        String?  // PEMBANGUNAN | KEBIJAKAN | KEBUTUHAN_MASYARAKAT | LAINNYA
+  language        String?  // id | jv | su | min | etc
+  keywords        String?  // JSON: detected keywords
+  // Reputation impact
+  reputationImpact Float?  // -100 to 100 (how much this affects reputation)
+  // Status
+  isProcessed     Boolean  @default(false) // NLP processed?
+  isAlertTriggered Boolean @default(false) // triggered alert?
+  createdAt       DateTime @default(now())
+
+  @@index([sourceId])
+  @@index([sentiment, publishedAt])
+  @@index([provinceCode, regencyCode])
+  @@index([isProcessed])
+}
+
+// Reputation Index - daily aggregate score
+model ReputationIndex {
+  id              String   @id @default(cuid())
+  date            DateTime // specific day
+  // Scope
+  scope           String   // NATIONAL | PROVINCE | REGENCY
+  provinceCode    String?
+  regencyCode     String?
+  // Target
+  target          String   // PRESIDENT_PRABOWO | CABINET | LAPRA_08 | MINISTER_{name}
+  // Scores (0-100)
+  positiveScore   Float    @default(0)
+  negativeScore   Float    @default(0)
+  neutralScore    Float    @default(0)
+  overallIndex    Float    @default(50) // 0=very bad, 100=excellent
+  trend           String   @default("STABLE") // UP | DOWN | STABLE
+  // Mention counts
+  totalMentions   Int      @default(0)
+  positiveMentions Int     @default(0)
+  negativeMentions Int     @default(0)
+  neutralMentions Int      @default(0)
+  // Top categories
+  topCategories   String?  // JSON: {PEMBANGUNAN: 45, KEBIJAKAN: 30, ...}
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([date, scope, provinceCode, regencyCode, target])
+  @@index([date, target])
+  @@index([scope, provinceCode, regencyCode])
+}
+
+// Alert Rules - rules for early warning
+model AlertRule {
+  id              String   @id @default(cuid())
+  name            String   // cth: "Negatif >60% di Grobogan"
+  // Trigger conditions
+  conditionType   String   // SENTIMENT_THRESHOLD | VOLUME_SPIKE | KEYWORD_MATCH
+  threshold       Float    @default(0.6) // cth: 0.6 = 60% negative
+  timeWindowHours Int      @default(2) // check last 2 hours
+  // Scope
+  scope           String   @default("NATIONAL") // NATIONAL | PROVINCE | REGENCY
+  provinceCode    String?
+  regencyCode     String?
+  // Target
+  target          String   @default("PRESIDENT_PRABOWO")
+  // Notification
+  notifyChannel   String   @default("TELEGRAM") // TELEGRAM | WHATSAPP | IN_APP
+  notifyTarget    String?  // Telegram chat ID or WA group ID
+  // Status
+  isActive        Boolean  @default(true)
+  lastTriggeredAt DateTime?
+  triggerCount    Int      @default(0)
+  notifications   AlertNotification[]
+  createdAt       DateTime @default(now())
+
+  @@index([scope, provinceCode, regencyCode, isActive])
+}
+
+// Alert Notifications - when alert triggers
+model AlertNotification {
+  id              String   @id @default(cuid())
+  ruleId          String?
+  rule            AlertRule? @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+  // Who received this alert
+  recipientId     String?
+  recipient       User?    @relation(fields: [recipientId], references: [id], onDelete: SetNull)
+  // Alert details
+  type            String   // SENTIMENT_SPIKE | VOLUME_SPIKE | KEYWORD_MATCH
+  severity        String   @default("HIGH") // LOW | MEDIUM | HIGH | CRITICAL
+  title           String
+  message         String
+  // Scope
+  provinceCode    String?
+  regencyCode     String?
+  // Data
+  mentionCount    Int      @default(0)
+  negativePercentage Float?
+  triggeredMentions String? // JSON: array of mention IDs
+  // Status
+  status          String   @default("NEW") // NEW | READ | ACKNOWLEDGED | RESOLVED
+  // Notification delivery
+  notifiedVia     String?  // TELEGRAM | WHATSAPP | IN_APP
+  notifiedAt      DateTime?
+  deliveryStatus  String?  // SENT | FAILED | PENDING
+  recommendations AIRecommendation[]
+  createdAt       DateTime @default(now())
+
+  @@index([status, severity])
+  @@index([provinceCode, regencyCode])
+}
+
+// AI Recommendations - generated by local AI (Ollama/Llama 3)
+model AIRecommendation {
+  id              String   @id @default(cuid())
+  alertId         String?
+  alert           AlertNotification? @relation(fields: [alertId], references: [id], onDelete: SetNull)
+  // Context
+  context         String   // summary of situation
+  scope           String   // NATIONAL | PROVINCE | REGENCY
+  provinceCode    String?
+  regencyCode     String?
+  // AI output
+  recommendation  String   // the action recommendation text
+  actionType      String   // FIELD_VISIT | CLARIFICATION | REPORT_UP | COORDINATE | MONITOR
+  priority        String   @default("HIGH") // LOW | MEDIUM | HIGH | URGENT
+  // Status
+  status          String   @default("PENDING") // PENDING | APPROVED | REJECTED | EXECUTED
+  approvedById    String?
+  approvedBy      User?    @relation(fields: [approvedById], references: [id])
+  approvedAt      DateTime?
+  executionNotes  String?
+  executedAt      DateTime?
+  createdAt       DateTime @default(now())
+
+  @@index([status, priority])
+  @@index([scope, provinceCode, regencyCode])
+}
+
+// ============================================================
+// AUDIT AI RESPONDING OTOMATIS - Deteksi Keluhan Warganet
+// ============================================================
+
+// Scan Session - setiap kali tombol "Audit AI" ditekan
+model AuditScan {
+  id              String   @id @default(cuid())
+  triggeredById   String
+  triggeredBy     User     @relation(fields: [triggeredById], references: [id])
+  // Scan metadata
+  platforms       String   @default("[]") // JSON: ["FACEBOOK","INSTAGRAM","TIKTOK","TWITTER_X","GOOGLE"]
+  totalMentions   Int      @default(0)
+  totalComplaints Int      @default(0)
+  needsResponse   Int      @default(0) // complaints yang wajib direspon
+  ignoredCount    Int      @default(0) // complaints terabaikan (no response dari pengurus)
+  // Status
+  status          String   @default("COMPLETED") // RUNNING | COMPLETED | FAILED
+  // RBAC scope
+  scope           String   @default("NATIONAL")
+  provinceCode    String?
+  regencyCode     String?
+  createdAt       DateTime @default(now())
+  // Relations
+  complaints      AuditComplaint[]
+}
+
+// Audit Complaint - keluhan warganet yang terdeteksi
+model AuditComplaint {
+  id              String   @id @default(cuid())
+  scanId          String
+  scan            AuditScan @relation(fields: [scanId], references: [id], onDelete: Cascade)
+  // Source
+  platform        String   // FACEBOOK | INSTAGRAM | TIKTOK | TWITTER_X | GOOGLE
+  author          String   // nama akun warganet
+  authorHandle    String?  // @username
+  content         String   // isi keluhan/post
+  url             String   // link ke post asli
+  publishedAt     DateTime
+  // Location (auto-detected from content or author profile)
+  provinceCode    String?
+  provinceName    String?
+  regencyCode     String?
+  regencyName     String?
+  // AI Analysis
+  priority        String   // HIGH | MEDIUM | LOW
+  urgencyScore    Float    @default(0) // 0-100, higher = more urgent
+  category        String   // PEMBANGUNAN | KEBIJAKAN | INFRASTRUKTUR | SOSIAL | KEAMANAN | LAINNYA
+  sentiment       String   @default("NEGATIVE") // mostly negative for complaints
+  keywords        String?  // JSON: detected keywords
+  // Response status
+  responseStatus  String   @default("IGNORED") // IGNORED | RESPONDED | IN_PROGRESS | ESCALATED
+  responseBy      String?  // who responded (orgPosition/user)
+  responseType    String?  // CLARIFICATION | FIELD_VISIT | ACKNOWLEDGMENT | ESCALATION
+  respondedAt     DateTime?
+  responseTime    Int?     // minutes to respond (null = belum direspon)
+  // AI Recommendation
+  aiRecommendation String? // suggested action text
+  aiActionType    String?  // FIELD_VISIT | CLARIFICATION | REPORT_UP | COORDINATE | MONITOR
+  // Metadata
+  engagementCount Int      @default(0) // likes + comments + shares
+  createdAt       DateTime @default(now())
+
+  @@index([scanId, priority])
+  @@index([provinceCode, regencyCode, responseStatus])
+  @@index([priority, responseStatus])
+}
+
+// ============================================================
+// ESSAY POLLING - Pertanyaan Essay + Auto-Generate via AI
+// ============================================================
+
+// EssayPoll - polling dengan jawaban essay bebas (bukan pilihan ganda)
+model EssayPoll {
+  id              String   @id @default(cuid())
+  title           String
+  question        String   // pertanyaan essay utama
+  description     String?
+  // AI-generated fields
+  isAiGenerated   Boolean  @default(false) // true jika di-generate oleh AI
+  sourceTopic     String?  // topik asal (cth: "Kenaikan harga pupuk")
+  sourceUrl       String?  // URL berita/event yang jadi inspirasi
+  sourceSentiment String?  // POSITIVE | NEUTRAL | NEGATIVE
+  // Targeting
+  targetScope     String   @default("NATIONAL") // NATIONAL | PROVINCE | REGENCY
+  provinceCode    String?
+  regencyCode     String?
+  // Demographics target
+  targetAgeGroup  String?  // 18-25 | 26-35 | 36-50 | 51+
+  targetOccupation String? // PETANI | NELAYAN | UMKM | PELAJAR | etc
+  // Scheduling
+  status          String   @default("DRAFT") // DRAFT | ACTIVE | CLOSED | ARCHIVED
+  scheduledAt     DateTime?
+  closesAt        DateTime?
+  broadcastSentAt DateTime?
+  broadcastRecipientCount Int @default(0)
+  // Ownership
+  territoryId     String
+  territory       Territory @relation(fields: [territoryId], references: [id])
+  createdById     String
+  createdBy       User     @relation(fields: [createdById], references: [id])
+  responses       EssayResponse[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([territoryId, status])
+  @@index([provinceCode, regencyCode])
+}
+
+// EssayResponse - jawaban essay bebas dari responden
+model EssayResponse {
+  id              String   @id @default(cuid())
+  pollId          String
+  poll            EssayPoll @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  respondentName  String?
+  respondentPhone String?
+  ageGroup        String?
+  gender          String?
+  occupation      String?
+  provinceCode    String?
+  regencyCode     String?
+  districtCode    String?
+  // The essay answer
+  answer          String   // jawaban essay bebas
+  wordCount       Int      @default(0)
+  // AI analysis of the answer
+  aiSentiment     String?  // POSITIVE | NEUTRAL | NEGATIVE
+  aiScore         Float?   // 0-100, quality / urgency score
+  aiCategory      String?  // kategori topik yang dibahas
+  aiSummary       String?  // ringkasan AI
+  aiKeywords      String?  // JSON: extracted keywords
+  isProcessed     Boolean  @default(false) // true jika sudah di-AI-analisis
+  ipAddress       String?
+  submittedAt     DateTime @default(now())
+
+  @@index([pollId, aiSentiment])
+  @@index([pollId, provinceCode])
+}
+
+// ============================================================
+// PUBLIC OPINION LINK - Link tersimpan yang sudah dianalisis
+// ============================================================
+
+// PublicOpinionLink - daftar link dari medsos yang sudah dianalisis pendapat publik
+model PublicOpinionLink {
+  id              String   @id @default(cuid())
+  url             String   @unique // link asli ke post/video/artikel
+  platform        String   // YOUTUBE | GOOGLE | FACEBOOK | INSTAGRAM | TIKTOK | TWITTER_X
+  title           String
+  content         String?  // snippet/caption
+  author          String?
+  authorHandle    String?
+  publishedAt    DateTime?
+  engagementCount Int      @default(0) // views/likes/comments
+  // Lokasi terdeteksi
+  provinceCode    String?
+  provinceName    String?
+  regencyCode    String?
+  regencyName    String?
+  // Hasil analisis
+  sentiment       String   @default("NEUTRAL")
+  priority        String   @default("LOW")
+  urgencyScore    Float    @default(0)
+  category        String   @default("LAINNYA")
+  keywords        String?  // JSON
+  aiSummary       String?
+  // Pengelolaan
+  status          String   @default("NEW") // NEW | REVIEWED | ADDRESSED | ARCHIVED
+  reviewedById    String?
+  reviewedBy      User?    @relation("OpinionReviewer", fields: [reviewedById], references: [id])
+  reviewedAt      DateTime?
+  reviewNotes     String?
+  // Sumber
+  scanId          String?  // ID scan yang menemukan link ini
+  sourceMethod    String   @default("AUTO") // AUTO | MANUAL
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relasi ke OpinionDemographic (untuk filter demografi & drill-down)
+  demographics    OpinionDemographic[]
+
+  @@index([platform, status])
+  @@index([provinceCode, regencyCode, status])
+  @@index([priority, status])
+}
+
+// ============================================================
+// GEOSPATIAL VOICE MAPPING & DEMOGRAPHICS ANALYTICS
+// Sistem intelijen opini publik — 7 level hierarki + 3 dimensi
+// ============================================================
+
+// 1. POPULATION_DATA - data populasi per wilayah (untuk density & demografi base)
+// Mendukung 7 level: NATIONAL | PROVINCE | REGENCY | DISTRICT | VILLAGE | RW | RT
+model PopulationData {
+  id              String   @id @default(cuid())
+  territoryCode   String   @unique // kode wilayah: ID, 61, 6171, dst
+  level           String   // NATIONAL | PROVINCE | REGENCY | DISTRICT | VILLAGE | RW | RT
+  // Total populasi
+  totalPopulation Int      @default(0)
+  totalVoters     Int      @default(0) // DPT (Daftar Pemilih Tetap) est
+  // Demografi usia pemilih (5 segmen Pemilu)
+  voters17to21    Int      @default(0) // Pemilih Pemula
+  voters22to30    Int      @default(0) // Pemilih Muda
+  voters31to40    Int      @default(0) // Pemilih Matang/Dewasa
+  voters41to60    Int      @default(0) // Pemilih Paruh Baya
+  voters61plus   Int      @default(0) // Pemilih Lansia/Senior
+  // Community segments (4 cluster)
+  populationIndigenous Int @default(0) // Suku Adat & Budaya
+  populationReligious  Int @default(0) // Komunitas Agama & Kepercayaan
+  populationProfession Int @default(0) // Kelompok Profesi (Petani, Nelayan, Buruh, Guru, UMKM, Mahasiswa)
+  populationYouth      Int @default(0) // Aliansi Ormas & Komunitas Pemuda
+  // Metadata
+  geoCenter       String?  // JSON { lat, lng } - pusat wilayah untuk peta
+  boundingBox     String?  // JSON untuk polygon/heatmap
+  lastUpdated     DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([level])
+  @@index([territoryCode])
+}
+
+// 2. TRUST_INDEX - indeks kepercayaan publik terhadap pemerintahan Presiden Prabowo
+// Di-hitung per wilayah × segmen demografi (multi-dimensional)
+model TrustIndex {
+  id              String   @id @default(cuid())
+  territoryCode   String   // kode wilayah
+  level           String   // NATIONAL | PROVINCE | REGENCY | DISTRICT | VILLAGE | RW | RT
+  // Dimensi demografi yang diukur (nullable = agregat semua)
+  ageGroup        String?  // 17-21 | 22-30 | 31-40 | 41-60 | 61+ | null(ALL)
+  communitySegment String? // INDIGENOUS | RELIGIOUS | PROFESSION | YOUTH | null(ALL)
+  // Skor indeks (0-100)
+  trustScore      Float    @default(50) // 0=sangat tidak percaya, 100=sangat percaya
+  sentimentPositive Float  @default(0) // jumlah mention positif
+  sentimentNegative Float @default(0) // jumlah mention negatif
+  sentimentNeutral  Float  @default(0) // jumlah mention netral
+  // Kalkulasi
+  totalMentions   Int      @default(0)
+  totalEngagement Int      @default(0)
+  sampleSize      Int      @default(0) // jumlah data yang dipakai untuk hitung
+  confidence      Float    @default(0) // confidence level 0-100 (semakin banyak sample, semakin tinggi)
+  // Trend
+  trendDirection  String   @default("STABLE") // UP | DOWN | STABLE
+  trendChange      Float   @default(0) // perubahan skor dari periode sebelumnya
+  // Metadata
+  calculatedAt    DateTime @default(now())
+  periodStart     DateTime
+  periodEnd       DateTime
+
+  @@unique([territoryCode, ageGroup, communitySegment])
+  @@index([territoryCode, level])
+  @@index([ageGroup, communitySegment])
+  @@index([trustScore])
+}
+
+// 3. OPINION_DEMOGRAPHIC - relasi opinion link dengan demografi (untuk filter & drill-down)
+// Setiap mention opini bisa dikaitkan dengan kelompok demografi tertentu
+model OpinionDemographic {
+  id              String   @id @default(cuid())
+  opinionLinkId   String
+  opinionLink     PublicOpinionLink @relation(fields: [opinionLinkId], references: [id], onDelete: Cascade)
+  // Demografi yang diidentifikasi dari konten
+  ageGroup        String?  // 17-21 | 22-30 | 31-40 | 41-60 | 61+
+  communitySegment String? // INDIGENOUS | RELIGIOUS | PROFESSION | YOUTH
+  profession      String? // PETANI | NELAYAN | BURUH | GURU | UMKM | MAHASISWA (jika segment=PROFESSION)
+  // Lokasi granular (jika terdeteksi dari konten)
+  districtCode    String?  // kode kecamatan
+  villageCode     String?  // kode kelurahan/desa
+  rwCode          String?  // kode RW
+  rtCode          String?  // kode RT
+  // Sumber identifikasi demografi
+  detectionMethod String   @default("AI") // AI | MANUAL | INFERRED
+  confidence      Float    @default(0)
+  createdAt       DateTime @default(now())
+
+  @@index([opinionLinkId])
+  @@index([ageGroup, communitySegment])
+  @@index([districtCode, villageCode])
+}
+
+// 4. TERRITORY_HIERARCHY_CACHE - cache hierarki 7-level untuk drill-down cepat
+// Hindari query rekursif Parent.children berlapis
+model TerritoryHierarchyCache {
+  id              String   @id @default(cuid())
+  territoryCode   String   @unique
+  level           String   // NATIONAL | PROVINCE | REGENCY | DISTRICT | VILLAGE | RW | RT
+  name            String
+  parentId        String?
+  // Path lengkap dari root ke node ini (JSON array of {code, name, level})
+  fullPath        String   // JSON
+  // Children direct (untuk drill-down)
+  childrenCount   Int      @default(0)
+  // Update tracking
+  lastSync        DateTime @default(now())
+
+  @@index([level])
+  @@index([parentId])
+}
+
+
+
+// ============================================================
+// MULTI-AGENT SYSTEM - AI Agent Ecosystem untuk sinkronisasi otonom
+// ============================================================
+
+// 1. AGENT_LOG - log setiap aksi AI Agent
+model AgentLog {
+  id              String   @id @default(cuid())
+  agentName       String   // ScraperAgent | SentimentAgent | LocationAgent | DemographicAgent | TrustIndexAgent | DecisionAgent | OrchestratorAgent
+  agentType       String   // SCRAPER | ANALYZER | SYNC | ORCHESTRATOR | SCHEDULER
+  action          String   // cth: scrape_opinion, analyze_sentiment, recompute_trust_index, sync_demographics
+  // Status & timing
+  status          String   @default("RUNNING") // RUNNING | SUCCESS | FAILED | TIMEOUT
+  startedAt       DateTime @default(now())
+  finishedAt      DateTime?
+  durationMs      Int?
+  // Result & metadata
+  input           String?  // JSON: input parameters
+  output          String?  // JSON: result summary
+  error           String?
+  // Token usage (untuk cost monitoring)
+  llmTokensUsed   Int      @default(0)
+  llmCalls        Int      @default(0)
+  // Relations
+  recordsAffected Int      @default(0)
+  parentJobId     String?  // BackgroundJob ID jika dipicu oleh job
+
+  @@index([agentName, status, startedAt])
+  @@index([parentJobId])
+  @@index([status, startedAt])
+}
+
+// 2. BACKGROUND_JOB - scheduled jobs untuk automated ingestion
+model BackgroundJob {
+  id              String   @id @default(cuid())
+  jobType         String   // AUTO_SCRAPE_OPINION | AUTO_RECOMPUTE_TRUST | AUTO_SYNC_DEMOGRAPHICS | DEEP_ANALYSIS
+  jobName         String   // human-readable
+  // Schedule
+  intervalMinutes Int      @default(60) // run every X minutes
+  nextRunAt       DateTime @default(now())
+  lastRunAt      DateTime?
+  lastStatus      String?  // SUCCESS | FAILED | RUNNING
+  lastDurationMs  Int?
+  lastError       String?
+  // Active control
+  isActive        Boolean  @default(true)
+  // Stats
+  totalRuns       Int      @default(0)
+  successCount    Int      @default(0)
+  failureCount    Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([isActive, nextRunAt])
+  @@index([jobType])
+}
+
+// 3. SYNC_EVENT - event untuk cross-menu real-time sync
+model SyncEvent {
+  id              String   @id @default(cuid())
+  eventType       String   // OPINION_LINK_CREATED | OPINION_LINK_UPDATED | TRUST_INDEX_RECOMPUTED | ESSAY_RESPONSE_SUBMITTED | DEMOGRAPHICS_UPDATED
+  sourceAgent     String   // agent yang trigger event
+  sourceMenu      String   // cth: opinion-scanner, audit-ai, essay-polls
+  targetMenu      String   // cth: geospatial-voice, decision-dashboard
+  // Payload
+  payload         String   // JSON: data yang sync
+  territoryCode   String?  // wilayah yang affected (jika spesifik)
+  // Processing status
+  status          String   @default("PENDING") // PENDING | PROCESSING | COMPLETED | FAILED
+  processedAt     DateTime?
+  processedBy     String?  // agent yang process
+  error           String?
+  createdAt       DateTime @default(now())
+
+  @@index([eventType, status, createdAt])
+  @@index([targetMenu, status])
+  @@index([territoryCode])
+}
+
+// 4. AI_ANALYSIS_CACHE - cache hasil analisis AI per item (untuk efisiensi)
+model AiAnalysisCache {
+  id              String   @id @default(cuid())
+  cacheKey        String   @unique // cth: "opinion:<opinionLinkId>" or "essay:<responseId>"
+  itemType        String   // OPINION_LINK | ESSAY_RESPONSE | SCAN_RESULT
+  itemId          String
+  // Cached analysis
+  sentiment       String?
+  priority        String?
+  urgencyScore    Float?
+  category        String?
+  keywords        String?  // JSON
+  summary         String?
+  // Reasoning trace (untuk deep reasoning transparency)
+  reasoningSteps  String?  // JSON: array of reasoning steps
+  aiProvider      String?  // llm | lexicon | hybrid
+  llmTokensUsed   Int      @default(0)
+  // Validity
+  isValid         Boolean  @default(true)
+  expiresAt       DateTime?
+  createdAt       DateTime @default(now())
+
+  @@unique([itemType, itemId])
+  @@index([cacheKey])
+  @@index([itemType, sentiment])
+}
+
+// ============================================================
+// BROADCAST MESSAGE QUEUE — Personalisasi per-recipient + anti-banned
+// ============================================================
+
+// BroadcastMessage - queue per-recipient dengan pesan yang sudah di-personalisasi
+// {nama}, {wilayah} sudah di-resolve jadi nilai asli per kontak
+model BroadcastMessage {
+  id              String   @id @default(cuid())
+  broadcastId     String
+  broadcast       Broadcast @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
+  contactId       String?
+  // Recipient info (snapshot saat queue dibuat)
+  recipientName   String
+  recipientPhone  String
+  recipientTerritory String? // cth: "DPC Pontianak" / "DPD Kalbar"
+  // Personalized message (variabel {nama} & {wilayah} sudah di-resolve)
+  personalizedContent String
+  // Queue status
+  status          String   @default("QUEUED") // QUEUED | SENDING | SENT | DELIVERED | READ | FAILED | BLOCKED
+  queueOrder     Int      @default(0) // urutan pengiriman (untuk rate limit anti-banned)
+  // Tracking
+  sentAt          DateTime?
+  deliveredAt     DateTime?
+  readAt          DateTime?
+  // Error handling
+  errorCode       String?
+  errorMessage    String?
+  retryCount      Int      @default(0)
+  maxRetries      Int      @default(3)
+  // API response
+  platformMessageId String?
+  // Anti-banned: random delay untuk setiap message
+  scheduledSendAt DateTime? // waktu kirim yang dijadwalkan (dengan delay random)
+  // Metadata
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([broadcastId, status])
+  @@index([status, scheduledSendAt])
+  @@index([contactId])
+}
+
+// BroadcastEngineConfig - konfigurasi broadcast engine (rate limit, anti-banned settings)
+model BroadcastEngineConfig {
+  id              String   @id @default(cuid())
+  // Rate limiting (anti-banned)
+  messagesPerMinute    Int @default(5)  // max 5 pesan per menit per nomor pengirim
+  messagesPerHour      Int @default(100) // max 100 pesan per jam
+  messagesPerDay       Int @default(500) // max 500 pesan per hari
+  // Random delay (ms) antar pesan
+  minDelayMs           Int @default(2000) // 2 detik min
+  maxDelayMs           Int @default(8000) // 8 detik max
+  // Batch size (berapa pesan per batch sebelum jeda panjang)
+  batchSize            Int @default(20)
+  batchPauseMs         Int @default(60000) // 1 menit jeda setiap 20 pesan
+  // Provider config
+  provider             String @default("WHATSAPP_BUSINESS_API") // WHATSAPP_BUSINESS_API | WAPBLOOM | WAAMI | FOSSWARES | GATEWAY_API
+  isActive             Boolean @default(true)
+  updatedAt            DateTime @updatedAt
+
+  @@unique([id])
+}

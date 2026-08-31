@@ -1,0 +1,502 @@
+  1001→      {polls.length === 0 ? (
+  1002→        <EmptyState icon={BarChart3} title="Belum ada polling" description="Buat polling pertama untuk mengukur sentimen publik terhadap kebijakan Presiden Prabowo." />
+  1003→      ) : (
+  1004→        <div className="space-y-3">
+  1005→          {polls.map(poll => (
+  1006→            <Card key={poll.id} className="hover:shadow-md transition-all">
+  1007→              <CardContent className="p-4">
+  1008→                <div className="flex items-start justify-between gap-3">
+  1009→                  <div className="flex-1 min-w-0">
+  1010→                    <div className="flex items-center gap-2 flex-wrap mb-1">
+  1011→                      <Badge variant="outline" className={`text-[10px] ${poll.status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : poll.status === 'CLOSED' ? 'bg-slate-50 text-slate-700 border-slate-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
+  1012→                        {poll.status === 'ACTIVE' ? 'AKTIF' : poll.status === 'CLOSED' ? 'DITUTUP' : poll.status === 'ARCHIVED' ? 'ARSIP' : 'DRAFT'}
+  1013→                      </Badge>
+  1014→                      <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700 border-blue-200">
+  1015→                        <MapPin className="w-2.5 h-2.5 mr-0.5" />{poll.territory?.name}
+  1016→                      </Badge>
+  1017→                      {poll.broadcastRecipientCount > 0 && (
+  1018→                        <Badge variant="outline" className="text-[10px] bg-purple-50 text-purple-700 border-purple-200">
+  1019→                          <Users className="w-2.5 h-2.5 mr-0.5" />{poll.broadcastRecipientCount} penerima
+  1020→                        </Badge>
+  1021→                      )}
+  1022→                      <Badge variant="outline" className="text-[10px] bg-orange-50 text-orange-700 border-orange-200">
+  1023→                        <Activity className="w-2.5 h-2.5 mr-0.5" />{poll._count?.responses || 0} respons
+  1024→                      </Badge>
+  1025→                    </div>
+  1026→                    <div className="font-bold text-sm">{poll.title}</div>
+  1027→                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{poll.question}</p>
+  1028→                    {poll.triggerEvent && (
+  1029→                      <div className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1">
+  1030→                        <Zap className="w-3 h-3 text-amber-500" /> Trigger: {poll.triggerEvent}
+  1031→                      </div>
+  1032→                    )}
+  1033→                    <div className="text-[10px] text-muted-foreground mt-1">
+  1034→                      Dibuat: {formatDateTimeID(poll.createdAt)} • Oleh: {poll.createdBy?.fullName}
+  1035→                    </div>
+  1036→                  </div>
+  1037→                  <div className="flex flex-col gap-1 shrink-0">
+  1038→                    <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setAnalyticsItem(poll)}>
+  1039→                      <BarChart3 className="w-3 h-3 mr-1" /> Analytics
+  1040→                    </Button>
+  1041→                    {poll.status === 'DRAFT' && (
+  1042→                      <Button size="sm" className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => handleActivate(poll)}>
+  1043→                        <Zap className="w-3 h-3 mr-1" /> Aktifkan
+  1044→                      </Button>
+  1045→                    )}
+  1046→                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-600 hover:bg-red-50" onClick={() => setDeleteItem(poll)}>
+  1047→                      <Trash2 className="w-3.5 h-3.5" />
+  1048→                    </Button>
+  1049→                  </div>
+  1050→                </div>
+  1051→              </CardContent>
+  1052→            </Card>
+  1053→          ))}
+  1054→        </div>
+  1055→      )}
+  1056→
+  1057→      <AddPollDialog open={addOpen} onOpenChange={setAddOpen} territories={territories} onSuccess={() => { loadData(); setAddOpen(false) }} />
+  1058→      <PollAnalyticsDialog poll={analyticsItem} onOpenChange={(o) => !o && setAnalyticsItem(null)} />
+  1059→
+  1060→      <AlertDialog open={!!deleteItem} onOpenChange={(o) => !o && setDeleteItem(null)}>
+  1061→        <AlertDialogContent>
+  1062→          <AlertDialogHeader>
+  1063→            <AlertDialogTitle>Hapus Polling?</AlertDialogTitle>
+  1064→            <AlertDialogDescription>
+  1065→              Yakin hapus <strong>{deleteItem?.title}</strong>?<br/>
+  1066→              Semua respons ({deleteItem?._count?.responses || 0}) akan ikut terhapus.
+  1067→            </AlertDialogDescription>
+  1068→          </AlertDialogHeader>
+  1069→          <AlertDialogFooter>
+  1070→            <AlertDialogCancel>Batal</AlertDialogCancel>
+  1071→            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">Hapus</AlertDialogAction>
+  1072→          </AlertDialogFooter>
+  1073→        </AlertDialogContent>
+  1074→      </AlertDialog>
+  1075→    </div>
+  1076→  )
+  1077→}
+  1078→
+  1079→function AddPollDialog({ open, onOpenChange, territories, onSuccess }: any) {
+  1080→  const addToast = useToastStore((s) => s.addToast)
+  1081→  const [form, setForm] = useState({
+  1082→    title: '', question: '', description: '',
+  1083→    triggerEvent: '', triggerUrl: '',
+  1084→    territoryId: '', scheduledAt: '', closesAt: '',
+  1085→    status: 'DRAFT',
+  1086→  })
+  1087→  const [options, setOptions] = useState([
+  1088→    { id: 'a', label: 'Sangat Puas', sentiment: 'POSITIVE' },
+  1089→    { id: 'b', label: 'Puas', sentiment: 'POSITIVE' },
+  1090→    { id: 'c', label: 'Netral', sentiment: 'NEUTRAL' },
+  1091→    { id: 'd', label: 'Tidak Puas', sentiment: 'NEGATIVE' },
+  1092→    { id: 'e', label: 'Sangat Tidak Puas', sentiment: 'NEGATIVE' },
+  1093→  ])
+  1094→  const [loading, setLoading] = useState(false)
+  1095→
+  1096→  const handleSubmit = async (e: React.FormEvent) => {
+  1097→    e.preventDefault()
+  1098→    if (!form.title || !form.question || !form.territoryId) {
+  1099→      addToast('Judul, pertanyaan, dan wilayah wajib diisi', 'error')
+  1100→      return
+  1101→    }
+  1102→    setLoading(true)
+  1103→    try {
+  1104→      // Auto close 24h after activate if not specified
+  1105→      const closesAt = form.closesAt || (form.status === 'ACTIVE' ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() : '')
+  1106→      await api('/api/polls', {
+  1107→        method: 'POST',
+  1108→        body: JSON.stringify({
+  1109→          ...form,
+  1110→          options,
+  1111→          scheduledAt: form.scheduledAt || undefined,
+  1112→          closesAt: closesAt || undefined,
+  1113→        }),
+  1114→      })
+  1115→      addToast('Polling berhasil dibuat', 'success')
+  1116→      setForm({
+  1117→        title: '', question: '', description: '',
+  1118→        triggerEvent: '', triggerUrl: '',
+  1119→        territoryId: '', scheduledAt: '', closesAt: '',
+  1120→        status: 'DRAFT',
+  1121→      })
+  1122→      onSuccess()
+  1123→    } catch (e: any) { addToast(e.message, 'error') }
+  1124→    finally { setLoading(false) }
+  1125→  }
+  1126→
+  1127→  const updateOption = (i: number, field: string, value: string) => {
+  1128→    const newOpts = [...options]
+  1129→    newOpts[i] = { ...newOpts[i], [field]: value }
+  1130→    setOptions(newOpts)
+  1131→  }
+  1132→
+  1133→  return (
+  1134→    <Dialog open={open} onOpenChange={onOpenChange}>
+  1135→      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+  1136→        <DialogHeader>
+  1137→          <DialogTitle className="flex items-center gap-2">
+  1138→            <BarChart3 className="w-5 h-5 text-orange-600" /> Buat Polling Sentimen Presiden
+  1139→          </DialogTitle>
+  1140→          <DialogDescription>Polling akan dikirim ke VoterContact untuk mengukur sentimen publik</DialogDescription>
+  1141→        </DialogHeader>
+  1142→        <form onSubmit={handleSubmit} className="space-y-3">
+  1143→          <div className="space-y-2">
+  1144→            <Label>Judul Polling *</Label>
+  1145→            <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="cth: Survei Kepuasan Program MBG Bulan Agustus" required />
+  1146→          </div>
+  1147→          <div className="space-y-2">
+  1148→            <Label>Pertanyaan *</Label>
+  1149→            <Textarea value={form.question} onChange={(e) => setForm({ ...form, question: e.target.value })} rows={2} placeholder="cth: Bagaimana penilaian Anda terhadap program MBG?" required />
+  1150→          </div>
+  1151→          <div className="grid grid-cols-2 gap-3">
+  1152→            <div className="space-y-2">
+  1153→              <Label>Trigger Event (opsional)</Label>
+  1154→              <Input value={form.triggerEvent} onChange={(e) => setForm({ ...form, triggerEvent: e.target.value })} placeholder="cth: Pidato Kenegaraan 16 Agustus" />
+  1155→            </div>
+  1156→            <div className="space-y-2">
+  1157→              <Label>URL Trigger (opsional)</Label>
+  1158→              <Input value={form.triggerUrl} onChange={(e) => setForm({ ...form, triggerUrl: e.target.value })} placeholder="https://link.berita/pidato" />
+  1159→            </div>
+  1160→          </div>
+  1161→
+  1162→          {/* Options editor */}
+  1163→          <div className="space-y-2">
+  1164→            <Label>Pilihan Jawaban</Label>
+  1165→            <div className="space-y-2 rounded-lg border p-3 bg-slate-50">
+  1166→              {options.map((opt, i) => (
+  1167→                <div key={i} className="flex gap-2 items-center">
+  1168→                  <Input value={opt.id} onChange={(e) => updateOption(i, 'id', e.target.value)} className="w-16 font-mono" placeholder="a" />
+  1169→                  <Input value={opt.label} onChange={(e) => updateOption(i, 'label', e.target.value)} className="flex-1" placeholder="Label pilihan" />
+  1170→                  <Select value={opt.sentiment} onValueChange={(v) => updateOption(i, 'sentiment', v)}>
+  1171→                    <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+  1172→                    <SelectContent>
+  1173→                      <SelectItem value="POSITIVE">Positif</SelectItem>
+  1174→                      <SelectItem value="NEUTRAL">Netral</SelectItem>
+  1175→                      <SelectItem value="NEGATIVE">Negatif</SelectItem>
+  1176→                    </SelectContent>
+  1177→                  </Select>
+  1178→                </div>
+  1179→              ))}
+  1180→            </div>
+  1181→          </div>
+  1182→
+  1183→          <div className="grid grid-cols-2 gap-3">
+  1184→            <div className="space-y-2">
+  1185→              <Label>Wilayah Target *</Label>
+  1186→              <Select value={form.territoryId} onValueChange={(v) => setForm({ ...form, territoryId: v })}>
+  1187→                <SelectTrigger><SelectValue placeholder="Pilih wilayah..." /></SelectTrigger>
+  1188→                <SelectContent className="max-h-60">
+  1189→                  {territories.map((t) => <SelectItem key={t.id} value={t.id}>{t.name} ({t.code})</SelectItem>)}
+  1190→                </SelectContent>
+  1191→              </Select>
+  1192→            </div>
+  1193→            <div className="space-y-2">
+  1194→              <Label>Status</Label>
+  1195→              <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
+  1196→                <SelectTrigger><SelectValue /></SelectTrigger>
+  1197→                <SelectContent>
+  1198→                  <SelectItem value="DRAFT">Draft (simpan dulu)</SelectItem>
+  1199→                  <SelectItem value="ACTIVE">Aktif Langsung (broadcast sekarang)</SelectItem>
+  1200→                </SelectContent>
+  1201→              </Select>
+  1202→            </div>
+  1203→          </div>
+  1204→
+  1205→          <div className="grid grid-cols-2 gap-3">
+  1206→            <div className="space-y-2">
+  1207→              <Label>Jadwal Broadcast (opsional)</Label>
+  1208→              <Input type="datetime-local" value={form.scheduledAt} onChange={(e) => setForm({ ...form, scheduledAt: e.target.value })} />
+  1209→            </div>
+  1210→            <div className="space-y-2">
+  1211→              <Label>Tutup Polling Pada (opsional)</Label>
+  1212→              <Input type="datetime-local" value={form.closesAt} onChange={(e) => setForm({ ...form, closesAt: e.target.value })} />
+  1213→              <p className="text-[10px] text-muted-foreground">Default: 24 jam setelah aktif</p>
+  1214→            </div>
+  1215→          </div>
+  1216→
+  1217→          <DialogFooter>
+  1218→            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Batal</Button>
+  1219→            <Button type="submit" disabled={loading} className="bg-gradient-to-r from-orange-600 to-red-600 text-white">
+  1220→              {loading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Plus className="w-4 h-4 mr-1" />}
+  1221→              {loading ? 'Menyimpan...' : 'Buat Polling'}
+  1222→            </Button>
+  1223→          </DialogFooter>
+  1224→        </form>
+  1225→      </DialogContent>
+  1226→    </Dialog>
+  1227→  )
+  1228→}
+  1229→
+  1230→function PollAnalyticsDialog({ poll, onOpenChange }: any) {
+  1231→  const addToast = useToastStore((s) => s.addToast)
+  1232→  const [analytics, setAnalytics] = useState<any>(null)
+  1233→  const [loading, setLoading] = useState(true)
+  1234→
+  1235→  useEffect(() => {
+  1236→    if (poll) {
+  1237→      setLoading(true)
+  1238→      api(`/api/polls/${poll.id}/analytics`)
+  1239→        .then(setAnalytics)
+  1240→        .catch(e => addToast(e.message, 'error'))
+  1241→        .finally(() => setLoading(false))
+  1242→    }
+  1243→  }, [poll])
+  1244→
+  1245→  if (!poll) return null
+  1246→
+  1247→  const sentimentData = analytics?.sentimentSummary || { positive: { count: 0, percentage: '0' }, neutral: { count: 0, percentage: '0' }, negative: { count: 0, percentage: '0' } }
+  1248→
+  1249→  return (
+  1250→    <Dialog open={!!poll} onOpenChange={onOpenChange}>
+  1251→      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+  1252→        <DialogHeader>
+  1253→          <DialogTitle className="flex items-center gap-2">
+  1254→            <BarChart3 className="w-5 h-5 text-orange-600" /> Real-time Analytics
+  1255→          </DialogTitle>
+  1256→          <DialogDescription>{poll.title}</DialogDescription>
+  1257→        </DialogHeader>
+  1258→
+  1259→        {loading ? (
+  1260→          <div className="py-12 text-center"><Loader2 className="w-8 h-8 mx-auto animate-spin text-orange-600" /></div>
+  1261→        ) : analytics ? (
+  1262→          <div className="space-y-4">
+  1263→            {/* Total & Response Rate */}
+  1264→            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+  1265→              <Card><CardContent className="p-3 text-center"><div className="text-xs text-muted-foreground">Total Respons</div><div className="text-2xl font-bold">{analytics.total}</div></CardContent></Card>
+  1266→              <Card><CardContent className="p-3 text-center"><div className="text-xs text-muted-foreground">Response Rate</div><div className="text-2xl font-bold text-blue-600">{analytics.responseRate}</div></CardContent></Card>
+  1267→              <Card><CardContent className="p-3 text-center"><div className="text-xs text-muted-foreground">Positif</div><div className="text-2xl font-bold text-emerald-600">{sentimentData.positive.count}</div><div className="text-xs">{sentimentData.positive.percentage}%</div></CardContent></Card>
+  1268→              <Card><CardContent className="p-3 text-center"><div className="text-xs text-muted-foreground">Negatif</div><div className="text-2xl font-bold text-red-600">{sentimentData.negative.count}</div><div className="text-xs">{sentimentData.negative.percentage}%</div></CardContent></Card>
+  1269→            </div>
+  1270→
+  1271→            {/* Alerts */}
+  1272→            {analytics.alerts.length > 0 && (
+  1273→              <div className="rounded-lg bg-red-50 border border-red-200 p-3 space-y-2">
+  1274→                <div className="text-sm font-bold text-red-700 flex items-center gap-2">
+  1275→                  <AlertTriangle className="w-4 h-4" /> ALERT: Sentimen Negatif Tinggi Terdeteksi
+  1276→                </div>
+  1277→                {analytics.alerts.map((alert: any, i: number) => (
+  1278→                  <div key={i} className="text-xs text-red-700 bg-white p-2 rounded border border-red-200">
+  1279→                    <strong>{alert.type}</strong>: Wilayah {alert.regencyCode} - {alert.negativePercentage} negatif ({alert.negativeCount} dari {alert.totalCount} respons)
+  1280→                    <div className="mt-1 text-[10px]">{alert.message}</div>
+  1281→                  </div>
+  1282→                ))}
+  1283→                <div className="text-[10px] text-red-600 mt-1">
+  1284→                  💡 Rekomendasi: Buat Crisis Zone di wilayah ini dan kirim klarifikasi terfokus (geo-fenced broadcast).
+  1285→                </div>
+  1286→              </div>
+  1287→            )}
+  1288→
+  1289→            {/* Options breakdown */}
+  1290→            <div>
+  1291→              <h4 className="text-sm font-semibold mb-2">Hasil Per Pilihan</h4>
+  1292→              <div className="space-y-2">
+  1293→                {analytics.options.map((opt: any, i: number) => (
+  1294→                  <div key={i} className="flex items-center gap-3">
+  1295→                    <div className="w-32 text-xs font-medium">{opt.label}</div>
+  1296→                    <div className="flex-1 bg-slate-100 rounded-full h-6 relative overflow-hidden">
+  1297→                      <div
+  1298→                        className={`h-full ${opt.sentiment === 'POSITIVE' ? 'bg-emerald-500' : opt.sentiment === 'NEGATIVE' ? 'bg-red-500' : 'bg-slate-400'}`}
+  1299→                        style={{ width: `${opt.percentage}%` }}
+  1300→                      />
+  1301→                      <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white">
+  1302→                        {opt.count} ({opt.percentage}%)
+  1303→                      </div>
+  1304→                    </div>
+  1305→                  </div>
+  1306→                ))}
+  1307→              </div>
+  1308→            </div>
+  1309→
+  1310→            {/* Demographic breakdown */}
+  1311→            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+  1312→              <Card>
+  1313→                <CardHeader><CardTitle className="text-xs">Berdasarkan Kelompok Usia</CardTitle></CardHeader>
+  1314→                <CardContent className="pt-0">
+  1315→                  {Object.entries(analytics.demographics.byAgeGroup).length === 0 ? (
+  1316→                    <div className="text-xs text-muted-foreground">Belum ada data</div>
+  1317→                  ) : Object.entries(analytics.demographics.byAgeGroup).map(([k, v]: any) => (
+  1318→                    <div key={k} className="flex justify-between text-xs"><span>{k}</span><span className="font-bold">{v}</span></div>
+  1319→                  ))}
+  1320→                </CardContent>
+  1321→              </Card>
+  1322→              <Card>
+  1323→                <CardHeader><CardTitle className="text-xs">Berdasarkan Jenis Kelamin</CardTitle></CardHeader>
+  1324→                <CardContent className="pt-0">
+  1325→                  <div className="flex justify-between text-xs"><span>Laki-laki</span><span className="font-bold">{analytics.demographics.byGender.L || 0}</span></div>
+  1326→                  <div className="flex justify-between text-xs"><span>Perempuan</span><span className="font-bold">{analytics.demographics.byGender.P || 0}</span></div>
+  1327→                </CardContent>
+  1328→              </Card>
+  1329→              <Card>
+  1330→                <CardHeader><CardTitle className="text-xs">Berdasarkan Pekerjaan</CardTitle></CardHeader>
+  1331→                <CardContent className="pt-0">
+  1332→                  {Object.entries(analytics.demographics.byOccupation).length === 0 ? (
+  1333→                    <div className="text-xs text-muted-foreground">Belum ada data</div>
+  1334→                  ) : Object.entries(analytics.demographics.byOccupation).map(([k, v]: any) => (
+  1335→                    <div key={k} className="flex justify-between text-xs"><span>{k}</span><span className="font-bold">{v}</span></div>
+  1336→                  ))}
+  1337→                </CardContent>
+  1338→              </Card>
+  1339→            </div>
+  1340→
+  1341→            {/* Time series */}
+  1342→            <Card>
+  1343→              <CardHeader><CardTitle className="text-xs">Respons 24 Jam Terakhir</CardTitle></CardHeader>
+  1344→              <CardContent className="pt-0">
+  1345→                <div className="flex items-end gap-1 h-20">
+  1346→                  {analytics.timeSeries.map((ts: any, i: number) => (
+  1347→                    <div key={i} className="flex-1 bg-orange-500 hover:bg-orange-600 transition-colors rounded-t" style={{ height: `${(ts.count / Math.max(...analytics.timeSeries.map((t: any) => t.count), 1)) * 100}%` }} title={`${ts.hour}: ${ts.count} respons`} />
+  1348→                  ))}
+  1349→                </div>
+  1350→                <div className="text-[10px] text-muted-foreground mt-1 text-center">24 jam terakhir (per jam)</div>
+  1351→              </CardContent>
+  1352→            </Card>
+  1353→          </div>
+  1354→        ) : null}
+  1355→
+  1356→        <DialogFooter>
+  1357→          <Button variant="outline" onClick={() => onOpenChange(false)}>Tutup</Button>
+  1358→        </DialogFooter>
+  1359→      </DialogContent>
+  1360→    </Dialog>
+  1361→  )
+  1362→}
+  1363→
+  1364→// ============================================================
+  1365→// TAB 4: CRISIS CENTER - Geo-Fencing Klarifikasi Isu Negatif
+  1366→// ============================================================
+  1367→function CrisisCenterTab() {
+  1368→  const addToast = useToastStore((s) => s.addToast)
+  1369→  const [zones, setZones] = useState<any[]>([])
+  1370→  const [territories, setTerritories] = useState<Territory[]>([])
+  1371→  const [loading, setLoading] = useState(true)
+  1372→  const [addOpen, setAddOpen] = useState(false)
+  1373→  const [editItem, setEditItem] = useState<any>(null)
+  1374→  const [broadcastItem, setBroadcastItem] = useState<any>(null)
+  1375→  const [deleteItem, setDeleteItem] = useState<any>(null)
+  1376→
+  1377→  const loadData = () => {
+  1378→    setLoading(true)
+  1379→    Promise.all([api('/api/crisis-zones'), api('/api/territory')])
+  1380→      .then(([z, t]) => { setZones(z); setTerritories(t) })
+  1381→      .catch(e => addToast(e.message, 'error'))
+  1382→      .finally(() => setLoading(false))
+  1383→  }
+  1384→  useEffect(() => { loadData() }, [])
+  1385→
+  1386→  if (loading) return <LoadingState />
+  1387→
+  1388→  const activeCount = zones.filter(z => z.status === 'ACTIVE').length
+  1389→  const mitigatedCount = zones.filter(z => z.status === 'MITIGATED').length
+  1390→  const resolvedCount = zones.filter(z => z.status === 'RESOLVED').length
+  1391→  const criticalCount = zones.filter(z => z.severity === 'CRITICAL' && z.status === 'ACTIVE').length
+  1392→
+  1393→  const handleDelete = async () => {
+  1394→    if (!deleteItem) return
+  1395→    try {
+  1396→      await api(`/api/crisis-zones/${deleteItem.id}`, { method: 'DELETE' })
+  1397→      addToast('Crisis Zone dihapus', 'success')
+  1398→      setDeleteItem(null); loadData()
+  1399→    } catch (e: any) { addToast(e.message, 'error') }
+  1400→  }
+  1401→
+  1402→  const handleResolve = async (zone: any) => {
+  1403→    try {
+  1404→      await api(`/api/crisis-zones/${zone.id}`, {
+  1405→        method: 'PUT',
+  1406→        body: JSON.stringify({ status: 'RESOLVED', resolutionNotes: 'Isu berhasil dimitigasi' }),
+  1407→      })
+  1408→      addToast(`Crisis Zone "${zone.title}" DITUTUP. Wilayah di-unlock.`, 'success')
+  1409→      loadData()
+  1410→    } catch (e: any) { addToast(e.message, 'error') }
+  1411→  }
+  1412→
+  1413→  const severityConfig: Record<string, { label: string; color: string }> = {
+  1414→    LOW: { label: 'Rendah', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+  1415→    MEDIUM: { label: 'Sedang', color: 'bg-amber-50 text-amber-700 border-amber-200' },
+  1416→    HIGH: { label: 'Tinggi', color: 'bg-orange-50 text-orange-700 border-orange-200' },
+  1417→    CRITICAL: { label: 'Kritis', color: 'bg-red-50 text-red-700 border-red-200' },
+  1418→  }
+  1419→  const statusConfig: Record<string, { label: string; color: string }> = {
+  1420→    ACTIVE: { label: 'AKTIF - Di-lock', color: 'bg-red-50 text-red-700 border-red-200' },
+  1421→    MITIGATED: { label: 'Dimitigasi', color: 'bg-amber-50 text-amber-700 border-amber-200' },
+  1422→    RESOLVED: { label: 'Selesai', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  1423→    ESCALATED: { label: 'Eskalasi', color: 'bg-purple-50 text-purple-700 border-purple-200' },
+  1424→  }
+  1425→
+  1426→  return (
+  1427→    <div className="space-y-4">
+  1428→      {/* Stats */}
+  1429→      <div className="grid gap-4 md:grid-cols-4">
+  1430→        <StatCard label="Zona Aktif" value={activeCount} icon={AlertTriangle} color="red" />
+  1431→        <StatCard label="Dimitigasi" value={mitigatedCount} icon={Clock} color="amber" />
+  1432→        <StatCard label="Selesai" value={resolvedCount} icon={CheckCircle2} color="emerald" />
+  1433→        <StatCard label="Kritis" value={criticalCount} icon={XCircle} color="purple" />
+  1434→      </div>
+  1435→
+  1436→      {/* Header */}
+  1437→      <div className="flex justify-between items-center">
+  1438→        <div>
+  1439→          <h3 className="font-semibold text-base flex items-center gap-2">
+  1440→            <Shield className="w-5 h-5 text-red-600" /> Crisis Center & Geo-Fencing
+  1441→          </h3>
+  1442→          <p className="text-sm text-muted-foreground">Isolasi hoaks & sentimen negatif di wilayah tertentu - klarifikasi terfokus</p>
+  1443→        </div>
+  1444→        <Button onClick={() => setAddOpen(true)} className="bg-gradient-to-r from-red-600 to-rose-600 text-white">
+  1445→          <Plus className="w-4 h-4 mr-2" /> Buat Crisis Zone
+  1446→        </Button>
+  1447→      </div>
+  1448→
+  1449→      {/* Info banner */}
+  1450→      <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-xs text-red-800">
+  1451→        <Shield className="w-4 h-4 inline mr-1" />
+  1452→        <strong>Mekanisme Geo-Fencing:</strong> Saat Crisis Zone dibuat di wilayah DPC tertentu, sistem otomatis mengunci broadcast klarifikasi HANYA ke nomor WA warga & relawan di kab/kota tersebut. Wilayah lain TIDAK menerima pesan - mencegah penyebaran isu ke wilayah yang awalnya tidak tahu.
+  1453→      </div>
+  1454→
+  1455→      {/* Zones list */}
+  1456→      {zones.length === 0 ? (
+  1457→        <EmptyState icon={Shield} title="Belum ada Crisis Zone" description="Buat Crisis Zone untuk mengisolasi isu negatif di wilayah tertentu." />
+  1458→      ) : (
+  1459→        <div className="space-y-3">
+  1460→          {zones.map(zone => {
+  1461→            const sc = severityConfig[zone.severity] || severityConfig.MEDIUM
+  1462→            const stc = statusConfig[zone.status] || statusConfig.ACTIVE
+  1463→            return (
+  1464→              <Card key={zone.id} className={`hover:shadow-md transition-all ${zone.status === 'ACTIVE' ? 'border-l-4 border-l-red-500' : ''}`}>
+  1465→                <CardContent className="p-4">
+  1466→                  <div className="flex items-start justify-between gap-3">
+  1467→                    <div className="flex-1 min-w-0">
+  1468→                      <div className="flex items-center gap-2 flex-wrap mb-1">
+  1469→                        <Badge variant="outline" className={`text-[10px] ${stc.color}`}>{stc.label}</Badge>
+  1470→                        <Badge variant="outline" className={`text-[10px] ${sc.color}`}>Severity: {sc.label}</Badge>
+  1471→                        <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700 border-blue-200">
+  1472→                          <MapPin className="w-2.5 h-2.5 mr-0.5" />{zone.territory?.name}
+  1473→                        </Badge>
+  1474→                        {zone.isLocked && zone.status === 'ACTIVE' && (
+  1475→                          <Badge variant="outline" className="text-[10px] bg-red-50 text-red-700 border-red-200">
+  1476→                            <Shield className="w-2.5 h-2.5 mr-0.5" />GEO-LOCKED
+  1477→                          </Badge>
+  1478→                        )}
+  1479→                      </div>
+  1480→                      <div className="font-bold text-sm">{zone.title}</div>
+  1481→                      <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{zone.description}</p>
+  1482→                      {zone.issueSource && (
+  1483→                        <a href={zone.issueSource} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 mt-1 text-[10px] text-blue-600 hover:underline">
+  1484→                          <ExternalLink className="w-2.5 h-2.5" />Sumber Isu
+  1485→                        </a>
+  1486→                      )}
+  1487→                      <div className="text-[10px] text-muted-foreground mt-1">
+  1488→                        Dibuat: {formatDateTimeID(zone.createdAt)}
+  1489→                        {zone.broadcastSentAt && ` • Broadcast: ${formatDateTimeID(zone.broadcastSentAt)} (${zone.broadcastRecipientCount} penerima)`}
+  1490→                      </div>
+  1491→                    </div>
+  1492→                    <div className="flex flex-col gap-1 shrink-0">
+  1493→                      {(zone.status === 'ACTIVE' || zone.status === 'MITIGATED') && (
+  1494→                        <Button size="sm" className="h-7 text-xs bg-gradient-to-r from-orange-600 to-red-600 text-white" onClick={() => setBroadcastItem(zone)}>
+  1495→                          <Send className="w-3 h-3 mr-1" /> Broadcast Klarifikasi
+  1496→                        </Button>
+  1497→                      )}
+  1498→                      {zone.status !== 'RESOLVED' && (
+  1499→                        <Button variant="outline" size="sm" className="h-7 text-xs text-emerald-700 border-emerald-300 hover:bg-emerald-50" onClick={() => handleResolve(zone)}>
+  1500→                          <CheckCircle2 className="w-3 h-3 mr-1" /> Tutup Crisis
+
+[showing lines 1001-1500 of 2595; use offset=1501 with limit to continue reading]

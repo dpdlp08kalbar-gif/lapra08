@@ -1,0 +1,2002 @@
+     1→'use client'
+     2→
+     3→import { useState, useEffect } from 'react'
+     4→import { api } from '@/lib/api-client'
+     5→import { PageHeader, LoadingState, ErrorState, EmptyState, StatCard } from '@/components/ui-helpers'
+     6→import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+     7→import { Badge } from '@/components/ui/badge'
+     8→import { Button } from '@/components/ui/button'
+     9→import { Input } from '@/components/ui/input'
+    10→import { Label } from '@/components/ui/label'
+    11→import { Textarea } from '@/components/ui/textarea'
+    12→import {
+    13→  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+    14→} from '@/components/ui/dialog'
+    15→import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+    16→import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+    17→import {
+    18→  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+    19→} from '@/components/ui/table'
+    20→import {
+    21→  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+    22→  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+    23→} from '@/components/ui/alert-dialog'
+    24→import { useToastStore, useAuthStore } from '@/lib/store'
+    25→import { formatDateTimeID, formatDateID } from '@/lib/format'
+    26→import {
+    27→  Megaphone, Plus, MessageSquare, Bell, Pin, Send, Users, Globe,
+    28→  BarChart3, AlertTriangle, Heart, TrendingUp, TrendingDown, Activity,
+    29→  MapPin, Shield, Lightbulb, Loader2, Search, Edit, Trash2, Eye,
+    30→  CheckCircle2, XCircle, Clock, Target, Zap, FileText, Video, ExternalLink,
+    31→} from 'lucide-react'
+    32→
+    33→interface Broadcast {
+    34→  id: string
+    35→  title: string
+    36→  message: string
+    37→  channel: string
+    38→  status: string
+    39→  targetScope: string
+    40→  recipientCount: number
+    41→  sentAt: string | null
+    42→  scheduledAt: string | null
+    43→  sentBy: {
+    44→    id: string
+    45→    fullName: string
+    46→    territory: { name: string }
+    47→  }
+    48→  createdAt: string
+    49→}
+    50→
+    51→interface Announcement {
+    52→  id: string
+    53→  title: string
+    54→  content: string
+    55→  type: string
+    56→  isPinned: boolean
+    57→  isActive: boolean
+    58→  territoryId: string
+    59→  territory: { id: string; name: string; code: string }
+    60→  createdBy: { id: string; fullName: string }
+    61→  createdAt: string
+    62→}
+    63→
+    64→interface Territory {
+    65→  id: string
+    66→  code: string
+    67→  name: string
+    68→  level: string
+    69→  category: string
+    70→  parentId: string | null
+    71→  isActive: boolean
+    72→}
+    73→
+    74→export function CommunicationMenu() {
+    75→  const [tab, setTab] = useState('overview')
+    76→
+    77→  return (
+    78→    <div className="space-y-6">
+    79→      <PageHeader
+    80→        title="Komunikasi & Broadcast"
+    81→        description="Command Center Pemenangan & Reputasi Presiden Prabowo - Overview, Broadcast, Sentimen Publik, Crisis Management, Aspirasi Rakyat"
+    82→        icon={Megaphone}
+    83→      />
+    84→      <Tabs value={tab} onValueChange={setTab}>
+    85→        <TabsList className="flex flex-wrap h-auto">
+    86→          <TabsTrigger value="overview">
+    87→            <Activity className="w-4 h-4 mr-2" /> Command Center
+    88→          </TabsTrigger>
+    89→          <TabsTrigger value="broadcast">
+    90→            <Send className="w-4 h-4 mr-2" /> Multi-Channel Broadcast
+    91→          </TabsTrigger>
+    92→          <TabsTrigger value="announcement">
+    93→            <Bell className="w-4 h-4 mr-2" /> Pengumuman Internal
+    94→          </TabsTrigger>
+    95→          <TabsTrigger value="sentiment">
+    96→            <BarChart3 className="w-4 h-4 mr-2" /> Sentimen Presiden
+    97→          </TabsTrigger>
+    98→          <TabsTrigger value="crisis">
+    99→            <Shield className="w-4 h-4 mr-2" /> Crisis Center
+   100→          </TabsTrigger>
+   101→          <TabsTrigger value="aspirasi">
+   102→            <Heart className="w-4 h-4 mr-2" /> Aspirasi Rakyat
+   103→          </TabsTrigger>
+   104→        </TabsList>
+   105→        <TabsContent value="overview" className="mt-4"><CommandCenterOverviewTab onNavigate={setTab} /></TabsContent>
+   106→        <TabsContent value="broadcast" className="mt-4"><BroadcastTab /></TabsContent>
+   107→        <TabsContent value="announcement" className="mt-4"><AnnouncementTab /></TabsContent>
+   108→        <TabsContent value="sentiment" className="mt-4"><SentimentDashboardTab /></TabsContent>
+   109→        <TabsContent value="crisis" className="mt-4"><CrisisCenterTab /></TabsContent>
+   110→        <TabsContent value="aspirasi" className="mt-4"><AspirasiRakyatTab /></TabsContent>
+   111→      </Tabs>
+   112→    </div>
+   113→  )
+   114→}
+   115→
+   116→function BroadcastTab() {
+   117→  const addToast = useToastStore((s) => s.addToast)
+   118→  const [broadcasts, setBroadcasts] = useState<any[]>([])
+   119→  const [territories, setTerritories] = useState<Territory[]>([])
+   120→  const [loading, setLoading] = useState(true)
+   121→  const [error, setError] = useState('')
+   122→  const [addOpen, setAddOpen] = useState(false)
+   123→  const [statsOpen, setStatsOpen] = useState<any>(null)
+   124→
+   125→  const loadData = () => {
+   126→    setLoading(true)
+   127→    Promise.all([api('/api/broadcasts'), api('/api/territory')])
+   128→      .then(([b, t]) => { setBroadcasts(b); setTerritories(t) })
+   129→      .catch((e) => setError(e.message))
+   130→      .finally(() => setLoading(false))
+   131→  }
+   132→
+   133→  useEffect(() => { loadData() }, [])
+   134→
+   135→  if (loading) return <LoadingState />
+   136→  if (error) return <ErrorState message={error} />
+   137→
+   138→  const totalSent = broadcasts.filter((b) => b.status === 'SENT').length
+   139→  const totalRecipients = broadcasts.reduce((sum, b) => sum + b.recipientCount, 0)
+   140→
+   141→  // Per-channel aggregate stats
+   142→  const channelStats: Record<string, { count: number; reach: number }> = {
+   143→    WHATSAPP: { count: 0, reach: 0 },
+   144→    FACEBOOK: { count: 0, reach: 0 },
+   145→    INSTAGRAM: { count: 0, reach: 0 },
+   146→  }
+   147→  for (const b of broadcasts) {
+   148→    const channels = b.channelsParsed || [b.channel]
+   149→    const stats = b.channelStatsParsed || {}
+   150→    for (const ch of channels) {
+   151→      if (channelStats[ch]) {
+   152→        channelStats[ch].count++
+   153→        if (ch === 'WHATSAPP') channelStats[ch].reach += b.recipientCount
+   154→        else if (stats[ch]?.reach) channelStats[ch].reach += stats[ch].reach
+   155→      }
+   156→    }
+   157→  }
+   158→
+   159→  const channelBadge: Record<string, { label: string; color: string; icon: any }> = {
+   160→    WHATSAPP: { label: 'WA', color: 'bg-emerald-50 text-emerald-700 border-emerald-200', icon: MessageSquare },
+   161→    FACEBOOK: { label: 'FB', color: 'bg-blue-50 text-blue-700 border-blue-200', icon: Globe },
+   162→    INSTAGRAM: { label: 'IG', color: 'bg-purple-50 text-purple-700 border-purple-200', icon: Heart },
+   163→  }
+   164→
+   165→  return (
+   166→    <div className="space-y-4">
+   167→      {/* Multi-channel stats */}
+   168→      <div className="grid gap-4 md:grid-cols-4">
+   169→        <StatCard label="Total Broadcast" value={broadcasts.length} icon={Send} color="orange" />
+   170→        <StatCard label="Terkirim" value={totalSent} icon={CheckCircle2} color="emerald" />
+   171→        <StatCard label="Total Reach" value={(totalRecipients + channelStats.FACEBOOK.reach + channelStats.INSTAGRAM.reach).toLocaleString('id-ID')} icon={Users} color="blue" />
+   172→        <StatCard label="Multi-Channel" value={Object.values(channelStats).filter(s => s.count > 0).length} icon={Globe} color="purple" subtitle="platform aktif" />
+   173→      </div>
+   174→
+   175→      {/* Per-channel breakdown */}
+   176→      <div className="grid gap-3 md:grid-cols-3">
+   177→        {Object.entries(channelStats).map(([ch, stats]) => {
+   178→          const cb = channelBadge[ch]
+   179→          const Icon = cb.icon
+   180→          return (
+   181→            <Card key={ch} className="border-l-4" style={{ borderLeftColor: ch === 'WHATSAPP' ? '#10b981' : ch === 'FACEBOOK' ? '#3b82f6' : '#a855f7' }}>
+   182→              <CardContent className="p-3 flex items-center gap-3">
+   183→                <div className={`w-10 h-10 rounded-lg flex items-center justify-center bg-gradient-to-br ${ch === 'WHATSAPP' ? 'from-emerald-500 to-teal-600' : ch === 'FACEBOOK' ? 'from-blue-500 to-indigo-600' : 'from-purple-500 to-pink-600'}`}>
+   184→                  <Icon className="w-5 h-5 text-white" />
+   185→                </div>
+   186→                <div className="flex-1 min-w-0">
+   187→                  <div className="text-xs font-medium text-muted-foreground">{cb.label === 'WA' ? 'WhatsApp' : cb.label === 'FB' ? 'Facebook' : 'Instagram'}</div>
+   188→                  <div className="text-lg font-bold">{stats.count} broadcast</div>
+   189→                  <div className="text-[10px] text-muted-foreground">{stats.reach.toLocaleString('id-ID')} reach</div>
+   190→                </div>
+   191→              </CardContent>
+   192→            </Card>
+   193→          )
+   194→        })}
+   195→      </div>
+   196→
+   197→      <div className="flex justify-between items-center flex-wrap gap-2">
+   198→        <div>
+   199→          <h3 className="font-semibold text-base flex items-center gap-2">
+   200→            <Send className="w-5 h-5 text-orange-600" /> Multi-Channel Broadcast
+   201→          </h3>
+   202→          <p className="text-sm text-muted-foreground">Kirim pesan ke WhatsApp, Facebook, dan Instagram dalam satu kali kirim</p>
+   203→        </div>
+   204→        <Button onClick={() => setAddOpen(true)} className="bg-gradient-to-r from-orange-600 to-red-600 text-white">
+   205→          <Plus className="w-4 h-4 mr-2" /> Buat Broadcast
+   206→        </Button>
+   207→      </div>
+   208→
+   209→      {/* Info banner */}
+   210→      <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs text-blue-800 flex items-start gap-2">
+   211→        <Globe className="w-4 h-4 mt-0.5 shrink-0" />
+   212→        <div>
+   213→          <strong>Multi-Channel Strategy:</strong> Tulis sekali, kirim ke semua platform. Sistem otomatis menyesuaikan format per platform:
+   214→          WhatsApp (text + image), Facebook (text + media + link preview), Instagram (image/video required + caption + hashtags).
+   215→          Semua broadcast terintegrasi dengan Command Center - bisa trigger polling, crisis response, atau aspirasi.
+   216→        </div>
+   217→      </div>
+   218→
+   219→      {broadcasts.length === 0 ? (
+   220→        <EmptyState icon={Send} title="Belum ada broadcast" description="Kirim pesan massal multi-channel ke ribuan anggota." />
+   221→      ) : (
+   222→        <Card>
+   223→          <CardContent className="p-0">
+   224→            <Table>
+   225→              <TableHeader>
+   226→                <TableRow>
+   227→                  <TableHead>Judul & Pesan</TableHead>
+   228→                  <TableHead>Channels</TableHead>
+   229→                  <TableHead>Reach</TableHead>
+   230→                  <TableHead>Status</TableHead>
+   231→                  <TableHead>Dikirim</TableHead>
+   232→                  <TableHead>Oleh</TableHead>
+   233→                  <TableHead className="text-center">Aksi</TableHead>
+   234→                </TableRow>
+   235→              </TableHeader>
+   236→              <TableBody>
+   237→                {broadcasts.map((b) => {
+   238→                  const channels = b.channelsParsed || [b.channel]
+   239→                  const stats = b.channelStatsParsed || {}
+   240→                  const totalReach = b.recipientCount + (stats.FACEBOOK?.reach || 0) + (stats.INSTAGRAM?.reach || 0)
+   241→                  return (
+   242→                    <TableRow key={b.id}>
+   243→                      <TableCell className="max-w-xs">
+   244→                        <div className="font-medium text-sm">{b.title}</div>
+   245→                        <div className="text-xs text-muted-foreground truncate">{b.message}</div>
+   246→                        {b.imageUrl && <div className="text-[10px] text-blue-600 mt-1">📷 Image</div>}
+   247→                        {b.videoUrl && <div className="text-[10px] text-purple-600 mt-1">🎬 Video</div>}
+   248→                        {b.crisisZoneId && <Badge variant="outline" className="text-[9px] mt-1 bg-red-50 text-red-700 border-red-200"><Shield className="w-2.5 h-2.5 mr-0.5" />Crisis Response</Badge>}
+   249→                        {b.pollId && <Badge variant="outline" className="text-[9px] mt-1 bg-orange-50 text-orange-700 border-orange-200"><BarChart3 className="w-2.5 h-2.5 mr-0.5" />Poll Trigger</Badge>}
+   250→                      </TableCell>
+   251→                      <TableCell>
+   252→                        <div className="flex gap-1 flex-wrap">
+   253→                          {channels.map((ch: string) => {
+   254→                            const cb = channelBadge[ch]
+   255→                            const Icon = cb.icon
+   256→                            return (
+   257→                              <Badge key={ch} variant="outline" className={`text-[10px] ${cb.color}`}>
+   258→                                <Icon className="w-2.5 h-2.5 mr-0.5" />{cb.label}
+   259→                              </Badge>
+   260→                            )
+   261→                          })}
+   262→                        </div>
+   263→                      </TableCell>
+   264→                      <TableCell>
+   265→                        <div className="text-xs">
+   266→                          <div className="font-bold">{totalReach.toLocaleString('id-ID')}</div>
+   267→                          <div className="text-[10px] text-muted-foreground">total reach</div>
+   268→                        </div>
+   269→                      </TableCell>
+   270→                      <TableCell>
+   271→                        <Badge variant="outline" className={`text-xs ${
+   272→                          b.status === 'SENT' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+   273→                          b.status === 'FAILED' ? 'bg-red-50 text-red-700 border-red-200' :
+   274→                          b.status === 'PARTIAL' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+   275→                          'bg-amber-50 text-amber-700 border-amber-200'
+   276→                        }`}>
+   277→                          {b.status === 'SENT' ? 'Terkirim' : b.status === 'FAILED' ? 'Gagal' : b.status === 'PARTIAL' ? 'Sebagian' : b.status === 'QUEUED' ? 'Antri' : 'Draft'}
+   278→                        </Badge>
+   279→                      </TableCell>
+   280→                      <TableCell className="text-xs">{b.sentAt ? formatDateTimeID(b.sentAt) : b.scheduledAt ? `Jadwal: ${formatDateTimeID(b.scheduledAt)}` : '-'}</TableCell>
+   281→                      <TableCell className="text-xs">
+   282→                        <div>{b.sentBy.fullName}</div>
+   283→                        <div className="text-muted-foreground">{b.sentBy.territory.name}</div>
+   284→                      </TableCell>
+   285→                      <TableCell className="text-center">
+   286→                        <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setStatsOpen(b)}>
+   287→                          <BarChart3 className="w-3.5 h-3.5" />
+   288→                        </Button>
+   289→                      </TableCell>
+   290→                    </TableRow>
+   291→                  )
+   292→                })}
+   293→              </TableBody>
+   294→            </Table>
+   295→          </CardContent>
+   296→        </Card>
+   297→      )}
+   298→
+   299→      <AddBroadcastDialog
+   300→        open={addOpen}
+   301→        onOpenChange={setAddOpen}
+   302→        territories={territories}
+   303→        onSuccess={() => { loadData(); setAddOpen(false) }}
+   304→      />
+   305→
+   306→      <BroadcastStatsDialog broadcast={statsOpen} onOpenChange={(o: boolean) => !o && setStatsOpen(null)} />
+   307→    </div>
+   308→  )
+   309→}
+   310→
+   311→// ============================================================
+   312→// MULTI-CHANNEL BROADCAST COMPOSER
+   313→// ============================================================
+   314→const CHANNEL_CONFIG: Record<string, { label: string; charLimit: number; mediaRequired: boolean; features: string[]; color: string; gradient: string }> = {
+   315→  WHATSAPP: {
+   316→    label: 'WhatsApp',
+   317→    charLimit: 4096,
+   318→    mediaRequired: false,
+   319→    features: ['Text + Image', 'Button Reply', 'List Message', 'Direct WA'],
+   320→    color: 'emerald',
+   321→    gradient: 'from-emerald-500 to-teal-600',
+   322→  },
+   323→  FACEBOOK: {
+   324→    label: 'Facebook',
+   325→    charLimit: 63206,
+   326→    mediaRequired: false,
+   327→    features: ['Text + Media', 'Link Preview', 'Reactions', 'Comments', 'Shares'],
+   328→    color: 'blue',
+   329→    gradient: 'from-blue-500 to-indigo-600',
+   330→  },
+   331→  INSTAGRAM: {
+   332→    label: 'Instagram',
+   333→    charLimit: 2200,
+   334→    mediaRequired: true,
+   335→    features: ['Image/Video Required', 'Caption', 'Hashtags', 'Stories', 'Reels'],
+   336→    color: 'purple',
+   337→    gradient: 'from-purple-500 to-pink-600',
+   338→  },
+   339→}
+   340→
+   341→function AddBroadcastDialog({
+   342→  open, onOpenChange, territories, onSuccess,
+   343→}: {
+   344→  open: boolean; onOpenChange: (o: boolean) => void
+   345→  territories: Territory[]; onSuccess: () => void
+   346→}) {
+   347→  const addToast = useToastStore((s) => s.addToast)
+   348→  const [form, setForm] = useState({
+   349→    title: '', message: '', territoryId: '', scheduledAt: '',
+   350→    imageUrl: '', videoUrl: '', linkUrl: '',
+   351→  })
+   352→  const [channels, setChannels] = useState<Set<string>>(new Set(['WHATSAPP']))
+   353→  const [imageFile, setImageFile] = useState<File | null>(null)
+   354→  const [videoFile, setVideoFile] = useState<File | null>(null)
+   355→  const [loading, setLoading] = useState(false)
+   356→
+   357→  // Reset form on close
+   358→  useEffect(() => {
+   359→    if (!open) {
+   360→      setForm({ title: '', message: '', territoryId: '', scheduledAt: '', imageUrl: '', videoUrl: '', linkUrl: '' })
+   361→      setChannels(new Set(['WHATSAPP']))
+   362→      setImageFile(null)
+   363→      setVideoFile(null)
+   364→    }
+   365→  }, [open])
+   366→
+   367→  const toggleChannel = (ch: string) => {
+   368→    setChannels(prev => {
+   369→      const next = new Set(prev)
+   370→      if (next.has(ch)) next.delete(ch)
+   371→      else next.add(ch)
+   372→      return next
+   373→    })
+   374→  }
+   375→
+   376→  const handleImageUpload = (file: File) => {
+   377→    if (!file.type.startsWith('image/')) {
+   378→      addToast('File harus gambar', 'error')
+   379→      return
+   380→    }
+   381→    if (file.size > 5 * 1024 * 1024) {
+   382→      addToast('Ukuran gambar maks 5MB', 'error')
+   383→      return
+   384→    }
+   385→    const reader = new FileReader()
+   386→    reader.onload = (e) => setForm({ ...form, imageUrl: e.target?.result as string })
+   387→    reader.readAsDataURL(file)
+   388→    setImageFile(file)
+   389→  }
+   390→
+   391→  const handleVideoUpload = (file: File) => {
+   392→    if (!file.type.startsWith('video/')) {
+   393→      addToast('File harus video', 'error')
+   394→      return
+   395→    }
+   396→    if (file.size > 100 * 1024 * 1024) {
+   397→      addToast('Ukuran video maks 100MB', 'error')
+   398→      return
+   399→    }
+   400→    setForm({ ...form, videoUrl: URL.createObjectURL(file) })
+   401→    setVideoFile(file)
+   402→  }
+   403→
+   404→  const handleSubmit = async (e: React.FormEvent) => {
+   405→    e.preventDefault()
+   406→    const channelArr = Array.from(channels)
+   407→    if (channelArr.length === 0) {
+   408→      addToast('Pilih minimal 1 channel', 'error')
+   409→      return
+   410→    }
+   411→    if (channelArr.includes('INSTAGRAM') && !form.imageUrl && !form.videoUrl) {
+   412→      addToast('Instagram wajib memiliki gambar atau video', 'error')
+   413→      return
+   414→    }
+   415→    // Check char limit per channel
+   416→    for (const ch of channelArr) {
+   417→      const config = CHANNEL_CONFIG[ch]
+   418→      if (form.message.length > config.charLimit) {
+   419→        addToast(`Pesan untuk ${config.label} melebihi ${config.charLimit} karakter`, 'error')
+   420→        return
+   421→      }
+   422→    }
+   423→
+   424→    setLoading(true)
+   425→    try {
+   426→      const formData = new FormData()
+   427→      formData.append('title', form.title)
+   428→      formData.append('message', form.message)
+   429→      formData.append('channels', JSON.stringify(channelArr))
+   430→      formData.append('targetScope', JSON.stringify(form.territoryId ? { territoryId: form.territoryId } : { all: true }))
+   431→      formData.append('scheduledAt', form.scheduledAt || '')
+   432→      formData.append('linkUrl', form.linkUrl || '')
+   433→      if (imageFile) formData.append('image', imageFile)
+   434→      if (videoFile) formData.append('video', videoFile)
+   435→
+   436→      const res = await fetch('/api/broadcasts', {
+   437→        method: 'POST',
+   438→        headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+   439→        body: formData,
+   440→      })
+   441→      const data = await res.json()
+   442→      if (!res.ok || !data.success) throw new Error(data.error || 'Gagal')
+   443→      addToast(data.message, 'success')
+   444→      onSuccess()
+   445→    } catch (e: any) {
+   446→      addToast(e.message, 'error')
+   447→    } finally {
+   448→      setLoading(false)
+   449→    }
+   450→  }
+   451→
+   452→  const channelArr = Array.from(channels)
+   453→
+   454→  return (
+   455→    <Dialog open={open} onOpenChange={onOpenChange}>
+   456→      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+   457→        <DialogHeader>
+   458→          <DialogTitle className="flex items-center gap-2">
+   459→            <Send className="w-5 h-5 text-orange-600" /> Multi-Channel Broadcast Composer
+   460→          </DialogTitle>
+   461→          <DialogDescription>Tulis sekali, kirim ke WhatsApp + Facebook + Instagram bersamaan</DialogDescription>
+   462→        </DialogHeader>
+   463→        <form onSubmit={handleSubmit} className="space-y-4">
+   464→          {/* Channel Selector */}
+   465→          <div className="space-y-3">
+   466→            <Label className="text-sm font-semibold">Pilih Channel *</Label>
+   467→            <div className="grid grid-cols-3 gap-3">
+   468→              {Object.entries(CHANNEL_CONFIG).map(([ch, config]) => {
+   469→                const isSelected = channels.has(ch)
+   470→                return (
+   471→                  <button
+   472→                    key={ch}
+   473→                    type="button"
+   474→                    onClick={() => toggleChannel(ch)}
+   475→                    className={`relative rounded-xl border-2 p-4 text-left transition-all ${
+   476→                      isSelected ? 'shadow-md' : 'border-slate-200 hover:border-slate-300 bg-white'
+   477→                    }`}
+   478→                    style={isSelected ? {
+   479→                      borderColor: ch === 'WHATSAPP' ? '#10b981' : ch === 'FACEBOOK' ? '#3b82f6' : '#a855f7',
+   480→                      backgroundColor: ch === 'WHATSAPP' ? '#ecfdf5' : ch === 'FACEBOOK' ? '#eff6ff' : '#faf5ff',
+   481→                    } : {}}
+   482→                  >
+   483→                    {isSelected && (
+   484→                      <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center">
+   485→                        <CheckCircle2 className="w-3.5 h-3.5 text-white" />
+   486→                      </div>
+   487→                    )}
+   488→                    <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${config.gradient} flex items-center justify-center mb-2`}>
+   489→                      {ch === 'WHATSAPP' && <MessageSquare className="w-5 h-5 text-white" />}
+   490→                      {ch === 'FACEBOOK' && <Globe className="w-5 h-5 text-white" />}
+   491→                      {ch === 'INSTAGRAM' && <Heart className="w-5 h-5 text-white" />}
+   492→                    </div>
+   493→                    <div className="font-bold text-sm">{config.label}</div>
+   494→                    <div className="text-[10px] text-muted-foreground mt-1">
+   495→                      {config.charLimit.toLocaleString()} char
+   496→                      {config.mediaRequired && ' • Media required'}
+   497→                    </div>
+   498→                    <div className="mt-2 space-y-0.5">
+   499→                      {config.features.slice(0, 3).map(f => (
+   500→                        <div key={f} className="text-[9px] text-slate-500">• {f}</div>
+   501→                      ))}
+   502→                    </div>
+   503→                  </button>
+   504→                )
+   505→              })}
+   506→            </div>
+   507→            {channelArr.includes('INSTAGRAM') && !form.imageUrl && !form.videoUrl && (
+   508→              <div className="rounded-lg bg-amber-50 border border-amber-200 p-2 text-xs text-amber-800">
+   509→                <AlertTriangle className="w-3.5 h-3.5 inline mr-1" />
+   510→                Instagram dipilih - wajib upload gambar atau video
+   511→              </div>
+   512→            )}
+   513→          </div>
+   514→
+   515→          {/* Message Composer */}
+   516→          <div className="space-y-2">
+   517→            <div className="flex items-center justify-between">
+   518→              <Label className="text-sm font-semibold">Isi Pesan *</Label>
+   519→              <div className="flex gap-2 text-[10px]">
+   520→                {channelArr.map(ch => {
+   521→                  const config = CHANNEL_CONFIG[ch]
+   522→                  const over = form.message.length > config.charLimit
+   523→                  return (
+   524→                    <span key={ch} className={`px-2 py-0.5 rounded ${over ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-600'}`}>
+   525→                      {config.label}: {form.message.length}/{config.charLimit}
+   526→                    </span>
+   527→                  )
+   528→                })}
+   529→              </div>
+   530→            </div>
+   531→            <Textarea
+   532→              value={form.message}
+   533→              onChange={(e) => setForm({ ...form, message: e.target.value })}
+   534→              rows={5}
+   535→              placeholder="Tulis pesan broadcast... (sistem akan otomatis menyesuaikan format per channel)"
+   536→              required
+   537→            />
+   538→          </div>
+   539→
+   540→          {/* Title */}
+   541→          <div className="space-y-2">
+   542→            <Label>Judul Broadcast *</Label>
+   543→            <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="cth: Pengumuman Rapat Pengurus DPC" required />
+   544→          </div>
+   545→
+   546→          {/* Media Upload */}
+   547→          <div className="grid grid-cols-2 gap-3">
+   548→            <div className="space-y-2">
+   549→              <Label>Gambar (untuk WA/FB/IG)</Label>
+   550→              {form.imageUrl ? (
+   551→                <div className="relative">
+   552→                  <img src={form.imageUrl} alt="Preview" className="w-full max-h-32 object-cover rounded-lg border" />
+   553→                  <Button type="button" variant="destructive" size="sm" className="absolute top-1 right-1 h-6 text-xs" onClick={() => { setForm({ ...form, imageUrl: '' }); setImageFile(null) }}>
+   554→                    <XCircle className="w-3 h-3 mr-1" /> Hapus
+   555→                  </Button>
+   556→                </div>
+   557→              ) : (
+   558→                <div className="border-2 border-dashed rounded-lg p-3 text-center hover:border-blue-400 cursor-pointer"
+   559→                  onClick={() => document.getElementById('broadcast-image-input')?.click()}>
+   560→                  <input type="file" id="broadcast-image-input" className="hidden" accept="image/*"
+   561→                    onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImageUpload(f) }} />
+   562→                  <Upload className="w-6 h-6 text-slate-400 mx-auto mb-1" />
+   563→                  <div className="text-xs font-medium">Upload Gambar</div>
+   564→                  <div className="text-[10px] text-muted-foreground">JPG/PNG • Maks 5MB</div>
+   565→                </div>
+   566→              )}
+   567→            </div>
+   568→            <div className="space-y-2">
+   569→              <Label>Video (untuk FB/IG)</Label>
+   570→              {form.videoUrl ? (
+   571→                <div className="relative">
+   572→                  <video src={form.videoUrl} className="w-full max-h-32 object-cover rounded-lg border" controls />
+   573→                  <Button type="button" variant="destructive" size="sm" className="absolute top-1 right-1 h-6 text-xs" onClick={() => { setForm({ ...form, videoUrl: '' }); setVideoFile(null) }}>
+   574→                    <XCircle className="w-3 h-3 mr-1" /> Hapus
+   575→                  </Button>
+   576→                </div>
+   577→              ) : (
+   578→                <div className="border-2 border-dashed rounded-lg p-3 text-center hover:border-purple-400 cursor-pointer"
+   579→                  onClick={() => document.getElementById('broadcast-video-input')?.click()}>
+   580→                  <input type="file" id="broadcast-video-input" className="hidden" accept="video/*"
+   581→                    onChange={(e) => { const f = e.target.files?.[0]; if (f) handleVideoUpload(f) }} />
+   582→                  <Video className="w-6 h-6 text-slate-400 mx-auto mb-1" />
+   583→                  <div className="text-xs font-medium">Upload Video</div>
+   584→                  <div className="text-[10px] text-muted-foreground">MP4 • Maks 100MB</div>
+   585→                </div>
+   586→              )}
+   587→            </div>
+   588→          </div>
+   589→
+   590→          {/* Link URL for Facebook */}
+   591→          {channelArr.includes('FACEBOOK') && (
+   592→            <div className="space-y-2">
+   593→              <Label>URL Link Preview (Facebook only)</Label>
+   594→              <Input value={form.linkUrl} onChange={(e) => setForm({ ...form, linkUrl: e.target.value })} placeholder="https://link.untuk.facebook.com/preview" />
+   595→            </div>
+   596→          )}
+   597→
+   598→          {/* Target & Schedule */}
+   599→          <div className="grid grid-cols-2 gap-3">
+   600→            <div className="space-y-2">
+   601→              <Label>Target Wilayah *</Label>
+   602→              <Select value={form.territoryId} onValueChange={(v) => setForm({ ...form, territoryId: v })}>
+   603→                <SelectTrigger><SelectValue placeholder="Pilih wilayah (kosongkan = semua)" /></SelectTrigger>
+   604→                <SelectContent className="max-h-60">
+   605→                  {territories.map((t) => (
+   606→                    <SelectItem key={t.id} value={t.id}>{t.name} ({t.code})</SelectItem>
+   607→                  ))}
+   608→                </SelectContent>
+   609→              </Select>
+   610→            </div>
+   611→            <div className="space-y-2">
+   612→              <Label>Jadwal Kirim (opsional)</Label>
+   613→              <Input type="datetime-local" value={form.scheduledAt} onChange={(e) => setForm({ ...form, scheduledAt: e.target.value })} />
+   614→            </div>
+   615→          </div>
+   616→
+   617→          {/* Preview per channel */}
+   618→          {channelArr.length > 0 && form.message && (
+   619→            <div className="space-y-2">
+   620→              <Label className="text-sm font-semibold">Preview per Channel</Label>
+   621→              <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${channelArr.length}, 1fr)` }}>
+   622→                {channelArr.map(ch => {
+   623→                  const config = CHANNEL_CONFIG[ch]
+   624→                  return (
+   625→                    <div key={ch} className="rounded-lg border p-2 bg-slate-50">
+   626→                      <div className="flex items-center gap-1 mb-1">
+   627→                        {ch === 'WHATSAPP' && <MessageSquare className="w-3 h-3 text-emerald-600" />}
+   628→                        {ch === 'FACEBOOK' && <Globe className="w-3 h-3 text-blue-600" />}
+   629→                        {ch === 'INSTAGRAM' && <Heart className="w-3 h-3 text-purple-600" />}
+   630→                        <span className="text-[10px] font-medium">{config.label}</span>
+   631→                      </div>
+   632→                      {form.imageUrl && (ch !== 'WHATSAPP' || true) && (
+   633→                        <img src={form.imageUrl} alt="Preview" className="w-full h-16 object-cover rounded mb-1" />
+   634→                      )}
+   635→                      <div className="text-[10px] text-slate-700 line-clamp-3 whitespace-pre-wrap">{form.message}</div>
+   636→                      {ch === 'INSTAGRAM' && !form.imageUrl && !form.videoUrl && (
+   637→                        <div className="text-[9px] text-red-600 mt-1">⚠ Media required</div>
+   638→                      )}
+   639→                    </div>
+   640→                  )
+   641→                })}
+   642→              </div>
+   643→            </div>
+   644→          )}
+   645→
+   646→          <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs text-blue-800">
+   647→            <Globe className="w-4 h-4 inline mr-1" />
+   648→            <strong>Mode Simulasi:</strong> Sistem akan mensimulasikan pengiriman ke {channelArr.length} platform. Di produksi akan terintegrasi dengan WhatsApp Business API, Facebook Graph API, dan Instagram Graph API.
+   649→          </div>
+   650→
+   651→          <DialogFooter>
+   652→            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Batal</Button>
+   653→            <Button type="submit" disabled={loading} className="bg-gradient-to-r from-orange-600 to-red-600 text-white">
+   654→              {loading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Send className="w-4 h-4 mr-1" />}
+   655→              {loading ? 'Mengirim...' : `Kirim ke ${channelArr.length} Channel`}
+   656→            </Button>
+   657→          </DialogFooter>
+   658→        </form>
+   659→      </DialogContent>
+   660→    </Dialog>
+   661→  )
+   662→}
+   663→
+   664→// ============================================================
+   665→// BROADCAST STATS DIALOG - Per-channel analytics
+   666→// ============================================================
+   667→function BroadcastStatsDialog({ broadcast, onOpenChange }: any) {
+   668→  if (!broadcast) return null
+   669→
+   670→  const channels = broadcast.channelsParsed || [broadcast.channel]
+   671→  const stats = broadcast.channelStatsParsed || {}
+   672→
+   673→  const channelInfo: Record<string, { label: string; color: string; icon: any; metrics: string[] }> = {
+   674→    WHATSAPP: { label: 'WhatsApp', color: 'emerald', icon: MessageSquare, metrics: ['sent', 'delivered', 'read', 'failed'] },
+   675→    FACEBOOK: { label: 'Facebook', color: 'blue', icon: Globe, metrics: ['reach', 'likes', 'comments', 'shares'] },
+   676→    INSTAGRAM: { label: 'Instagram', color: 'purple', icon: Heart, metrics: ['reach', 'likes', 'comments', 'saves'] },
+   677→  }
+   678→
+   679→  return (
+   680→    <Dialog open={!!broadcast} onOpenChange={onOpenChange}>
+   681→      <DialogContent className="max-w-2xl" aria-describedby={undefined}>
+   682→        <DialogHeader>
+   683→          <DialogTitle className="flex items-center gap-2">
+   684→            <BarChart3 className="w-5 h-5 text-orange-600" /> Broadcast Analytics
+   685→          </DialogTitle>
+   686→          <DialogDescription>{broadcast.title}</DialogDescription>
+   687→        </DialogHeader>
+   688→
+   689→        <div className="space-y-4">
+   690→          {/* Per-channel stats */}
+   691→          {channels.map((ch: string) => {
+   692→            const info = channelInfo[ch]
+   693→            const chStats = stats[ch] || {}
+   694→            const Icon = info.icon
+   695→            return (
+   696→              <Card key={ch} className="border-l-4" style={{ borderLeftColor: ch === 'WHATSAPP' ? '#10b981' : ch === 'FACEBOOK' ? '#3b82f6' : '#a855f7' }}>
+   697→                <CardHeader className="pb-2">
+   698→                  <CardTitle className="text-sm flex items-center gap-2">
+   699→                    <Icon className="w-4 h-4" />
+   700→                    {info.label}
+   701→                  </CardTitle>
+   702→                </CardHeader>
+   703→                <CardContent>
+   704→                  <div className="grid grid-cols-4 gap-2">
+   705→                    {info.metrics.map(metric => (
+   706→                      <div key={metric} className="text-center p-2 rounded bg-slate-50">
+   707→                        <div className="text-[10px] text-muted-foreground capitalize">{metric}</div>
+   708→                        <div className="text-lg font-bold">{(chStats[metric] || 0).toLocaleString('id-ID')}</div>
+   709→                      </div>
+   710→                    ))}
+   711→                  </div>
+   712→                </CardContent>
+   713→              </Card>
+   714→            )
+   715→          })}
+   716→
+   717→          {/* Message preview */}
+   718→          <div className="rounded-lg border p-3 bg-slate-50">
+   719→            <div className="text-xs font-semibold mb-1">Pesan:</div>
+   720→            <div className="text-xs whitespace-pre-wrap">{broadcast.message}</div>
+   721→            {broadcast.imageUrl && <img src={broadcast.imageUrl} alt="Attached" className="mt-2 w-full max-h-32 object-cover rounded" />}
+   722→          </div>
+   723→
+   724→          {/* Meta info */}
+   725→          <div className="grid grid-cols-2 gap-3 text-xs">
+   726→            <div><span className="text-muted-foreground">Dikirim:</span> {broadcast.sentAt ? formatDateTimeID(broadcast.sentAt) : 'Belum terkirim'}</div>
+   727→            <div><span className="text-muted-foreground">Oleh:</span> {broadcast.sentBy?.fullName}</div>
+   728→            <div><span className="text-muted-foreground">Total Reach:</span> <strong>{(broadcast.recipientCount + (stats.FACEBOOK?.reach || 0) + (stats.INSTAGRAM?.reach || 0)).toLocaleString('id-ID')}</strong></div>
+   729→            <div><span className="text-muted-foreground">Status:</span> {broadcast.status}</div>
+   730→          </div>
+   731→        </div>
+   732→
+   733→        <DialogFooter>
+   734→          <Button variant="outline" onClick={() => onOpenChange(false)}>Tutup</Button>
+   735→        </DialogFooter>
+   736→      </DialogContent>
+   737→    </Dialog>
+   738→  )
+   739→}
+   740→
+   741→function AnnouncementTab() {
+   742→  const addToast = useToastStore((s) => s.addToast)
+   743→  const [announcements, setAnnouncements] = useState<Announcement[]>([])
+   744→  const [territories, setTerritories] = useState<Territory[]>([])
+   745→  const [loading, setLoading] = useState(true)
+   746→  const [error, setError] = useState('')
+   747→  const [addOpen, setAddOpen] = useState(false)
+   748→
+   749→  const loadData = () => {
+   750→    setLoading(true)
+   751→    Promise.all([api('/api/announcements'), api('/api/territory')])
+   752→      .then(([a, t]) => { setAnnouncements(a); setTerritories(t) })
+   753→      .catch((e) => setError(e.message))
+   754→      .finally(() => setLoading(false))
+   755→  }
+   756→
+   757→  useEffect(() => { loadData() }, [])
+   758→
+   759→  if (loading) return <LoadingState />
+   760→  if (error) return <ErrorState message={error} />
+   761→
+   762→  const pinned = announcements.filter((a) => a.isPinned)
+   763→
+   764→  return (
+   765→    <div className="space-y-4">
+   766→      <div className="flex justify-end">
+   767→        <Button onClick={() => setAddOpen(true)} className="bg-gradient-to-r from-orange-600 to-red-600 text-white">
+   768→          <Plus className="w-4 h-4 mr-2" /> Buat Pengumuman
+   769→        </Button>
+   770→      </div>
+   771→
+   772→      {announcements.length === 0 ? (
+   773→        <EmptyState icon={Bell} title="Belum ada pengumuman" description="Buat pengumuman untuk ditampilkan di dashboard anggota." />
+   774→      ) : (
+   775→        <>
+   776→          {pinned.length > 0 && (
+   777→            <div className="space-y-2">
+   778→              <div className="text-sm font-semibold flex items-center gap-2">
+   779→                <Pin className="w-4 h-4 text-orange-600" /> Disematkan
+   780→              </div>
+   781→              {pinned.map((a) => <AnnouncementCard key={a.id} announcement={a} />)}
+   782→            </div>
+   783→          )}
+   784→          <div className="space-y-2">
+   785→            {announcements.filter((a) => !a.isPinned).map((a) => <AnnouncementCard key={a.id} announcement={a} />)}
+   786→          </div>
+   787→        </>
+   788→      )}
+   789→
+   790→      <AddAnnouncementDialog
+   791→        open={addOpen}
+   792→        onOpenChange={setAddOpen}
+   793→        territories={territories}
+   794→        onSuccess={() => { loadData(); setAddOpen(false) }}
+   795→      />
+   796→    </div>
+   797→  )
+   798→}
+   799→
+   800→function AnnouncementCard({ announcement }: { announcement: Announcement }) {
+   801→  const typeColors: Record<string, string> = {
+   802→    INFO: 'border-blue-200 bg-blue-50',
+   803→    WARNING: 'border-amber-200 bg-amber-50',
+   804→    URGENT: 'border-red-200 bg-red-50',
+   805→  }
+   806→  return (
+   807→    <Card className={`${typeColors[announcement.type] || ''} border-2`}>
+   808→      <CardContent className="p-4">
+   809→        <div className="flex items-start justify-between gap-2 mb-2">
+   810→          <div className="flex items-center gap-2">
+   811→            {announcement.isPinned && <Pin className="w-4 h-4 text-orange-600" />}
+   812→            <div className="font-bold">{announcement.title}</div>
+   813→          </div>
+   814→          <Badge variant="outline" className="text-xs">
+   815→            {announcement.type}
+   816→          </Badge>
+   817→        </div>
+   818→        <p className="text-sm text-muted-foreground">{announcement.content}</p>
+   819→        <div className="mt-3 text-xs text-muted-foreground flex items-center gap-2">
+   820→          <span>Oleh: {announcement.createdBy.fullName}</span>
+   821→          <span>•</span>
+   822→          <span>{announcement.territory.name}</span>
+   823→          <span>•</span>
+   824→          <span>{formatDateTimeID(announcement.createdAt)}</span>
+   825→        </div>
+   826→      </CardContent>
+   827→    </Card>
+   828→  )
+   829→}
+   830→
+   831→function AddAnnouncementDialog({
+   832→  open, onOpenChange, territories, onSuccess,
+   833→}: {
+   834→  open: boolean; onOpenChange: (o: boolean) => void
+   835→  territories: Territory[]; onSuccess: () => void
+   836→}) {
+   837→  const addToast = useToastStore((s) => s.addToast)
+   838→  const [form, setForm] = useState({
+   839→    title: '', content: '', type: 'INFO', isPinned: false, territoryId: '',
+   840→  })
+   841→  const [loading, setLoading] = useState(false)
+   842→
+   843→  const handleSubmit = async (e: React.FormEvent) => {
+   844→    e.preventDefault()
+   845→    setLoading(true)
+   846→    try {
+   847→      await api('/api/announcements', {
+   848→        method: 'POST',
+   849→        body: JSON.stringify(form),
+   850→      })
+   851→      addToast('Pengumuman berhasil dibuat', 'success')
+   852→      setForm({ title: '', content: '', type: 'INFO', isPinned: false, territoryId: '' })
+   853→      onSuccess()
+   854→    } catch (e: any) {
+   855→      addToast(e.message, 'error')
+   856→    } finally {
+   857→      setLoading(false)
+   858→    }
+   859→  }
+   860→
+   861→  return (
+   862→    <Dialog open={open} onOpenChange={onOpenChange}>
+   863→      <DialogContent className="max-w-lg">
+   864→        <DialogHeader>
+   865→          <DialogTitle>Buat Pengumuman</DialogTitle>
+   866→          <DialogDescription>Pengumuman akan muncul di dashboard pengurus di wilayah terkait.</DialogDescription>
+   867→        </DialogHeader>
+   868→        <form onSubmit={handleSubmit} className="space-y-3">
+   869→          <div className="space-y-2">
+   870→            <Label>Judul *</Label>
+   871→            <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required />
+   872→          </div>
+   873→          <div className="space-y-2">
+   874→            <Label>Isi Pengumuman *</Label>
+   875→            <Textarea value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} rows={4} required />
+   876→          </div>
+   877→          <div className="grid grid-cols-2 gap-3">
+   878→            <div className="space-y-2">
+   879→              <Label>Tipe</Label>
+   880→              <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v })}>
+   881→                <SelectTrigger><SelectValue /></SelectTrigger>
+   882→                <SelectContent>
+   883→                  <SelectItem value="INFO">Info</SelectItem>
+   884→                  <SelectItem value="WARNING">Peringatan</SelectItem>
+   885→                  <SelectItem value="URGENT">Mendesak</SelectItem>
+   886→                </SelectContent>
+   887→              </Select>
+   888→            </div>
+   889→            <div className="space-y-2">
+   890→              <Label>Wilayah *</Label>
+   891→              <Select value={form.territoryId} onValueChange={(v) => setForm({ ...form, territoryId: v })}>
+   892→                <SelectTrigger><SelectValue placeholder="Pilih..." /></SelectTrigger>
+   893→                <SelectContent>
+   894→                  {territories.map((t) => (
+   895→                    <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+   896→                  ))}
+   897→                </SelectContent>
+   898→              </Select>
+   899→            </div>
+   900→          </div>
+   901→          <div className="flex items-center gap-2">
+   902→            <input
+   903→              type="checkbox"
+   904→              id="pinned"
+   905→              checked={form.isPinned}
+   906→              onChange={(e) => setForm({ ...form, isPinned: e.target.checked })}
+   907→              className="w-4 h-4"
+   908→            />
+   909→            <Label htmlFor="pinned">Sematkan di atas</Label>
+   910→          </div>
+   911→          <DialogFooter>
+   912→            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Batal</Button>
+   913→            <Button type="submit" disabled={loading}>{loading ? 'Menyimpan...' : 'Simpan'}</Button>
+   914→          </DialogFooter>
+   915→        </form>
+   916→      </DialogContent>
+   917→    </Dialog>
+   918→  )
+   919→}
+   920→
+   921→// ============================================================
+   922→// TAB 3: SENTIMENT DASHBOARD - Presidential Sentiment & Feedback Loop
+   923→// ============================================================
+   924→function SentimentDashboardTab() {
+   925→  const addToast = useToastStore((s) => s.addToast)
+   926→  const [polls, setPolls] = useState<any[]>([])
+   927→  const [territories, setTerritories] = useState<Territory[]>([])
+   928→  const [loading, setLoading] = useState(true)
+   929→  const [addOpen, setAddOpen] = useState(false)
+   930→  const [analyticsItem, setAnalyticsItem] = useState<any>(null)
+   931→  const [deleteItem, setDeleteItem] = useState<any>(null)
+   932→
+   933→  const loadData = () => {
+   934→    setLoading(true)
+   935→    Promise.all([api('/api/polls'), api('/api/territory')])
+   936→      .then(([p, t]) => { setPolls(p); setTerritories(t) })
+   937→      .catch(e => addToast(e.message, 'error'))
+   938→      .finally(() => setLoading(false))
+   939→  }
+   940→  useEffect(() => { loadData() }, [])
+   941→
+   942→  if (loading) return <LoadingState />
+   943→
+   944→  const activeCount = polls.filter(p => p.status === 'ACTIVE').length
+   945→  const totalResponses = polls.reduce((s, p) => s + (p._count?.responses || 0), 0)
+   946→
+   947→  const handleActivate = async (poll: any) => {
+   948→    try {
+   949→      await api(`/api/polls/${poll.id}`, {
+   950→        method: 'PUT',
+   951→        body: JSON.stringify({
+   952→          status: 'ACTIVE',
+   953→          broadcastSentAt: new Date().toISOString(),
+   954→          broadcastRecipientCount: 1000, // demo: in production count VoterContact by territory
+   955→        }),
+   956→      })
+   957→      addToast(`Poll "${poll.title}" AKTIF. Broadcast terkirim. Polling ditutup otomatis 24 jam lagi.`, 'success')
+   958→      loadData()
+   959→    } catch (e: any) { addToast(e.message, 'error') }
+   960→  }
+   961→
+   962→  const handleDelete = async () => {
+   963→    if (!deleteItem) return
+   964→    try {
+   965→      await api(`/api/polls/${deleteItem.id}`, { method: 'DELETE' })
+   966→      addToast('Poll dihapus', 'success')
+   967→      setDeleteItem(null); loadData()
+   968→    } catch (e: any) { addToast(e.message, 'error') }
+   969→  }
+   970→
+   971→  return (
+   972→    <div className="space-y-4">
+   973→      {/* Stats */}
+   974→      <div className="grid gap-4 md:grid-cols-4">
+   975→        <StatCard label="Total Polling" value={polls.length} icon={BarChart3} color="orange" />
+   976→        <StatCard label="Poll Aktif" value={activeCount} icon={Activity} color="emerald" />
+   977→        <StatCard label="Total Respons" value={totalResponses.toLocaleString('id-ID')} icon={Users} color="blue" />
+   978→        <StatCard label="Rata-rata Response Rate" value={polls.length > 0 ? `${(totalResponses / polls.length / 10).toFixed(1)}%` : '0%'} icon={TrendingUp} color="purple" />
+   979→      </div>
+   980→
+   981→      {/* Header */}
+   982→      <div className="flex justify-between items-center">
+   983→        <div>
+   984→          <h3 className="font-semibold text-base flex items-center gap-2">
+   985→            <BarChart3 className="w-5 h-5 text-orange-600" /> Presidential Sentiment Dashboard
+   986→          </h3>
+   987→          <p className="text-sm text-muted-foreground">Real-time polling kepuasan publik terhadap kebijakan Presiden Prabowo</p>
+   988→        </div>
+   989→        <Button onClick={() => setAddOpen(true)} className="bg-gradient-to-r from-orange-600 to-red-600 text-white">
+   990→          <Plus className="w-4 h-4 mr-2" /> Buat Polling Baru
+   991→        </Button>
+   992→      </div>
+   993→
+   994→      {/* Info banner */}
+   995→      <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs text-blue-800">
+   996→        <Lightbulb className="w-4 h-4 inline mr-1" />
+   997→        <strong>Feedback Loop Strategis:</strong> Setiap polling otomatis dikirim ke basis VoterContact via broadcast WhatsApp. Hasil dikumpulkan real-time selama 24 jam. Jika sentimen negatif {'>'}60% di wilayah tertentu, sistem otomatis alert Crisis Center untuk klarifikasi terfokus (geo-fencing).
+   998→      </div>
+   999→
+  1000→      {/* Polls list */}
+  1001→      {polls.length === 0 ? (
+  1002→        <EmptyState icon={BarChart3} title="Belum ada polling" description="Buat polling pertama untuk mengukur sentimen publik terhadap kebijakan Presiden Prabowo." />
+  1003→      ) : (
+  1004→        <div className="space-y-3">
+  1005→          {polls.map(poll => (
+  1006→            <Card key={poll.id} className="hover:shadow-md transition-all">
+  1007→              <CardContent className="p-4">
+  1008→                <div className="flex items-start justify-between gap-3">
+  1009→                  <div className="flex-1 min-w-0">
+  1010→                    <div className="flex items-center gap-2 flex-wrap mb-1">
+  1011→                      <Badge variant="outline" className={`text-[10px] ${poll.status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : poll.status === 'CLOSED' ? 'bg-slate-50 text-slate-700 border-slate-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
+  1012→                        {poll.status === 'ACTIVE' ? 'AKTIF' : poll.status === 'CLOSED' ? 'DITUTUP' : poll.status === 'ARCHIVED' ? 'ARSIP' : 'DRAFT'}
+  1013→                      </Badge>
+  1014→                      <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700 border-blue-200">
+  1015→                        <MapPin className="w-2.5 h-2.5 mr-0.5" />{poll.territory?.name}
+  1016→                      </Badge>
+  1017→                      {poll.broadcastRecipientCount > 0 && (
+  1018→                        <Badge variant="outline" className="text-[10px] bg-purple-50 text-purple-700 border-purple-200">
+  1019→                          <Users className="w-2.5 h-2.5 mr-0.5" />{poll.broadcastRecipientCount} penerima
+  1020→                        </Badge>
+  1021→                      )}
+  1022→                      <Badge variant="outline" className="text-[10px] bg-orange-50 text-orange-700 border-orange-200">
+  1023→                        <Activity className="w-2.5 h-2.5 mr-0.5" />{poll._count?.responses || 0} respons
+  1024→                      </Badge>
+  1025→                    </div>
+  1026→                    <div className="font-bold text-sm">{poll.title}</div>
+  1027→                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{poll.question}</p>
+  1028→                    {poll.triggerEvent && (
+  1029→                      <div className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1">
+  1030→                        <Zap className="w-3 h-3 text-amber-500" /> Trigger: {poll.triggerEvent}
+  1031→                      </div>
+  1032→                    )}
+  1033→                    <div className="text-[10px] text-muted-foreground mt-1">
+  1034→                      Dibuat: {formatDateTimeID(poll.createdAt)} • Oleh: {poll.createdBy?.fullName}
+  1035→                    </div>
+  1036→                  </div>
+  1037→                  <div className="flex flex-col gap-1 shrink-0">
+  1038→                    <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setAnalyticsItem(poll)}>
+  1039→                      <BarChart3 className="w-3 h-3 mr-1" /> Analytics
+  1040→                    </Button>
+  1041→                    {poll.status === 'DRAFT' && (
+  1042→                      <Button size="sm" className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => handleActivate(poll)}>
+  1043→                        <Zap className="w-3 h-3 mr-1" /> Aktifkan
+  1044→                      </Button>
+  1045→                    )}
+  1046→                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-600 hover:bg-red-50" onClick={() => setDeleteItem(poll)}>
+  1047→                      <Trash2 className="w-3.5 h-3.5" />
+  1048→                    </Button>
+  1049→                  </div>
+  1050→                </div>
+  1051→              </CardContent>
+  1052→            </Card>
+  1053→          ))}
+  1054→        </div>
+  1055→      )}
+  1056→
+  1057→      <AddPollDialog open={addOpen} onOpenChange={setAddOpen} territories={territories} onSuccess={() => { loadData(); setAddOpen(false) }} />
+  1058→      <PollAnalyticsDialog poll={analyticsItem} onOpenChange={(o) => !o && setAnalyticsItem(null)} />
+  1059→
+  1060→      <AlertDialog open={!!deleteItem} onOpenChange={(o) => !o && setDeleteItem(null)}>
+  1061→        <AlertDialogContent>
+  1062→          <AlertDialogHeader>
+  1063→            <AlertDialogTitle>Hapus Polling?</AlertDialogTitle>
+  1064→            <AlertDialogDescription>
+  1065→              Yakin hapus <strong>{deleteItem?.title}</strong>?<br/>
+  1066→              Semua respons ({deleteItem?._count?.responses || 0}) akan ikut terhapus.
+  1067→            </AlertDialogDescription>
+  1068→          </AlertDialogHeader>
+  1069→          <AlertDialogFooter>
+  1070→            <AlertDialogCancel>Batal</AlertDialogCancel>
+  1071→            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">Hapus</AlertDialogAction>
+  1072→          </AlertDialogFooter>
+  1073→        </AlertDialogContent>
+  1074→      </AlertDialog>
+  1075→    </div>
+  1076→  )
+  1077→}
+  1078→
+  1079→function AddPollDialog({ open, onOpenChange, territories, onSuccess }: any) {
+  1080→  const addToast = useToastStore((s) => s.addToast)
+  1081→  const [form, setForm] = useState({
+  1082→    title: '', question: '', description: '',
+  1083→    triggerEvent: '', triggerUrl: '',
+  1084→    territoryId: '', scheduledAt: '', closesAt: '',
+  1085→    status: 'DRAFT',
+  1086→  })
+  1087→  const [options, setOptions] = useState([
+  1088→    { id: 'a', label: 'Sangat Puas', sentiment: 'POSITIVE' },
+  1089→    { id: 'b', label: 'Puas', sentiment: 'POSITIVE' },
+  1090→    { id: 'c', label: 'Netral', sentiment: 'NEUTRAL' },
+  1091→    { id: 'd', label: 'Tidak Puas', sentiment: 'NEGATIVE' },
+  1092→    { id: 'e', label: 'Sangat Tidak Puas', sentiment: 'NEGATIVE' },
+  1093→  ])
+  1094→  const [loading, setLoading] = useState(false)
+  1095→
+  1096→  const handleSubmit = async (e: React.FormEvent) => {
+  1097→    e.preventDefault()
+  1098→    if (!form.title || !form.question || !form.territoryId) {
+  1099→      addToast('Judul, pertanyaan, dan wilayah wajib diisi', 'error')
+  1100→      return
+  1101→    }
+  1102→    setLoading(true)
+  1103→    try {
+  1104→      // Auto close 24h after activate if not specified
+  1105→      const closesAt = form.closesAt || (form.status === 'ACTIVE' ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() : '')
+  1106→      await api('/api/polls', {
+  1107→        method: 'POST',
+  1108→        body: JSON.stringify({
+  1109→          ...form,
+  1110→          options,
+  1111→          scheduledAt: form.scheduledAt || undefined,
+  1112→          closesAt: closesAt || undefined,
+  1113→        }),
+  1114→      })
+  1115→      addToast('Polling berhasil dibuat', 'success')
+  1116→      setForm({
+  1117→        title: '', question: '', description: '',
+  1118→        triggerEvent: '', triggerUrl: '',
+  1119→        territoryId: '', scheduledAt: '', closesAt: '',
+  1120→        status: 'DRAFT',
+  1121→      })
+  1122→      onSuccess()
+  1123→    } catch (e: any) { addToast(e.message, 'error') }
+  1124→    finally { setLoading(false) }
+  1125→  }
+  1126→
+  1127→  const updateOption = (i: number, field: string, value: string) => {
+  1128→    const newOpts = [...options]
+  1129→    newOpts[i] = { ...newOpts[i], [field]: value }
+  1130→    setOptions(newOpts)
+  1131→  }
+  1132→
+  1133→  return (
+  1134→    <Dialog open={open} onOpenChange={onOpenChange}>
+  1135→      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+  1136→        <DialogHeader>
+  1137→          <DialogTitle className="flex items-center gap-2">
+  1138→            <BarChart3 className="w-5 h-5 text-orange-600" /> Buat Polling Sentimen Presiden
+  1139→          </DialogTitle>
+  1140→          <DialogDescription>Polling akan dikirim ke VoterContact untuk mengukur sentimen publik</DialogDescription>
+  1141→        </DialogHeader>
+  1142→        <form onSubmit={handleSubmit} className="space-y-3">
+  1143→          <div className="space-y-2">
+  1144→            <Label>Judul Polling *</Label>
+  1145→            <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="cth: Survei Kepuasan Program MBG Bulan Agustus" required />
+  1146→          </div>
+  1147→          <div className="space-y-2">
+  1148→            <Label>Pertanyaan *</Label>
+  1149→            <Textarea value={form.question} onChange={(e) => setForm({ ...form, question: e.target.value })} rows={2} placeholder="cth: Bagaimana penilaian Anda terhadap program MBG?" required />
+  1150→          </div>
+  1151→          <div className="grid grid-cols-2 gap-3">
+  1152→            <div className="space-y-2">
+  1153→              <Label>Trigger Event (opsional)</Label>
+  1154→              <Input value={form.triggerEvent} onChange={(e) => setForm({ ...form, triggerEvent: e.target.value })} placeholder="cth: Pidato Kenegaraan 16 Agustus" />
+  1155→            </div>
+  1156→            <div className="space-y-2">
+  1157→              <Label>URL Trigger (opsional)</Label>
+  1158→              <Input value={form.triggerUrl} onChange={(e) => setForm({ ...form, triggerUrl: e.target.value })} placeholder="https://link.berita/pidato" />
+  1159→            </div>
+  1160→          </div>
+  1161→
+  1162→          {/* Options editor */}
+  1163→          <div className="space-y-2">
+  1164→            <Label>Pilihan Jawaban</Label>
+  1165→            <div className="space-y-2 rounded-lg border p-3 bg-slate-50">
+  1166→              {options.map((opt, i) => (
+  1167→                <div key={i} className="flex gap-2 items-center">
+  1168→                  <Input value={opt.id} onChange={(e) => updateOption(i, 'id', e.target.value)} className="w-16 font-mono" placeholder="a" />
+  1169→                  <Input value={opt.label} onChange={(e) => updateOption(i, 'label', e.target.value)} className="flex-1" placeholder="Label pilihan" />
+  1170→                  <Select value={opt.sentiment} onValueChange={(v) => updateOption(i, 'sentiment', v)}>
+  1171→                    <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+  1172→                    <SelectContent>
+  1173→                      <SelectItem value="POSITIVE">Positif</SelectItem>
+  1174→                      <SelectItem value="NEUTRAL">Netral</SelectItem>
+  1175→                      <SelectItem value="NEGATIVE">Negatif</SelectItem>
+  1176→                    </SelectContent>
+  1177→                  </Select>
+  1178→                </div>
+  1179→              ))}
+  1180→            </div>
+  1181→          </div>
+  1182→
+  1183→          <div className="grid grid-cols-2 gap-3">
+  1184→            <div className="space-y-2">
+  1185→              <Label>Wilayah Target *</Label>
+  1186→              <Select value={form.territoryId} onValueChange={(v) => setForm({ ...form, territoryId: v })}>
+  1187→                <SelectTrigger><SelectValue placeholder="Pilih wilayah..." /></SelectTrigger>
+  1188→                <SelectContent className="max-h-60">
+  1189→                  {territories.map((t) => <SelectItem key={t.id} value={t.id}>{t.name} ({t.code})</SelectItem>)}
+  1190→                </SelectContent>
+  1191→              </Select>
+  1192→            </div>
+  1193→            <div className="space-y-2">
+  1194→              <Label>Status</Label>
+  1195→              <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
+  1196→                <SelectTrigger><SelectValue /></SelectTrigger>
+  1197→                <SelectContent>
+  1198→                  <SelectItem value="DRAFT">Draft (simpan dulu)</SelectItem>
+  1199→                  <SelectItem value="ACTIVE">Aktif Langsung (broadcast sekarang)</SelectItem>
+  1200→                </SelectContent>
+  1201→              </Select>
+  1202→            </div>
+  1203→          </div>
+  1204→
+  1205→          <div className="grid grid-cols-2 gap-3">
+  1206→            <div className="space-y-2">
+  1207→              <Label>Jadwal Broadcast (opsional)</Label>
+  1208→              <Input type="datetime-local" value={form.scheduledAt} onChange={(e) => setForm({ ...form, scheduledAt: e.target.value })} />
+  1209→            </div>
+  1210→            <div className="space-y-2">
+  1211→              <Label>Tutup Polling Pada (opsional)</Label>
+  1212→              <Input type="datetime-local" value={form.closesAt} onChange={(e) => setForm({ ...form, closesAt: e.target.value })} />
+  1213→              <p className="text-[10px] text-muted-foreground">Default: 24 jam setelah aktif</p>
+  1214→            </div>
+  1215→          </div>
+  1216→
+  1217→          <DialogFooter>
+  1218→            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Batal</Button>
+  1219→            <Button type="submit" disabled={loading} className="bg-gradient-to-r from-orange-600 to-red-600 text-white">
+  1220→              {loading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Plus className="w-4 h-4 mr-1" />}
+  1221→              {loading ? 'Menyimpan...' : 'Buat Polling'}
+  1222→            </Button>
+  1223→          </DialogFooter>
+  1224→        </form>
+  1225→      </DialogContent>
+  1226→    </Dialog>
+  1227→  )
+  1228→}
+  1229→
+  1230→function PollAnalyticsDialog({ poll, onOpenChange }: any) {
+  1231→  const addToast = useToastStore((s) => s.addToast)
+  1232→  const [analytics, setAnalytics] = useState<any>(null)
+  1233→  const [loading, setLoading] = useState(true)
+  1234→
+  1235→  useEffect(() => {
+  1236→    if (poll) {
+  1237→      setLoading(true)
+  1238→      api(`/api/polls/${poll.id}/analytics`)
+  1239→        .then(setAnalytics)
+  1240→        .catch(e => addToast(e.message, 'error'))
+  1241→        .finally(() => setLoading(false))
+  1242→    }
+  1243→  }, [poll])
+  1244→
+  1245→  if (!poll) return null
+  1246→
+  1247→  const sentimentData = analytics?.sentimentSummary || { positive: { count: 0, percentage: '0' }, neutral: { count: 0, percentage: '0' }, negative: { count: 0, percentage: '0' } }
+  1248→
+  1249→  return (
+  1250→    <Dialog open={!!poll} onOpenChange={onOpenChange}>
+  1251→      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+  1252→        <DialogHeader>
+  1253→          <DialogTitle className="flex items-center gap-2">
+  1254→            <BarChart3 className="w-5 h-5 text-orange-600" /> Real-time Analytics
+  1255→          </DialogTitle>
+  1256→          <DialogDescription>{poll.title}</DialogDescription>
+  1257→        </DialogHeader>
+  1258→
+  1259→        {loading ? (
+  1260→          <div className="py-12 text-center"><Loader2 className="w-8 h-8 mx-auto animate-spin text-orange-600" /></div>
+  1261→        ) : analytics ? (
+  1262→          <div className="space-y-4">
+  1263→            {/* Total & Response Rate */}
+  1264→            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+  1265→              <Card><CardContent className="p-3 text-center"><div className="text-xs text-muted-foreground">Total Respons</div><div className="text-2xl font-bold">{analytics.total}</div></CardContent></Card>
+  1266→              <Card><CardContent className="p-3 text-center"><div className="text-xs text-muted-foreground">Response Rate</div><div className="text-2xl font-bold text-blue-600">{analytics.responseRate}</div></CardContent></Card>
+  1267→              <Card><CardContent className="p-3 text-center"><div className="text-xs text-muted-foreground">Positif</div><div className="text-2xl font-bold text-emerald-600">{sentimentData.positive.count}</div><div className="text-xs">{sentimentData.positive.percentage}%</div></CardContent></Card>
+  1268→              <Card><CardContent className="p-3 text-center"><div className="text-xs text-muted-foreground">Negatif</div><div className="text-2xl font-bold text-red-600">{sentimentData.negative.count}</div><div className="text-xs">{sentimentData.negative.percentage}%</div></CardContent></Card>
+  1269→            </div>
+  1270→
+  1271→            {/* Alerts */}
+  1272→            {analytics.alerts.length > 0 && (
+  1273→              <div className="rounded-lg bg-red-50 border border-red-200 p-3 space-y-2">
+  1274→                <div className="text-sm font-bold text-red-700 flex items-center gap-2">
+  1275→                  <AlertTriangle className="w-4 h-4" /> ALERT: Sentimen Negatif Tinggi Terdeteksi
+  1276→                </div>
+  1277→                {analytics.alerts.map((alert: any, i: number) => (
+  1278→                  <div key={i} className="text-xs text-red-700 bg-white p-2 rounded border border-red-200">
+  1279→                    <strong>{alert.type}</strong>: Wilayah {alert.regencyCode} - {alert.negativePercentage} negatif ({alert.negativeCount} dari {alert.totalCount} respons)
+  1280→                    <div className="mt-1 text-[10px]">{alert.message}</div>
+  1281→                  </div>
+  1282→                ))}
+  1283→                <div className="text-[10px] text-red-600 mt-1">
+  1284→                  💡 Rekomendasi: Buat Crisis Zone di wilayah ini dan kirim klarifikasi terfokus (geo-fenced broadcast).
+  1285→                </div>
+  1286→              </div>
+  1287→            )}
+  1288→
+  1289→            {/* Options breakdown */}
+  1290→            <div>
+  1291→              <h4 className="text-sm font-semibold mb-2">Hasil Per Pilihan</h4>
+  1292→              <div className="space-y-2">
+  1293→                {analytics.options.map((opt: any, i: number) => (
+  1294→                  <div key={i} className="flex items-center gap-3">
+  1295→                    <div className="w-32 text-xs font-medium">{opt.label}</div>
+  1296→                    <div className="flex-1 bg-slate-100 rounded-full h-6 relative overflow-hidden">
+  1297→                      <div
+  1298→                        className={`h-full ${opt.sentiment === 'POSITIVE' ? 'bg-emerald-500' : opt.sentiment === 'NEGATIVE' ? 'bg-red-500' : 'bg-slate-400'}`}
+  1299→                        style={{ width: `${opt.percentage}%` }}
+  1300→                      />
+  1301→                      <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white">
+  1302→                        {opt.count} ({opt.percentage}%)
+  1303→                      </div>
+  1304→                    </div>
+  1305→                  </div>
+  1306→                ))}
+  1307→              </div>
+  1308→            </div>
+  1309→
+  1310→            {/* Demographic breakdown */}
+  1311→            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+  1312→              <Card>
+  1313→                <CardHeader><CardTitle className="text-xs">Berdasarkan Kelompok Usia</CardTitle></CardHeader>
+  1314→                <CardContent className="pt-0">
+  1315→                  {Object.entries(analytics.demographics.byAgeGroup).length === 0 ? (
+  1316→                    <div className="text-xs text-muted-foreground">Belum ada data</div>
+  1317→                  ) : Object.entries(analytics.demographics.byAgeGroup).map(([k, v]: any) => (
+  1318→                    <div key={k} className="flex justify-between text-xs"><span>{k}</span><span className="font-bold">{v}</span></div>
+  1319→                  ))}
+  1320→                </CardContent>
+  1321→              </Card>
+  1322→              <Card>
+  1323→                <CardHeader><CardTitle className="text-xs">Berdasarkan Jenis Kelamin</CardTitle></CardHeader>
+  1324→                <CardContent className="pt-0">
+  1325→                  <div className="flex justify-between text-xs"><span>Laki-laki</span><span className="font-bold">{analytics.demographics.byGender.L || 0}</span></div>
+  1326→                  <div className="flex justify-between text-xs"><span>Perempuan</span><span className="font-bold">{analytics.demographics.byGender.P || 0}</span></div>
+  1327→                </CardContent>
+  1328→              </Card>
+  1329→              <Card>
+  1330→                <CardHeader><CardTitle className="text-xs">Berdasarkan Pekerjaan</CardTitle></CardHeader>
+  1331→                <CardContent className="pt-0">
+  1332→                  {Object.entries(analytics.demographics.byOccupation).length === 0 ? (
+  1333→                    <div className="text-xs text-muted-foreground">Belum ada data</div>
+  1334→                  ) : Object.entries(analytics.demographics.byOccupation).map(([k, v]: any) => (
+  1335→                    <div key={k} className="flex justify-between text-xs"><span>{k}</span><span className="font-bold">{v}</span></div>
+  1336→                  ))}
+  1337→                </CardContent>
+  1338→              </Card>
+  1339→            </div>
+  1340→
+  1341→            {/* Time series */}
+  1342→            <Card>
+  1343→              <CardHeader><CardTitle className="text-xs">Respons 24 Jam Terakhir</CardTitle></CardHeader>
+  1344→              <CardContent className="pt-0">
+  1345→                <div className="flex items-end gap-1 h-20">
+  1346→                  {analytics.timeSeries.map((ts: any, i: number) => (
+  1347→                    <div key={i} className="flex-1 bg-orange-500 hover:bg-orange-600 transition-colors rounded-t" style={{ height: `${(ts.count / Math.max(...analytics.timeSeries.map((t: any) => t.count), 1)) * 100}%` }} title={`${ts.hour}: ${ts.count} respons`} />
+  1348→                  ))}
+  1349→                </div>
+  1350→                <div className="text-[10px] text-muted-foreground mt-1 text-center">24 jam terakhir (per jam)</div>
+  1351→              </CardContent>
+  1352→            </Card>
+  1353→          </div>
+  1354→        ) : null}
+  1355→
+  1356→        <DialogFooter>
+  1357→          <Button variant="outline" onClick={() => onOpenChange(false)}>Tutup</Button>
+  1358→        </DialogFooter>
+  1359→      </DialogContent>
+  1360→    </Dialog>
+  1361→  )
+  1362→}
+  1363→
+  1364→// ============================================================
+  1365→// TAB 4: CRISIS CENTER - Geo-Fencing Klarifikasi Isu Negatif
+  1366→// ============================================================
+  1367→function CrisisCenterTab() {
+  1368→  const addToast = useToastStore((s) => s.addToast)
+  1369→  const [zones, setZones] = useState<any[]>([])
+  1370→  const [territories, setTerritories] = useState<Territory[]>([])
+  1371→  const [loading, setLoading] = useState(true)
+  1372→  const [addOpen, setAddOpen] = useState(false)
+  1373→  const [editItem, setEditItem] = useState<any>(null)
+  1374→  const [broadcastItem, setBroadcastItem] = useState<any>(null)
+  1375→  const [deleteItem, setDeleteItem] = useState<any>(null)
+  1376→
+  1377→  const loadData = () => {
+  1378→    setLoading(true)
+  1379→    Promise.all([api('/api/crisis-zones'), api('/api/territory')])
+  1380→      .then(([z, t]) => { setZones(z); setTerritories(t) })
+  1381→      .catch(e => addToast(e.message, 'error'))
+  1382→      .finally(() => setLoading(false))
+  1383→  }
+  1384→  useEffect(() => { loadData() }, [])
+  1385→
+  1386→  if (loading) return <LoadingState />
+  1387→
+  1388→  const activeCount = zones.filter(z => z.status === 'ACTIVE').length
+  1389→  const mitigatedCount = zones.filter(z => z.status === 'MITIGATED').length
+  1390→  const resolvedCount = zones.filter(z => z.status === 'RESOLVED').length
+  1391→  const criticalCount = zones.filter(z => z.severity === 'CRITICAL' && z.status === 'ACTIVE').length
+  1392→
+  1393→  const handleDelete = async () => {
+  1394→    if (!deleteItem) return
+  1395→    try {
+  1396→      await api(`/api/crisis-zones/${deleteItem.id}`, { method: 'DELETE' })
+  1397→      addToast('Crisis Zone dihapus', 'success')
+  1398→      setDeleteItem(null); loadData()
+  1399→    } catch (e: any) { addToast(e.message, 'error') }
+  1400→  }
+  1401→
+  1402→  const handleResolve = async (zone: any) => {
+  1403→    try {
+  1404→      await api(`/api/crisis-zones/${zone.id}`, {
+  1405→        method: 'PUT',
+  1406→        body: JSON.stringify({ status: 'RESOLVED', resolutionNotes: 'Isu berhasil dimitigasi' }),
+  1407→      })
+  1408→      addToast(`Crisis Zone "${zone.title}" DITUTUP. Wilayah di-unlock.`, 'success')
+  1409→      loadData()
+  1410→    } catch (e: any) { addToast(e.message, 'error') }
+  1411→  }
+  1412→
+  1413→  const severityConfig: Record<string, { label: string; color: string }> = {
+  1414→    LOW: { label: 'Rendah', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+  1415→    MEDIUM: { label: 'Sedang', color: 'bg-amber-50 text-amber-700 border-amber-200' },
+  1416→    HIGH: { label: 'Tinggi', color: 'bg-orange-50 text-orange-700 border-orange-200' },
+  1417→    CRITICAL: { label: 'Kritis', color: 'bg-red-50 text-red-700 border-red-200' },
+  1418→  }
+  1419→  const statusConfig: Record<string, { label: string; color: string }> = {
+  1420→    ACTIVE: { label: 'AKTIF - Di-lock', color: 'bg-red-50 text-red-700 border-red-200' },
+  1421→    MITIGATED: { label: 'Dimitigasi', color: 'bg-amber-50 text-amber-700 border-amber-200' },
+  1422→    RESOLVED: { label: 'Selesai', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  1423→    ESCALATED: { label: 'Eskalasi', color: 'bg-purple-50 text-purple-700 border-purple-200' },
+  1424→  }
+  1425→
+  1426→  return (
+  1427→    <div className="space-y-4">
+  1428→      {/* Stats */}
+  1429→      <div className="grid gap-4 md:grid-cols-4">
+  1430→        <StatCard label="Zona Aktif" value={activeCount} icon={AlertTriangle} color="red" />
+  1431→        <StatCard label="Dimitigasi" value={mitigatedCount} icon={Clock} color="amber" />
+  1432→        <StatCard label="Selesai" value={resolvedCount} icon={CheckCircle2} color="emerald" />
+  1433→        <StatCard label="Kritis" value={criticalCount} icon={XCircle} color="purple" />
+  1434→      </div>
+  1435→
+  1436→      {/* Header */}
+  1437→      <div className="flex justify-between items-center">
+  1438→        <div>
+  1439→          <h3 className="font-semibold text-base flex items-center gap-2">
+  1440→            <Shield className="w-5 h-5 text-red-600" /> Crisis Center & Geo-Fencing
+  1441→          </h3>
+  1442→          <p className="text-sm text-muted-foreground">Isolasi hoaks & sentimen negatif di wilayah tertentu - klarifikasi terfokus</p>
+  1443→        </div>
+  1444→        <Button onClick={() => setAddOpen(true)} className="bg-gradient-to-r from-red-600 to-rose-600 text-white">
+  1445→          <Plus className="w-4 h-4 mr-2" /> Buat Crisis Zone
+  1446→        </Button>
+  1447→      </div>
+  1448→
+  1449→      {/* Info banner */}
+  1450→      <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-xs text-red-800">
+  1451→        <Shield className="w-4 h-4 inline mr-1" />
+  1452→        <strong>Mekanisme Geo-Fencing:</strong> Saat Crisis Zone dibuat di wilayah DPC tertentu, sistem otomatis mengunci broadcast klarifikasi HANYA ke nomor WA warga & relawan di kab/kota tersebut. Wilayah lain TIDAK menerima pesan - mencegah penyebaran isu ke wilayah yang awalnya tidak tahu.
+  1453→      </div>
+  1454→
+  1455→      {/* Zones list */}
+  1456→      {zones.length === 0 ? (
+  1457→        <EmptyState icon={Shield} title="Belum ada Crisis Zone" description="Buat Crisis Zone untuk mengisolasi isu negatif di wilayah tertentu." />
+  1458→      ) : (
+  1459→        <div className="space-y-3">
+  1460→          {zones.map(zone => {
+  1461→            const sc = severityConfig[zone.severity] || severityConfig.MEDIUM
+  1462→            const stc = statusConfig[zone.status] || statusConfig.ACTIVE
+  1463→            return (
+  1464→              <Card key={zone.id} className={`hover:shadow-md transition-all ${zone.status === 'ACTIVE' ? 'border-l-4 border-l-red-500' : ''}`}>
+  1465→                <CardContent className="p-4">
+  1466→                  <div className="flex items-start justify-between gap-3">
+  1467→                    <div className="flex-1 min-w-0">
+  1468→                      <div className="flex items-center gap-2 flex-wrap mb-1">
+  1469→                        <Badge variant="outline" className={`text-[10px] ${stc.color}`}>{stc.label}</Badge>
+  1470→                        <Badge variant="outline" className={`text-[10px] ${sc.color}`}>Severity: {sc.label}</Badge>
+  1471→                        <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700 border-blue-200">
+  1472→                          <MapPin className="w-2.5 h-2.5 mr-0.5" />{zone.territory?.name}
+  1473→                        </Badge>
+  1474→                        {zone.isLocked && zone.status === 'ACTIVE' && (
+  1475→                          <Badge variant="outline" className="text-[10px] bg-red-50 text-red-700 border-red-200">
+  1476→                            <Shield className="w-2.5 h-2.5 mr-0.5" />GEO-LOCKED
+  1477→                          </Badge>
+  1478→                        )}
+  1479→                      </div>
+  1480→                      <div className="font-bold text-sm">{zone.title}</div>
+  1481→                      <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{zone.description}</p>
+  1482→                      {zone.issueSource && (
+  1483→                        <a href={zone.issueSource} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 mt-1 text-[10px] text-blue-600 hover:underline">
+  1484→                          <ExternalLink className="w-2.5 h-2.5" />Sumber Isu
+  1485→                        </a>
+  1486→                      )}
+  1487→                      <div className="text-[10px] text-muted-foreground mt-1">
+  1488→                        Dibuat: {formatDateTimeID(zone.createdAt)}
+  1489→                        {zone.broadcastSentAt && ` • Broadcast: ${formatDateTimeID(zone.broadcastSentAt)} (${zone.broadcastRecipientCount} penerima)`}
+  1490→                      </div>
+  1491→                    </div>
+  1492→                    <div className="flex flex-col gap-1 shrink-0">
+  1493→                      {(zone.status === 'ACTIVE' || zone.status === 'MITIGATED') && (
+  1494→                        <Button size="sm" className="h-7 text-xs bg-gradient-to-r from-orange-600 to-red-600 text-white" onClick={() => setBroadcastItem(zone)}>
+  1495→                          <Send className="w-3 h-3 mr-1" /> Broadcast Klarifikasi
+  1496→                        </Button>
+  1497→                      )}
+  1498→                      {zone.status !== 'RESOLVED' && (
+  1499→                        <Button variant="outline" size="sm" className="h-7 text-xs text-emerald-700 border-emerald-300 hover:bg-emerald-50" onClick={() => handleResolve(zone)}>
+  1500→                          <CheckCircle2 className="w-3 h-3 mr-1" /> Tutup Crisis
+  1501→                        </Button>
+  1502→                      )}
+  1503→                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-blue-600 hover:bg-blue-50" onClick={() => setEditItem(zone)}>
+  1504→                        <Edit className="w-3.5 h-3.5" />
+  1505→                      </Button>
+  1506→                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-600 hover:bg-red-50" onClick={() => setDeleteItem(zone)}>
+  1507→                        <Trash2 className="w-3.5 h-3.5" />
+  1508→                      </Button>
+  1509→                    </div>
+  1510→                  </div>
+  1511→                </CardContent>
+  1512→              </Card>
+  1513→            )
+  1514→          })}
+  1515→        </div>
+  1516→      )}
+  1517→
+  1518→      <CrisisZoneFormDialog open={addOpen || !!editItem} editItem={editItem} territories={territories} onOpenChange={(o: boolean) => { if (!o) { setAddOpen(false); setEditItem(null) } }} onSuccess={() => { loadData(); setAddOpen(false); setEditItem(null) }} />
+  1519→      <CrisisBroadcastDialog zone={broadcastItem} onOpenChange={(o: boolean) => !o && setBroadcastItem(null)} onSuccess={() => loadData()} />
+  1520→
+  1521→      <AlertDialog open={!!deleteItem} onOpenChange={(o) => !o && setDeleteItem(null)}>
+  1522→        <AlertDialogContent>
+  1523→          <AlertDialogHeader>
+  1524→            <AlertDialogTitle>Hapus Crisis Zone?</AlertDialogTitle>
+  1525→            <AlertDialogDescription>Yakin hapus <strong>{deleteItem?.title}</strong>?</AlertDialogDescription>
+  1526→          </AlertDialogHeader>
+  1527→          <AlertDialogFooter>
+  1528→            <AlertDialogCancel>Batal</AlertDialogCancel>
+  1529→            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">Hapus</AlertDialogAction>
+  1530→          </AlertDialogFooter>
+  1531→        </AlertDialogContent>
+  1532→      </AlertDialog>
+  1533→    </div>
+  1534→  )
+  1535→}
+  1536→
+  1537→function CrisisZoneFormDialog({ open, editItem, territories, onOpenChange, onSuccess }: any) {
+  1538→  const addToast = useToastStore((s) => s.addToast)
+  1539→  const [form, setForm] = useState<any>({
+  1540→    title: '', description: '', issueCategory: 'HOAX', issueSource: '',
+  1541→    sentimentScore: -50, territoryId: '', isLocked: true, severity: 'MEDIUM',
+  1542→    clarificationMessage: '', clarificationVideoUrl: '', clarificationQuote: '',
+  1543→  })
+  1544→  const [loading, setLoading] = useState(false)
+  1545→
+  1546→  useEffect(() => {
+  1547→    if (editItem) {
+  1548→      setForm({
+  1549→        title: editItem.title || '',
+  1550→        description: editItem.description || '',
+  1551→        issueCategory: editItem.issueCategory || 'HOAX',
+  1552→        issueSource: editItem.issueSource || '',
+  1553→        sentimentScore: editItem.sentimentScore ?? -50,
+  1554→        territoryId: editItem.territoryId || '',
+  1555→        isLocked: editItem.isLocked ?? true,
+  1556→        severity: editItem.severity || 'MEDIUM',
+  1557→        clarificationMessage: editItem.clarificationMessage || '',
+  1558→        clarificationVideoUrl: editItem.clarificationVideoUrl || '',
+  1559→        clarificationQuote: editItem.clarificationQuote || '',
+  1560→      })
+  1561→    } else if (open) {
+  1562→      setForm({
+  1563→        title: '', description: '', issueCategory: 'HOAX', issueSource: '',
+  1564→        sentimentScore: -50, territoryId: '', isLocked: true, severity: 'MEDIUM',
+  1565→        clarificationMessage: '', clarificationVideoUrl: '', clarificationQuote: '',
+  1566→      })
+  1567→    }
+  1568→  }, [editItem, open])
+  1569→
+  1570→  const handleSubmit = async (e: React.FormEvent) => {
+  1571→    e.preventDefault()
+  1572→    if (!form.title || !form.description || !form.territoryId) {
+  1573→      addToast('Judul, deskripsi, dan wilayah wajib diisi', 'error')
+  1574→      return
+  1575→    }
+  1576→    setLoading(true)
+  1577→    try {
+  1578→      const url = editItem ? `/api/crisis-zones/${editItem.id}` : '/api/crisis-zones'
+  1579→      const method = editItem ? 'PUT' : 'POST'
+  1580→      const res = await fetch(url, {
+  1581→        method,
+  1582→        headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+  1583→        body: JSON.stringify(form),
+  1584→      })
+  1585→      const data = await res.json()
+  1586→      if (!res.ok || !data.success) throw new Error(data.error || 'Gagal')
+  1587→      addToast(editItem ? 'Crisis Zone diperbarui' : 'Crisis Zone dibuat & wilayah di-LOCK', 'success')
+  1588→      onSuccess()
+  1589→    } catch (e: any) { addToast(e.message, 'error') }
+  1590→    finally { setLoading(false) }
+  1591→  }
+  1592→
+  1593→  const issueCategories = [
+  1594→    { value: 'HOAX', label: 'Hoaks / Berita Bohong' },
+  1595→    { value: 'NEGATIVE_SENTIMENT', label: 'Sentimen Negatif' },
+  1596→    { value: 'OPPOSITION_ATTACK', label: 'Serangan Oposisi' },
+  1597→    { value: 'MEDIA_HIT', label: 'Pemberitaan Negatif Media' },
+  1598→    { value: 'RUMOR', label: 'Rumor / Issue Tak Terverifikasi' },
+  1599→  ]
+  1600→
+  1601→  return (
+  1602→    <Dialog open={open} onOpenChange={onOpenChange}>
+  1603→      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+  1604→        <DialogHeader>
+  1605→          <DialogTitle className="flex items-center gap-2">
+  1606→            <Shield className="w-5 h-5 text-red-600" /> {editItem ? 'Edit Crisis Zone' : 'Buat Crisis Zone (Geo-Fence)'}
+  1607→          </DialogTitle>
+  1608→          <DialogDescription>
+  1609→            {editItem ? 'Perbarui data zona krisis' : 'Isolasi isu negatif di wilayah tertentu - klarifikasi hanya dikirim ke wilayah yang di-lock'}
+  1610→          </DialogDescription>
+  1611→        </DialogHeader>
+  1612→        <form onSubmit={handleSubmit} className="space-y-3">
+  1613→          <div className="space-y-2">
+  1614→            <Label>Judul Crisis *</Label>
+  1615→            <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="cth: Isu Hoaks Pupuk Bersubsidi di Sambas" required />
+  1616→          </div>
+  1617→          <div className="space-y-2">
+  1618→            <Label>Deskripsi Kronologi Isu *</Label>
+  1619→            <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} placeholder="Jelaskan kronologi isu yang merebak..." required />
+  1620→          </div>
+  1621→          <div className="grid grid-cols-2 gap-3">
+  1622→            <div className="space-y-2">
+  1623→              <Label>Kategori Isu *</Label>
+  1624→              <Select value={form.issueCategory} onValueChange={(v) => setForm({ ...form, issueCategory: v })}>
+  1625→                <SelectTrigger><SelectValue /></SelectTrigger>
+  1626→                <SelectContent>
+  1627→                  {issueCategories.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+  1628→                </SelectContent>
+  1629→              </Select>
+  1630→            </div>
+  1631→            <div className="space-y-2">
+  1632→              <Label>Severity *</Label>
+  1633→              <Select value={form.severity} onValueChange={(v) => setForm({ ...form, severity: v })}>
+  1634→                <SelectTrigger><SelectValue /></SelectTrigger>
+  1635→                <SelectContent>
+  1636→                  <SelectItem value="LOW">Rendah</SelectItem>
+  1637→                  <SelectItem value="MEDIUM">Sedang</SelectItem>
+  1638→                  <SelectItem value="HIGH">Tinggi</SelectItem>
+  1639→                  <SelectItem value="CRITICAL">Kritis</SelectItem>
+  1640→                </SelectContent>
+  1641→              </Select>
+  1642→            </div>
+  1643→          </div>
+  1644→          <div className="grid grid-cols-2 gap-3">
+  1645→            <div className="space-y-2">
+  1646→              <Label>URL Sumber Isu (opsional)</Label>
+  1647→              <Input value={form.issueSource} onChange={(e) => setForm({ ...form, issueSource: e.target.value })} placeholder="https://link.berita/isu" />
+  1648→            </div>
+  1649→            <div className="space-y-2">
+  1650→              <Label>Skor Sentimen (-100 s/d 100)</Label>
+  1651→              <Input type="number" min="-100" max="100" value={form.sentimentScore} onChange={(e) => setForm({ ...form, sentimentScore: parseFloat(e.target.value) })} />
+  1652→              <p className="text-[10px] text-muted-foreground">Negatif = semakin buruk</p>
+  1653→            </div>
+  1654→          </div>
+  1655→          <div className="grid grid-cols-2 gap-3">
+  1656→            <div className="space-y-2">
+  1657→              <Label>Wilayah Geo-Fence *</Label>
+  1658→              <Select value={form.territoryId} onValueChange={(v) => setForm({ ...form, territoryId: v })}>
+  1659→                <SelectTrigger><SelectValue placeholder="Pilih DPC/Kabupaten..." /></SelectTrigger>
+  1660→                <SelectContent className="max-h-60">
+  1661→                  {territories.filter((t: any) => t.level === 'REGENCY' || t.level === 'PROVINCE').map((t: any) => <SelectItem key={t.id} value={t.id}>{t.name} ({t.code})</SelectItem>)}
+  1662→                </SelectContent>
+  1663→              </Select>
+  1664→            </div>
+  1665→            <div className="space-y-2">
+  1666→              <Label>Status Lock Wilayah</Label>
+  1667→              <Select value={form.isLocked ? 'true' : 'false'} onValueChange={(v) => setForm({ ...form, isLocked: v === 'true' })}>
+  1668→                <SelectTrigger><SelectValue /></SelectTrigger>
+  1669→                <SelectContent>
+  1670→                  <SelectItem value="true">🔒 Lock - klarifikasi hanya ke wilayah ini</SelectItem>
+  1671→                  <SelectItem value="false">🔓 Monitoring - tidak broadcast</SelectItem>
+  1672→                </SelectContent>
+  1673→              </Select>
+  1674→            </div>
+  1675→          </div>
+  1676→
+  1677→          {/* Kontra-narasi */}
+  1678→          <div className="space-y-3 border-t pt-3">
+  1679→            <h4 className="text-sm font-semibold flex items-center gap-2"><FileText className="w-4 h-4 text-emerald-600" /> Kontra-Narasi Klarifikasi</h4>
+  1680→            <div className="space-y-2">
+  1681→              <Label>Pesan Klarifikasi</Label>
+  1682→              <Textarea value={form.clarificationMessage} onChange={(e) => setForm({ ...form, clarificationMessage: e.target.value })} rows={3} placeholder="Teks klarifikasi yang akan dikirim ke WA warga di wilayah terkunci" />
+  1683→            </div>
+  1684→            <div className="grid grid-cols-2 gap-3">
+  1685→              <div className="space-y-2">
+  1686→                <Label>URL Video Klarifikasi (opsional)</Label>
+  1687→                <Input value={form.clarificationVideoUrl} onChange={(e) => setForm({ ...form, clarificationVideoUrl: e.target.value })} placeholder="https://youtu.be/..." />
+  1688→              </div>
+  1689→              <div className="space-y-2">
+  1690→                <Label>Kutipan Resmi (opsional)</Label>
+  1691→                <Input value={form.clarificationQuote} onChange={(e) => setForm({ ...form, clarificationQuote: e.target.value })} placeholder="cth: Pernyataan resmi Presiden" />
+  1692→              </div>
+  1693→            </div>
+  1694→          </div>
+  1695→
+  1696→          <DialogFooter>
+  1697→            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Batal</Button>
+  1698→            <Button type="submit" disabled={loading} className="bg-gradient-to-r from-red-600 to-rose-600 text-white">
+  1699→              {loading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Shield className="w-4 h-4 mr-1" />}
+  1700→              {loading ? 'Menyimpan...' : editItem ? 'Simpan Perubahan' : 'Buat & Lock Wilayah'}
+  1701→            </Button>
+  1702→          </DialogFooter>
+  1703→        </form>
+  1704→      </DialogContent>
+  1705→    </Dialog>
+  1706→  )
+  1707→}
+  1708→
+  1709→function CrisisBroadcastDialog({ zone, onOpenChange, onSuccess }: any) {
+  1710→  const addToast = useToastStore((s) => s.addToast)
+  1711→  const [form, setForm] = useState({
+  1712→    message: '', videoUrl: '', quote: '', recipientCount: 500,
+  1713→  })
+  1714→  const [loading, setLoading] = useState(false)
+  1715→  const [result, setResult] = useState<any>(null)
+  1716→
+  1717→  useEffect(() => {
+  1718→    if (zone) {
+  1719→      setForm({
+  1720→        message: zone.clarificationMessage || '',
+  1721→        videoUrl: zone.clarificationVideoUrl || '',
+  1722→        quote: zone.clarificationQuote || '',
+  1723→        recipientCount: 500,
+  1724→      })
+  1725→      setResult(null)
+  1726→    }
+  1727→  }, [zone])
+  1728→
+  1729→  if (!zone) return null
+  1730→
+  1731→  const handleSubmit = async (e: React.FormEvent) => {
+  1732→    e.preventDefault()
+  1733→    setLoading(true)
+  1734→    try {
+  1735→      const res = await fetch(`/api/crisis-zones/${zone.id}/broadcast`, {
+  1736→        method: 'POST',
+  1737→        headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+  1738→        body: JSON.stringify(form),
+  1739→      })
+  1740→      const data = await res.json()
+  1741→      if (!res.ok || !data.success) throw new Error(data.error || 'Gagal broadcast')
+  1742→      setResult(data.data)
+  1743→      addToast(data.message, 'success')
+  1744→      onSuccess()
+  1745→    } catch (e: any) { addToast(e.message, 'error') }
+  1746→    finally { setLoading(false) }
+  1747→  }
+  1748→
+  1749→  return (
+  1750→    <Dialog open={!!zone} onOpenChange={onOpenChange}>
+  1751→      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+  1752→        <DialogHeader>
+  1753→          <DialogTitle className="flex items-center gap-2">
+  1754→            <Send className="w-5 h-5 text-orange-600" /> Broadcast Klarifikasi Geo-Fenced
+  1755→          </DialogTitle>
+  1756→          <DialogDescription>
+  1757→            Kirim klarifikasi HANYA ke warga & relawan di <strong>{zone.territory?.name}</strong>
+  1758→          </DialogDescription>
+  1759→        </DialogHeader>
+  1760→
+  1761→        {result ? (
+  1762→          <div className="space-y-3">
+  1763→            <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-4">
+  1764→              <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto mb-2" />
+  1765→              <div className="text-center text-sm font-semibold text-emerald-800">Broadcast Terkirim!</div>
+  1766→              <div className="text-center text-xs text-emerald-700 mt-1">{result.broadcastDetails.recipientCount} kontak WA di {result.broadcastDetails.territory} menerima klarifikasi</div>
+  1767→            </div>
+  1768→            <div className="rounded-lg border p-3 text-xs space-y-1">
+  1769→              <div><strong>Zona:</strong> {result.broadcastDetails.zone}</div>
+  1770→              <div><strong>Wilayah:</strong> {result.broadcastDetails.territory}</div>
+  1771→              <div><strong>Penerima:</strong> {result.broadcastDetails.recipientCount} kontak</div>
+  1772→              <div><strong>Dikirim:</strong> {formatDateTimeID(result.broadcastDetails.sentAt)}</div>
+  1773→              <div className="mt-2 pt-2 border-t"><strong>Pesan:</strong><br />{result.broadcastDetails.message}</div>
+  1774→              {result.broadcastDetails.videoUrl && <div><strong>Video:</strong> {result.broadcastDetails.videoUrl}</div>}
+  1775→              {result.broadcastDetails.quote && <div><strong>Kutipan:</strong> {result.broadcastDetails.quote}</div>}
+  1776→            </div>
+  1777→            <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800">
+  1778→              <MapPin className="w-4 h-4 inline mr-1" />
+  1779→              <strong>Geo-Fence Aktif:</strong> Wilayah lain TIDAK menerima broadcast ini. Isu terisolasi di {result.broadcastDetails.territory}.
+  1780→            </div>
+  1781→          </div>
+  1782→        ) : (
+  1783→          <form onSubmit={handleSubmit} className="space-y-3">
+  1784→            <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs text-blue-800">
+  1785→              <MapPin className="w-4 h-4 inline mr-1" />
+  1786→              <strong>Geo-Fenced Broadcast:</strong> Pesan ini hanya akan dikirim ke VoterContact di wilayah <strong>{zone.territory?.name}</strong>. Wilayah lain tidak akan menerima, mencegah penyebaran isu.
+  1787→            </div>
+  1788→            <div className="space-y-2">
+  1789→              <Label>Pesan Klarifikasi</Label>
+  1790→              <Textarea value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} rows={4} placeholder="Teks klarifikasi yang akan dikirim ke WA warga..." />
+  1791→            </div>
+  1792→            <div className="grid grid-cols-2 gap-3">
+  1793→              <div className="space-y-2">
+  1794→                <Label>URL Video Klarifikasi</Label>
+  1795→                <Input value={form.videoUrl} onChange={(e) => setForm({ ...form, videoUrl: e.target.value })} placeholder="https://youtu.be/..." />
+  1796→              </div>
+  1797→              <div className="space-y-2">
+  1798→                <Label>Kutipan Resmi</Label>
+  1799→                <Input value={form.quote} onChange={(e) => setForm({ ...form, quote: e.target.value })} placeholder="Pernyataan resmi" />
+  1800→              </div>
+  1801→            </div>
+  1802→            <div className="space-y-2">
+  1803→              <Label>Estimasi Jumlah Penerima (VoterContact di wilayah ini)</Label>
+  1804→              <Input type="number" value={form.recipientCount} onChange={(e) => setForm({ ...form, recipientCount: parseInt(e.target.value) || 0 })} min="0" />
+  1805→              <p className="text-[10px] text-muted-foreground">Demo: input manual. Production: auto-count dari VoterContact.path LIKE 'ID.{zone.territory?.code}%'</p>
+  1806→            </div>
+  1807→            <DialogFooter>
+  1808→              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Batal</Button>
+  1809→              <Button type="submit" disabled={loading} className="bg-gradient-to-r from-orange-600 to-red-600 text-white">
+  1810→                {loading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Send className="w-4 h-4 mr-1" />}
+  1811→                {loading ? 'Mengirim...' : 'Kirim Klarifikasi'}
+  1812→              </Button>
+  1813→            </DialogFooter>
+  1814→          </form>
+  1815→        )}
+  1816→      </DialogContent>
+  1817→    </Dialog>
+  1818→  )
+  1819→}
+  1820→
+  1821→// ============================================================
+  1822→// TAB 5: ASPIRASI RAKYAT - Microsite Solusi (Bukan Kampanye)
+  1823→// ============================================================
+  1824→function AspirasiRakyatTab() {
+  1825→  const addToast = useToastStore((s) => s.addToast)
+  1826→  const [aspirations, setAspirations] = useState<any[]>([])
+  1827→  const [analytics, setAnalytics] = useState<any>(null)
+  1828→  const [loading, setLoading] = useState(true)
+  1829→  const [filterStatus, setFilterStatus] = useState('ALL')
+  1830→  const [filterCategory, setFilterCategory] = useState('ALL')
+  1831→  const [reviewItem, setReviewItem] = useState<any>(null)
+  1832→  const [showAnalytics, setShowAnalytics] = useState(false)
+  1833→
+  1834→  const loadData = () => {
+  1835→    setLoading(true)
+  1836→    Promise.all([
+  1837→      api(`/api/aspirations?status=${filterStatus === 'ALL' ? '' : filterStatus}&category=${filterCategory === 'ALL' ? '' : filterCategory}`),
+  1838→      api('/api/aspirations/cluster'),
+  1839→    ])
+  1840→      .then(([a, an]) => { setAspirations(a); setAnalytics(an) })
+  1841→      .catch(e => addToast(e.message, 'error'))
+  1842→      .finally(() => setLoading(false))
+  1843→  }
+  1844→  useEffect(() => { loadData() }, [filterStatus, filterCategory])
+  1845→
+  1846→  if (loading) return <LoadingState />
+  1847→
+  1848→  const newCount = aspirations.filter(a => a.status === 'NEW').length
+  1849→  const urgentCount = aspirations.filter(a => a.priority === 'URGENT').length
+  1850→  const actionedCount = aspirations.filter(a => a.status === 'ACTIONED').length
+  1851→
+  1852→  const categoryConfig: Record<string, { label: string; color: string }> = {
+  1853→    PERTANIAN: { label: 'Pertanian', color: 'bg-green-50 text-green-700 border-green-200' },
+  1854→    EKONOMI: { label: 'Ekonomi', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+  1855→    PENDIDIKAN: { label: 'Pendidikan', color: 'bg-purple-50 text-purple-700 border-purple-200' },
+  1856→    KESEHATAN: { label: 'Kesehatan', color: 'bg-red-50 text-red-700 border-red-200' },
+  1857→    INFRASTRUKTUR: { label: 'Infrastruktur', color: 'bg-amber-50 text-amber-700 border-amber-200' },
+  1858→    SOSIAL: { label: 'Sosial', color: 'bg-pink-50 text-pink-700 border-pink-200' },
+  1859→    KEAMANAN: { label: 'Keamanan', color: 'bg-slate-50 text-slate-700 border-slate-200' },
+  1860→    LAINNYA: { label: 'Lainnya', color: 'bg-slate-50 text-slate-700 border-slate-200' },
+  1861→  }
+  1862→  const sentimentConfig: Record<string, { color: string; icon: any }> = {
+  1863→    POSITIVE: { color: 'text-emerald-600', icon: TrendingUp },
+  1864→    NEUTRAL: { color: 'text-slate-600', icon: Activity },
+  1865→    NEGATIVE: { color: 'text-red-600', icon: TrendingDown },
+  1866→    URGENT: { color: 'text-red-700 font-bold', icon: Zap },
+  1867→  }
+  1868→  const priorityConfig: Record<string, { label: string; color: string }> = {
+  1869→    LOW: { label: 'Rendah', color: 'bg-slate-50 text-slate-700 border-slate-200' },
+  1870→    NORMAL: { label: 'Normal', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+  1871→    HIGH: { label: 'Tinggi', color: 'bg-orange-50 text-orange-700 border-orange-200' },
+  1872→    URGENT: { label: 'URGENT', color: 'bg-red-50 text-red-700 border-red-200' },
+  1873→  }
+  1874→
+  1875→  return (
+  1876→    <div className="space-y-4">
+  1877→      {/* Stats */}
+  1878→      <div className="grid gap-4 md:grid-cols-4">
+  1879→        <StatCard label="Total Aspirasi" value={aspirations.length} icon={Heart} color="orange" />
+  1880→        <StatCard label="Baru" value={newCount} icon={Bell} color="blue" />
+  1881→        <StatCard label="URGENT" value={urgentCount} icon={Zap} color="red" />
+  1882→        <StatCard label="Ditindaklanjuti" value={actionedCount} icon={CheckCircle2} color="emerald" />
+  1883→      </div>
+  1884→
+  1885→      {/* Header */}
+  1886→      <div className="flex justify-between items-center">
+  1887→        <div>
+  1888→          <h3 className="font-semibold text-base flex items-center gap-2">
+  1889→            <Heart className="w-5 h-5 text-pink-600" /> Aspirasi Rakyat - Microsite Solusi
+  1890→          </h3>
+  1891→          <p className="text-sm text-muted-foreground">Data-driven speech input - aspirasi rakyat di-cluster untuk pidato kepresidenan yang membumi</p>
+  1892→        </div>
+  1893→        <Button onClick={() => setShowAnalytics(true)} variant="outline">
+  1894→          <Target className="w-4 h-4 mr-2" /> Speech Insights
+  1895→        </Button>
+  1896→      </div>
+  1897→
+  1898→      {/* Info banner */}
+  1899→      <div className="rounded-lg bg-pink-50 border border-pink-200 p-3 text-xs text-pink-800">
+  1900→        <Lightbulb className="w-4 h-4 inline mr-1" />
+  1901→        <strong>Transformasi Strategis:</strong> Setiap polling yang dikirim ke masyarakat menyertakan tombol "Sampaikan Aspirasi Langsung ke Pak Prabowo". AI otomatis mengelompokkan aspirasi berdasarkan profesi & wilayah (cth: petani di Jawa Tengah mengeluhkan pupuk) - menjadi modal data konkret untuk pidato kepresidenan yang membumi (data-driven speech).
+  1902→      </div>
+  1903→
+  1904→      {/* Insights summary */}
+  1905→      {analytics?.insights && analytics.insights.length > 0 && (
+  1906→        <Card>
+  1907→          <CardHeader><CardTitle className="text-sm flex items-center gap-2"><Lightbulb className="w-4 h-4 text-amber-500" /> AI Insights</CardTitle></CardHeader>
+  1908→          <CardContent className="space-y-2">
+  1909→            {analytics.insights.map((insight: string, i: number) => (
+  1910→              <div key={i} className="text-xs text-slate-700 flex items-start gap-2 p-2 rounded bg-slate-50">
+  1911→                <Lightbulb className="w-3 h-3 text-amber-500 mt-0.5 shrink-0" /> {insight}
+  1912→              </div>
+  1913→            ))}
+  1914→          </CardContent>
+  1915→        </Card>
+  1916→      )}
+  1917→
+  1918→      {/* Filters */}
+  1919→      <div className="flex flex-wrap gap-2 items-center">
+  1920→        <Select value={filterStatus} onValueChange={setFilterStatus}>
+  1921→          <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
+  1922→          <SelectContent>
+  1923→            <SelectItem value="ALL">Semua Status</SelectItem>
+  1924→            <SelectItem value="NEW">Baru</SelectItem>
+  1925→            <SelectItem value="READ">Dibaca</SelectItem>
+  1926→            <SelectItem value="REVIEWING">Sedang Ditinjau</SelectItem>
+  1927→            <SelectItem value="ACTIONED">Ditindaklanjuti</SelectItem>
+  1928→            <SelectItem value="ARCHIVED">Diarsipkan</SelectItem>
+  1929→          </SelectContent>
+  1930→        </Select>
+  1931→        <Select value={filterCategory} onValueChange={setFilterCategory}>
+  1932→          <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
+  1933→          <SelectContent>
+  1934→            <SelectItem value="ALL">Semua Kategori</SelectItem>
+  1935→            {Object.entries(categoryConfig).map(([k, v]) => <SelectItem key={k} value={k}>{v.label}</SelectItem>)}
+  1936→          </SelectContent>
+  1937→        </Select>
+  1938→      </div>
+  1939→
+  1940→      {/* Aspirations list */}
+  1941→      {aspirations.length === 0 ? (
+  1942→        <EmptyState icon={Heart} title="Belum ada aspirasi" description="Aspirasi akan masuk otomatis saat masyarakat submit via microsite polling." />
+  1943→      ) : (
+  1944→        <div className="space-y-2">
+  1945→          {aspirations.map(a => {
+  1946→            const cat = categoryConfig[a.category] || categoryConfig.LAINNYA
+  1947→            const sent = sentimentConfig[a.sentiment] || sentimentConfig.NEUTRAL
+  1948→            const pri = priorityConfig[a.priority] || priorityConfig.NORMAL
+  1949→            const SentIcon = sent.icon
+  1950→            return (
+  1951→              <Card key={a.id} className={`hover:shadow-md transition-all ${a.priority === 'URGENT' ? 'border-l-4 border-l-red-500' : ''}`}>
+  1952→                <CardContent className="p-3">
+  1953→                  <div className="flex items-start justify-between gap-3">
+  1954→                    <div className="flex-1 min-w-0">
+  1955→                      <div className="flex items-center gap-2 flex-wrap mb-1">
+  1956→                        <Badge variant="outline" className={`text-[10px] ${cat.color}`}>{cat.label}{a.subCategory ? `/${a.subCategory}` : ''}</Badge>
+  1957→                        <Badge variant="outline" className={`text-[10px] ${pri.color}`}>{pri.label}</Badge>
+  1958→                        {a.occupation && <Badge variant="outline" className="text-[10px] bg-slate-50 text-slate-700 border-slate-200">{a.occupation}</Badge>}
+  1959→                        {a.regencyCode && <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700 border-blue-200"><MapPin className="w-2.5 h-2.5 mr-0.5" />{a.regencyCode}</Badge>}
+  1960→                        <Badge variant="outline" className={`text-[10px] ${sent.color}`}><SentIcon className="w-2.5 h-2.5 mr-0.5" />{a.sentiment}</Badge>
+  1961→                      </div>
+  1962→                      <div className="font-semibold text-sm">{a.title}</div>
+  1963→                      <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{a.message}</p>
+  1964→                      <div className="text-[10px] text-muted-foreground mt-1">
+  1965→                        Dari: {a.senderName || 'Anonim'} • {formatDateTimeID(a.submittedAt)}
+  1966→                        {a.poll && ` • via Poll: ${a.poll.title.substring(0, 30)}...`}
+  1967→                      </div>
+  1968→                      {a.aiCluster && (
+  1969→                        <div className="text-[10px] mt-1">
+  1970→                          <Badge variant="outline" className="text-[9px] bg-purple-50 text-purple-700 border-purple-200 font-mono">
+  1971→                            Cluster: {a.aiCluster}
+  1972→                          </Badge>
+  1973→                        </div>
+  1974→                      )}
+  1975→                    </div>
+  1976→                    <Button variant="outline" size="sm" className="h-7 text-xs shrink-0" onClick={() => setReviewItem(a)}>
+  1977→                      <Eye className="w-3 h-3 mr-1" /> Review
+  1978→                    </Button>
+  1979→                  </div>
+  1980→                </CardContent>
+  1981→              </Card>
+  1982→            )
+  1983→          })}
+  1984→        </div>
+  1985→      )}
+  1986→
+  1987→      <ReviewAspirationDialog item={reviewItem} onOpenChange={(o: boolean) => !o && setReviewItem(null)} onSuccess={() => { loadData(); setReviewItem(null) }} />
+  1988→      <AspirationAnalyticsDialog open={showAnalytics} analytics={analytics} onOpenChange={setShowAnalytics} />
+  1989→    </div>
+  1990→  )
+  1991→}
+  1992→
+  1993→function ReviewAspirationDialog({ item, onOpenChange, onSuccess }: any) {
+  1994→  const addToast = useToastStore((s) => s.addToast)
+  1995→  const [form, setForm] = useState<any>({ status: 'READ', reviewNotes: '', priority: 'NORMAL', category: 'LAINNYA', subCategory: '' })
+  1996→  const [loading, setLoading] = useState(false)
+  1997→
+  1998→  useEffect(() => {
+  1999→    if (item) {
+  2000→      setForm({
+
+[showing lines 1-2000 of 2595; use offset=2001 with limit to continue reading]
