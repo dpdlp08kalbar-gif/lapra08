@@ -1678,10 +1678,22 @@ function DemographyTable({ demography, topLocations, channelSplit, loading }: {
 // ============================================================
 function EssayPollsTab({ onSwitchTab }: { onSwitchTab?: (tab: string) => void }) {
   const addToast = useToastStore((s) => s.addToast)
+  const user = useAuthStore.getState().user
   const [polls, setPolls] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [detailPoll, setDetailPoll] = useState<any>(null)
   const [sharePoll, setSharePoll] = useState<any>(null)
+  const [createOpen, setCreateOpen] = useState(false)
+  const [creating, setCreating] = useState(false)
+
+  // Form state untuk buat survei manual
+  const [formData, setFormData] = useState({
+    title: '',
+    question: '',
+    pollType: 'ESSAY' as 'ESSAY' | 'MULTIPLE_CHOICE',
+    options: ['', ''] as string[],
+    targetScope: 'NATIONAL' as string,
+  })
 
   // === Banner: Pengingat survei harus netral ===
   const neutralityBanner = (
@@ -1689,7 +1701,7 @@ function EssayPollsTab({ onSwitchTab }: { onSwitchTab?: (tab: string) => void })
       <Shield className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
       <div className="flex-1">
         <div className="font-bold text-amber-800 text-sm">
-          🔒 Survei Opini Publik — Netral &amp; Anonim
+          Survei Opini Publik — Netral &amp; Anonim
         </div>
         <p className="text-xs text-amber-700 mt-1">
           Pertanyaan survei <strong>TIDAK boleh menyebut</strong> "Laskar Prabowo 08" atau "LAPRA 08".
@@ -1708,122 +1720,195 @@ function EssayPollsTab({ onSwitchTab }: { onSwitchTab?: (tab: string) => void })
 
   useEffect(() => { loadData() }, [loadData])
 
-  // === Handler: Activate/Close/Archive/Delete poll ===
+  // === Handler: Buat survei manual ===
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!formData.title.trim() || !formData.question.trim()) {
+      addToast('Judul dan pertanyaan wajib diisi', 'error')
+      return
+    }
+    if (formData.pollType === 'MULTIPLE_CHOICE') {
+      const cleanOptions = formData.options.map(o => o.trim()).filter(o => o.length > 0)
+      if (cleanOptions.length < 2) {
+        addToast('Pilihan ganda butuh minimal 2 opsi', 'error')
+        return
+      }
+    }
+    setCreating(true)
+    try {
+      const body: any = {
+        title: formData.title.trim(),
+        question: formData.question.trim(),
+        description: null,
+        targetScope: formData.targetScope,
+      }
+      const res = await fetch('/api/essay-polls', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': user?.id || '' },
+        body: JSON.stringify(body),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) throw new Error(data.error)
+
+      // Jika MULTIPLE_CHOICE, set config via API
+      if (formData.pollType === 'MULTIPLE_CHOICE' && data.data?.id) {
+        const cleanOptions = formData.options.map(o => o.trim()).filter(o => o.length > 0)
+        try {
+          await fetch(`/api/essay-polls/${data.data.id}/config`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'x-user-id': user?.id || '' },
+            body: JSON.stringify({ pollType: 'MULTIPLE_CHOICE', options: cleanOptions }),
+          })
+        } catch (e: any) {
+          console.warn('[Create] Config set failed:', e.message)
+        }
+      }
+
+      addToast(`Survei "${formData.title.substring(0, 40)}" dibuat (status: DRAFT)`, 'success')
+      setFormData({ title: '', question: '', pollType: 'ESSAY', options: ['', ''], targetScope: 'NATIONAL' })
+      setCreateOpen(false)
+      loadData()
+    } catch (e: any) {
+      addToast(e.message, 'error')
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  // === Handler: Activate poll ===
   const handleActivate = async (pollId: string) => {
     try {
       const res = await fetch(`/api/essay-polls/${pollId}`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+        method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-user-id': user?.id || '' },
         body: JSON.stringify({ status: 'ACTIVE' }),
       })
       const data = await res.json()
       if (!res.ok || !data.success) throw new Error(data.error)
-      addToast(`Poll diaktifkan. Responden bisa kirim jawaban sekarang.`, 'success')
+      addToast('Survei diaktifkan. Responden bisa kirim jawaban sekarang.', 'success')
       loadData()
     } catch (e: any) { addToast(e.message, 'error') }
   }
 
-  // === FASE 3.5.1: Handler Close & Archive poll ===
+  // === Handler: Close poll ===
   const handleClose = async (pollId: string, title: string) => {
-    if (!confirm(`Tutup poll "${title.substring(0, 60)}"? Poll tidak akan menerima respon baru. Respon yang sudah ada tetap tersimpan.`)) return
+    if (!confirm(`Tutup survei "${title.substring(0, 60)}?" Survei tidak akan menerima respon baru.`)) return
     try {
       const res = await fetch(`/api/essay-polls/${pollId}`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
+        method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-user-id': user?.id || '' },
         body: JSON.stringify({ status: 'CLOSED' }),
       })
       const data = await res.json()
       if (!res.ok || !data.success) throw new Error(data.error)
-      addToast(`Poll ditutup. Respon existing tetap tersimpan.`, 'success')
+      addToast('Survei ditutup.', 'success')
       loadData()
     } catch (e: any) { addToast(e.message, 'error') }
   }
 
-  const handleArchive = async (pollId: string, title: string) => {
-    if (!confirm(`Arsipkan poll "${title.substring(0, 60)}"? Poll akan disembunyikan dari list aktif tapi data tetap tersimpan untuk audit.`)) return
-    try {
-      const res = await fetch(`/api/essay-polls/${pollId}`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-user-id': useAuthStore.getState().user?.id || '' },
-        body: JSON.stringify({ status: 'ARCHIVED' }),
-      })
-      const data = await res.json()
-      if (!res.ok || !data.success) throw new Error(data.error)
-      addToast(`Poll diarsipkan.`, 'success')
-      loadData()
-    } catch (e: any) { addToast(e.message, 'error') }
-  }
-
-  // === FASE 3.5.1: Handler Delete poll (irreversible) ===
+  // === Handler: Delete poll ===
   const handleDelete = async (pollId: string, title: string) => {
-    if (!confirm(`⚠️ HAPUS PERMANEN poll "${title.substring(0, 60)}"?\n\nSemua data terkait (respon, AI analysis, audit log reference) akan dihapus permanen.\nTindakan ini TIDAK BISA dibatalkan.\n\nDisarankan: gunakan 'Arsipkan' jika hanya ingin menyembunyikan.`)) return
-    // Konfirmasi kedua untuk hapus
-    if (!confirm(`Konfirmasi sekali lagi: Yakin hapus "${title.substring(0, 40)}" PERMANEN?`)) return
+    if (!confirm(`Hapus survei "${title.substring(0, 60)}" PERMANEN? Tidak bisa dibatalkan.`)) return
     try {
       const res = await fetch(`/api/essay-polls/${pollId}`, {
-        method: 'DELETE', headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+        method: 'DELETE', headers: { 'x-user-id': user?.id || '' },
       })
       const data = await res.json()
       if (!res.ok || !data.success) throw new Error(data.error)
-      addToast(`Poll "${title.substring(0, 40)}" dihapus permanen.`, 'success')
+      addToast('Survei dihapus.', 'success')
       loadData()
     } catch (e: any) { addToast(e.message, 'error') }
   }
 
+  // === Handler: View detail ===
   const handleViewDetail = async (pollId: string, page: number = 1) => {
     try {
-      // === FASE 3.5.3: Pakai pagination (page + limit) ===
       const res = await fetch(`/api/essay-polls/${pollId}?page=${page}&limit=20`, {
-        headers: { 'x-user-id': useAuthStore.getState().user?.id || '' },
+        headers: { 'x-user-id': user?.id || '' },
       })
       const data = await res.json()
       if (data.success) setDetailPoll(data.data)
     } catch (e: any) { addToast(e.message, 'error') }
   }
 
-  // === FASE 3.5.3: Handler untuk ganti page di detail dialog ===
   const handleDetailPageChange = (newPage: number) => {
     if (!detailPoll) return
     handleViewDetail(detailPoll.id, newPage)
   }
 
+  // === Helper: add/remove option ===
+  const addOption = () => {
+    if (formData.options.length >= 5) {
+      addToast('Maksimal 5 opsi', 'info')
+      return
+    }
+    setFormData({ ...formData, options: [...formData.options, ''] })
+  }
+  const removeOption = (idx: number) => {
+    if (formData.options.length <= 2) return
+    setFormData({ ...formData, options: formData.options.filter((_, i) => i !== idx) })
+  }
+  const updateOption = (idx: number, value: string) => {
+    const next = [...formData.options]
+    next[idx] = value
+    setFormData({ ...formData, options: next })
+  }
+
   if (loading) return <LoadingState />
+
+  // Filter out ARCHIVED polls
+  const visiblePolls = polls.filter(p => p.status !== 'ARCHIVED')
+  const activeCount = visiblePolls.filter(p => p.status === 'ACTIVE').length
+  const totalResponses = visiblePolls.reduce((sum, p) => sum + (p._count?.responses || 0), 0)
 
   return (
     <div className="space-y-4">
       {neutralityBanner}
 
-      {/* Polls list */}
-      {polls.length === 0 ? (
-        <EmptyState icon={Brain} title="Belum ada essay poll"
-          description="Survei dibuat otomatis dari Monitoring Berita (NEGATIVE+HIGH) atau bisa dibuat di menu lain." />
+      {/* === HEADER SIMPEL: 1 tombol Buat Survei === */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="h-5 w-1 rounded-full bg-gradient-to-b from-purple-500 to-pink-600" />
+          <div>
+            <h3 className="text-sm font-bold">Daftar Survei</h3>
+            <p className="text-xs text-muted-foreground">
+              {visiblePolls.length} survei • {activeCount} aktif • {totalResponses} respon
+            </p>
+          </div>
+        </div>
+        <Button
+          onClick={() => setCreateOpen(true)}
+          className="bg-gradient-to-r from-purple-600 to-pink-600 text-white"
+        >
+          <Plus className="w-4 h-4 mr-1" /> Buat Survei Baru
+        </Button>
+      </div>
+
+      {/* === LIST SURVEI (sederhana) === */}
+      {visiblePolls.length === 0 ? (
+        <EmptyState
+          icon={Brain}
+          title="Belum ada survei"
+          description="Klik 'Buat Survei Baru' untuk membuat survei pertama Anda. Survei juga bisa dibuat otomatis dari menu Monitoring Berita."
+        />
       ) : (
         <div className="space-y-2">
-          {polls.map(p => (
+          {visiblePolls.map(p => (
             <Card key={p.id} className="hover:shadow-md transition-shadow">
               <CardContent className="p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      {p.isAiGenerated && (
-                        <Badge className="text-[13px] bg-purple-100 text-purple-800">
-                          <Sparkles className="w-2.5 h-2.5 mr-0.5" />AI GENERATED
-                        </Badge>
-                      )}
-                      <Badge variant="outline" className={`text-[13px] ${p.status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-700' : p.status === 'CLOSED' ? 'bg-slate-50 text-slate-700' : 'bg-amber-50 text-amber-700'}`}>
+                      <Badge variant="outline" className={`text-xs ${p.status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-700' : p.status === 'CLOSED' ? 'bg-slate-50 text-slate-700' : 'bg-amber-50 text-amber-700'}`}>
                         {p.status}
                       </Badge>
-                      {p.sourceSentiment && (
-                        <Badge variant="outline" className={`text-[13px] ${p.sourceSentiment === 'NEGATIVE' ? 'bg-red-50 text-red-700' : p.sourceSentiment === 'POSITIVE' ? 'bg-emerald-50 text-emerald-700' : ''}`}>
-                          {p.sourceSentiment}
-                        </Badge>
+                      {p.isAiGenerated && (
+                        <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700">AI</Badge>
                       )}
-                      {p.targetOccupation && <Badge variant="outline" className="text-[13px] bg-blue-50 text-blue-700">{p.targetOccupation}</Badge>}
-                      {p.provinceName && <Badge variant="outline" className="text-[13px] bg-blue-50 text-blue-700"><MapPin className="w-2.5 h-2.5 mr-0.5" />{p.regencyName || p.provinceName}</Badge>}
-                      <Badge variant="outline" className="text-[13px]">{p._count?.responses || 0} respon</Badge>
+                      <Badge variant="outline" className="text-xs">{p._count?.responses || 0} respon</Badge>
                     </div>
                     <div className="font-semibold text-sm">{p.title}</div>
                     <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{p.question}</p>
-                    {p.description && <p className="text-xs text-purple-700 mt-1 italic line-clamp-1">{p.description}</p>}
-                    <div className="text-[13px] text-muted-foreground mt-2">
-                      📅 {formatDateTimeID(p.createdAt)} • oleh {p.createdBy?.fullName || '?'}
+                    <div className="text-xs text-muted-foreground mt-1">
+                      {formatDateTimeID(p.createdAt)} • oleh {p.createdBy?.fullName || '?'}
                     </div>
                   </div>
                   <div className="flex flex-col gap-1 shrink-0">
@@ -1835,23 +1920,14 @@ function EssayPollsTab({ onSwitchTab }: { onSwitchTab?: (tab: string) => void })
                         <Zap className="w-3 h-3 mr-1" /> Aktifkan
                       </Button>
                     )}
-                    {/* === Tombol Share ke Medsos === */}
                     <Button size="sm" variant="outline" className="h-7 text-xs bg-blue-50 border-blue-300 text-blue-700 hover:bg-blue-100" onClick={() => setSharePoll(p)}>
                       <Share2 className="w-3 h-3 mr-1" /> Share
                     </Button>
-                    {/* === FASE 3.5.1: Tombol Close & Archive (untuk ACTIVE poll) === */}
                     {p.status === 'ACTIVE' && (
                       <Button size="sm" variant="outline" className="h-7 text-xs bg-amber-50 border-amber-300 text-amber-700 hover:bg-amber-100" onClick={() => handleClose(p.id, p.title)}>
-                        <AlertTriangle className="w-3 h-3 mr-1" /> Tutup
+                        Tutup
                       </Button>
                     )}
-                    {/* === FASE 3.5.1: Tombol Archive (untuk CLOSED/DRAFT poll) === */}
-                    {(p.status === 'CLOSED' || p.status === 'DRAFT') && (
-                      <Button size="sm" variant="outline" className="h-7 text-xs bg-slate-50 border-slate-300 text-slate-700 hover:bg-slate-100" onClick={() => handleArchive(p.id, p.title)}>
-                        <Folder className="w-3 h-3 mr-1" /> Arsipkan
-                      </Button>
-                    )}
-                    {/* === FASE 3.5.1: Tombol Delete (irreversible, dengan konfirmasi 2x) === */}
                     <Button size="sm" variant="outline" className="h-7 text-xs bg-red-50 border-red-300 text-red-700 hover:bg-red-100" onClick={() => handleDelete(p.id, p.title)}>
                       <Trash2 className="w-3 h-3 mr-1" /> Hapus
                     </Button>
@@ -1863,103 +1939,193 @@ function EssayPollsTab({ onSwitchTab }: { onSwitchTab?: (tab: string) => void })
         </div>
       )}
 
-      {/* === BAGIAN 3: OUTPUT DATA — Dashboard Konsolidasi Hasil 3 Dimensi === */}
-      <SurveyOutputDashboard polls={polls} />
+      {/* === DASHBOARD HASIL === */}
+      <SurveyOutputDashboard polls={visiblePolls} />
 
-      {/* === Share to Social Media Dialog === */}
+      {/* === DIALOG: BUAT SURVEI BARU === */}
+      <Dialog open={createOpen} onOpenChange={(o) => { setCreateOpen(o); if (!o) setFormData({ title: '', question: '', pollType: 'ESSAY', options: ['', ''], targetScope: 'NATIONAL' }) }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Plus className="w-5 h-5 text-purple-600" /> Buat Survei Baru
+            </DialogTitle>
+            <DialogDescription>
+              Isi form di bawah untuk membuat survei. Survei akan disimpan dengan status DRAFT.
+              Aktifkan manual setelah review.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleCreate} className="space-y-4">
+            {/* Judul */}
+            <div>
+              <Label className="text-sm font-semibold">Judul Survei <span className="text-red-500">*</span></Label>
+              <Input
+                value={formData.title}
+                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                placeholder="cth: Survei Opini Publik tentang Kebijakan Pemerintah"
+                className="mt-1"
+                required
+                disabled={creating}
+                maxLength={200}
+              />
+            </div>
+
+            {/* Pertanyaan */}
+            <div>
+              <Label className="text-sm font-semibold">Pertanyaan <span className="text-red-500">*</span></Label>
+              <Textarea
+                value={formData.question}
+                onChange={(e) => setFormData({ ...formData, question: e.target.value })}
+                placeholder="Tulis pertanyaan survei di sini..."
+                className="mt-1"
+                rows={3}
+                required
+                disabled={creating}
+                maxLength={1000}
+              />
+            </div>
+
+            {/* Tipe Jawaban */}
+            <div>
+              <Label className="text-sm font-semibold">Tipe Jawaban</Label>
+              <div className="grid grid-cols-2 gap-2 mt-1">
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, pollType: 'ESSAY' })}
+                  className={`p-3 border rounded-lg text-left transition-colors ${formData.pollType === 'ESSAY' ? 'border-purple-500 bg-purple-50' : 'border-slate-200 hover:bg-slate-50'}`}
+                >
+                  <div className="text-sm font-semibold">Esai</div>
+                  <div className="text-xs text-muted-foreground">Responden tulis jawaban bebas</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, pollType: 'MULTIPLE_CHOICE' })}
+                  className={`p-3 border rounded-lg text-left transition-colors ${formData.pollType === 'MULTIPLE_CHOICE' ? 'border-purple-500 bg-purple-50' : 'border-slate-200 hover:bg-slate-50'}`}
+                >
+                  <div className="text-sm font-semibold">Pilihan Ganda</div>
+                  <div className="text-xs text-muted-foreground">Responden pilih 1 opsi</div>
+                </button>
+              </div>
+            </div>
+
+            {/* Options (jika MULTIPLE_CHOICE) */}
+            {formData.pollType === 'MULTIPLE_CHOICE' && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-semibold">Opsi Jawaban (min 2, max 5)</Label>
+                  <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={addOption} disabled={formData.options.length >= 5 || creating}>
+                    <Plus className="w-3 h-3 mr-1" /> Tambah
+                  </Button>
+                </div>
+                {formData.options.map((opt, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground w-6">{idx + 1}.</span>
+                    <Input
+                      value={opt}
+                      onChange={(e) => updateOption(idx, e.target.value)}
+                      placeholder={`Opsi ${idx + 1}`}
+                      className="h-8 text-sm"
+                      maxLength={100}
+                      disabled={creating}
+                    />
+                    {formData.options.length > 2 && (
+                      <Button type="button" size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-500" onClick={() => removeOption(idx)} disabled={creating}>
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Target Wilayah */}
+            <div>
+              <Label className="text-sm font-semibold">Target Wilayah</Label>
+              <Select value={formData.targetScope} onValueChange={(v) => setFormData({ ...formData, targetScope: v })} disabled={creating}>
+                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="NATIONAL">Nasional (semua Indonesia)</SelectItem>
+                  <SelectItem value="PROVINCE">Provinsi (admin DPD)</SelectItem>
+                  <SelectItem value="REGENCY">Kab/Kota (admin DPC)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="outline" onClick={() => setCreateOpen(false)} disabled={creating}>Batal</Button>
+              <Button type="submit" disabled={creating} className="bg-purple-600 hover:bg-purple-700 text-white">
+                {creating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
+                {creating ? 'Menyimpan...' : 'Simpan sebagai Draft'}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* === Share Dialog === */}
       {sharePoll && (
         <ShareToSocialMediaDialog poll={sharePoll} onClose={() => setSharePoll(null)} />
       )}
 
-      {/* Detail dialog */}
+      {/* === Detail Dialog === */}
       {detailPoll && (
         <Dialog open={true} onOpenChange={() => setDetailPoll(null)}>
           <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Brain className="w-5 h-5 text-purple-600" />
-                {detailPoll.title}
-              </DialogTitle>
-              <DialogDescription>
-                {detailPoll.totalResponses} respon • {detailPoll.sentimentStats?.POSITIVE || 0} positif • {detailPoll.sentimentStats?.NEGATIVE || 0} negatif • {detailPoll.sentimentStats?.UNPROCESSED || 0} belum diproses
-              </DialogDescription>
+              <DialogTitle>Detail Survei</DialogTitle>
             </DialogHeader>
             <div className="space-y-3">
-              <div className="p-3 rounded bg-purple-50 border border-purple-200">
-                <Label className="text-xs font-semibold">Pertanyaan:</Label>
-                <p className="text-sm mt-1">{detailPoll.question}</p>
-              </div>
-              {detailPoll.description && (
-                <div className="text-xs text-muted-foreground italic">{detailPoll.description}</div>
-              )}
-              <div className="grid grid-cols-3 gap-2 text-center">
-                <div className="rounded border bg-emerald-50 p-2">
-                  <div className="text-2xl font-bold text-emerald-700">{detailPoll.sentimentStats?.POSITIVE || 0}</div>
-                  <div className="text-[13px]">Positif</div>
-                </div>
-                <div className="rounded border bg-slate-50 p-2">
-                  <div className="text-2xl font-bold text-slate-700">{detailPoll.sentimentStats?.NEUTRAL || 0}</div>
-                  <div className="text-[13px]">Netral</div>
-                </div>
-                <div className="rounded border bg-red-50 p-2">
-                  <div className="text-2xl font-bold text-red-700">{detailPoll.sentimentStats?.NEGATIVE || 0}</div>
-                  <div className="text-[13px]">Negatif</div>
-                </div>
+              <div>
+                <Label className="text-xs font-semibold">Judul:</Label>
+                <p className="text-sm">{detailPoll.title}</p>
               </div>
               <div>
-                <Label className="text-xs font-semibold">Top Wilayah Responden:</Label>
-                <div className="flex flex-wrap gap-1 mt-1">
-                  {(detailPoll.topLocations || []).map((loc: any) => (
-                    <Badge key={loc.code} variant="outline" className="text-[13px]">{loc.code}: {loc.count}</Badge>
-                  ))}
-                  {(detailPoll.topLocations || []).length === 0 && <span className="text-sm text-muted-foreground">Belum ada responden</span>}
+                <Label className="text-xs font-semibold">Pertanyaan:</Label>
+                <p className="text-sm">{detailPoll.question}</p>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="rounded border p-2 text-center">
+                  <div className="text-lg font-bold text-emerald-600">{detailPoll.sentimentStats?.POSITIVE || 0}</div>
+                  <div className="text-xs text-muted-foreground">Positif</div>
                 </div>
+                <div className="rounded border p-2 text-center">
+                  <div className="text-lg font-bold text-amber-600">{detailPoll.sentimentStats?.NEUTRAL || 0}</div>
+                  <div className="text-xs text-muted-foreground">Netral</div>
+                </div>
+                <div className="rounded border p-2 text-center">
+                  <div className="text-lg font-bold text-red-600">{detailPoll.sentimentStats?.NEGATIVE || 0}</div>
+                  <div className="text-xs text-muted-foreground">Negatif</div>
+                </div>
+              </div>
+              <div className="text-xs text-muted-foreground text-center">
+                Total: {detailPoll.totalResponses || 0} respon
               </div>
               {detailPoll.responses && detailPoll.responses.length > 0 && (
                 <div>
                   <Label className="text-xs font-semibold">
-                    Respon (Page {detailPoll.pagination?.page || 1} dari {detailPoll.pagination?.totalPages || 1} — Total {detailPoll.totalResponses || detailPoll.responses.length}):
+                    Respon (Page {detailPoll.pagination?.page || 1} dari {detailPoll.pagination?.totalPages || 1}):
                   </Label>
                   <div className="space-y-2 mt-2 max-h-[40vh] overflow-y-auto">
                     {detailPoll.responses.map((r: any) => (
                       <div key={r.id} className="rounded border p-2 text-xs">
                         <div className="flex items-center gap-2 mb-1">
-                          <Badge variant="outline" className={`text-[13px] ${r.aiSentiment === 'NEGATIVE' ? 'bg-red-50 text-red-700' : r.aiSentiment === 'POSITIVE' ? 'bg-emerald-50 text-emerald-700' : ''}`}>
+                          <Badge variant="outline" className={`text-xs ${r.aiSentiment === 'NEGATIVE' ? 'bg-red-50 text-red-700' : r.aiSentiment === 'POSITIVE' ? 'bg-emerald-50 text-emerald-700' : ''}`}>
                             {r.aiSentiment || 'BELUM'}
                           </Badge>
-                          {r.occupation && <Badge variant="outline" className="text-[13px]">{r.occupation}</Badge>}
-                          {r.ageGroup && <Badge variant="outline" className="text-[13px]">{r.ageGroup}</Badge>}
-                          {r.regencyCode && <Badge variant="outline" className="text-[13px]">{r.regencyCode}</Badge>}
-                          <span className="text-[13px] text-muted-foreground ml-auto">{r.wordCount} kata</span>
+                          {r.occupation && <Badge variant="outline" className="text-xs">{r.occupation}</Badge>}
+                          <span className="text-xs text-muted-foreground ml-auto">{r.wordCount} kata</span>
                         </div>
                         <p className="text-xs line-clamp-3">{r.answer}</p>
-                        {r.aiSummary && <p className="text-[13px] text-purple-700 mt-1 italic">{r.aiSummary}</p>}
                       </div>
                     ))}
                   </div>
-                  {/* === FASE 3.5.3: Pagination controls === */}
                   {detailPoll.pagination && detailPoll.pagination.totalPages > 1 && (
                     <div className="flex items-center justify-between gap-2 mt-3 pt-2 border-t">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs"
-                        disabled={!detailPoll.pagination.hasPrev}
-                        onClick={() => handleDetailPageChange((detailPoll.pagination.page || 1) - 1)}
-                      >
-                        ← Sebelumnya
+                      <Button size="sm" variant="outline" className="h-7 text-xs" disabled={!detailPoll.pagination.hasPrev} onClick={() => handleDetailPageChange((detailPoll.pagination.page || 1) - 1)}>
+                        Sebelumnya
                       </Button>
-                      <span className="text-xs text-muted-foreground">
-                        {(detailPoll.pagination.page || 1)} / {detailPoll.pagination.totalPages}
-                      </span>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs"
-                        disabled={!detailPoll.pagination.hasNext}
-                        onClick={() => handleDetailPageChange((detailPoll.pagination.page || 1) + 1)}
-                      >
-                        Berikutnya →
+                      <span className="text-xs text-muted-foreground">{(detailPoll.pagination.page || 1)} / {detailPoll.pagination.totalPages}</span>
+                      <Button size="sm" variant="outline" className="h-7 text-xs" disabled={!detailPoll.pagination.hasNext} onClick={() => handleDetailPageChange((detailPoll.pagination.page || 1) + 1)}>
+                        Berikutnya
                       </Button>
                     </div>
                   )}
@@ -1968,7 +2134,7 @@ function EssayPollsTab({ onSwitchTab }: { onSwitchTab?: (tab: string) => void })
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setSharePoll(sharePoll || detailPoll)}>
-                <Share2 className="w-4 h-4 mr-1" /> Share ke Medsos
+                <Share2 className="w-4 h-4 mr-2" /> Share
               </Button>
               <Button variant="outline" onClick={() => setDetailPoll(null)}>Tutup</Button>
             </DialogFooter>
@@ -1978,10 +2144,6 @@ function EssayPollsTab({ onSwitchTab }: { onSwitchTab?: (tab: string) => void })
     </div>
   )
 }
-
-// ============================================================
-// SHARE TO SOCIAL MEDIA DIALOG — Bagikan poll ke WA/FB/IG/X/Telegram/Email + Group Populer
-// ============================================================
 function ShareToSocialMediaDialog({ poll, onClose }: { poll: any; onClose: () => void }) {
   const addToast = useToastStore((s) => s.addToast)
   const [customText, setCustomText] = useState('')
