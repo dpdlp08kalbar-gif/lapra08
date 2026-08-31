@@ -1218,7 +1218,21 @@ function BroadcastStatsDialog({ broadcast, onClose }: { broadcast: any; onClose:
 }
 
 // ============================================================
-// TAB: SURVEI & POLLING (dibuat ulang dari nol — sederhana & praktis)
+// TAB: SURVEI & POLLING (dibangun ulang dari nol — sederhana)
+// ============================================================
+// Fitur:
+// 1. Buat survei (Esai atau Pilihan Ganda)
+// 2. List survei dengan aksi: Detail, Aktifkan, Tutup, Hapus
+// 3. Share link survei
+// 4. Detail dengan respon & sentimen
+//
+// TIDAK ADA:
+// - AI Generate Pertanyaan
+// - Kanal Distribusi & Integrasi
+// - Atur Keyword AI & Hashtag
+// - Surveyor / Lapangan
+// - Dashboard 3 Dimensi
+// - Word Cloud / Heatmap / Demografi
 // ============================================================
 function EssayPollsTab() {
   const addToast = useToastStore((s) => s.addToast)
@@ -1229,13 +1243,13 @@ function EssayPollsTab() {
   const [saving, setSaving] = useState(false)
   const [detailPoll, setDetailPoll] = useState<any>(null)
 
-  // Form state
+  // Form
   const [title, setTitle] = useState('')
   const [question, setQuestion] = useState('')
   const [pollType, setPollType] = useState<'ESSAY' | 'MULTIPLE_CHOICE'>('ESSAY')
   const [options, setOptions] = useState<string[]>(['', ''])
 
-  // Load list survei
+  // Load
   const loadData = useCallback(() => {
     setLoading(true)
     api('/api/essay-polls').then(res => {
@@ -1246,7 +1260,6 @@ function EssayPollsTab() {
 
   useEffect(() => { loadData() }, [loadData])
 
-  // Reset form
   const resetForm = () => {
     setTitle('')
     setQuestion('')
@@ -1254,7 +1267,7 @@ function EssayPollsTab() {
     setOptions(['', ''])
   }
 
-  // Buat survei baru
+  // Buat
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!title.trim() || !question.trim()) {
@@ -1270,20 +1283,14 @@ function EssayPollsTab() {
     }
     setSaving(true)
     try {
-      // Step 1: Create poll
       const res = await fetch('/api/essay-polls', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-user-id': user?.id || '' },
-        body: JSON.stringify({
-          title: title.trim(),
-          question: question.trim(),
-          targetScope: 'NATIONAL',
-        }),
+        body: JSON.stringify({ title: title.trim(), question: question.trim(), targetScope: 'NATIONAL' }),
       })
       const data = await res.json()
       if (!res.ok || !data.success) throw new Error(data.error)
 
-      // Step 2: If MULTIPLE_CHOICE, set config
       if (pollType === 'MULTIPLE_CHOICE' && data.data?.id) {
         const clean = options.map(o => o.trim()).filter(o => o)
         await fetch(`/api/essay-polls/${data.data.id}/config`, {
@@ -1293,7 +1300,7 @@ function EssayPollsTab() {
         }).catch(() => {})
       }
 
-      addToast(`Survei "${title.substring(0, 40)}" dibuat (DRAFT)`, 'success')
+      addToast(`Survei dibuat (DRAFT)`, 'success')
       resetForm()
       setShowForm(false)
       loadData()
@@ -1304,7 +1311,6 @@ function EssayPollsTab() {
     }
   }
 
-  // Aktifkan survei
   const handleActivate = async (id: string) => {
     try {
       const res = await fetch(`/api/essay-polls/${id}`, {
@@ -1319,9 +1325,8 @@ function EssayPollsTab() {
     } catch (e: any) { addToast(e.message, 'error') }
   }
 
-  // Tutup survei
   const handleClose = async (id: string, t: string) => {
-    if (!confirm(`Tutup survei "${t.substring(0, 50)}"?`)) return
+    if (!confirm(`Tutup survei "${t.substring(0, 50)}?"`)) return
     try {
       const res = await fetch(`/api/essay-polls/${id}`, {
         method: 'PUT',
@@ -1335,7 +1340,6 @@ function EssayPollsTab() {
     } catch (e: any) { addToast(e.message, 'error') }
   }
 
-  // Hapus survei
   const handleDelete = async (id: string, t: string) => {
     if (!confirm(`Hapus survei "${t.substring(0, 50)}" permanen?`)) return
     try {
@@ -1350,7 +1354,6 @@ function EssayPollsTab() {
     } catch (e: any) { addToast(e.message, 'error') }
   }
 
-  // Lihat detail
   const handleDetail = async (id: string) => {
     try {
       const res = await fetch(`/api/essay-polls/${id}`, {
@@ -1361,13 +1364,12 @@ function EssayPollsTab() {
     } catch (e: any) { addToast(e.message, 'error') }
   }
 
-  // Share link
   const handleShare = (poll: any) => {
     const url = `${window.location.origin}/poll/${poll.id}`
     navigator.clipboard.writeText(url).then(() => {
-      addToast(`Link survei disalin: ${url}`, 'success')
+      addToast(`Link disalin ke clipboard`, 'success')
     }).catch(() => {
-      addToast(`Link: ${url}`, 'info')
+      window.open(url, '_blank')
     })
   }
 
@@ -1375,42 +1377,33 @@ function EssayPollsTab() {
 
   return (
     <div className="space-y-4">
-      {/* Banner netralitas */}
+      {/* Banner */}
       <div className="rounded-lg bg-amber-50 border-2 border-amber-300 p-3 flex items-start gap-3">
         <Shield className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-        <div className="flex-1">
-          <div className="font-bold text-amber-800 text-sm">Survei Opini Publik — Netral &amp; Anonim</div>
-          <p className="text-xs text-amber-700 mt-1">
-            Pertanyaan survei <strong>TIDAK boleh menyebut</strong> "Laskar Prabowo 08" atau "LAPRA 08".
-            Responden harus merasa bebas menjawab jujur tanpa tekanan.
+        <div>
+          <div className="font-bold text-amber-800 text-sm">Survei Netral &amp; Anonim</div>
+          <p className="text-xs text-amber-700 mt-0.5">
+            Jangan sebut &quot;LAPRA 08&quot; atau &quot;Laskar Prabowo&quot; di pertanyaan.
           </p>
         </div>
       </div>
 
-      {/* Header + tombol buat */}
+      {/* Header */}
       <div className="flex items-center justify-between gap-3">
         <div>
           <h3 className="text-sm font-bold">Daftar Survei</h3>
           <p className="text-xs text-muted-foreground">
-            {polls.length} survei • {polls.filter(p => p.status === 'ACTIVE').length} aktif •{' '}
-            {polls.reduce((s, p) => s + (p._count?.responses || 0), 0)} respon
+            {polls.length} survei &bull; {polls.filter(p => p.status === 'ACTIVE').length} aktif
           </p>
         </div>
-        <Button
-          onClick={() => setShowForm(true)}
-          className="bg-purple-600 hover:bg-purple-700 text-white"
-        >
-          <Plus className="w-4 h-4 mr-1" /> Buat Survei Baru
+        <Button onClick={() => setShowForm(true)} className="bg-purple-600 hover:bg-purple-700 text-white">
+          <Plus className="w-4 h-4 mr-1" /> Buat Survei
         </Button>
       </div>
 
-      {/* List survei */}
+      {/* List */}
       {polls.length === 0 ? (
-        <EmptyState
-          icon={Brain}
-          title="Belum ada survei"
-          description="Klik tombol 'Buat Survei Baru' untuk membuat survei pertama Anda."
-        />
+        <EmptyState icon={Brain} title="Belum ada survei" description="Klik 'Buat Survei' untuk mulai." />
       ) : (
         <div className="space-y-2">
           {polls.map(p => (
@@ -1419,25 +1412,14 @@ function EssayPollsTab() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <Badge variant="outline" className={`text-xs ${
-                        p.status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-700' :
-                        p.status === 'CLOSED' ? 'bg-slate-50 text-slate-600' :
-                        'bg-amber-50 text-amber-700'
-                      }`}>
+                      <Badge variant="outline" className={`text-xs ${p.status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-700' : p.status === 'CLOSED' ? 'bg-slate-50 text-slate-600' : 'bg-amber-50 text-amber-700'}`}>
                         {p.status}
                       </Badge>
-                      {p.isAiGenerated && (
-                        <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700">AI</Badge>
-                      )}
-                      <Badge variant="outline" className="text-xs">
-                        {p._count?.responses || 0} respon
-                      </Badge>
+                      <Badge variant="outline" className="text-xs">{p._count?.responses || 0} respon</Badge>
                     </div>
                     <div className="font-semibold text-sm">{p.title}</div>
                     <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{p.question}</p>
-                    <div className="text-xs text-muted-foreground mt-1">
-                      {formatDateTimeID(p.createdAt)} • {p.createdBy?.fullName || 'Unknown'}
-                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">{formatDateTimeID(p.createdAt)}</div>
                   </div>
                   <div className="flex flex-col gap-1 shrink-0">
                     <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleDetail(p.id)}>
@@ -1467,53 +1449,30 @@ function EssayPollsTab() {
         </div>
       )}
 
-      {/* === DIALOG: Buat Survei Baru === */}
+      {/* Dialog Buat */}
       <Dialog open={showForm} onOpenChange={(o) => { setShowForm(o); if (!o) resetForm() }}>
         <DialogContent className="max-w-lg" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle>Buat Survei Baru</DialogTitle>
-            <DialogDescription>Isi form di bawah. Survei disimpan sebagai DRAFT.</DialogDescription>
+            <DialogDescription>Survei disimpan sebagai DRAFT. Aktifkan manual setelah review.</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleCreate} className="space-y-3">
             <div>
               <Label className="text-sm">Judul <span className="text-red-500">*</span></Label>
-              <Input
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="cth: Survei Opini Publik tentang Kebijakan"
-                required
-                disabled={saving}
-                maxLength={200}
-              />
+              <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Judul survei" required disabled={saving} maxLength={200} />
             </div>
             <div>
               <Label className="text-sm">Pertanyaan <span className="text-red-500">*</span></Label>
-              <Textarea
-                value={question}
-                onChange={(e) => setQuestion(e.target.value)}
-                placeholder="Tulis pertanyaan survei..."
-                required
-                disabled={saving}
-                rows={3}
-                maxLength={1000}
-              />
+              <Textarea value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="Tulis pertanyaan..." required disabled={saving} rows={3} maxLength={1000} />
             </div>
             <div>
               <Label className="text-sm">Tipe Jawaban</Label>
               <div className="grid grid-cols-2 gap-2 mt-1">
-                <button
-                  type="button"
-                  onClick={() => setPollType('ESSAY')}
-                  className={`p-2 border rounded text-left ${pollType === 'ESSAY' ? 'border-purple-500 bg-purple-50' : 'border-slate-200'}`}
-                >
+                <button type="button" onClick={() => setPollType('ESSAY')} className={`p-2 border rounded text-left ${pollType === 'ESSAY' ? 'border-purple-500 bg-purple-50' : 'border-slate-200'}`}>
                   <div className="text-sm font-medium">Esai</div>
                   <div className="text-xs text-muted-foreground">Jawaban bebas</div>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setPollType('MULTIPLE_CHOICE')}
-                  className={`p-2 border rounded text-left ${pollType === 'MULTIPLE_CHOICE' ? 'border-purple-500 bg-purple-50' : 'border-slate-200'}`}
-                >
+                <button type="button" onClick={() => setPollType('MULTIPLE_CHOICE')} className={`p-2 border rounded text-left ${pollType === 'MULTIPLE_CHOICE' ? 'border-purple-500 bg-purple-50' : 'border-slate-200'}`}>
                   <div className="text-sm font-medium">Pilihan Ganda</div>
                   <div className="text-xs text-muted-foreground">Pilih 1 opsi</div>
                 </button>
@@ -1532,27 +1491,9 @@ function EssayPollsTab() {
                 {options.map((opt, idx) => (
                   <div key={idx} className="flex items-center gap-1">
                     <span className="text-xs text-muted-foreground w-4">{idx + 1}.</span>
-                    <Input
-                      value={opt}
-                      onChange={(e) => {
-                        const next = [...options]
-                        next[idx] = e.target.value
-                        setOptions(next)
-                      }}
-                      placeholder={`Opsi ${idx + 1}`}
-                      className="h-8 text-sm"
-                      maxLength={100}
-                      disabled={saving}
-                    />
+                    <Input value={opt} onChange={(e) => { const n = [...options]; n[idx] = e.target.value; setOptions(n) }} placeholder={`Opsi ${idx + 1}`} className="h-8 text-sm" maxLength={100} disabled={saving} />
                     {options.length > 2 && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 w-7 p-0 text-red-500"
-                        onClick={() => setOptions(options.filter((_, i) => i !== idx))}
-                        disabled={saving}
-                      >
+                      <Button type="button" size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-500" onClick={() => setOptions(options.filter((_, i) => i !== idx))} disabled={saving}>
                         <Trash2 className="w-3 h-3" />
                       </Button>
                     )}
@@ -1571,7 +1512,7 @@ function EssayPollsTab() {
         </DialogContent>
       </Dialog>
 
-      {/* === DIALOG: Detail Survei === */}
+      {/* Dialog Detail */}
       {detailPoll && (
         <Dialog open={true} onOpenChange={() => setDetailPoll(null)}>
           <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto" aria-describedby={undefined}>
@@ -1590,6 +1531,7 @@ function EssayPollsTab() {
               <div>
                 <Label className="text-xs font-semibold">Status</Label>
                 <Badge variant="outline" className="text-xs ml-2">{detailPoll.status}</Badge>
+                <Badge variant="outline" className="text-xs ml-1">{detailPoll.totalResponses || 0} respon</Badge>
               </div>
               {detailPoll.totalResponses > 0 && (
                 <>
@@ -1609,14 +1551,12 @@ function EssayPollsTab() {
                   </div>
                   {detailPoll.responses && detailPoll.responses.length > 0 && (
                     <div>
-                      <Label className="text-xs font-semibold">Respon Terbaru</Label>
+                      <Label className="text-xs font-semibold">Respon</Label>
                       <div className="space-y-1 mt-1 max-h-60 overflow-y-auto">
                         {detailPoll.responses.map((r: any) => (
                           <div key={r.id} className="rounded border p-2 text-xs">
                             <div className="flex items-center gap-2 mb-1">
-                              <Badge variant="outline" className="text-xs">
-                                {r.aiSentiment || 'BELUM'}
-                              </Badge>
+                              <Badge variant="outline" className="text-xs">{r.aiSentiment || 'BELUM'}</Badge>
                               {r.occupation && <Badge variant="outline" className="text-xs">{r.occupation}</Badge>}
                               <span className="text-xs text-muted-foreground ml-auto">{r.wordCount} kata</span>
                             </div>
@@ -1631,7 +1571,7 @@ function EssayPollsTab() {
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => handleShare(detailPoll)}>
-                <Share2 className="w-4 h-4 mr-1" /> Share Link
+                <Share2 className="w-4 h-4 mr-1" /> Share
               </Button>
               <Button variant="outline" onClick={() => setDetailPoll(null)}>Tutup</Button>
             </DialogFooter>
@@ -1639,191 +1579,6 @@ function EssayPollsTab() {
         </Dialog>
       )}
     </div>
-  )
-}
-
-
-function ShareToSocialMediaDialog({ poll, onClose }: { poll: any; onClose: () => void }) {
-  const addToast = useToastStore((s) => s.addToast)
-  const [customText, setCustomText] = useState('')
-  const [activeTab, setActiveTab] = useState<'platforms' | 'groups'>('platforms')
-
-  const pollUrl = `${typeof window !== 'undefined' ? window.location.origin : 'https://lapra08.id'}/poll/${poll.id}`
-  const shareText = customText || buildShareText(poll)
-
-  const handleShare = async (platform: SharePlatform) => {
-    if (platform.id === 'copy_link') {
-      const success = await copyToClipboard(`${shareText}\n\n${pollUrl}`)
-      addToast(success ? 'Link & teks berhasil disalin ke clipboard' : 'Gagal menyalin', success ? 'success' : 'error')
-      return
-    }
-    const url = platform.buildUrl(shareText, pollUrl)
-    openShareUrl(url)
-    addToast(`Membuka ${platform.label}...`, 'success')
-  }
-
-  const handleShareToGroup = (group: PopularGroup) => {
-    // Untuk grup, tetap pakai share URL standard tapi user pilih grup manual di platformnya
-    const platform = group.platform === 'whatsapp' ? SHARE_PLATFORMS.find(p => p.id === 'whatsapp_web') :
-                     group.platform === 'facebook' ? SHARE_PLATFORMS.find(p => p.id === 'facebook_group') :
-                     SHARE_PLATFORMS.find(p => p.id === 'telegram_personal')
-    if (!platform) return
-    const url = platform.buildUrl(shareText, pollUrl)
-    openShareUrl(url)
-    addToast(`Membuka ${platform.label} — ${group.shareHint}`, 'success')
-  }
-
-  return (
-    <Dialog open={true} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Share2 className="w-5 h-5 text-purple-600" /> Share Poll ke Media Sosial
-          </DialogTitle>
-          <DialogDescription>
-            Bagikan survei essay ini ke medsos & grup populer yang sering dikunjungi calon pemilih / masyarakat.
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-3">
-          {/* Poll preview */}
-          <div className="rounded-lg bg-slate-50 border p-3">
-            <div className="text-xs font-semibold text-muted-foreground mb-1">Poll yang akan dibagikan:</div>
-            <div className="font-semibold text-sm">{poll.title}</div>
-            <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{poll.question}</p>
-            <div className="mt-2 flex items-center gap-2 flex-wrap">
-              {poll.targetOccupation && poll.targetOccupation !== 'UMUM' && <Badge variant="outline" className="text-[13px]">{poll.targetOccupation}</Badge>}
-              {poll.provinceName && <Badge variant="outline" className="text-[13px]"><MapPin className="w-2.5 h-2.5 mr-0.5" />{poll.regencyName || poll.provinceName}</Badge>}
-            </div>
-          </div>
-
-          {/* Custom text editor */}
-          <div className="space-y-2">
-            <Label className="text-xs font-semibold">Teks Share (bisa edit):</Label>
-            <Textarea value={customText || shareText} onChange={(e) => setCustomText(e.target.value)} rows={4}
-              placeholder="Teks yang akan dibagikan ke medsos..." />
-            <div className="text-[13px] text-muted-foreground">{(customText || shareText).length} karakter + URL</div>
-          </div>
-
-          {/* Poll URL */}
-          <div className="rounded-lg bg-blue-50 border border-blue-200 p-2 text-xs text-blue-800">
-            <strong>URL Poll:</strong> <code className="break-all">{pollUrl}</code>
-          </div>
-
-          {/* Tabs: Platforms / Groups */}
-          <div className="flex gap-2 border-b">
-            <button onClick={() => setActiveTab('platforms')}
-              className={`px-3 py-1.5 text-xs font-semibold border-b-2 transition-all ${activeTab === 'platforms' ? 'border-purple-600 text-purple-600' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
-              <Send className="w-3 h-3 inline mr-1" /> Platform Medsos ({SHARE_PLATFORMS.length})
-            </button>
-            <button onClick={() => setActiveTab('groups')}
-              className={`px-3 py-1.5 text-xs font-semibold border-b-2 transition-all ${activeTab === 'groups' ? 'border-purple-600 text-purple-600' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
-              <Users className="w-3 h-3 inline mr-1" /> Grup Populer ({POPULAR_GROUPS.length})
-            </button>
-          </div>
-
-          {/* Platforms tab */}
-          {activeTab === 'platforms' && (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {SHARE_PLATFORMS.map(platform => (
-                <button key={platform.id} onClick={() => handleShare(platform)}
-                  className={`flex items-center gap-2 px-3 py-2.5 rounded-lg text-xs font-semibold transition-all ${platform.color}`}>
-                  <span className="text-base">{platform.icon}</span>
-                  <span className="text-left leading-tight">{platform.label}</span>
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Groups tab */}
-          {activeTab === 'groups' && (
-            <div className="space-y-3">
-              <div className="rounded-lg bg-amber-50 border border-amber-200 p-2 text-[13px] text-amber-800">
-                <AlertTriangle className="w-3.5 h-3.5 inline mr-1" />
-                Klik grup untuk membuka platform share. Anda akan diarahkan ke WhatsApp Web / Facebook / Telegram,
-                lalu pilih grup spesifik di akun Anda.
-              </div>
-              {['Komunitas Lokal', 'Kelompok Profesi', 'Pemuda', 'Politik', 'Agama', 'Pendidikan'].map(cat => {
-                const groups = POPULAR_GROUPS.filter(g => g.category === cat)
-                if (groups.length === 0) return null
-                return (
-                  <div key={cat}>
-                    <div className="text-xs font-semibold text-muted-foreground mb-1.5">{cat}:</div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                      {groups.map(group => {
-                        const platformIcon = group.platform === 'whatsapp' ? '💬' : group.platform === 'facebook' ? '📘' : '✈️'
-                        const platformColor = group.platform === 'whatsapp' ? 'border-emerald-300 hover:bg-emerald-50' :
-                                               group.platform === 'facebook' ? 'border-blue-300 hover:bg-blue-50' :
-                                               'border-sky-300 hover:bg-sky-50'
-                        return (
-                          <button key={group.id} onClick={() => handleShareToGroup(group)}
-                            className={`text-left rounded border p-2 transition-all ${platformColor}`}>
-                            <div className="flex items-start gap-2">
-                              <span className="text-base">{platformIcon}</span>
-                              <div className="flex-1 min-w-0">
-                                <div className="font-semibold text-xs">{group.name}</div>
-                                <div className="text-[13px] text-muted-foreground line-clamp-1">{group.description}</div>
-                                <div className="text-[13px] text-purple-600 italic mt-0.5">{group.shareHint}</div>
-                              </div>
-                            </div>
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Tutup</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-function ReviewDialog({ link, onClose, onSubmit }: { link: any, onClose: () => void, onSubmit: (id: string, status: string, notes: string) => void }) {
-  const [status, setStatus] = useState('REVIEWED')
-  const [notes, setNotes] = useState('')
-  return (
-    <Dialog open={true} onOpenChange={onClose}>
-      <DialogContent aria-describedby={undefined}>
-        <DialogHeader>
-          <DialogTitle>Review Link Opini</DialogTitle>
-          <DialogDescription className="line-clamp-2">{link.title}</DialogDescription>
-        </DialogHeader>
-        <div className="space-y-3">
-          <a href={link.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 text-xs hover:underline">
-            Buka link asli →
-          </a>
-          <div className="space-y-2">
-            <Label>Status</Label>
-            <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="REVIEWED">Sudah Direview</SelectItem>
-                <SelectItem value="ADDRESSED">Sudah Ditangani</SelectItem>
-                <SelectItem value="ARCHIVED">Arsip</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label>Catatan Review</Label>
-            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={4}
-              placeholder="cth: Sudah diklarifikasi via broadcast WA, ditindaklanjuti DPC setempat..." />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Batal</Button>
-          <Button onClick={() => onSubmit(link.id, status, notes)} className="bg-orange-600 hover:bg-orange-700 text-white">
-            Simpan Review
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   )
 }
 
