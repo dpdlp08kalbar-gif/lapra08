@@ -3,7 +3,7 @@
   "crons": [
     {
       "path": "/api/opinion-links/auto-survey-batch",
-      "schedule": "*/5 * * * *"
+      "schedule": "0 6 * * *"
     }
   ]
 }
