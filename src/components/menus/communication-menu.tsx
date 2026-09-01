@@ -10,7 +10,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { api } from '@/lib/api-client'
 import { PageHeader, LoadingState, EmptyState } from '@/components/ui-helpers'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -24,12 +24,14 @@ import {
 import {
   Brain, Plus, Eye, Zap, Share2, Trash2, Loader2, Shield,
   Globe, Newspaper, Youtube, Facebook, Instagram, Twitter, MapPin,
-  Send, Sparkles, Filter, AlertTriangle, CheckCircle2,
+  Send, Sparkles, Filter, AlertTriangle, CheckCircle2, Target,
+  TrendingUp, BarChart3, PieChart, Award, RefreshCw,
 } from 'lucide-react'
 
 const TABS = [
   { key: 'surveys', label: 'Survei & Polling', icon: Brain },
   { key: 'monitoring', label: 'Monitoring Berita', icon: Sparkles },
+  { key: 'analytics', label: 'Dashboard Analitik', icon: Target },
 ]
 
 const PLATFORMS = [
@@ -68,6 +70,7 @@ export function CommunicationMenu() {
 
       {tab === 'surveys' && <SurveysTab />}
       {tab === 'monitoring' && <MonitoringTab />}
+      {tab === 'analytics' && <AnalyticsTab />}
     </div>
   )
 }
@@ -452,6 +455,227 @@ function MonitoringTab() {
           ))}
         </div>
       )}
+    </div>
+  )
+}
+
+// ============================================================
+// TAB 3: DASHBOARD ANALITIK (Fase 4 — Cross-tab + Tren + Zonasi)
+// ============================================================
+function AnalyticsTab() {
+  const [analytics, setAnalytics] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+
+  const loadAnalytics = useCallback(async () => {
+    try {
+      const res = await api('/api/surveys/analytics', { keepWrapper: true })
+      if (res?.success) {
+        setAnalytics(res.data)
+        setLastUpdated(new Date())
+      }
+    } catch (e) { console.error('[Analytics] Error:', e) }
+    finally { setLoading(false) }
+  }, [])
+
+  useEffect(() => {
+    loadAnalytics()
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') loadAnalytics()
+    }, 30000)
+    return () => clearInterval(interval)
+  }, [loadAnalytics])
+
+  if (loading) return <LoadingState />
+  if (!analytics) return <EmptyState icon={Target} title="Belum ada data" description="Data analitik akan muncul setelah ada respon survei." />
+
+  const s = analytics.summary
+  const total = s.totalResponses || 1
+
+  return (
+    <div className="space-y-4">
+      {/* Live Badge */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            LIVE
+          </div>
+          {lastUpdated && <span className="text-xs text-muted-foreground">Update: {lastUpdated.toLocaleTimeString('id-ID')}</span>}
+        </div>
+        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={loadAnalytics}>
+          <RefreshCw className="w-3 h-3 mr-1" /> Refresh
+        </Button>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <Card><CardContent className="p-3 text-center">
+          <div className="text-2xl font-bold text-slate-800">{s.totalResponses}</div>
+          <div className="text-xs text-muted-foreground">Total Respon</div>
+        </CardContent></Card>
+        <Card className="border-emerald-200"><CardContent className="p-3 text-center">
+          <div className="text-2xl font-bold text-emerald-600">{s.positive}</div>
+          <div className="text-xs text-muted-foreground">Positif ({Math.round(s.positive / total * 100)}%)</div>
+        </CardContent></Card>
+        <Card className="border-amber-200"><CardContent className="p-3 text-center">
+          <div className="text-2xl font-bold text-amber-600">{s.neutral}</div>
+          <div className="text-xs text-muted-foreground">Netral ({Math.round(s.neutral / total * 100)}%)</div>
+        </CardContent></Card>
+        <Card className="border-red-200"><CardContent className="p-3 text-center">
+          <div className="text-2xl font-bold text-red-600">{s.negative}</div>
+          <div className="text-xs text-muted-foreground">Negatif ({Math.round(s.negative / total * 100)}%)</div>
+        </CardContent></Card>
+      </div>
+
+      {/* Zonasi Wilayah */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2"><MapPin className="w-4 h-4 text-orange-600" /> Zonasi Wilayah</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-2 mb-3 text-xs">
+            <div className="flex items-center gap-1 px-2 py-1 rounded bg-emerald-50"><span>🟢</span> Basis Aman ({s.greenZones})</div>
+            <div className="flex items-center gap-1 px-2 py-1 rounded bg-amber-50"><span>🟡</span> Medan Tempur ({s.yellowZones})</div>
+            <div className="flex items-center gap-1 px-2 py-1 rounded bg-red-50"><span>🔴</span> Kritis ({s.redZones})</div>
+          </div>
+          {analytics.zonasi.length === 0 ? (
+            <p className="text-xs text-muted-foreground text-center py-4">Belum ada data zonasi. Data muncul setelah ada respon dengan lokasi.</p>
+          ) : (
+            <div className="space-y-1.5">
+              {analytics.zonasi.slice(0, 10).map((z: any) => (
+                <div key={z.code} className="flex items-center gap-2 text-xs p-2 rounded border">
+                  <span className="text-lg">{z.zoneIcon}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium truncate">{z.name}</div>
+                    <div className="text-[10px] text-muted-foreground">{z.total} respon • {z.posRate}% positif • {z.negRate}% negatif</div>
+                  </div>
+                  <Badge variant="outline" className={`text-xs bg-${z.zoneColor}-50 text-${z.zoneColor}-700`}>{z.zone}</Badge>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Tren Sentimen Harian */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2"><TrendingUp className="w-4 h-4 text-blue-600" /> Tren Sentimen Harian (30 Hari)</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {analytics.sentimenTrend.length === 0 ? (
+            <p className="text-xs text-muted-foreground text-center py-4">Belum ada data tren. Data muncul setelah ada respon dalam 30 hari terakhir.</p>
+          ) : (
+            <div className="space-y-2">
+              {/* Simple bar chart (CSS-based, no external lib) */}
+              {analytics.sentimenTrend.slice(-15).map((d: any) => {
+                const max = Math.max(d.positive, d.neutral, d.negative, 1)
+                return (
+                  <div key={d.date} className="flex items-center gap-2 text-xs">
+                    <span className="w-20 text-muted-foreground">{d.date.slice(5)}</span>
+                    <div className="flex-1 flex gap-0.5 h-4">
+                      <div className="bg-emerald-500 rounded-l h-full transition-all" style={{ width: `${(d.positive / max) * 100}%` }} title={`Positif: ${d.positive}`} />
+                      <div className="bg-amber-500 h-full transition-all" style={{ width: `${(d.neutral / max) * 100}%` }} title={`Netral: ${d.neutral}`} />
+                      <div className="bg-red-500 rounded-r h-full transition-all" style={{ width: `${(d.negative / max) * 100}%` }} title={`Negatif: ${d.negative}`} />
+                    </div>
+                    <span className="w-8 text-right text-muted-foreground">{d.positive + d.neutral + d.negative}</span>
+                  </div>
+                )
+              })}
+              <div className="flex gap-3 text-[10px] text-muted-foreground mt-2">
+                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-emerald-500"></span> Positif</span>
+                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-amber-500"></span> Netral</span>
+                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-red-500"></span> Negatif</span>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Cross-tabulation: Demografi vs Sentimen */}
+      <div className="grid md:grid-cols-3 gap-3">
+        {/* Age Group */}
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><BarChart3 className="w-4 h-4 text-purple-600" /> Usia vs Sentimen</CardTitle></CardHeader>
+          <CardContent>
+            {Object.keys(analytics.crossTab.ageGroup).length === 0 ? (
+              <p className="text-xs text-muted-foreground text-center py-4">Belum ada data</p>
+            ) : (
+              <div className="space-y-1">
+                {Object.entries(analytics.crossTab.ageGroup).map(([age, ct]: any) => {
+                  const t = ct.positive + ct.neutral + ct.negative || 1
+                  return (
+                    <div key={age} className="text-xs">
+                      <div className="flex justify-between mb-0.5"><span className="font-medium">{age}</span><span className="text-muted-foreground">{t} respon</span></div>
+                      <div className="flex h-2 rounded overflow-hidden">
+                        <div className="bg-emerald-500 h-full" style={{ width: `${(ct.positive / t) * 100}%` }} />
+                        <div className="bg-amber-500 h-full" style={{ width: `${(ct.neutral / t) * 100}%` }} />
+                        <div className="bg-red-500 h-full" style={{ width: `${(ct.negative / t) * 100}%` }} />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Gender */}
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><PieChart className="w-4 h-4 text-blue-600" /> Gender vs Sentimen</CardTitle></CardHeader>
+          <CardContent>
+            {Object.keys(analytics.crossTab.gender).length === 0 ? (
+              <p className="text-xs text-muted-foreground text-center py-4">Belum ada data</p>
+            ) : (
+              <div className="space-y-1">
+                {Object.entries(analytics.crossTab.gender).map(([gender, ct]: any) => {
+                  const t = ct.positive + ct.neutral + ct.negative || 1
+                  return (
+                    <div key={gender} className="text-xs">
+                      <div className="flex justify-between mb-0.5"><span className="font-medium">{gender === 'LAKI-LAKI' ? 'Laki-laki' : 'Perempuan'}</span><span className="text-muted-foreground">{t} respon</span></div>
+                      <div className="flex h-2 rounded overflow-hidden">
+                        <div className="bg-emerald-500 h-full" style={{ width: `${(ct.positive / t) * 100}%` }} />
+                        <div className="bg-amber-500 h-full" style={{ width: `${(ct.neutral / t) * 100}%` }} />
+                        <div className="bg-red-500 h-full" style={{ width: `${(ct.negative / t) * 100}%` }} />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Occupation */}
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Award className="w-4 h-4 text-orange-600" /> Pekerjaan vs Sentimen</CardTitle></CardHeader>
+          <CardContent>
+            {Object.keys(analytics.crossTab.occupation).length === 0 ? (
+              <p className="text-xs text-muted-foreground text-center py-4">Belum ada data</p>
+            ) : (
+              <div className="space-y-1">
+                {Object.entries(analytics.crossTab.occupation).slice(0, 8).map(([occ, ct]: any) => {
+                  const t = ct.positive + ct.neutral + ct.negative || 1
+                  return (
+                    <div key={occ} className="text-xs">
+                      <div className="flex justify-between mb-0.5"><span className="font-medium truncate">{occ}</span><span className="text-muted-foreground">{t}</span></div>
+                      <div className="flex h-2 rounded overflow-hidden">
+                        <div className="bg-emerald-500 h-full" style={{ width: `${(ct.positive / t) * 100}%` }} />
+                        <div className="bg-amber-500 h-full" style={{ width: `${(ct.neutral / t) * 100}%` }} />
+                        <div className="bg-red-500 h-full" style={{ width: `${(ct.negative / t) * 100}%` }} />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 }
