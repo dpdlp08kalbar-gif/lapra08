@@ -52,10 +52,26 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       else sentimentStats.UNPROCESSED++
     }
 
+    // === FASE 2: Load response metadata (GPS, Foto, Tier 2) ===
+    const responseIds = survey.responses.map((r: any) => r.id)
+    const metaRecords = responseIds.length > 0
+      ? await db.systemSetting.findMany({ where: { key: { in: responseIds.map((id: string) => `response_meta_${id}`) } }, select: { key: true, value: true } })
+      : []
+    const metaMap = new Map(metaRecords.map((m: any) => [m.key.replace('response_meta_', ''), JSON.parse(m.value)]))
+
+    // Attach metadata to responses
+    const responsesWithMeta = survey.responses.map((r: any) => ({
+      ...r,
+      gps: metaMap.get(r.id)?.gps || null,
+      hasPhoto: !!metaMap.get(r.id)?.photo || false,
+      tier2: metaMap.get(r.id)?.tier2 || null,
+    }))
+
     return NextResponse.json({
       success: true,
       data: {
         ...survey,
+        responses: responsesWithMeta,
         pollType: pollConfig.pollType || 'ESSAY',
         options: pollConfig.options || null,
         sentimentStats,

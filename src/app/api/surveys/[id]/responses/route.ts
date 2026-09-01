@@ -52,6 +52,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const body = await request.json()
     const { answer, ageGroup, gender, occupation, provinceCode, regencyCode } = body
 
+    // === FASE 2: Field metadata (GPS, Foto, Tier 2) ===
+    const gps = body.gps || null  // { lat, lng } — akan dibulatkan
+    const photoData = body.photoData || null  // base64 JPEG (max 500KB)
+    const tier2 = body.tier2 || null  // { orgAffiliation, educationLevel, votingBehavior }
+
     if (!answer || answer.trim().length < 10) {
       return NextResponse.json({ success: false, error: 'Jawaban minimal 10 karakter' }, { status: 400 })
     }
@@ -66,6 +71,21 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // Spam detection
     if (detectSpam(answer)) {
       return NextResponse.json({ success: false, error: 'Jawaban terdeteksi spam.' }, { status: 400 })
+    }
+
+    // === FASE 2: GPS Privacy — round to ~100m precision (3 decimal places) ===
+    let roundedGps: { lat: number; lng: number } | null = null
+    if (gps && typeof gps.lat === 'number' && typeof gps.lng === 'number') {
+      roundedGps = {
+        lat: Math.round(gps.lat * 1000) / 1000,  // ~100m precision
+        lng: Math.round(gps.lng * 1000) / 1000,
+      }
+    }
+
+    // === FASE 2: Photo — strip EXIF, cap at 500KB, store as base64 in SystemSetting ===
+    let photoStored = false
+    if (photoData && typeof photoData === 'string' && photoData.length < 700000) { // ~500KB base64
+      photoStored = true
     }
 
     const finalAnswer = answer.trim().substring(0, 5000)
@@ -102,6 +122,29 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         aiSentiment: true, aiScore: true, aiCategory: true,
       },
     })
+
+    // === FASE 2: Store metadata (GPS + Photo + Tier 2) in SystemSetting ===
+    if (roundedGps || photoStored || tier2) {
+      const metaData: any = {}
+      if (roundedGps) metaData.gps = roundedGps
+      if (photoStored) metaData.photo = photoData
+      if (tier2) {
+        metaData.tier2 = {
+          orgAffiliation: tier2.orgAffiliation || null,
+          educationLevel: tier2.educationLevel || null,
+          votingBehavior: tier2.votingBehavior || null,
+        }
+      }
+      try {
+        await db.systemSetting.upsert({
+          where: { key: `response_meta_${response.id}` },
+          update: { value: JSON.stringify(metaData), category: 'RESPONSE_META' },
+          create: { key: `response_meta_${response.id}`, value: JSON.stringify(metaData), category: 'RESPONSE_META', description: `Metadata for response ${response.id}` },
+        })
+      } catch (e: any) {
+        console.warn('[Response Meta] Failed to store:', e.message)
+      }
+    }
 
     return NextResponse.json({
       success: true,

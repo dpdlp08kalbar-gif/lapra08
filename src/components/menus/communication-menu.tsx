@@ -270,9 +270,13 @@ export function CommunicationMenu() {
                       <div className="space-y-1 mt-1 max-h-60 overflow-y-auto">
                         {detailSurvey.responses.map((r: any) => (
                           <div key={r.id} className="rounded border p-2 text-xs">
-                            <div className="flex items-center gap-2 mb-1">
+                            <div className="flex items-center gap-2 mb-1 flex-wrap">
                               <Badge variant="outline" className="text-xs">{r.aiSentiment || 'BELUM'}</Badge>
                               {r.occupation && <Badge variant="outline" className="text-xs">{r.occupation}</Badge>}
+                              {r.gps && <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700">📍 {r.gps.lat}, {r.gps.lng}</Badge>}
+                              {r.hasPhoto && <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700">📷 Foto</Badge>}
+                              {r.tier2?.orgAffiliation && <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700">{r.tier2.orgAffiliation}</Badge>}
+                              {r.tier2?.votingBehavior && <Badge variant="outline" className="text-xs bg-red-50 text-red-700">{r.tier2.votingBehavior}</Badge>}
                               <span className="text-xs text-muted-foreground ml-auto">{r.wordCount} kata</span>
                             </div>
                             <p className="line-clamp-2">{r.answer}</p>
