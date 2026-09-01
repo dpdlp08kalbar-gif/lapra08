@@ -111,32 +111,35 @@ function SurveysTab() {
     if (pollType === 'MULTIPLE_CHOICE') { const c = options.map(o => o.trim()).filter(o => o); if (c.length < 2) { addToast('Pilihan ganda butuh minimal 2 opsi', 'error'); return } }
     setSaving(true)
     try {
-      const res = await api('/api/surveys', { method: 'POST', body: JSON.stringify({ title: title.trim(), question: question.trim(), targetScope, pollType, options: pollType === 'MULTIPLE_CHOICE' ? options : undefined }) })
+      const res = await api('/api/surveys', { method: 'POST', body: JSON.stringify({ title: title.trim(), question: question.trim(), targetScope, pollType, options: pollType === 'MULTIPLE_CHOICE' ? options : undefined }), keepWrapper: true })
       if (res?.success !== false) { addToast(res?.message || 'Survei dibuat (DRAFT)', 'success'); resetForm(); setShowForm(false); loadData() }
       else { addToast(res?.error || 'Gagal', 'error') }
     } catch (e: any) { addToast(e.message, 'error') } finally { setSaving(false) }
   }
 
   const handleActivate = async (id: string) => {
-    try { const res = await api(`/api/surveys/${id}`, { method: 'PUT', body: JSON.stringify({ status: 'ACTIVE' }) }); if (res?.success !== false) { addToast('Survei diaktifkan', 'success'); loadData() } else { addToast(res?.error, 'error') } }
+    try { const res = await api(`/api/surveys/${id}`, { method: 'PUT', body: JSON.stringify({ status: 'ACTIVE' }), keepWrapper: true }); if (res?.success) { addToast('Survei diaktifkan', 'success'); loadData() } else { addToast(res?.error, 'error') } }
     catch (e: any) { addToast(e.message, 'error') }
   }
 
   const handleClose = async (id: string, t: string) => {
     if (!confirm(`Tutup survei "${t.substring(0, 50)}"?`)) return
-    try { const res = await api(`/api/surveys/${id}`, { method: 'PUT', body: JSON.stringify({ status: 'CLOSED' }) }); if (res?.success !== false) { addToast('Survei ditutup', 'success'); loadData() } else { addToast(res?.error, 'error') } }
+    try { const res = await api(`/api/surveys/${id}`, { method: 'PUT', body: JSON.stringify({ status: 'CLOSED' }), keepWrapper: true }); if (res?.success) { addToast('Survei ditutup', 'success'); loadData() } else { addToast(res?.error, 'error') } }
     catch (e: any) { addToast(e.message, 'error') }
   }
 
   const handleDelete = async (id: string, t: string) => {
     if (!confirm(`Hapus survei "${t.substring(0, 50)}" permanen?`)) return
-    try { const res = await api(`/api/surveys/${id}`, { method: 'DELETE' }); if (res?.success !== false) { addToast('Survei dihapus', 'success'); loadData() } else { addToast(res?.error, 'error') } }
+    try { const res = await api(`/api/surveys/${id}`, { method: 'DELETE', keepWrapper: true }); if (res?.success) { addToast('Survei dihapus', 'success'); loadData() } else { addToast(res?.error, 'error') } }
     catch (e: any) { addToast(e.message, 'error') }
   }
 
   const handleDetail = async (id: string) => {
-    try { const res = await api(`/api/surveys/${id}`); if (res?.success !== false) setDetailSurvey(res.data) }
-    catch (e: any) { addToast(e.message, 'error') }
+    try {
+      const res = await api(`/api/surveys/${id}`, { keepWrapper: true })
+      if (res?.success && res.data) setDetailSurvey(res.data)
+      else addToast(res?.error || 'Gagal memuat detail', 'error')
+    } catch (e: any) { addToast(e.message, 'error') }
   }
 
   const handleShare = (s: any) => {
@@ -332,8 +335,8 @@ function MonitoringTab() {
   const handleDeleteLink = async (linkId: string) => {
     if (!confirm('Hapus berita ini?')) return
     try {
-      const res = await api(`/api/opinion-links/${linkId}`, { method: 'DELETE' })
-      if (res?.success !== false) { addToast('Berita dihapus', 'success'); loadMentions() }
+      const res = await api(`/api/opinion-links/${linkId}`, { method: 'DELETE', keepWrapper: true })
+      if (res?.success) { addToast('Berita dihapus', 'success'); loadMentions() }
       else { addToast(res?.error, 'error') }
     } catch (e: any) { addToast(e.message, 'error') }
   }
