@@ -32,6 +32,7 @@ const TABS = [
   { key: 'surveys', label: 'Survei & Polling', icon: Brain },
   { key: 'monitoring', label: 'Monitoring Berita', icon: Sparkles },
   { key: 'analytics', label: 'Dashboard Analitik', icon: Target },
+  { key: 'territory', label: 'Kelola Wilayah', icon: MapPin },
 ]
 
 const PLATFORMS = [
@@ -71,6 +72,7 @@ export function CommunicationMenu() {
       {tab === 'surveys' && <SurveysTab />}
       {tab === 'monitoring' && <MonitoringTab />}
       {tab === 'analytics' && <AnalyticsTab />}
+      {tab === 'territory' && <TerritoryTab />}
     </div>
   )
 }
@@ -679,6 +681,215 @@ function AnalyticsTab() {
           </CardContent>
         </Card>
       </div>
+    </div>
+  )
+}
+
+// ============================================================
+// TAB 4: KELOLA WILAYAH (Fase 5 — Struktur Hierarki)
+// ============================================================
+// Drill-down: Indonesia → Provinsi → Kab/Kota → Kecamatan → Desa/Kelurahan → RW → RT
+// Admin bisa: tambah, edit, hapus wilayah
+// Penamaan: DPN=Indonesia, DPD=Provinsi, DPC=Kab/Kota
+// ============================================================
+
+const LEVEL_LABELS: Record<string, string> = {
+  COUNTRY: 'Indonesia',
+  PROVINCE: 'Provinsi',
+  REGENCY: 'Kabupaten/Kota',
+  DISTRICT: 'Kecamatan',
+  VILLAGE: 'Desa/Kelurahan',
+  RW: 'RW',
+  RT: 'RT',
+}
+
+const LEVEL_COLORS: Record<string, string> = {
+  COUNTRY: 'bg-red-50 text-red-700',
+  PROVINCE: 'bg-orange-50 text-orange-700',
+  REGENCY: 'bg-amber-50 text-amber-700',
+  DISTRICT: 'bg-blue-50 text-blue-700',
+  VILLAGE: 'bg-emerald-50 text-emerald-700',
+  RW: 'bg-purple-50 text-purple-700',
+  RT: 'bg-slate-50 text-slate-700',
+}
+
+function TerritoryTab() {
+  const addToast = useToastStore((s) => s.addToast)
+  const user = useAuthStore.getState().user
+  const [territories, setTerritories] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [breadcrumb, setBreadcrumb] = useState<any[]>([])
+  const [currentParentId, setCurrentParentId] = useState<string | null>(null)
+  const [showForm, setShowForm] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [formName, setFormName] = useState('')
+  const [formCode, setFormCode] = useState('')
+  const [formLevel, setFormLevel] = useState('')
+
+  const loadData = useCallback(async () => {
+    setLoading(true)
+    try {
+      const params = currentParentId ? `?parentId=${currentParentId}` : '?level=COUNTRY'
+      const res = await api(`/api/territory/manage${params}`, { keepWrapper: true })
+      if (res?.success) setTerritories(res.data || [])
+    } catch (e: any) { addToast(e.message, 'error') }
+    finally { setLoading(false) }
+  }, [currentParentId, addToast])
+
+  useEffect(() => { loadData() }, [loadData])
+
+  // Drill into child
+  const handleDrillDown = (territory: any) => {
+    setBreadcrumb(prev => [...prev, territory])
+    setCurrentParentId(territory.id)
+  }
+
+  // Go back to parent
+  const handleGoBack = (index: number) => {
+    const newBreadcrumb = breadcrumb.slice(0, index + 1)
+    setBreadcrumb(newBreadcrumb)
+    setCurrentParentId(index >= 0 ? newBreadcrumb[newBreadcrumb.length - 1]?.id || null : null)
+    if (index < 0) { setBreadcrumb([]); setCurrentParentId(null) }
+  }
+
+  // Determine next level
+  const getNextLevel = (): string => {
+    if (breadcrumb.length === 0) return 'PROVINCE'
+    const lastLevel = breadcrumb[breadcrumb.length - 1].level
+    const idx = ['COUNTRY', 'PROVINCE', 'REGENCY', 'DISTRICT', 'VILLAGE', 'RW', 'RT'].indexOf(lastLevel)
+    return ['COUNTRY', 'PROVINCE', 'REGENCY', 'DISTRICT', 'VILLAGE', 'RW', 'RT'][idx + 1] || 'RT'
+  }
+
+  // Add territory
+  const handleAdd = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!formName.trim()) { addToast('Nama wajib diisi', 'error'); return }
+    try {
+      const parentId = breadcrumb.length > 0 ? breadcrumb[breadcrumb.length - 1].id : null
+      const level = getNextLevel()
+      const res = await api('/api/territory/manage', {
+        method: 'POST',
+        body: JSON.stringify({ name: formName.trim(), code: formCode.trim() || `TERR_${Date.now()}`, level, parentId }),
+        keepWrapper: true,
+      })
+      if (res?.success) { addToast(res.message || 'Wilayah ditambahkan', 'success'); setFormName(''); setFormCode(''); setShowForm(false); loadData() }
+      else { addToast(res?.error || 'Gagal', 'error') }
+    } catch (e: any) { addToast(e.message, 'error') }
+  }
+
+  // Edit territory
+  const handleEdit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!formName.trim()) { addToast('Nama wajib diisi', 'error'); return }
+    try {
+      const res = await api(`/api/territory/manage/${editingId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ name: formName.trim(), code: formCode.trim() }),
+        keepWrapper: true,
+      })
+      if (res?.success) { addToast(res.message || 'Wilayah diperbarui', 'success'); setFormName(''); setFormCode(''); setEditingId(null); setShowForm(false); loadData() }
+      else { addToast(res?.error || 'Gagal', 'error') }
+    } catch (e: any) { addToast(e.message, 'error') }
+  }
+
+  // Delete territory
+  const handleDelete = async (id: string, name: string) => {
+    if (!confirm(`Hapus "${name}"? Semua sub-wilayah di bawahnya juga akan dihapus.`)) return
+    try {
+      const res = await api(`/api/territory/manage/${id}`, { method: 'DELETE', keepWrapper: true })
+      if (res?.success) { addToast(res.message || 'Wilayah dihapus', 'success'); loadData() }
+      else { addToast(res?.error || 'Gagal', 'error') }
+    } catch (e: any) { addToast(e.message, 'error') }
+  }
+
+  const currentLevel = breadcrumb.length > 0 ? breadcrumb[breadcrumb.length - 1].level : 'COUNTRY'
+  const nextLevel = getNextLevel()
+
+  return (
+    <div className="space-y-4">
+      {/* Breadcrumb */}
+      <div className="flex items-center gap-1 flex-wrap text-xs">
+        <button onClick={() => { setBreadcrumb([]); setCurrentParentId(null); loadData() }} className="px-2 py-1 rounded hover:bg-accent text-blue-600">🏠 Indonesia</button>
+        {breadcrumb.map((b, i) => (
+          <span key={i} className="flex items-center gap-1">
+            <span className="text-muted-foreground">/</span>
+            <button onClick={() => { handleGoBack(i); loadData() }} className="px-2 py-1 rounded hover:bg-accent text-blue-600">{b.name}</button>
+          </span>
+        ))}
+      </div>
+
+      {/* Header */}
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-bold">
+            {breadcrumb.length === 0 ? 'Indonesia (DPN)' : `${LEVEL_LABELS[currentLevel] || currentLevel} — ${breadcrumb[breadcrumb.length - 1]?.name}`}
+          </h3>
+          <p className="text-xs text-muted-foreground">{territories.length} {LEVEL_LABELS[nextLevel] || nextLevel}</p>
+        </div>
+        <Button onClick={() => { setShowForm(true); setFormName(''); setFormCode(''); setEditingId(null) }} className="bg-blue-600 hover:bg-blue-700 text-white">
+          <Plus className="w-4 h-4 mr-1" /> Tambah {LEVEL_LABELS[nextLevel] || nextLevel}
+        </Button>
+      </div>
+
+      {/* List */}
+      {loading ? <LoadingState /> : territories.length === 0 ? (
+        <EmptyState icon={MapPin} title={`Belum ada ${LEVEL_LABELS[nextLevel] || nextLevel}`} description={`Klik tombol di atas untuk menambah ${LEVEL_LABELS[nextLevel] || nextLevel}.`} />
+      ) : (
+        <div className="space-y-2">
+          {territories.map(t => (
+            <Card key={t.id} className="hover:shadow-md transition-shadow">
+              <CardContent className="p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <Badge variant="outline" className={`text-xs ${LEVEL_COLORS[t.level] || ''}`}>{LEVEL_LABELS[t.level] || t.level}</Badge>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-sm truncate">{t.name}</div>
+                      {t.code && <div className="text-xs text-muted-foreground">Kode: {t.code}</div>}
+                      {t.childCount > 0 && <div className="text-xs text-blue-600">{t.childCount} sub-wilayah</div>}
+                    </div>
+                  </div>
+                  <div className="flex gap-1 shrink-0">
+                    {t.childCount > 0 || ['COUNTRY', 'PROVINCE', 'REGENCY', 'DISTRICT', 'VILLAGE', 'RW'].includes(t.level) ? (
+                      <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleDrillDown(t)}>
+                        <Eye className="w-3 h-3 mr-1" /> Buka
+                      </Button>
+                    ) : null}
+                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => { setEditingId(t.id); setFormName(t.name); setFormCode(t.code); setShowForm(true) }}>
+                      <Plus className="w-3 h-3 rotate-45" />
+                    </Button>
+                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-500" onClick={() => handleDelete(t.id, t.name)}>
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Dialog Tambah/Edit */}
+      <Dialog open={showForm} onOpenChange={(o) => { setShowForm(o); if (!o) { setEditingId(null); setFormName(''); setFormCode('') } }}>
+        <DialogContent className="max-w-md" aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle>{editingId ? 'Edit Wilayah' : `Tambah ${LEVEL_LABELS[nextLevel] || nextLevel}`}</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={editingId ? handleEdit : handleAdd} className="space-y-3">
+            <div>
+              <Label className="text-sm">Nama {LEVEL_LABELS[nextLevel] || nextLevel} <span className="text-red-500">*</span></Label>
+              <Input value={formName} onChange={(e) => setFormName(e.target.value)} placeholder={`cth: ${LEVEL_LABELS[nextLevel] === 'Provinsi' ? 'Kalimantan Barat' : LEVEL_LABELS[nextLevel] === 'Kabupaten/Kota' ? 'Pontianak' : 'Nama ' + (LEVEL_LABELS[nextLevel] || nextLevel)}`} required className="mt-1" />
+            </div>
+            <div>
+              <Label className="text-sm">Kode Wilayah (opsional)</Label>
+              <Input value={formCode} onChange={(e) => setFormCode(e.target.value)} placeholder="cth: 61 untuk Kalbar, 6171 untuk Pontianak" className="mt-1" />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="outline" onClick={() => setShowForm(false)}>Batal</Button>
+              <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white">{editingId ? 'Simpan' : 'Tambah'}</Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
