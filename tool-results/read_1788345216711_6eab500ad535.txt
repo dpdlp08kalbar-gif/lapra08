@@ -1,0 +1,570 @@
+     1→// LAPRA 08 - Database Seeder v3
+     2→// Hierarki: DPN (Country) → DPD (Province) → DPC (Regency)
+     3→// 38 Provinsi resmi Indonesia 2024 (termasuk 4 DOB Papua baru) + 5 DPD Luar Negeri
+     4→// 14 DPC Kalbar (12 Kabupaten + 2 Kota)
+     5→
+     6→import { db } from '../src/lib/db'
+     7→
+     8→async function main() {
+     9→  console.log('🧹 Cleaning existing data...')
+    10→  await db.supportTicketReply.deleteMany()
+    11→  await db.supportTicket.deleteMany()
+    12→  await db.eventAttendance.deleteMany()
+    13→  await db.eventReport.deleteMany()
+    14→  await db.event.deleteMany()
+    15→  await db.financeTransaction.deleteMany()
+    16→  await db.announcement.deleteMany()
+    17→  await db.broadcast.deleteMany()
+    18→  await db.distribution.deleteMany()
+    19→  await db.asset.deleteMany()
+    20→  await db.sKDocument.deleteMany()
+    21→  await db.orgPosition.deleteMany()
+    22→  await db.member.deleteMany()
+    23→  await db.formField.deleteMany()
+    24→  await db.menuItem.deleteMany()
+    25→  await db.securitySetting.deleteMany()
+    26→  await db.systemSetting.deleteMany()
+    27→  await db.user.deleteMany()
+    28→  await db.territory.deleteMany()
+    29→  console.log('✓ Data cleaned')
+    30→
+    31→  console.log('🌱 Seeding LAPRA 08 v3 (Hierarki 3 Level: DPN → DPD → DPC)...')
+    32→
+    33→  // ============================================================
+    34→  // 1. COUNTRY (DPN) - Indonesia & negara LN
+    35→  // ============================================================
+    36→  console.log('→ Creating countries (DPN)...')
+    37→
+    38→  const indonesia = await db.territory.create({
+    39→    data: { code: 'ID', name: 'Indonesia', level: 'COUNTRY', category: 'DOMESTIC', isActive: true },
+    40→  })
+    41→  const usa = await db.territory.create({
+    42→    data: { code: 'US', name: 'Amerika Serikat', level: 'COUNTRY', category: 'INTERNATIONAL', isActive: true },
+    43→  })
+    44→  await db.territory.create({ data: { code: 'CN', name: 'Cina', level: 'COUNTRY', category: 'INTERNATIONAL', isActive: false } })
+    45→  await db.territory.create({ data: { code: 'MY', name: 'Malaysia', level: 'COUNTRY', category: 'INTERNATIONAL', isActive: false } })
+    46→  await db.territory.create({ data: { code: 'SA', name: 'Saudi Arabia', level: 'COUNTRY', category: 'INTERNATIONAL', isActive: false } })
+    47→  await db.territory.create({ data: { code: 'AU', name: 'Australia', level: 'COUNTRY', category: 'INTERNATIONAL', isActive: false } })
+    48→
+    49→  // ============================================================
+    50→  // 2. PROVINCE (DPD) - 38 Provinsi Resmi Indonesia 2024
+    51→  //    Source: Kemendagri RI - 38 Provinsi (termasuk 4 DOB Papua: Papua Selatan, Papua Tengah, Papua Pegunungan, Papua Barat Daya)
+    52→  // ============================================================
+    53→  console.log('→ Creating 38 provinces Indonesia (DPD)...')
+    54→
+    55→  // Data resmi 38 provinsi Indonesia (2024)
+    56→  const provincesData = [
+    57→    // Sumatera (10)
+    58→    { code: '11', name: 'Aceh' },
+    59→    { code: '12', name: 'Sumatera Utara' },
+    60→    { code: '13', name: 'Sumatera Barat' },
+    61→    { code: '14', name: 'Riau' },
+    62→    { code: '15', name: 'Jambi' },
+    63→    { code: '16', name: 'Sumatera Selatan' },
+    64→    { code: '17', name: 'Bengkulu' },
+    65→    { code: '18', name: 'Lampung' },
+    66→    { code: '19', name: 'Kepulauan Bangka Belitung' },
+    67→    { code: '21', name: 'Kepulauan Riau' },
+    68→    // Jawa (6)
+    69→    { code: '31', name: 'DKI Jakarta' },
+    70→    { code: '32', name: 'Jawa Barat' },
+    71→    { code: '33', name: 'Jawa Tengah' },
+    72→    { code: '34', name: 'DI Yogyakarta' },
+    73→    { code: '35', name: 'Jawa Timur' },
+    74→    { code: '36', name: 'Banten' },
+    75→    // Bali-Nusa (3)
+    76→    { code: '51', name: 'Bali' },
+    77→    { code: '52', name: 'Nusa Tenggara Barat' },
+    78→    { code: '53', name: 'Nusa Tenggara Timur' },
+    79→    // Kalimantan (5) - termasuk IKN
+    80→    { code: '61', name: 'Kalimantan Barat' },
+    81→    { code: '62', name: 'Kalimantan Tengah' },
+    82→    { code: '63', name: 'Kalimantan Selatan' },
+    83→    { code: '64', name: 'Kalimantan Timur' },
+    84→    { code: '65', name: 'Kalimantan Utara' },
+    85→    // IKN sebagai wilayah khusus setara DPD
+    86→    { code: 'IKN', name: 'Ibu Kota Nusantara (IKN)' },
+    87→    // Sulawesi (6)
+    88→    { code: '71', name: 'Sulawesi Utara' },
+    89→    { code: '72', name: 'Sulawesi Tengah' },
+    90→    { code: '73', name: 'Sulawesi Selatan' },
+    91→    { code: '74', name: 'Sulawesi Tenggara' },
+    92→    { code: '75', name: 'Gorontalo' },
+    93→    { code: '76', name: 'Sulawesi Barat' },
+    94→    // Maluku (2)
+    95→    { code: '81', name: 'Maluku' },
+    96→    { code: '82', name: 'Maluku Utara' },
+    97→    // Papua (6) - termasuk 4 DOB Papua baru
+    98→    { code: '91', name: 'Papua' },
+    99→    { code: '92', name: 'Papua Barat' },
+   100→    { code: '93', name: 'Papua Selatan' },
+   101→    { code: '94', name: 'Papua Tengah' },
+   102→    { code: '95', name: 'Papua Pegunungan' },
+   103→    { code: '96', name: 'Papua Barat Daya' },
+   104→  ]
+   105→
+   106→  const provinceMap: Record<string, string> = {}
+   107→  for (const p of provincesData) {
+   108→    const created = await db.territory.create({
+   109→      data: {
+   110→        code: p.code,
+   111→        name: p.name,
+   112→        level: 'PROVINCE',
+   113→        category: 'DOMESTIC',
+   114→        parentId: indonesia.id,
+   115→        isActive: true,
+   116→      },
+   117→    })
+   118→    provinceMap[p.code] = created.id
+   119→  }
+   120→  console.log(`  ✓ ${provincesData.length} provinsi Indonesia`)
+   121→
+   122→  // DPD Luar Negeri (5 negara)
+   123→  const dpdLn = [
+   124→    { code: 'LN_US', name: 'DPD Amerika Serikat' },
+   125→    { code: 'LN_CN', name: 'DPD Cina' },
+   126→    { code: 'LN_MY', name: 'DPD Malaysia' },
+   127→    { code: 'LN_SA', name: 'DPD Saudi Arabia' },
+   128→    { code: 'LN_AU', name: 'DPD Australia' },
+   129→  ]
+   130→  for (const d of dpdLn) {
+   131→    const created = await db.territory.create({
+   132→      data: {
+   133→        code: d.code,
+   134→        name: d.name,
+   135→        level: 'PROVINCE',
+   136→        category: 'INTERNATIONAL',
+   137→        parentId: usa.id, // untuk demo, semua LN di bawah USA; produksi bisa beda parent
+   138→        isActive: true,
+   139→      },
+   140→    })
+   141→    provinceMap[d.code] = created.id
+   142→  }
+   143→  console.log(`  ✓ 5 DPD Luar Negeri`)
+   144→
+   145→  // ============================================================
+   146→  // 3. REGENCY (DPC) - 14 DPC Kalbar (12 Kabupaten + 2 Kota)
+   147→  //    Source: Pemprov Kalbar (PPID) - 14 Kab/Kota resmi
+   148→  // ============================================================
+   149→  console.log('→ Creating 14 DPC Kalimantan Barat (12 Kab + 2 Kota)...')
+   150→
+   151→  const kalbarId = provinceMap['61']
+   152→  // 14 DPC Kalbar - data resmi (12 Kabupaten + 2 Kota)
+   153→  const kalbarDpc = [
+   154→    // 2 Kota
+   155→    { code: '6171', name: 'Kota Pontianak', isCity: true },
+   156→    { code: '6172', name: 'Kota Singkawang', isCity: true },
+   157→    // 12 Kabupaten
+   158→    { code: '6173', name: 'Kabupaten Sambas' },
+   159→    { code: '6174', name: 'Kabupaten Bengkayang' },
+   160→    { code: '6175', name: 'Kabupaten Landak' },
+   161→    { code: '6176', name: 'Kabupaten Mempawah' },
+   162→    { code: '6177', name: 'Kabupaten Sanggau' },
+   163→    { code: '6178', name: 'Kabupaten Ketapang' },
+   164→    { code: '6101', name: 'Kabupaten Sintang' },
+   165→    { code: '6102', name: 'Kabupaten Kapuas Hulu' },
+   166→    { code: '6103', name: 'Kabupaten Sekadau' },
+   167→    { code: '6104', name: 'Kabupaten Melawi' },
+   168→    { code: '6105', name: 'Kabupaten Kubu Raya' },
+   169→    { code: '6106', name: 'Kabupaten Kayong Utara' },
+   170→  ]
+   171→
+   172→  const dpcMap: Record<string, string> = {}
+   173→  for (const r of kalbarDpc) {
+   174→    const created = await db.territory.create({
+   175→      data: {
+   176→        code: r.code,
+   177→        name: r.name,
+   178→        level: 'REGENCY',
+   179→        category: 'DOMESTIC',
+   180→        parentId: kalbarId,
+   181→        isActive: true,
+   182→        metadata: JSON.stringify({ isCity: r.isCity || false, province: 'Kalimantan Barat' }),
+   183→      },
+   184→    })
+   185→    dpcMap[r.code] = created.id
+   186→  }
+   187→  console.log(`  ✓ 14 DPC Kalbar (2 Kota + 12 Kabupaten)`)
+   188→
+   189→  // DPC Luar Negeri - Los Angeles
+   190→  const dpcLosAngeles = await db.territory.create({
+   191→    data: {
+   192→      code: 'LAX',
+   193→      name: 'Los Angeles',
+   194→      level: 'REGENCY',
+   195→      category: 'INTERNATIONAL',
+   196→      parentId: provinceMap['LN_US'],
+   197→      isActive: true,
+   198→    },
+   199→  })
+   200→
+   201→  // ============================================================
+   202→  // 4. USERS - 4 Role (tanpa Koorwil & Koor DPD)
+   203→  // ============================================================
+   204→  console.log('→ Creating users (4 roles)...')
+   205→
+   206→  const devPassword = 'lapra08admin'
+   207→
+   208→  const superadmin = await db.user.create({
+   209→    data: { username: 'superadmin', password: devPassword, fullName: 'Super Administrator Sistem', role: 'SUPERADMIN', territoryId: indonesia.id, isActive: true },
+   210→  })
+   211→  const adminDpn = await db.user.create({
+   212→    data: { username: 'dpn', password: devPassword, fullName: 'Admin DPN Pusat', role: 'ADMIN_DPN', territoryId: indonesia.id, isActive: true },
+   213→  })
+   214→  const adminDpdKalbar = await db.user.create({
+   215→    data: { username: 'dpd.kalbar', password: devPassword, fullName: 'Admin DPD Kalimantan Barat', role: 'ADMIN_DPD', territoryId: kalbarId, isActive: true },
+   216→  })
+   217→
+   218→  // Admin DPD lain (contoh beberapa provinsi)
+   219→  const dpdSampleProvinces = [
+   220→    { code: '31', username: 'dpd.jakarta', name: 'DKI Jakarta' },
+   221→    { code: '32', username: 'dpd.jabar', name: 'Jawa Barat' },
+   222→    { code: '35', username: 'dpd.jatim', name: 'Jawa Timur' },
+   223→    { code: '73', username: 'dpd.sulsel', name: 'Sulawesi Selatan' },
+   224→    { code: 'IKN', username: 'dpd.ikn', name: 'IKN' },
+   225→  ]
+   226→  for (const p of dpdSampleProvinces) {
+   227→    await db.user.create({
+   228→      data: {
+   229→        username: p.username,
+   230→        password: devPassword,
+   231→        fullName: `Admin DPD ${p.name}`,
+   232→        role: 'ADMIN_DPD',
+   233→        territoryId: provinceMap[p.code],
+   234→        isActive: true,
+   235→      },
+   236→    })
+   237→  }
+   238→
+   239→  // 14 Admin DPC Kalbar
+   240→  for (const r of kalbarDpc) {
+   241→    const username = `dpc.${r.code}`
+   242→    await db.user.create({
+   243→      data: {
+   244→        username,
+   245→        password: devPassword,
+   246→        fullName: `Admin DPC ${r.name}`,
+   247→        role: 'ADMIN_DPC',
+   248→        territoryId: dpcMap[r.code],
+   249→        isActive: true,
+   250→      },
+   251→    })
+   252→  }
+   253→
+   254→  // Admin DPD Luar Negeri
+   255→  await db.user.create({
+   256→    data: {
+   257→      username: 'dpd.usa',
+   258→      password: devPassword,
+   259→      fullName: 'Admin DPD Amerika Serikat',
+   260→      role: 'ADMIN_DPD',
+   261→      territoryId: provinceMap['LN_US'],
+   262→      isActive: true,
+   263→    },
+   264→  })
+   265→
+   266→  // ============================================================
+   267→  // 5. MENU ITEMS - 8 Menu (konsolidasi)
+   268→  // ============================================================
+   269→  console.log('→ Creating 8 menus (konsolidasi)...')
+   270→
+   271→  const menus = [
+   272→    // 6 Menu Portal (struktur baru)
+   273→    { key: 'beranda', label: 'Beranda', icon: 'Home', order: 1, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_DPD,ADMIN_DPC' },
+   274→    { key: 'profil', label: 'Profil', icon: 'Building2', order: 2, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_DPD,ADMIN_DPC' },
+   275→    { key: 'pusat-media', label: 'Pusat Media', icon: 'Newspaper', order: 3, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_DPD,ADMIN_DPC' },
+   276→    { key: 'program', label: 'Program & Kegiatan', icon: 'CalendarDays', order: 4, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_DPD,ADMIN_DPC' },
+   277→    { key: 'layanan', label: 'Layanan & Advokasi', icon: 'ShieldCheck', order: 5, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_DPD,ADMIN_DPC' },
+   278→    { key: 'kontak', label: 'Kontak & Sekretariat', icon: 'MapPin', order: 6, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_DPD,ADMIN_DPC' },
+   279→    // Menu Admin Internal (hidden dari nav publik, accessible dari Dashboard)
+   280→    { key: 'dashboard', label: 'Dashboard Admin', icon: 'LayoutDashboard', order: 7, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_DPD,ADMIN_DPC' },
+   281→    { key: 'logistics', label: 'Logistik & Atribut', icon: 'Package', order: 8, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_DPD,ADMIN_DPC' },
+   282→    { key: 'communication', label: 'Komunikasi & Broadcast', icon: 'Megaphone', order: 9, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_DPD,ADMIN_DPC' },
+   283→    { key: 'finance', label: 'Kas & Keuangan', icon: 'Wallet', order: 10, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_DPD,ADMIN_DPC' },
+   284→    { key: 'users', label: 'Pengaturan User', icon: 'UserCog', order: 11, roles: 'SUPERADMIN,ADMIN_DPN,ADMIN_DPD' },
+   285→  ]
+   286→
+   287→  for (const menu of menus) {
+   288→    await db.menuItem.create({
+   289→      data: {
+   290→        key: menu.key,
+   291→        label: menu.label,
+   292→        icon: menu.icon,
+   293→        order: menu.order,
+   294→        roles: menu.roles,
+   295→        isVisible: true,
+   296→        isActive: true,
+   297→      },
+   298→    })
+   299→  }
+   300→
+   301→  // ============================================================
+   302→  // 6. FORM FIELDS - Dynamic fields untuk pendaftaran anggota
+   303→  // ============================================================
+   304→  console.log('→ Creating form fields...')
+   305→
+   306→  const domesticFields = [
+   307→    { fieldKey: 'fullName', fieldLabel: 'Nama Lengkap (sesuai KTP)', fieldType: 'text', isRequired: true, order: 1, placeholder: 'Masukkan nama lengkap' },
+   308→    { fieldKey: 'nik', fieldLabel: 'NIK KTP (16 digit)', fieldType: 'text', isRequired: true, order: 2, placeholder: '16 digit NIK', validation: '{"minLength":16,"maxLength":16,"pattern":"^[0-9]{16}$"}' },
+   309→    { fieldKey: 'phone', fieldLabel: 'Nomor WhatsApp', fieldType: 'text', isRequired: true, order: 3, placeholder: '628xxx', helpText: 'Wajib awalan 62' },
+   310→    { fieldKey: 'gender', fieldLabel: 'Jenis Kelamin', fieldType: 'radio', isRequired: true, order: 4, fieldOptions: '["L","P"]' },
+   311→    { fieldKey: 'birthPlace', fieldLabel: 'Tempat Lahir', fieldType: 'text', isRequired: false, order: 5 },
+   312→    { fieldKey: 'birthDate', fieldLabel: 'Tanggal Lahir', fieldType: 'date', isRequired: false, order: 6 },
+   313→    { fieldKey: 'address', fieldLabel: 'Alamat', fieldType: 'textarea', isRequired: false, order: 7 },
+   314→    { fieldKey: 'shirtSize', fieldLabel: 'Ukuran Kemeja', fieldType: 'select', isRequired: true, order: 8, fieldOptions: '["S","M","L","XL","XXL","XXXL"]' },
+   315→    { fieldKey: 'profession', fieldLabel: 'Profesi', fieldType: 'text', isRequired: false, order: 9 },
+   316→    { fieldKey: 'bloodType', fieldLabel: 'Golongan Darah', fieldType: 'select', isRequired: false, order: 10, fieldOptions: '["A","B","AB","O","Tidak Tahu"]' },
+   317→    { fieldKey: 'maritalStatus', fieldLabel: 'Status Pernikahan', fieldType: 'select', isRequired: false, order: 11, fieldOptions: '["Belum Menikah","Menikah","Cerai Hidup","Cerai Mati"]' },
+   318→    { fieldKey: 'photoUrl', fieldLabel: 'Pasfoto', fieldType: 'file', isRequired: false, order: 12 },
+   319→    { fieldKey: 'idCardUrl', fieldLabel: 'Foto KTP', fieldType: 'file', isRequired: true, order: 13 },
+   320→  ]
+   321→  for (const f of domesticFields) {
+   322→    await db.formField.create({ data: { formType: 'MEMBER_DOMESTIC', ...f } })
+   323→  }
+   324→
+   325→  const intlFields = [
+   326→    { fieldKey: 'fullName', fieldLabel: 'Full Name (as in Passport)', fieldType: 'text', isRequired: true, order: 1 },
+   327→    { fieldKey: 'passportNumber', fieldLabel: 'Passport Number / Local ID', fieldType: 'text', isRequired: true, order: 2 },
+   328→    { fieldKey: 'phone', fieldLabel: 'Phone Number (E.164 format)', fieldType: 'text', isRequired: true, order: 3, placeholder: '+1, +86, etc', helpText: 'Format E.164' },
+   329→    { fieldKey: 'email', fieldLabel: 'Email', fieldType: 'text', isRequired: false, order: 4 },
+   330→    { fieldKey: 'residenceCountry', fieldLabel: 'Country of Residence', fieldType: 'text', isRequired: true, order: 5 },
+   331→    { fieldKey: 'address', fieldLabel: 'Address', fieldType: 'textarea', isRequired: false, order: 6 },
+   332→    { fieldKey: 'photoUrl', fieldLabel: 'Photo', fieldType: 'file', isRequired: false, order: 7 },
+   333→    { fieldKey: 'idCardUrl', fieldLabel: 'Passport Document', fieldType: 'file', isRequired: true, order: 8 },
+   334→  ]
+   335→  for (const f of intlFields) {
+   336→    await db.formField.create({ data: { formType: 'MEMBER_INTERNATIONAL', ...f } })
+   337→  }
+   338→
+   339→  // ============================================================
+   340→  // 7. SECURITY & SYSTEM SETTINGS
+   341→  // ============================================================
+   342→  console.log('→ Creating security & system settings...')
+   343→
+   344→  const securitySettings = [
+   345→    { key: 'MFA_ENABLED', value: 'false', description: 'Multi-Factor Authentication (OTP)' },
+   346→    { key: 'IP_WHITELIST_ENABLED', value: 'false', description: 'IP Whitelisting' },
+   347→    { key: 'DEVICE_TOKEN_ENABLED', value: 'false', description: 'Device Token Binding' },
+   348→    { key: 'AUTO_LOGOUT_5MIN', value: 'false', description: 'Auto Logout 5 menit idle' },
+   349→    { key: 'DB_ENCRYPTION_ENABLED', value: 'false', description: 'Database Encryption at Rest' },
+   350→    { key: 'PASSWORD_COMPLEXITY', value: 'false', description: 'Password Complexity Check' },
+   351→    { key: 'LOGIN_ATTEMPT_LIMIT', value: 'false', description: 'Login Attempt Limiting' },
+   352→  ]
+   353→  for (const s of securitySettings) {
+   354→    await db.securitySetting.create({ data: { ...s, isActive: false } })
+   355→  }
+   356→
+   357→  const systemSettings = [
+   358→    { key: 'ORG_NAME', value: 'Perkumpulan Laskar Prabowo 08', category: 'GENERAL' },
+   359→    { key: 'ORG_SHORT_NAME', value: 'LAPRA 08', category: 'GENERAL' },
+   360→    { key: 'DEV_MODE', value: 'true', category: 'SYSTEM', description: 'Mode akses terbuka selama pembangunan' },
+   361→    { key: 'KTA_PREFIX', value: 'LAPRA08', category: 'KTA' },
+   362→    { key: 'PILOT_PROVINCE_CODE', value: '61', category: 'SYSTEM', description: 'Fokus pilot project: Kalimantan Barat' },
+   363→    { key: 'DEFAULT_COUNTRY_CODE', value: 'ID', category: 'SYSTEM' },
+   364→    { key: 'BROADCAST_RATE_LIMIT', value: '50', category: 'BROADCAST', description: 'Maksimal pesan per menit' },
+   365→  ]
+   366→  for (const s of systemSettings) {
+   367→    await db.systemSetting.create({ data: s })
+   368→  }
+   369→
+   370→  // ============================================================
+   371→  // 8. SAMPLE DATA - Pengurus DPN asli + Anggota + SK
+   372→  // ============================================================
+   373→  console.log('→ Creating sample members & pengurus...')
+   374→
+   375→  // Pengurus DPN asli (Berdasarkan riset web LAPRA 08 Periode 2024-2029 + Update Maret 2026)
+   376→  const dpnPositions = [
+   377→    { name: 'Dr. (HC) Hashim S. Djojohadikusumo', position: 'Ketua Dewan Pembina', order: 1, phone: '628111000001', email: 'pembina@laskarprabowo-08.com' },
+   378→    { name: 'Devi Taurisa, S.H., M.H., C.L.D.', position: 'Ketua Umum DPN', order: 2, phone: '628111000002', email: 'ketum@laskarprabowo-08.com' },
+   379→    { name: 'Hisar Tambunan, S.H., M.H.', position: 'Ketua Harian DPN', order: 3, phone: '628111000003', email: 'harian@laskarprabowo-08.com' },
+   380→    { name: 'Brigjen. Pol. (Purn) Dr. R. Nurhadi, S.I.K., M.Si., CHRMP', position: 'Sekretaris Jenderal DPN', order: 4, phone: '628111000004', email: 'sekjen@laskarprabowo-08.com' },
+   381→    { name: 'Timmy Rorimpandey, S.E., M.M.', position: 'Bendahara Umum DPN', order: 5, phone: '628111000005', email: 'bendahara@laskarprabowo-08.com' },
+   382→  ]
+   383→  for (const p of dpnPositions) {
+   384→    await db.orgPosition.create({
+   385→      data: {
+   386→        fullName: p.name,
+   387→        positionName: p.position,
+   388→        level: 'DPN',
+   389→        territoryId: indonesia.id,
+   390→        phone: p.phone,
+   391→        email: p.email,
+   392→        isActive: true,
+   393→        order: p.order,
+   394→        startDate: new Date('2024-11-28'),
+   395→      },
+   396→    })
+   397→  }
+   398→
+   399→  // Pengurus DPD Kalbar
+   400→  const dpdKalbarPositions = [
+   401→    { name: 'H. Gustav Hasan', position: 'Ketua DPD Kalbar', order: 1 },
+   402→    { name: 'Drs. Eko Prasetyo', position: 'Sekretaris DPD Kalbar', order: 2 },
+   403→    { name: 'Maya Anggraini, S.E', position: 'Bendahara DPD Kalbar', order: 3 },
+   404→  ]
+   405→  for (const p of dpdKalbarPositions) {
+   406→    await db.orgPosition.create({
+   407→      data: {
+   408→        fullName: p.name,
+   409→        positionName: p.position,
+   410→        level: 'DPD',
+   411→        territoryId: kalbarId,
+   412→        phone: '6281220000' + String(p.order).padStart(2, '0'),
+   413→        isActive: true,
+   414→        order: p.order,
+   415→      },
+   416→    })
+   417→  }
+   418→
+   419→  // Pengurus DPC Pontianak (Kota)
+   420→  await db.orgPosition.create({
+   421→    data: {
+   422→      fullName: 'H. Suparman', positionName: 'Ketua DPC Kota Pontianak', level: 'DPC',
+   423→      territoryId: dpcMap['6171'], phone: '6281234560001', isActive: true, order: 1,
+   424→    },
+   425→  })
+   426→
+   427→  // Sample anggota DPN (format KTA: LAPRA08.ID.00.00.26.0000X)
+   428→  const dpnMembers = [
+   429→    { name: 'Devi Taurisa, S.H., M.H., C.L.D.', nik: '3171010101900001', phone: '628111000002', profession: 'Ketua Umum DPN', gender: 'P' },
+   430→    { name: 'Brigjen. Pol. (Purn) Dr. R. Nurhadi', nik: '3171020202900002', phone: '628111000004', profession: 'Sekretaris Jenderal DPN', gender: 'L' },
+   431→    { name: 'Timmy Rorimpandey, S.E., M.M.', nik: '3171030303900003', phone: '628111000005', profession: 'Bendahara Umum DPN', gender: 'L' },
+   432→  ]
+   433→  for (let i = 0; i < dpnMembers.length; i++) {
+   434→    const m = dpnMembers[i]
+   435→    const seq = String(i + 1).padStart(5, '0')
+   436→    await db.member.create({
+   437→      data: {
+   438→        memberNumber: `LAPRA08.ID.00.00.26.${seq}`,
+   439→        fullName: m.name, nik: m.nik, phone: m.phone, profession: m.profession, gender: m.gender,
+   440→        territoryId: indonesia.id, status: 'ACTIVE',
+   441→        registeredById: adminDpn.id, verifiedById: adminDpn.id,
+   442→        verifiedAt: new Date(), registeredAt: new Date(),
+   443→      },
+   444→    })
+   445→  }
+   446→
+   447→  // Sample anggota DPC Kota Pontianak (5 anggota)
+   448→  const pontianakId = dpcMap['6171']
+   449→  const pontianakMembers = [
+   450→    { name: 'Budi Santoso', nik: '6101710101900001', phone: '6281234567001', size: 'L', profession: 'Wiraswasta', gender: 'L' },
+   451→    { name: 'Ahmad Fauzi', nik: '6101710202900002', phone: '6281234567002', size: 'M', profession: 'PNS', gender: 'L' },
+   452→    { name: 'Siti Aminah', nik: '6101710303900003', phone: '6281234567003', size: 'S', profession: 'Guru', gender: 'P' },
+   453→    { name: 'Dewi Lestari', nik: '6101710404900004', phone: '6281234567004', size: 'M', profession: 'Karyawan Swasta', gender: 'P' },
+   454→    { name: 'Rudi Hartono', nik: '6101710505900005', phone: '6281234567005', size: 'XL', profession: 'Pedagang', gender: 'L' },
+   455→  ]
+   456→  for (let i = 0; i < pontianakMembers.length; i++) {
+   457→    const m = pontianakMembers[i]
+   458→    const seq = String(i + 1).padStart(5, '0')
+   459→    await db.member.create({
+   460→      data: {
+   461→        memberNumber: `LAPRA08.ID.61.6171.26.${seq}`,
+   462→        fullName: m.name, nik: m.nik, phone: m.phone, shirtSize: m.size, profession: m.profession, gender: m.gender,
+   463→        territoryId: pontianakId, status: 'ACTIVE',
+   464→        registeredById: adminDpdKalbar.id, verifiedById: adminDpdKalbar.id,
+   465→        verifiedAt: new Date(), registeredAt: new Date(),
+   466→      },
+   467→    })
+   468→  }
+   469→
+   470→  // Sample anggota DPC Sambas (3 anggota untuk demo isolasi)
+   471→  const sambasId = dpcMap['6173']
+   472→  const sambasMembers = [
+   473→    { name: 'Hendra Wijaya', nik: '6101730101900001', phone: '6281234568001', size: 'L', gender: 'L' },
+   474→    { name: 'Maya Sari', nik: '6101730202900002', phone: '6281234568002', size: 'M', gender: 'P' },
+   475→    { name: 'Joko Susilo', nik: '6101730303900003', phone: '6281234568003', size: 'XL', gender: 'L' },
+   476→  ]
+   477→  for (let i = 0; i < sambasMembers.length; i++) {
+   478→    const m = sambasMembers[i]
+   479→    const seq = String(i + 1).padStart(5, '0')
+   480→    await db.member.create({
+   481→      data: {
+   482→        memberNumber: `LAPRA08.ID.61.6173.26.${seq}`,
+   483→        fullName: m.name, nik: m.nik, phone: m.phone, shirtSize: m.size,
+   484→        territoryId: sambasId, status: 'ACTIVE',
+   485→        registeredById: adminDpdKalbar.id, verifiedById: adminDpdKalbar.id,
+   486→        verifiedAt: new Date(), registeredAt: new Date(),
+   487→      },
+   488→    })
+   489→  }
+   490→
+   491→  // Sample SK Dokumen DPN
+   492→  await db.sKDocument.create({
+   493→    data: {
+   494→      skNumber: 'SK-PEMBINA/LAPRA08/2024/001',
+   495→      title: 'SK Pelantikan Pengurus DPN LAPRA 08 Periode 2024-2029',
+   496→      description: 'Surat Keputusan Ketua Dewan Pembina Hashim Djojohadikusumo tentang Pengurusan DPN LAPRA 08 Periode 2024-2029',
+   497→      fileUrl: 'https://laskarprabowo-08.com/sk/dpn-2024-2029.pdf',
+   498→      fileName: 'SK-DPN-LAPRA08-2024-2029.pdf',
+   499→      fileType: 'pdf',
+   500→      fileSize: 245678,
+   501→      ocrStatus: 'COMPLETED',
+   502→      extractedText: 'Surat Keputusan Nomor: SK-PEMBINA/LAPRA08/2024/001. Tentang Pengurusan DPN Laskar Prabowo 08 Periode 2024-2029. Diterbitkan: 28 November 2024. Oleh: Dr. (HC) Hashim S. Djojohadikusumo, Ketua Dewan Pembina.',
+   503→      ocrMetadata: JSON.stringify({
+   504→        nomorSK: 'SK-PEMBINA/LAPRA08/2024/001',
+   505→        tanggalTerbit: '2024-11-28',
+   506→        penerbit: 'Dr. (HC) Hashim S. Djojohadikusumo',
+   507→        jabatanPenerbit: 'Ketua Dewan Pembina',
+   508→        masaBakti: '2024-2029',
+   509→        autoDetected: true,
+   510→      }),
+   511→      issuedAt: new Date('2024-11-28'),
+   512→      issuedBy: 'Dr. (HC) Hashim S. Djojohadikusumo',
+   513→      territoryId: indonesia.id,
+   514→    },
+   515→  })
+   516→
+   517→  // Sample pengumuman
+   518→  await db.announcement.create({
+   519→    data: {
+   520→      title: 'Selamat Datang di Sistem Informasi LAPRA 08',
+   521→      content: 'Sistem informasi internal LAPRA 08 telah aktif dengan struktur hierarki: DPN (Pusat) → DPD (Provinsi) → DPC (Kabupaten/Kota). DPN membawahi semua DPD seluruh Indonesia & luar negeri. Setiap DPD membawahi DPC-DPC di provinsinya.',
+   522→      type: 'INFO', isPinned: true, isActive: true,
+   523→      territoryId: kalbarId, createdById: adminDpdKalbar.id,
+   524→    },
+   525→  })
+   526→
+   527→  // Sample finance
+   528→  await db.financeTransaction.create({
+   529→    data: { type: 'INCOME', category: 'IURAN', amount: 5000000, description: 'Iuran bulanan pengurus DPD Kalbar', transactionDate: new Date(), territoryId: kalbarId, recordedById: adminDpdKalbar.id },
+   530→  })
+   531→  await db.financeTransaction.create({
+   532→    data: { type: 'EXPENSE', category: 'SEWA', amount: 1500000, description: 'Sewa sekretariat bulan ini', transactionDate: new Date(), territoryId: kalbarId, recordedById: adminDpdKalbar.id },
+   533→  })
+   534→
+   535→  // Sample asset
+   536→  await db.asset.create({
+   537→    data: { name: 'Kemeja Seragam Hitam', category: 'KEMEJA', stock: 500, unit: 'pcs', minStock: 50, territoryId: kalbarId },
+   538→  })
+   539→
+   540→  // Sample event
+   541→  await db.event.create({
+   542→    data: {
+   543→      title: 'Pelantikan Pengurus DPC Kota Pontianak',
+   544→      description: 'Acara pelantikan resmi pengurus DPC Kota Pontianak periode baru',
+   545→      type: 'PELANTIKAN',
+   546→      startDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+   547→      location: 'Aula Kantor Walikota Pontianak',
+   548→      territoryId: pontianakId, createdById: adminDpdKalbar.id, status: 'SCHEDULED', targetAttendance: 200,
+   549→    },
+   550→  })
+   551→
+   552→  console.log('\n✅ Seeding v3 completed!')
+   553→  console.log('\n📋 STRUKTUR HIERARKI (3 Level):')
+   554→  console.log('   DPN (Pusat Nasional) - Indonesia')
+   555→  console.log('   ├── 38 Provinsi Indonesia (DPD)')
+   556→  console.log('   │   └── DPD Kalbar (61) membawahi 14 DPC:')
+   557→  console.log('   │       ├── 2 Kota: Pontianak, Singkawang')
+   558→  console.log('   │       └── 12 Kabupaten: Sambas, Bengkayang, Landak, Mempawah,')
+   559→  console.log('   │           Sanggau, Ketapang, Sintang, Kapuas Hulu, Sekadau,')
+   560→  console.log('   │           Melawi, Kubu Raya, Kayong Utara')
+   561→  console.log('   └── 5 DPD Luar Negeri (USA, CN, MY, SA, AU)')
+   562→  console.log('\n📋 Login credentials (Dev Mode - password: lapra08admin):')
+   563→  console.log('   superadmin | dpn | dpd.kalbar | dpd.ikn | dpd.usa')
+   564→  console.log('   dpc.6171 (Kota Pontianak) | dpc.6173 (Sambas) | ... dpc.6106')
+   565→}
+   566→
+   567→main()
+   568→  .catch((e) => { console.error('❌ Seed error:', e); process.exit(1) })
+   569→  .finally(async () => { await db.$disconnect() })
+   570→

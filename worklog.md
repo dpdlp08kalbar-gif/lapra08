@@ -3860,3 +3860,60 @@ Key Files Created:
 - BLUEPRINT.md
 
 Production Ready: ✅
+
+---
+Task ID: LAPRA08-BMD-RTRW-IMPORT
+Agent: Main Agent (Super Z)
+Task: User report: "kelurahan benua melayu darat belum anda kerjakan disini" — PDF RT/RW Pontianak Selatan sudah dikirim tapi belum di-import ke sistem
+
+Work Log:
+- Audit kondisi:
+  - PDF file `.info-data-rt-di-BMD-kecamatan-pontianak-selatan.pdf` sudah di-upload (50KB, 1 halaman)
+  - Commit sebelumnya (ce4f2bc) sudah parse PDF → upload/bmd-rt-rw.json (35 RW, 154 RT untuk BMD)
+  - Commit sebelumnya juga update public/kalbar-territories.json: BMD (617103002) sudah punya 35 RW
+  - TAPI: 4 kelurahan lain di Pontianak Selatan (Akcaya, BML, Kotabaru, Parittokaya) masih rw=0
+  - LEBIH PENTING: API /api/territory/import-kalbar HANYA import sampai level VILLAGE (Desa/Kelurahan) — TIDAK import RW/RT
+  - Sehingga walau JSON punya data RT/RW, sistem tidak pernah menyimpannya ke DB
+- Fix API /api/territory/import-kalbar/route.ts:
+  - Tambah helper `getOrCreate(code, name, level, parentId, category)` — idempotent import (skip if exists)
+  - Tambah helper `importRwRt(rwList, parentId)` — recursive import RW → RT
+  - Loop import: COUNTRY → PROVINCE → REGENCY → DISTRICT → VILLAGE → RW → RT
+  - Counter terpisah: `created` (wilayah) + `rwRtCreated` (RW+RT)
+  - Null-check untuk country & province (TS strict)
+  - Response: tambah field `rwRtCreated` + message "X wilayah + Y RW/RT baru"
+- Merge data 4 kelurahan lain ke kalbar-territories.json:
+  - Script: `scripts/merge-selatan-rtrw.py` (Python, idempotent)
+  - Sumber: `public/pontianak-selatan-rtrw.json` (sudah ada dari commit sebelumnya)
+  - Target: `public/kalbar-territories.json` — Pontianak Selatan (617103) → desa[]
+  - Hasil verifikasi:
+    - 617103001 Akcaya: 15 RW, 72 RT
+    - 617103002 Benuamelayu Darat: 35 RW, 154 RT (sudah ada)
+    - 617103003 Benuamelayu Laut: 11 RW, 41 RT
+    - 617103004 Kotabaru: 16 RW, 74 RT
+    - 617103005 Parittokaya: 15 RW, 70 RT
+    - Total: 92 RW, 411 RT untuk Pontianak Selatan
+- Update UI communication-menu.tsx:
+  - Confirm dialog: tampilkan list kelurahan yang akan ter-import RT/RW-nya
+  - Toast message: "Import selesai: X wilayah + Y RW/RT dibuat (Z sudah ada)"
+- Typecheck: `npx tsc --noEmit -p tsconfig.json` — 0 error di file yang diubah
+- Build & deploy:
+  - Commit fa33263 di-push ke origin/main
+  - Vercel auto-deploy ~1-2 menit
+
+Stage Summary:
+- Akar masalah ditemukan: API import-kalbar tidak pernah dukung RW/RT (root cause), bukan PDF belum diparse
+- Fix: API sekarang recursive import sampai level RT (7 level hierarki)
+- Data: 5 kelurahan Pontianak Selatan lengkap (92 RW, 411 RT) — BMD paling banyak (35 RW)
+- Idempotent: re-import aman, existing territory di-skip
+- User action setelah deploy:
+  1. Login admin DPN (superadmin / dpn)
+  2. Menu > Keanggotaan & Pengurus > Kelola Wilayah (tab pertama)
+  3. Klik "Import Kalbar" (button hijau di header Indonesia)
+  4. Konfirmasi dialog, tunggu 1-3 menit
+  5. Drill ke: Indonesia > Kalbar > Pontianak > Pontianak Selatan > BMD > RW 001 > RT 001
+- Artefak:
+  - src/app/api/territory/import-kalbar/route.ts (rewrite, +180 LOC)
+  - public/kalbar-territories.json (+92 RW, +411 RT)
+  - src/components/menus/communication-menu.tsx (update dialog + toast)
+  - scripts/merge-selatan-rtrw.py (new, 96 LOC Python)
+- Commit: fa33263 → origin/main (Vercel deploy ~1-2 menit)
