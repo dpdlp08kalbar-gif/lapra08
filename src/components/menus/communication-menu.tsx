@@ -735,6 +735,7 @@ function TerritoryTab() {
   const [formName, setFormName] = useState('')
   const [formCode, setFormCode] = useState('')
   const [formLevel, setFormLevel] = useState('')
+  const [importing, setImporting] = useState(false)
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -752,6 +753,33 @@ function TerritoryTab() {
   const handleDrillDown = (territory: any) => {
     setBreadcrumb(prev => [...prev, territory])
     setCurrentParentId(territory.id)
+  }
+
+  // === Import Kalbar ===
+  const handleImportKalbar = async () => {
+    if (!confirm('Import 13 Kab/Kota, 160 Kecamatan, 1982 Desa/Kelurahan Kalimantan Barat? Proses ini mungkin 1-2 menit.')) return
+    setImporting(true)
+    try {
+      // Fetch JSON dari public folder
+      const res = await fetch('/kalbar-territories.json')
+      const data = await res.json()
+      // POST ke API import
+      const importRes = await api('/api/territory/import-kalbar', {
+        method: 'POST',
+        body: JSON.stringify({ data }),
+        keepWrapper: true,
+      })
+      if (importRes?.success) {
+        addToast(importRes.message || `Import selesai: ${importRes.data?.created || 0} dibuat`, 'success')
+        loadData()
+      } else {
+        addToast(importRes?.error || 'Gagal import', 'error')
+      }
+    } catch (e: any) {
+      addToast(e.message, 'error')
+    } finally {
+      setImporting(false)
+    }
   }
 
   // Go back to parent
@@ -836,9 +864,17 @@ function TerritoryTab() {
           </h3>
           <p className="text-xs text-muted-foreground">{territories.length} {LEVEL_LABELS[nextLevel] || nextLevel}</p>
         </div>
-        <Button onClick={() => { setShowForm(true); setFormName(''); setFormCode(''); setEditingId(null) }} className="bg-blue-600 hover:bg-blue-700 text-white">
-          <Plus className="w-4 h-4 mr-1" /> Tambah {LEVEL_LABELS[nextLevel] || nextLevel}
-        </Button>
+        <div className="flex gap-2">
+          {breadcrumb.length === 0 && (
+            <Button onClick={handleImportKalbar} disabled={importing} variant="outline" className="bg-emerald-50 border-emerald-300 text-emerald-700 hover:bg-emerald-100">
+              {importing ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-1" />}
+              {importing ? 'Mengimpor...' : 'Import Kalbar'}
+            </Button>
+          )}
+          <Button onClick={() => { setShowForm(true); setFormName(''); setFormCode(''); setEditingId(null) }} className="bg-blue-600 hover:bg-blue-700 text-white">
+            <Plus className="w-4 h-4 mr-1" /> Tambah {LEVEL_LABELS[nextLevel] || nextLevel}
+          </Button>
+        </div>
       </div>
 
       {/* List */}
