@@ -757,7 +757,7 @@ function TerritoryTab() {
 
   // === Import Kalbar ===
   const handleImportKalbar = async () => {
-    if (!confirm('Import 13 Kab/Kota, 160 Kecamatan, 1982 Desa/Kelurahan Kalimantan Barat? Proses ini mungkin 1-2 menit.')) return
+    if (!confirm('Import hierarki Kalimantan Barat?\n\n• 13 Kab/Kota\n• 160 Kecamatan\n• 1982 Desa/Kelurahan\n• RT/RW di kelurahan Pontianak Selatan (BMD, Akcaya, BML, Kotabaru, Parittokaya)\n\nProses ini mungkin 1-3 menit.')) return
     setImporting(true)
     try {
       // Fetch JSON dari public folder
@@ -770,7 +770,10 @@ function TerritoryTab() {
         keepWrapper: true,
       })
       if (importRes?.success) {
-        addToast(importRes.message || `Import selesai: ${importRes.data?.created || 0} dibuat`, 'success')
+        const created = importRes.data?.created || 0
+        const rwRt = importRes.data?.rwRtCreated || 0
+        const skipped = importRes.data?.skipped || 0
+        addToast(importRes.message || `Import selesai: ${created} wilayah + ${rwRt} RW/RT dibuat (${skipped} sudah ada)`, 'success')
         loadData()
       } else {
         addToast(importRes?.error || 'Gagal import', 'error')
