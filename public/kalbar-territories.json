@@ -13105,6 +13105,366 @@
           ]
         }
       ]
+    },
+    {
+      "code": "6104",
+      "name": "Kabupaten Sanggau",
+      "level": "REGENCY",
+      "kecamatan": [
+        {
+          "code": "610401",
+          "name": "Kecamatan Balai",
+          "desa": [
+            {
+              "code": "610401001",
+              "name": "Desa Bulu Bala"
+            },
+            {
+              "code": "610401002",
+              "name": "Desa Cowet"
+            },
+            {
+              "code": "610401003",
+              "name": "Desa Empirang Ujung"
+            },
+            {
+              "code": "610401004",
+              "name": "Desa Hilir"
+            },
+            {
+              "code": "610401005",
+              "name": "Desa Kebadu"
+            },
+            {
+              "code": "610401006",
+              "name": "Desa Mak Kawing"
+            },
+            {
+              "code": "610401007",
+              "name": "Desa Padi Kaye"
+            },
+            {
+              "code": "610401008",
+              "name": "Desa Semoncol"
+            },
+            {
+              "code": "610401009",
+              "name": "Desa Senyabang"
+            },
+            {
+              "code": "610401010",
+              "name": "Desa Tae"
+            },
+            {
+              "code": "610401011",
+              "name": "Desa Temiang Mali"
+            },
+            {
+              "code": "610401012",
+              "name": "Desa Temiang Taba"
+            }
+          ]
+        },
+        {
+          "code": "610402",
+          "name": "Kecamatan Beduai",
+          "desa": [
+            {
+              "code": "610402001",
+              "name": "Desa Bereng Berkawat"
+            },
+            {
+              "code": "610402002",
+              "name": "Desa Kasro Mego"
+            },
+            {
+              "code": "610402003",
+              "name": "Desa Mawang Muda"
+            },
+            {
+              "code": "610402004",
+              "name": "Desa Sungai Ilai"
+            },
+            {
+              "code": "610402005",
+              "name": "Desa Thang Raya"
+            }
+          ]
+        },
+        {
+          "code": "610403",
+          "name": "Kecamatan Bonti",
+          "desa": [
+            {
+              "code": "610403001",
+              "name": "Desa Bahta"
+            },
+            {
+              "code": "610403002",
+              "name": "Desa Bantai"
+            },
+            {
+              "code": "610403003",
+              "name": "Desa Bonti"
+            },
+            {
+              "code": "610403004",
+              "name": "Desa Empodis"
+            },
+            {
+              "code": "610403005",
+              "name": "Desa Kampuh"
+            },
+            {
+              "code": "610403006",
+              "name": "Desa Majel"
+            },
+            {
+              "code": "610403007",
+              "name": "Desa Sami"
+            },
+            {
+              "code": "610403008",
+              "name": "Desa Tunggul Boyok"
+            },
+            {
+              "code": "610403009",
+              "name": "Desa Upe"
+            }
+          ]
+        },
+        {
+          "code": "610404",
+          "name": "Kecamatan Entikong",
+          "desa": [
+            {
+              "code": "610404001",
+              "name": "Desa Entikong"
+            },
+            {
+              "code": "610404002",
+              "name": "Desa Nekan"
+            },
+            {
+              "code": "610404003",
+              "name": "Desa Pala Pasang"
+            },
+            {
+              "code": "610404004",
+              "name": "Desa Semanget"
+            },
+            {
+              "code": "610404005",
+              "name": "Desa Suruh Tembawang"
+            }
+          ]
+        },
+        {
+          "code": "610405",
+          "name": "Kecamatan Jangkang",
+          "desa": [
+            {
+              "code": "610405001",
+              "name": "Desa Balai Sebut"
+            },
+            {
+              "code": "610405002",
+              "name": "Desa Empiyang"
+            },
+            {
+              "code": "610405003",
+              "name": "Desa Jangkang Benua"
+            },
+            {
+              "code": "610405004",
+              "name": "Desa Ketori"
+            },
+            {
+              "code": "610405005",
+              "name": "Desa Pisang"
+            },
+            {
+              "code": "610405006",
+              "name": "Desa Sape"
+            },
+            {
+              "code": "610405007",
+              "name": "Desa Selampung"
+            },
+            {
+              "code": "610405008",
+              "name": "Desa Semirau"
+            },
+            {
+              "code": "610405009",
+              "name": "Desa Semombat"
+            },
+            {
+              "code": "610405010",
+              "name": "Desa Tanggung"
+            },
+            {
+              "code": "610405011",
+              "name": "Desa Terati"
+            }
+          ]
+        },
+        {
+          "code": "610406",
+          "name": "Kecamatan Kapuas",
+          "desa": [
+            {
+              "code": "610406001",
+              "name": "Desa Belangin"
+            },
+            {
+              "code": "610406002",
+              "name": "Desa Botuh Lintang"
+            },
+            {
+              "code": "610406003",
+              "name": "Desa Entakai"
+            },
+            {
+              "code": "610406004",
+              "name": "Desa Kambong"
+            },
+            {
+              "code": "610406005",
+              "name": "Desa Lape"
+            },
+            {
+              "code": "610406006",
+              "name": "Desa Lintang Kapuas"
+            },
+            {
+              "code": "610406007",
+              "name": "Desa Lintang Pelaman"
+            },
+            {
+              "code": "610406008",
+              "name": "Desa Mengkiang"
+            },
+            {
+              "code": "610406009",
+              "name": "Desa Nanga Biang"
+            },
+            {
+              "code": "610406010",
+              "name": "Desa Pana"
+            },
+            {
+              "code": "610406011",
+              "name": "Desa Penyeladi"
+            },
+            {
+              "code": "610406012",
+              "name": "Desa Penyelimau"
+            },
+            {
+              "code": "610406013",
+              "name": "Desa Penyelimau Jaya"
+            },
+            {
+              "code": "610406014",
+              "name": "Desa Rambin"
+            },
+            {
+              "code": "610406015",
+              "name": "Desa Semerangkai"
+            },
+            {
+              "code": "610406016",
+              "name": "Desa Sungai Alai"
+            },
+            {
+              "code": "610406017",
+              "name": "Desa Sungai Batu"
+            },
+            {
+              "code": "610406018",
+              "name": "Desa Sungai Mawang"
+            },
+            {
+              "code": "610406019",
+              "name": "Desa Sungai Muntik"
+            },
+            {
+              "code": "610406020",
+              "name": "Desa Tapang Dulang"
+            },
+            {
+              "code": "610406021",
+              "name": "Kelurahan Beringin"
+            },
+            {
+              "code": "610406022",
+              "name": "Kelurahan Bunut"
+            },
+            {
+              "code": "610406023",
+              "name": "Kelurahan Ilir Kota"
+            },
+            {
+              "code": "610406024",
+              "name": "Kelurahan Sungai Sengkuang"
+            },
+            {
+              "code": "610406025",
+              "name": "Kelurahan Tanjung Kapuas"
+            },
+            {
+              "code": "610406026",
+              "name": "Kelurahan Tanjung Sekayam"
+            }
+          ]
+        },
+        {
+          "code": "610407",
+          "name": "Kecamatan Kembayan",
+          "desa": []
+        },
+        {
+          "code": "610408",
+          "name": "Kecamatan Mukok",
+          "desa": []
+        },
+        {
+          "code": "610409",
+          "name": "Kecamatan Nanga Tayap",
+          "desa": []
+        },
+        {
+          "code": "610410",
+          "name": "Kecamatan Parindu",
+          "desa": []
+        },
+        {
+          "code": "610411",
+          "name": "Kecamatan Sejaro",
+          "desa": []
+        },
+        {
+          "code": "610412",
+          "name": "Kecamatan Sekayam",
+          "desa": []
+        },
+        {
+          "code": "610413",
+          "name": "Kecamatan Tayan Hulu",
+          "desa": []
+        },
+        {
+          "code": "610414",
+          "name": "Kecamatan Tayan Hilir",
+          "desa": []
+        },
+        {
+          "code": "610415",
+          "name": "Kecamatan Meliau",
+          "desa": []
+        }
+      ]
     }
   ]
 }
