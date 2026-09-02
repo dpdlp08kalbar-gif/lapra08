@@ -92,7 +92,1024 @@
               "code": "617103002",
               "name": "Kelurahan Benuamelayu Darat",
               "type": "KELURAHAN",
-              "level": "VILLAGE"
+              "level": "VILLAGE",
+              "rw": [
+                {
+                  "code": "617103002_RW001",
+                  "name": "RW 001",
+                  "level": "RW",
+                  "rt": [
+                    {
+                      "code": "617103002_RW001_RT001",
+                      "name": "RT 001",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW001_RT002",
+                      "name": "RT 002",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW001_RT003",
+                      "name": "RT 003",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW001_RT004",
+                      "name": "RT 004",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW001_RT005",
+                      "name": "RT 005",
+                      "level": "RT"
+                    }
+                  ]
+                },
+                {
+                  "code": "617103002_RW002",
+                  "name": "RW 002",
+                  "level": "RW",
+                  "rt": [
+                    {
+                      "code": "617103002_RW002_RT001",
+                      "name": "RT 001",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW002_RT002",
+                      "name": "RT 002",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW002_RT003",
+                      "name": "RT 003",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW002_RT004",
+                      "name": "RT 004",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW002_RT005",
+                      "name": "RT 005",
+                      "level": "RT"
+                    }
+                  ]
+                },
+                {
+                  "code": "617103002_RW003",
+                  "name": "RW 003",
+                  "level": "RW",
+                  "rt": [
+                    {
+                      "code": "617103002_RW003_RT001",
+                      "name": "RT 001",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW003_RT002",
+                      "name": "RT 002",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW003_RT003",
+                      "name": "RT 003",
+                      "level": "RT"
+                    }
+                  ]
+                },
+                {
+                  "code": "617103002_RW004",
+                  "name": "RW 004",
+                  "level": "RW",
+                  "rt": [
+                    {
+                      "code": "617103002_RW004_RT001",
+                      "name": "RT 001",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW004_RT002",
+                      "name": "RT 002",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW004_RT003",
+                      "name": "RT 003",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW004_RT004",
+                      "name": "RT 004",
+                      "level": "RT"
+                    }
+                  ]
+                },
+                {
+                  "code": "617103002_RW005",
+                  "name": "RW 005",
+                  "level": "RW",
+                  "rt": [
+                    {
+                      "code": "617103002_RW005_RT001",
+                      "name": "RT 001",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW005_RT002",
+                      "name": "RT 002",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW005_RT003",
+                      "name": "RT 003",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW005_RT004",
+                      "name": "RT 004",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW005_RT005",
+                      "name": "RT 005",
+                      "level": "RT"
+                    }
+                  ]
+                },
+                {
+                  "code": "617103002_RW006",
+                  "name": "RW 006",
+                  "level": "RW",
+                  "rt": [
+                    {
+                      "code": "617103002_RW006_RT001",
+                      "name": "RT 001",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW006_RT002",
+                      "name": "RT 002",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW006_RT003",
+                      "name": "RT 003",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW006_RT004",
+                      "name": "RT 004",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW006_RT005",
+                      "name": "RT 005",
+                      "level": "RT"
+                    }
+                  ]
+                },
+                {
+                  "code": "617103002_RW007",
+                  "name": "RW 007",
+                  "level": "RW",
+                  "rt": [
+                    {
+                      "code": "617103002_RW007_RT001",
+                      "name": "RT 001",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW007_RT002",
+                      "name": "RT 002",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW007_RT003",
+                      "name": "RT 003",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW007_RT004",
+                      "name": "RT 004",
+                      "level": "RT"
+                    }
+                  ]
+                },
+                {
+                  "code": "617103002_RW008",
+                  "name": "RW 008",
+                  "level": "RW",
+                  "rt": [
+                    {
+                      "code": "617103002_RW008_RT001",
+                      "name": "RT 001",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW008_RT002",
+                      "name": "RT 002",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW008_RT003",
+                      "name": "RT 003",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW008_RT004",
+                      "name": "RT 004",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW008_RT005",
+                      "name": "RT 005",
+                      "level": "RT"
+                    }
+                  ]
+                },
+                {
+                  "code": "617103002_RW009",
+                  "name": "RW 009",
+                  "level": "RW",
+                  "rt": [
+                    {
+                      "code": "617103002_RW009_RT001",
+                      "name": "RT 001",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW009_RT002",
+                      "name": "RT 002",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW009_RT003",
+                      "name": "RT 003",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW009_RT004",
+                      "name": "RT 004",
+                      "level": "RT"
+                    }
+                  ]
+                },
+                {
+                  "code": "617103002_RW010",
+                  "name": "RW 010",
+                  "level": "RW",
+                  "rt": [
+                    {
+                      "code": "617103002_RW010_RT001",
+                      "name": "RT 001",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW010_RT002",
+                      "name": "RT 002",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW010_RT003",
+                      "name": "RT 003",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW010_RT004",
+                      "name": "RT 004",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW010_RT005",
+                      "name": "RT 005",
+                      "level": "RT"
+                    }
+                  ]
+                },
+                {
+                  "code": "617103002_RW011",
+                  "name": "RW 011",
+                  "level": "RW",
+                  "rt": [
+                    {
+                      "code": "617103002_RW011_RT001",
+                      "name": "RT 001",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW011_RT002",
+                      "name": "RT 002",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW011_RT003",
+                      "name": "RT 003",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW011_RT004",
+                      "name": "RT 004",
+                      "level": "RT"
+                    }
+                  ]
+                },
+                {
+                  "code": "617103002_RW012",
+                  "name": "RW 012",
+                  "level": "RW",
+                  "rt": [
+                    {
+                      "code": "617103002_RW012_RT001",
+                      "name": "RT 001",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW012_RT002",
+                      "name": "RT 002",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW012_RT003",
+                      "name": "RT 003",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW012_RT004",
+                      "name": "RT 004",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW012_RT005",
+                      "name": "RT 005",
+                      "level": "RT"
+                    }
+                  ]
+                },
+                {
+                  "code": "617103002_RW013",
+                  "name": "RW 013",
+                  "level": "RW",
+                  "rt": [
+                    {
+                      "code": "617103002_RW013_RT001",
+                      "name": "RT 001",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW013_RT002",
+                      "name": "RT 002",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW013_RT003",
+                      "name": "RT 003",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW013_RT004",
+                      "name": "RT 004",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW013_RT005",
+                      "name": "RT 005",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW013_RT006",
+                      "name": "RT 006",
+                      "level": "RT"
+                    }
+                  ]
+                },
+                {
+                  "code": "617103002_RW014",
+                  "name": "RW 014",
+                  "level": "RW",
+                  "rt": [
+                    {
+                      "code": "617103002_RW014_RT001",
+                      "name": "RT 001",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW014_RT002",
+                      "name": "RT 002",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW014_RT003",
+                      "name": "RT 003",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW014_RT004",
+                      "name": "RT 004",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW014_RT005",
+                      "name": "RT 005",
+                      "level": "RT"
+                    }
+                  ]
+                },
+                {
+                  "code": "617103002_RW015",
+                  "name": "RW 015",
+                  "level": "RW",
+                  "rt": [
+                    {
+                      "code": "617103002_RW015_RT001",
+                      "name": "RT 001",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW015_RT002",
+                      "name": "RT 002",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW015_RT003",
+                      "name": "RT 003",
+                      "level": "RT"
+                    }
+                  ]
+                },
+                {
+                  "code": "617103002_RW016",
+                  "name": "RW 016",
+                  "level": "RW",
+                  "rt": [
+                    {
+                      "code": "617103002_RW016_RT001",
+                      "name": "RT 001",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW016_RT002",
+                      "name": "RT 002",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW016_RT003",
+                      "name": "RT 003",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW016_RT004",
+                      "name": "RT 004",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW016_RT005",
+                      "name": "RT 005",
+                      "level": "RT"
+                    }
+                  ]
+                },
+                {
+                  "code": "617103002_RW017",
+                  "name": "RW 017",
+                  "level": "RW",
+                  "rt": [
+                    {
+                      "code": "617103002_RW017_RT001",
+                      "name": "RT 001",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW017_RT002",
+                      "name": "RT 002",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW017_RT003",
+                      "name": "RT 003",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW017_RT004",
+                      "name": "RT 004",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW017_RT005",
+                      "name": "RT 005",
+                      "level": "RT"
+                    }
+                  ]
+                },
+                {
+                  "code": "617103002_RW018",
+                  "name": "RW 018",
+                  "level": "RW",
+                  "rt": [
+                    {
+                      "code": "617103002_RW018_RT001",
+                      "name": "RT 001",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW018_RT002",
+                      "name": "RT 002",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW018_RT003",
+                      "name": "RT 003",
+                      "level": "RT"
+                    }
+                  ]
+                },
+                {
+                  "code": "617103002_RW019",
+                  "name": "RW 019",
+                  "level": "RW",
+                  "rt": [
+                    {
+                      "code": "617103002_RW019_RT001",
+                      "name": "RT 001",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW019_RT002",
+                      "name": "RT 002",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW019_RT003",
+                      "name": "RT 003",
+                      "level": "RT"
+                    }
+                  ]
+                },
+                {
+                  "code": "617103002_RW020",
+                  "name": "RW 020",
+                  "level": "RW",
+                  "rt": [
+                    {
+                      "code": "617103002_RW020_RT001",
+                      "name": "RT 001",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW020_RT002",
+                      "name": "RT 002",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW020_RT003",
+                      "name": "RT 003",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW020_RT004",
+                      "name": "RT 004",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW020_RT005",
+                      "name": "RT 005",
+                      "level": "RT"
+                    }
+                  ]
+                },
+                {
+                  "code": "617103002_RW021",
+                  "name": "RW 021",
+                  "level": "RW",
+                  "rt": [
+                    {
+                      "code": "617103002_RW021_RT001",
+                      "name": "RT 001",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW021_RT002",
+                      "name": "RT 002",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW021_RT003",
+                      "name": "RT 003",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW021_RT004",
+                      "name": "RT 004",
+                      "level": "RT"
+                    }
+                  ]
+                },
+                {
+                  "code": "617103002_RW022",
+                  "name": "RW 022",
+                  "level": "RW",
+                  "rt": [
+                    {
+                      "code": "617103002_RW022_RT001",
+                      "name": "RT 001",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW022_RT002",
+                      "name": "RT 002",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW022_RT003",
+                      "name": "RT 003",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW022_RT004",
+                      "name": "RT 004",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW022_RT005",
+                      "name": "RT 005",
+                      "level": "RT"
+                    }
+                  ]
+                },
+                {
+                  "code": "617103002_RW023",
+                  "name": "RW 023",
+                  "level": "RW",
+                  "rt": [
+                    {
+                      "code": "617103002_RW023_RT001",
+                      "name": "RT 001",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW023_RT002",
+                      "name": "RT 002",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW023_RT003",
+                      "name": "RT 003",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW023_RT004",
+                      "name": "RT 004",
+                      "level": "RT"
+                    }
+                  ]
+                },
+                {
+                  "code": "617103002_RW024",
+                  "name": "RW 024",
+                  "level": "RW",
+                  "rt": [
+                    {
+                      "code": "617103002_RW024_RT001",
+                      "name": "RT 001",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW024_RT002",
+                      "name": "RT 002",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW024_RT003",
+                      "name": "RT 003",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW024_RT004",
+                      "name": "RT 004",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW024_RT005",
+                      "name": "RT 005",
+                      "level": "RT"
+                    }
+                  ]
+                },
+                {
+                  "code": "617103002_RW025",
+                  "name": "RW 025",
+                  "level": "RW",
+                  "rt": [
+                    {
+                      "code": "617103002_RW025_RT001",
+                      "name": "RT 001",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW025_RT003",
+                      "name": "RT 003",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW025_RT004",
+                      "name": "RT 004",
+                      "level": "RT"
+                    }
+                  ]
+                },
+                {
+                  "code": "617103002_RW026",
+                  "name": "RW 026",
+                  "level": "RW",
+                  "rt": [
+                    {
+                      "code": "617103002_RW026_RT001",
+                      "name": "RT 001",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW026_RT002",
+                      "name": "RT 002",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW026_RT003",
+                      "name": "RT 003",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW026_RT004",
+                      "name": "RT 004",
+                      "level": "RT"
+                    }
+                  ]
+                },
+                {
+                  "code": "617103002_RW027",
+                  "name": "RW 027",
+                  "level": "RW",
+                  "rt": [
+                    {
+                      "code": "617103002_RW027_RT001",
+                      "name": "RT 001",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW027_RT002",
+                      "name": "RT 002",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW027_RT003",
+                      "name": "RT 003",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW027_RT004",
+                      "name": "RT 004",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW027_RT005",
+                      "name": "RT 005",
+                      "level": "RT"
+                    }
+                  ]
+                },
+                {
+                  "code": "617103002_RW028",
+                  "name": "RW 028",
+                  "level": "RW",
+                  "rt": [
+                    {
+                      "code": "617103002_RW028_RT001",
+                      "name": "RT 001",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW028_RT002",
+                      "name": "RT 002",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW028_RT003",
+                      "name": "RT 003",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW028_RT004",
+                      "name": "RT 004",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW028_RT005",
+                      "name": "RT 005",
+                      "level": "RT"
+                    }
+                  ]
+                },
+                {
+                  "code": "617103002_RW029",
+                  "name": "RW 029",
+                  "level": "RW",
+                  "rt": [
+                    {
+                      "code": "617103002_RW029_RT001",
+                      "name": "RT 001",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW029_RT002",
+                      "name": "RT 002",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW029_RT003",
+                      "name": "RT 003",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW029_RT004",
+                      "name": "RT 004",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW029_RT005",
+                      "name": "RT 005",
+                      "level": "RT"
+                    }
+                  ]
+                },
+                {
+                  "code": "617103002_RW030",
+                  "name": "RW 030",
+                  "level": "RW",
+                  "rt": [
+                    {
+                      "code": "617103002_RW030_RT001",
+                      "name": "RT 001",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW030_RT002",
+                      "name": "RT 002",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW030_RT003",
+                      "name": "RT 003",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW030_RT004",
+                      "name": "RT 004",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW030_RT005",
+                      "name": "RT 005",
+                      "level": "RT"
+                    }
+                  ]
+                },
+                {
+                  "code": "617103002_RW031",
+                  "name": "RW 031",
+                  "level": "RW",
+                  "rt": [
+                    {
+                      "code": "617103002_RW031_RT001",
+                      "name": "RT 001",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW031_RT002",
+                      "name": "RT 002",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW031_RT003",
+                      "name": "RT 003",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW031_RT004",
+                      "name": "RT 004",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW031_RT005",
+                      "name": "RT 005",
+                      "level": "RT"
+                    }
+                  ]
+                },
+                {
+                  "code": "617103002_RW032",
+                  "name": "RW 032",
+                  "level": "RW",
+                  "rt": [
+                    {
+                      "code": "617103002_RW032_RT001",
+                      "name": "RT 001",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW032_RT002",
+                      "name": "RT 002",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW032_RT003",
+                      "name": "RT 003",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW032_RT004",
+                      "name": "RT 004",
+                      "level": "RT"
+                    }
+                  ]
+                },
+                {
+                  "code": "617103002_RW033",
+                  "name": "RW 033",
+                  "level": "RW",
+                  "rt": [
+                    {
+                      "code": "617103002_RW033_RT001",
+                      "name": "RT 001",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW033_RT002",
+                      "name": "RT 002",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW033_RT003",
+                      "name": "RT 003",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW033_RT004",
+                      "name": "RT 004",
+                      "level": "RT"
+                    }
+                  ]
+                },
+                {
+                  "code": "617103002_RW034",
+                  "name": "RW 034",
+                  "level": "RW",
+                  "rt": [
+                    {
+                      "code": "617103002_RW034_RT001",
+                      "name": "RT 001",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW034_RT002",
+                      "name": "RT 002",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW034_RT003",
+                      "name": "RT 003",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW034_RT004",
+                      "name": "RT 004",
+                      "level": "RT"
+                    }
+                  ]
+                },
+                {
+                  "code": "617103002_RW035",
+                  "name": "RW 035",
+                  "level": "RW",
+                  "rt": [
+                    {
+                      "code": "617103002_RW035_RT001",
+                      "name": "RT 001",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW035_RT002",
+                      "name": "RT 002",
+                      "level": "RT"
+                    },
+                    {
+                      "code": "617103002_RW035_RT003",
+                      "name": "RT 003",
+                      "level": "RT"
+                    }
+                  ]
+                }
+              ]
             },
             {
               "code": "617103003",
