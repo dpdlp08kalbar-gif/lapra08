@@ -29,10 +29,10 @@ import {
 } from 'lucide-react'
 
 const TABS = [
+  { key: 'territory', label: 'Kelola Wilayah', icon: MapPin },
   { key: 'surveys', label: 'Survei & Polling', icon: Brain },
   { key: 'monitoring', label: 'Monitoring Berita', icon: Sparkles },
   { key: 'analytics', label: 'Dashboard Analitik', icon: Target },
-  { key: 'territory', label: 'Kelola Wilayah', icon: MapPin },
 ]
 
 const PLATFORMS = [
@@ -48,7 +48,7 @@ const PLATFORMS = [
 ]
 
 export function CommunicationMenu() {
-  const [tab, setTab] = useState('surveys')
+  const [tab, setTab] = useState('territory')
   const addToast = useToastStore((s) => s.addToast)
   const user = useAuthStore.getState().user
 
@@ -69,18 +69,18 @@ export function CommunicationMenu() {
         })}
       </div>
 
-      {tab === 'surveys' && <SurveysTab />}
-      {tab === 'monitoring' && <MonitoringTab />}
-      {tab === 'analytics' && <AnalyticsTab />}
       {tab === 'territory' && <TerritoryTab />}
+      {tab === 'surveys' && <SurveysTab onGoToTerritory={() => setTab('territory')} />}
+      {tab === 'monitoring' && <MonitoringTab onGoToTerritory={() => setTab('territory')} />}
+      {tab === 'analytics' && <AnalyticsTab onGoToTerritory={() => setTab('territory')} />}
     </div>
   )
 }
 
 // ============================================================
-// TAB 1: SURVEYS (Fase 1 + 2)
+// TAB: SURVEYS (Fase 1 + 2)
 // ============================================================
-function SurveysTab() {
+function SurveysTab({ onGoToTerritory }: { onGoToTerritory?: () => void }) {
   const addToast = useToastStore((s) => s.addToast)
   const user = useAuthStore.getState().user
   const [surveys, setSurveys] = useState<any[]>([])
@@ -157,6 +157,16 @@ function SurveysTab() {
 
   return (
     <div className="space-y-4">
+      {/* Info: Atur wilayah dulu */}
+      <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 flex items-start gap-3">
+        <MapPin className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+        <div className="flex-1">
+          <div className="font-bold text-blue-800 text-sm">📌 Langkah 1: Atur Wilayah Dulu</div>
+          <p className="text-xs text-blue-700 mt-0.5">Pastikan struktur wilayah (Provinsi → Kab/Kota → Kecamatan → Desa → RT) sudah diatur di tab <strong>Kelola Wilayah</strong> sebelum membuat survei.</p>
+        </div>
+        {onGoToTerritory && <Button size="sm" variant="outline" className="h-7 text-xs bg-blue-50 border-blue-300 text-blue-700" onClick={onGoToTerritory}>Buka Kelola Wilayah →</Button>}
+      </div>
+
       <div className="rounded-lg bg-amber-50 border-2 border-amber-300 p-3 flex items-start gap-3">
         <Shield className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
         <div><div className="font-bold text-amber-800 text-sm">Survei Netral & Anonim</div><p className="text-xs text-amber-700 mt-0.5">Jangan sebut &quot;LAPRA 08&quot; atau &quot;Laskar Prabowo&quot; di pertanyaan.</p></div>
@@ -284,7 +294,7 @@ function SurveysTab() {
 // ============================================================
 // TAB 2: MONITORING BERITA (Fase 3 — 9 Platform Scanner)
 // ============================================================
-function MonitoringTab() {
+function MonitoringTab({ onGoToTerritory }: { onGoToTerritory?: () => void }) {
   const addToast = useToastStore((s) => s.addToast)
   const user = useAuthStore.getState().user
   const [scanning, setScanning] = useState(false)
@@ -467,7 +477,7 @@ function MonitoringTab() {
 // ============================================================
 // TAB 3: DASHBOARD ANALITIK (Fase 4 — Cross-tab + Tren + Zonasi)
 // ============================================================
-function AnalyticsTab() {
+function AnalyticsTab({ onGoToTerritory }: { onGoToTerritory?: () => void }) {
   const [analytics, setAnalytics] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
