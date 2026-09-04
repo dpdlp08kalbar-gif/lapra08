@@ -3917,3 +3917,97 @@ Stage Summary:
   - src/components/menus/communication-menu.tsx (update dialog + toast)
   - scripts/merge-selatan-rtrw.py (new, 96 LOC Python)
 - Commit: fa33263 → origin/main (Vercel deploy ~1-2 menit)
+
+---
+Task ID: LAPRA08-DATA-WARGA-RT
+Agent: Main Agent (Super Z)
+Task: User request: "tinggal anda lengkapi utk pengisian data warga rt tersebut (hal ini juga akan di berlakukan pengisian data warga di semua rt jila sdh tersusun daftar nama rt nya masing masing pengisian data warga seperti pengisian biodata lengkap dan berdasarkan pengelompokan KK (kartu keluarga) masing masing"
+
+Work Log:
+- Audit PDF upload: 'survey dan polling kelurahan benua melayu daray rw 26 rt 06.pdf' (53 baris, screenshot sistem menunjukkan RW 026 BMD sudah punya 4 RT di production)
+- Konfirmasi: hierarki territory (RT/RW/Kelurahan) sudah berfungsi penuh di production
+- User butuh: input data warga per RT dengan pengelompokan KK + biodata lengkap
+
+Implementasi (1 commit, 5 files, +1240 LOC):
+
+1. Schema (prisma/schema.prisma):
+   - FamilyCard (Kartu Keluarga) — model baru
+   - Resident (Warga) — model baru
+   - Relation: 1 KK → N Residents (cascade delete)
+   - Territory relation: KK + Resident keduanya link ke Territory (level RT ideal)
+   - User relation: createdBy audit
+   - Indexes: territoryId, kkNumber, nik (untuk fast query)
+   - @@unique pada kkNumber & nik (anti-duplikasi di DB level)
+
+2. Migration (prisma/migrations/20260904000000_add_family_card_resident/migration.sql):
+   - CREATE TABLE FamilyCard & Resident
+   - Indexes + FK constraints
+   - IF NOT EXISTS clause (idempotent — aman dijalankan ulang)
+
+3. API (src/app/api/warga/route.ts, ~470 LOC):
+   - GET ?territoryId=xxx — list KK + residents per KK
+   - GET ?territoryId=xxx&stats=1 — stats (KK count, demography byGender/byReligion/byRelation)
+   - POST action='create_kk' — auto-create head of family sebagai anggota pertama
+   - POST action='create_resident' — tambah anggota KK (biodata 17 field)
+   - PATCH action='update_kk' / 'update_resident' / 'toggle_resident'
+   - DELETE ?id=xxx&type=kk|resident — cascade delete KK + semua anggota
+   - buildPath() helper: walk RT → RW → Village → District → Regency → Province
+   - Audit log untuk semua aksi (resource 'RESIDENT' + 'FAMILY_CARD' ditambahkan ke AuditResource union)
+   - Unique validation: kkNumber & nik (anti-duplikasi)
+   - Null-safe parentId handling untuk COUNTRY
+
+4. UI (src/components/menus/communication-menu.tsx):
+   - Tombol 'Data Warga' (warna hijau) muncul di card RT & RW
+   - WargaManagerDialog (~450 LOC):
+     - Stats summary: 4 kartu (KK count, total warga, aktif, non-aktif)
+     - List KK dengan expand/collapse (chevron icons)
+     - Tambah KK form: kkNumber, headOfFamilyName, address
+       → Kepala keluarga otomatis jadi anggota pertama
+     - Tambah/Edit anggota KK form (17 field biodata lengkap):
+       Nama, NIK, JK, Tempat/Tgl Lahir, Hubungan dlm KK, Agama,
+       Status Pernikahan, Gol. Darah, Pendidikan, Pekerjaan,
+       Kewarganegaraan, Nama Ibu Kandung (anti-fraud NIK),
+       Nama Ayah, No. HP, Email, Alamat
+     - Table residents per KK (Nama, Hub., JK, Tgl Lahir, Agama, Pekerjaan)
+     - Inline actions: Edit, Toggle aktif/non-aktif, Delete
+     - Warga non-aktif (pindah/meninggal) ditampilkan line-through + opacity 50%
+     - 11 hubungan dlm KK: KEPALA KELUARGA, ISTRI, SUAMI, ANAK, MENANTU,
+       CUCU, ORANG TUA, MERTUA, FAMILI LAIN, PEMBANTU, LAINNYA
+     - 6 agama + KEPERCAYAAN, 4 status pernikahan, 5 gol. darah,
+       10 tingkat pendidikan, WNI/WNA
+
+5. Audit Resource (src/lib/server-helpers.ts):
+   - Tambah 'RESIDENT' + 'FAMILY_CARD' ke AuditResource union type
+   - logAccess() akan tercatat untuk semua aksi (VIEW/CREATE/UPDATE/DELETE)
+
+Typecheck: `npx tsc --noEmit -p tsconfig.json` — 0 error di file yang diubah
+Semua error existing di file lain adalah pre-existing issues (program-documents,
+data-access-requests, broadcast-engine) — tidak di-scope task ini.
+
+Stage Summary:
+- User bisa langsung input data warga RT 001-004 di RW 026 BMD setelah deploy
+- Fitur berlaku universal untuk SEMUA RT & RW di seluruh Indonesia
+- Biodata 17 field sesuai standar Disdukcapil (KK + KTP elektronik)
+- Anti-duplikasi: NIK & Nomor KK unik di DB level
+- UU PDP No. 27/2022 compliant: audit log setiap akses ke data warga
+- Cascade delete: hapus KK otomatis hapus semua anggota (konfirmasi dulu)
+- Warga non-aktif tetap tersimpan (untuk history — pindah/meninggal)
+- Tidak ada service berbayar baru (Prisma + PostgreSQL, Vercel Free compatible)
+
+Artefak:
+- prisma/schema.prisma (+90 LOC: FamilyCard + Resident models)
+- prisma/migrations/20260904000000_add_family_card_resident/migration.sql (70 LOC SQL)
+- src/app/api/warga/route.ts (470 LOC, baru)
+- src/components/menus/communication-menu.tsx (+570 LOC: tombol + WargaManagerDialog)
+- src/lib/server-helpers.ts (+2 LOC: AuditResource union)
+- Commit: 43d1868 → origin/main (Vercel deploy ~1-2 menit)
+
+User action setelah deploy:
+1. Login admin (DPN/DPD/DPC, tergantung wilayah akses)
+2. Menu > Keanggotaan & Pengurus > Kelola Wilayah
+3. Drill ke RT (cth: Indonesia > Kalbar > Pontianak > Pontianak Selatan
+   > BMD > RW 026 > RT 001)
+4. Klik tombol hijau 'Data Warga' di card RT
+5. Klik 'Tambah KK' — isi nomor KK (16 digit) + nama kepala keluarga
+6. Setelah KK dibuat, klik 'Tambah Anggota' untuk tambah istri/anak/dll
+7. Biodata lengkap 17 field untuk tiap warga
