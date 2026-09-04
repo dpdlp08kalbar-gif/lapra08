@@ -50,6 +50,7 @@ model Territory {
   programDocuments ProgramDocument[]
   familyCards   FamilyCard[]
   residents     Resident[]
+  umkms         Umkm[]
 }
 
 // ============================================================
@@ -94,6 +95,8 @@ model User {
   programDocumentsUploaded ProgramDocument[]
   familyCardsCreated FamilyCard[]
   residentsCreated Resident[]
+  umkmsCreated   Umkm[]
+  umkmProductsCreated UmkmProduct[]
   // NOTE: isDPO & audit/DAR relations dihapus untuk schema untuk avoid DB migration
   // DPO assignments disimpan di SystemSetting (key='dpo_assignments')
   // AuditLog & DataAccessRequest tidak pakai FK relation, pakai raw userId string
@@ -246,6 +249,77 @@ model Resident {
   @@index([familyCardId])
   @@index([territoryId])
   @@index([nik])
+}
+
+// ============================================================
+// UMKM (Usaha/Koperasi/Ekraf) - Ekonomi Kreatif & UMKM per DPN/DPD/DPC
+// ============================================================
+// Catatan: territoryId merujuk ke territory level DPN/DPD/DPC (COUNTRY/PROVINCE/REGENCY).
+// Setiap tingkat pengurus (DPN/DPD/DPC) input usaha milik territory-nya masing-masing.
+// RBAC otomatis via getViewableTerritoryIds / getEditableTerritoryIds.
+model Umkm {
+  id              String   @id @default(cuid())
+  name            String   // Nama usaha / koperasi / ekraf
+  type            String   // KOPERASI | USHA_KECIL | EKRAF
+  bidang          String?  // KULINER, FASHION, KERAJINAN, APLIKASI_DIGITAL, PERTANIAN, JASA, PERDAGANGAN, LAINNYA
+  description     String?  // Deskripsi usaha
+  legalStatus     String   @default("BELUM_TERDAFTAR") // BELUM_TERDAFTAR | NIB | BADAN_HUKUM_PT | BADAN_HUKUM_CV | YAYASAN | KOPERASI_RESMI
+  npwp            String?  // NPWP usaha
+  nib             String?  // Nomor Induk Berusaha
+  noBadanHukum    String?  // Nomor badan hukum (untuk PT/CV/Yayasan/Koperasi)
+  foundedDate     DateTime? // Tanggal berdiri
+  ownerName       String?  // Nama pemilik / penanggung jawab
+  ownerPhone      String?  // Kontak pemilik
+  address         String?  // Alamat usaha
+  employeeCount   Int      @default(0) // Jumlah karyawan
+  monthlyOmzet    Int      @default(0) // Estimasi omzet per bulan (Rupiah)
+  logoUrl         String?  // Logo usaha (base64 data URL)
+  status          String   @default("AKTIF") // AKTIF | NON-AKTIF | BERHENTI
+  notes           String?  // Catatan tambahan
+
+  // Link ke Territory (DPN/DPD/DPC)
+  territoryId     String
+  territory       Territory @relation(fields: [territoryId], references: [id])
+
+  // Audit
+  createdById     String?
+  createdBy       User?    @relation(fields: [createdById], references: [id])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  products        UmkmProduct[]
+
+  @@index([territoryId])
+  @@index([type])
+  @@index([bidang])
+}
+
+// ============================================================
+// UMKM PRODUCT - Katalog Produk per usaha
+// ============================================================
+model UmkmProduct {
+  id              String   @id @default(cuid())
+  umkmId          String
+  umkm            Umkm     @relation(fields: [umkmId], references: [id], onDelete: Cascade)
+
+  name            String   // Nama produk
+  description     String?  // Deskripsi produk
+  price           Int      @default(0) // Harga (Rupiah)
+  unit            String?  // Satuan (pcs, kg, porsi, dll)
+  stock           Int      @default(0) // Stok (info saja, bukan inventory management)
+  category        String?  // Kategori produk
+  photoUrl        String?  // Foto produk (base64 data URL)
+  isActive        Boolean  @default(true)
+
+  // Audit
+  createdById     String?
+  createdBy       User?    @relation(fields: [createdById], references: [id])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([umkmId])
+  @@index([category])
 }
 
 // ============================================================

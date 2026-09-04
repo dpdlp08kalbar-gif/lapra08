@@ -52,14 +52,14 @@ import {
   Upload, FileCheck, Loader2, CalendarDays, Briefcase, HandHeart, Users, CalendarClock,
   FileText, Image as ImageIcon, Video, Download, Eye, X, Search, RefreshCw,
   CheckCircle2, Clock, AlertTriangle, Globe, Files, ChevronLeft, Filter, ArrowUpDown,
-  Home, Layers,
+  Home, Layers, Store, Package, DollarSign, TrendingUp, Phone, MapPinned,
 } from 'lucide-react'
 
 // ============================================================
 // TYPES
 // ============================================================
 type Level = 'DPN' | 'DPD' | 'DPC'
-type Category = 'PROGRAM_KERJA' | 'AKSI_SOSIAL' | 'KEMITRAAN' | 'AGENDA'
+type Category = 'PROGRAM_KERJA' | 'AKSI_SOSIAL' | 'KEMITRAAN' | 'AGENDA' | 'EKRAF_UMKM'
 type Status = 'DIRENCANAKAN' | 'BERJALAN' | 'SELESAI' | 'DITUNDA'
 type SortKey = 'updatedAt_desc' | 'updatedAt_asc' | 'title_asc' | 'title_desc' | 'fileSize_desc' | 'eventDate_desc'
 
@@ -107,6 +107,7 @@ const CATEGORY_TABS: { key: Category; label: string; icon: any; color: string; d
   { key: 'AKSI_SOSIAL', label: 'Aksi Sosial & Sinergi', icon: HandHeart, color: 'from-emerald-500 to-teal-600', desc: 'Dokumentasi aksi sosial dan kegiatan kemasyarakatan' },
   { key: 'KEMITRAAN', label: 'Kemitraan', icon: Users, color: 'from-purple-500 to-pink-600', desc: 'Kemitraan dengan ummat, organisasi, dan institusi' },
   { key: 'AGENDA', label: 'Agenda & Kegiatan', icon: CalendarClock, color: 'from-orange-500 to-red-600', desc: 'Agenda kegiatan organisasi' },
+  { key: 'EKRAF_UMKM', label: 'Ekonomi Kreatif & UMKM', icon: Store, color: 'from-amber-500 to-orange-600', desc: 'Koperasi, usaha kecil, dan ekonomi kreatif DPN/DPD/DPC' },
 ]
 
 const LEVEL_CARDS: { key: Level; title: string; subtitle: string; icon: any; grad: string }[] = [
@@ -202,14 +203,19 @@ export function ProgramKegiatanMenu() {
         ))}
       </div>
 
-      <ProgramContentManager
-        key={tab}
-        category={tab}
-        title={activeTab.label}
-        description={activeTab.desc}
-        icon={activeTab.icon}
-        accentColor={activeTab.color}
-      />
+      {/* Conditional render: tab EKRAF_UMKM pakai manager khusus, tab lain pakai ProgramContentManager */}
+      {tab === 'EKRAF_UMKM' ? (
+        <EkrafUmkmManager />
+      ) : (
+        <ProgramContentManager
+          key={tab}
+          category={tab}
+          title={activeTab.label}
+          description={activeTab.desc}
+          icon={activeTab.icon}
+          accentColor={activeTab.color}
+        />
+      )}
     </div>
   )
 }
@@ -1663,5 +1669,731 @@ function EditDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+// ============================================================
+// EKRAF UMKM MANAGER — Koperasi + Usaha Kecil + Ekonomi Kreatif
+// ============================================================
+// Per user request: tambah tab "Ekonomi Kreatif & UMKM" di samping
+// "Agenda & Kegiatan" dalam menu Program & Kegiatan.
+//
+// Sub-tab:
+// 1. Daftar Usaha (list + filter + CRUD)
+// 2. Produk (katalog per usaha)
+// 3. Dashboard (stats + ringkasan per DPN/DPD/DPC)
+//
+// RBAC:
+// - DPN: input data UMKM tingkat DPN pusat (territoryId = Country ID)
+// - DPD: input data UMKM tingkat DPD provinsi (territoryId = Province)
+// - DPC: input data UMKM tingkat DPC kab/kota (territoryId = Regency)
+// - DPN lihat SEMUA, DPD lihat provinsi + DPC di bawahnya, DPC hanya own
+// ============================================================
+
+const UMKM_TYPE_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
+  KOPERASI: { label: 'Koperasi', color: 'bg-emerald-100 text-emerald-700 border-emerald-200', icon: Store },
+  USHA_KECIL: { label: 'Usaha Kecil', color: 'bg-blue-100 text-blue-700 border-blue-200', icon: Package },
+  EKRAF: { label: 'Ekonomi Kreatif', color: 'bg-purple-100 text-purple-700 border-purple-200', icon: TrendingUp },
+}
+
+const UMKM_BIDANG_OPTIONS = [
+  { value: 'KULINER', label: 'Kuliner' },
+  { value: 'FASHION', label: 'Fashion' },
+  { value: 'KERAJINAN', label: 'Kerajinan' },
+  { value: 'APLIKASI_DIGITAL', label: 'Aplikasi Digital' },
+  { value: 'PERTANIAN', label: 'Pertanian' },
+  { value: 'JASA', label: 'Jasa' },
+  { value: 'PERDAGANGAN', label: 'Perdagangan' },
+  { value: 'LAINNYA', label: 'Lainnya' },
+]
+
+const UMKM_LEGAL_OPTIONS = [
+  { value: 'BELUM_TERDAFTAR', label: 'Belum Terdaftar' },
+  { value: 'NIB', label: 'Terdaftar NIB' },
+  { value: 'BADAN_HUKUM_PT', label: 'Berbadan Hukum PT' },
+  { value: 'BADAN_HUKUM_CV', label: 'Berbadan Hukum CV' },
+  { value: 'YAYASAN', label: 'Yayasan' },
+  { value: 'KOPERASI_RESMI', label: 'Koperasi Resmi' },
+]
+
+const UMKM_STATUS_OPTIONS = [
+  { value: 'AKTIF', label: 'Aktif' },
+  { value: 'NON-AKTIF', label: 'Non-Aktif' },
+  { value: 'BERHENTI', label: 'Berhenti Operasi' },
+]
+
+function formatRupiah(amount: number): string {
+  if (!amount) return 'Rp 0'
+  return 'Rp ' + amount.toLocaleString('id-ID')
+}
+
+function EkrafUmkmManager() {
+  const user = useAuthStore.getState().user
+  const addToast = useToastStore((s) => s.addToast)
+  const [subTab, setSubTab] = useState<'list' | 'dashboard'>('list')
+
+  // User's territory context — DPN/DPC/DPC will input ke territory sendiri
+  const userTerritory = user?.territoryId
+  const userTerritoryName = user?.territoryName || ''
+  const userTerritoryCode = user?.territoryCode || ''
+  const userTerritoryLevel = user?.territoryLevel || ''
+
+  // Determine level label
+  const levelLabel = userTerritoryLevel === 'COUNTRY' ? 'DPN' :
+                    userTerritoryLevel === 'PROVINCE' ? 'DPD' :
+                    userTerritoryLevel === 'REGENCY' ? 'DPC' : '—'
+
+  // === State: list ===
+  const [umkms, setUmkms] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [filterType, setFilterType] = useState<string>('')
+  const [filterBidang, setFilterBidang] = useState<string>('')
+  const [search, setSearch] = useState('')
+  const [showForm, setShowForm] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+
+  // === State: form ===
+  const [form, setForm] = useState<any>({
+    name: '', type: 'USHA_KECIL', bidang: '', description: '', legalStatus: 'BELUM_TERDAFTAR',
+    npwp: '', nib: '', noBadanHukum: '', foundedDate: '', ownerName: '', ownerPhone: '',
+    address: '', employeeCount: 0, monthlyOmzet: 0, logoUrl: '', status: 'AKTIF', notes: '',
+  })
+  const [saving, setSaving] = useState(false)
+
+  // === State: products ===
+  const [showProducts, setShowProducts] = useState<string | null>(null) // umkmId
+  const [products, setProducts] = useState<any[]>([])
+  const [productForm, setProductForm] = useState<any>({
+    name: '', description: '', price: 0, unit: '', stock: 0, category: '', photoUrl: '', isActive: true,
+  })
+  const [editingProductId, setEditingProductId] = useState<string | null>(null)
+
+  // === State: stats ===
+  const [stats, setStats] = useState<any>(null)
+
+  // === Load UMKM list ===
+  const loadUmkm = useCallback(async () => {
+    setLoading(true)
+    try {
+      // Untuk DPN: tidak kirim territoryId → API kirim semua (global)
+      // Untuk DPD/DPC: kirim territoryId user → API filter pakai getViewableTerritoryIds
+      const url = userTerritoryLevel === 'COUNTRY'
+        ? '/api/umkm'
+        : `/api/umkm?territoryId=${userTerritory}`
+      const res = await api(url, { keepWrapper: true })
+      if (res?.success) setUmkms(res.data || [])
+      else addToast(res?.error || 'Gagal memuat UMKM', 'error')
+    } catch (e: any) { addToast(e.message, 'error') }
+    finally { setLoading(false) }
+  }, [userTerritory, userTerritoryLevel, addToast])
+
+  // === Load stats ===
+  const loadStats = useCallback(async () => {
+    try {
+      const url = userTerritoryLevel === 'COUNTRY'
+        ? '/api/umkm?stats=1'
+        : `/api/umkm?territoryId=${userTerritory}&stats=1`
+      const res = await api(url, { keepWrapper: true })
+      if (res?.success) setStats(res.data)
+    } catch (e: any) { console.error('Stats load:', e) }
+  }, [userTerritory, userTerritoryLevel])
+
+  useEffect(() => { loadUmkm(); loadStats() }, [loadUmkm, loadStats])
+
+  // === Helpers ===
+  const filtered = useMemo(() => {
+    return umkms.filter((u) => {
+      if (filterType && u.type !== filterType) return false
+      if (filterBidang && u.bidang !== filterBidang) return false
+      if (search && !u.name.toLowerCase().includes(search.toLowerCase()) &&
+          !(u.ownerName || '').toLowerCase().includes(search.toLowerCase())) return false
+      return true
+    })
+  }, [umkms, filterType, filterBidang, search])
+
+  // === Form submit (create/update) ===
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!form.name?.trim()) { addToast('Nama usaha wajib diisi', 'error'); return }
+    if (!userTerritory) { addToast('Anda tidak terikat territory', 'error'); return }
+
+    setSaving(true)
+    try {
+      const payload = { ...form, territoryId: userTerritory }
+      const res = editingId
+        ? await api('/api/umkm', { method: 'PATCH', body: JSON.stringify({ action: 'update_umkm', id: editingId, ...payload }), keepWrapper: true })
+        : await api('/api/umkm', { method: 'POST', body: JSON.stringify({ action: 'create_umkm', ...payload }), keepWrapper: true })
+
+      if (res?.success) {
+        addToast(res.message || (editingId ? 'UMKM diperbarui' : 'UMKM dibuat'), 'success')
+        setShowForm(false)
+        setEditingId(null)
+        setForm({
+          name: '', type: 'USHA_KECIL', bidang: '', description: '', legalStatus: 'BELUM_TERDAFTAR',
+          npwp: '', nib: '', noBadanHukum: '', foundedDate: '', ownerName: '', ownerPhone: '',
+          address: '', employeeCount: 0, monthlyOmzet: 0, logoUrl: '', status: 'AKTIF', notes: '',
+        })
+        loadUmkm()
+        loadStats()
+      } else addToast(res?.error || 'Gagal menyimpan', 'error')
+    } catch (e: any) { addToast(e.message, 'error') }
+    finally { setSaving(false) }
+  }
+
+  // === Edit ===
+  const handleEdit = (u: any) => {
+    setEditingId(u.id)
+    setForm({
+      name: u.name || '', type: u.type || 'USHA_KECIL', bidang: u.bidang || '',
+      description: u.description || '', legalStatus: u.legalStatus || 'BELUM_TERDAFTAR',
+      npwp: u.npwp || '', nib: u.nib || '', noBadanHukum: u.noBadanHukum || '',
+      foundedDate: u.foundedDate ? new Date(u.foundedDate).toISOString().slice(0, 10) : '',
+      ownerName: u.ownerName || '', ownerPhone: u.ownerPhone || '', address: u.address || '',
+      employeeCount: u.employeeCount || 0, monthlyOmzet: u.monthlyOmzet || 0,
+      logoUrl: u.logoUrl || '', status: u.status || 'AKTIF', notes: u.notes || '',
+    })
+    setShowForm(true)
+  }
+
+  // === Delete ===
+  const handleDelete = async (id: string, name: string) => {
+    if (!confirm(`Hapus UMKM "${name}"? Semua produk juga akan dihapus.`)) return
+    try {
+      const res = await api(`/api/umkm?id=${id}&type=umkm`, { method: 'DELETE', keepWrapper: true })
+      if (res?.success) { addToast(res.message, 'success'); loadUmkm(); loadStats() }
+      else addToast(res?.error || 'Gagal', 'error')
+    } catch (e: any) { addToast(e.message, 'error') }
+  }
+
+  // === Products management ===
+  const loadProducts = async (umkmId: string) => {
+    try {
+      const res = await api(`/api/umkm?id=${umkmId}`, { keepWrapper: true })
+      if (res?.success) setProducts(res.data?.products || [])
+    } catch (e: any) { addToast(e.message, 'error') }
+  }
+
+  const openProducts = (umkmId: string) => {
+    setShowProducts(umkmId)
+    setProducts([])
+    loadProducts(umkmId)
+  }
+
+  const handleProductSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!showProducts || !productForm.name?.trim()) return
+    setSaving(true)
+    try {
+      const res = editingProductId
+        ? await api('/api/umkm', { method: 'PATCH', body: JSON.stringify({ action: 'update_product', id: editingProductId, ...productForm }), keepWrapper: true })
+        : await api('/api/umkm', { method: 'POST', body: JSON.stringify({ action: 'create_product', umkmId: showProducts, ...productForm }), keepWrapper: true })
+
+      if (res?.success) {
+        addToast(res.message, 'success')
+        setProductForm({ name: '', description: '', price: 0, unit: '', stock: 0, category: '', photoUrl: '', isActive: true })
+        setEditingProductId(null)
+        loadProducts(showProducts)
+      } else addToast(res?.error || 'Gagal', 'error')
+    } catch (e: any) { addToast(e.message, 'error') }
+    finally { setSaving(false) }
+  }
+
+  const handleProductDelete = async (id: string, name: string) => {
+    if (!confirm(`Hapus produk "${name}"?`)) return
+    try {
+      const res = await api(`/api/umkm?id=${id}&type=product`, { method: 'DELETE', keepWrapper: true })
+      if (res?.success) { addToast(res.message, 'success'); if (showProducts) loadProducts(showProducts) }
+      else addToast(res?.error || 'Gagal', 'error')
+    } catch (e: any) { addToast(e.message, 'error') }
+  }
+
+  const handleProductEdit = (p: any) => {
+    setEditingProductId(p.id)
+    setProductForm({
+      name: p.name || '', description: p.description || '', price: p.price || 0,
+      unit: p.unit || '', stock: p.stock || 0, category: p.category || '',
+      photoUrl: p.photoUrl || '', isActive: p.isActive,
+    })
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Context banner */}
+      <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800">
+        <strong>Konteks Input:</strong> Anda login sebagai <strong>{user?.fullName}</strong> ({levelLabel}) di territory{' '}
+        <strong>{userTerritoryName}</strong> ({userTerritoryCode}). UMKM yang Anda input akan ter-link ke territory ini.
+        {userTerritoryLevel === 'COUNTRY' && ' DPN bisa lihat SEMUA UMKM se-Indonesia.'}
+        {userTerritoryLevel === 'PROVINCE' && ' DPD bisa lihat UMKM provinsi + semua DPC di bawahnya.'}
+        {userTerritoryLevel === 'REGENCY' && ' DPC hanya bisa lihat UMKM territory sendiri.'}
+      </div>
+
+      {/* Sub-tab navigation */}
+      <div className="flex gap-2 border-b">
+        <button
+          onClick={() => setSubTab('list')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            subTab === 'list' ? 'border-amber-500 text-amber-700' : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <Store className="w-4 h-4 inline mr-1" /> Daftar Usaha
+        </button>
+        <button
+          onClick={() => setSubTab('dashboard')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            subTab === 'dashboard' ? 'border-amber-500 text-amber-700' : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <TrendingUp className="w-4 h-4 inline mr-1" /> Dashboard
+        </button>
+      </div>
+
+      {/* === SUB-TAB: LIST === */}
+      {subTab === 'list' && (
+        <div className="space-y-4">
+          {/* Action bar */}
+          <div className="flex flex-wrap justify-between items-center gap-2">
+            <div className="flex flex-wrap gap-2 items-center">
+              <Input
+                placeholder="Cari nama/pemilik..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="h-8 max-w-xs"
+              />
+              <select value={filterType} onChange={(e) => setFilterType(e.target.value)}
+                className="h-8 px-2 border rounded text-sm">
+                <option value="">Semua Tipe</option>
+                <option value="KOPERASI">Koperasi</option>
+                <option value="USHA_KECIL">Usaha Kecil</option>
+                <option value="EKRAF">Ekraf</option>
+              </select>
+              <select value={filterBidang} onChange={(e) => setFilterBidang(e.target.value)}
+                className="h-8 px-2 border rounded text-sm">
+                <option value="">Semua Bidang</option>
+                {UMKM_BIDANG_OPTIONS.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}
+              </select>
+            </div>
+            <Button onClick={() => {
+              setEditingId(null)
+              setForm({
+                name: '', type: 'USHA_KECIL', bidang: '', description: '', legalStatus: 'BELUM_TERDAFTAR',
+                npwp: '', nib: '', noBadanHukum: '', foundedDate: '', ownerName: '', ownerPhone: '',
+                address: '', employeeCount: 0, monthlyOmzet: 0, logoUrl: '', status: 'AKTIF', notes: '',
+              })
+              setShowForm(true)
+            }} className="bg-amber-600 hover:bg-amber-700 text-white">
+              <Plus className="w-4 h-4 mr-1" /> Tambah Usaha
+            </Button>
+          </div>
+
+          {/* List */}
+          {loading ? <LoadingState /> : filtered.length === 0 ? (
+            <EmptyState icon={Store} title="Belum ada UMKM" description="Klik 'Tambah Usaha' untuk input koperasi, UKM, atau ekraf." />
+          ) : (
+            <div className="grid gap-3 md:grid-cols-2">
+              {filtered.map((u) => {
+                const TypeConf = UMKM_TYPE_CONFIG[u.type] || UMKM_TYPE_CONFIG.USHA_KECIL
+                const TypeIcon = TypeConf.icon
+                return (
+                  <Card key={u.id} className="border-l-4 border-l-amber-500 hover:shadow-md transition-shadow">
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-start gap-3 flex-1 min-w-0">
+                          {/* Logo or icon */}
+                          {u.logoUrl ? (
+                            <img src={u.logoUrl} alt={u.name} className="w-12 h-12 rounded object-cover" />
+                          ) : (
+                            <div className="w-12 h-12 rounded bg-amber-100 flex items-center justify-center text-amber-700">
+                              <TypeIcon className="w-6 h-6" />
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium truncate">{u.name}</div>
+                            <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                              <Badge variant="outline" className={`text-xs ${TypeConf.color}`}>
+                                <TypeIcon className="w-3 h-3 mr-1" />{TypeConf.label}
+                              </Badge>
+                              {u.bidang && (
+                                <Badge variant="outline" className="text-xs">
+                                  {UMKM_BIDANG_OPTIONS.find(b => b.value === u.bidang)?.label || u.bidang}
+                                </Badge>
+                              )}
+                              <Badge variant="outline" className="text-xs">
+                                {u.territory?.name || '-'}
+                              </Badge>
+                            </div>
+                            {u.description && (
+                              <div className="text-xs text-muted-foreground mt-1 line-clamp-2">{u.description}</div>
+                            )}
+                            <div className="text-xs text-muted-foreground mt-1.5 space-y-0.5">
+                              {u.ownerName && <div>👤 {u.ownerName}</div>}
+                              {u.ownerPhone && <div>📞 {u.ownerPhone}</div>}
+                              {u.monthlyOmzet > 0 && <div>💰 Omzet/bln: {formatRupiah(u.monthlyOmzet)}</div>}
+                              {u.legalStatus && u.legalStatus !== 'BELUM_TERDAFTAR' && (
+                                <div>📋 {UMKM_LEGAL_OPTIONS.find(l => l.value === u.legalStatus)?.label || u.legalStatus}</div>
+                              )}
+                              <div>📦 {u._count?.products || 0} produk</div>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex flex-col gap-1 shrink-0">
+                          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => openProducts(u.id)}>
+                            <Package className="w-3 h-3 mr-1" /> Produk
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => handleEdit(u)}>
+                            <Edit className="w-3 h-3" />
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-500" onClick={() => handleDelete(u.id, u.name)}>
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* === SUB-TAB: DASHBOARD === */}
+      {subTab === 'dashboard' && (
+        <div className="space-y-4">
+          {/* Stats cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <Card className="bg-amber-50 border-amber-200">
+              <CardContent className="p-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-xs text-amber-600">Total UMKM</div>
+                    <div className="text-2xl font-bold text-amber-700">{stats?.totalCount || 0}</div>
+                  </div>
+                  <Store className="w-8 h-8 text-amber-400" />
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="bg-emerald-50 border-emerald-200">
+              <CardContent className="p-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-xs text-emerald-600">Koperasi</div>
+                    <div className="text-2xl font-bold text-emerald-700">
+                      {stats?.byType?.find((t:any) => t.type === 'KOPERASI')?._count || 0}
+                    </div>
+                  </div>
+                  <Store className="w-8 h-8 text-emerald-400" />
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="bg-blue-50 border-blue-200">
+              <CardContent className="p-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-xs text-blue-600">Usaha Kecil</div>
+                    <div className="text-2xl font-bold text-blue-700">
+                      {stats?.byType?.find((t:any) => t.type === 'USHA_KECIL')?._count || 0}
+                    </div>
+                  </div>
+                  <Package className="w-8 h-8 text-blue-400" />
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="bg-purple-50 border-purple-200">
+              <CardContent className="p-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-xs text-purple-600">Ekraf</div>
+                    <div className="text-2xl font-bold text-purple-700">
+                      {stats?.byType?.find((t:any) => t.type === 'EKRAF')?._count || 0}
+                    </div>
+                  </div>
+                  <TrendingUp className="w-8 h-8 text-purple-400" />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Total Omzet */}
+          <Card className="bg-gradient-to-r from-amber-500 to-orange-500 text-white">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm opacity-90">Total Estimasi Omzet Bulanan</div>
+                  <div className="text-3xl font-bold">{formatRupiah(stats?.totalOmzet || 0)}</div>
+                </div>
+                <DollarSign className="w-12 h-12 opacity-50" />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* By Bidang */}
+          <Card>
+            <CardHeader><CardTitle className="text-sm">Komposisi Bidang Usaha</CardTitle></CardHeader>
+            <CardContent>
+              {stats?.byBidang?.length === 0 ? (
+                <EmptyState icon={Store} title="Belum ada data" description="" />
+              ) : (
+                <div className="space-y-2">
+                  {(stats?.byBidang || []).map((b: any) => {
+                    const total = stats?.totalCount || 1
+                    const pct = Math.round((b._count / total) * 100)
+                    const label = UMKM_BIDANG_OPTIONS.find(o => o.value === b.bidang)?.label || b.bidang || 'Tidak diketahui'
+                    return (
+                      <div key={b.bidang || 'none'}>
+                        <div className="flex justify-between text-xs mb-1">
+                          <span>{label}</span>
+                          <span className="text-muted-foreground">{b._count} ({pct}%)</span>
+                        </div>
+                        <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                          <div className="h-full bg-gradient-to-r from-amber-500 to-orange-500" style={{ width: `${pct}%` }} />
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* By Legal Status */}
+          <Card>
+            <CardHeader><CardTitle className="text-sm">Status Legalitas</CardTitle></CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-2">
+                {(stats?.byLegal || []).map((l: any) => (
+                  <Badge key={l.legalStatus} variant="outline" className="text-xs">
+                    {UMKM_LEGAL_OPTIONS.find(o => o.value === l.legalStatus)?.label || l.legalStatus}: {l._count}
+                  </Badge>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* === DIALOG: Form UMKM (create/edit) === */}
+      <Dialog open={showForm} onOpenChange={(o) => { setShowForm(o); if (!o) setEditingId(null) }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle>{editingId ? 'Edit UMKM' : 'Tambah UMKM / Koperasi / Ekraf'}</DialogTitle>
+            <DialogDescription>
+              UMKM akan ter-link ke territory: <strong>{userTerritoryName}</strong> ({levelLabel})
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSubmit} className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="col-span-2">
+                <Label className="text-sm">Nama Usaha/Koperasi/Ekraf <span className="text-red-500">*</span></Label>
+                <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  placeholder="cth: Koperasi Konsumen LAPRA 08" required className="mt-1" />
+              </div>
+              <div>
+                <Label className="text-sm">Tipe <span className="text-red-500">*</span></Label>
+                <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}
+                  className="w-full mt-1 px-2 py-1 border rounded text-sm h-9" required>
+                  <option value="KOPERASI">Koperasi</option>
+                  <option value="USHA_KECIL">Usaha Kecil</option>
+                  <option value="EKRAF">Ekonomi Kreatif</option>
+                </select>
+              </div>
+              <div>
+                <Label className="text-sm">Bidang</Label>
+                <select value={form.bidang} onChange={(e) => setForm({ ...form, bidang: e.target.value })}
+                  className="w-full mt-1 px-2 py-1 border rounded text-sm h-9">
+                  <option value="">— pilih —</option>
+                  {UMKM_BIDANG_OPTIONS.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}
+                </select>
+              </div>
+              <div className="col-span-2">
+                <Label className="text-sm">Deskripsi Usaha</Label>
+                <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
+                  placeholder="Deskripsi singkat usaha..." className="mt-1" rows={2} />
+              </div>
+              <div>
+                <Label className="text-sm">Status Legalitas</Label>
+                <select value={form.legalStatus} onChange={(e) => setForm({ ...form, legalStatus: e.target.value })}
+                  className="w-full mt-1 px-2 py-1 border rounded text-sm h-9">
+                  {UMKM_LEGAL_OPTIONS.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <Label className="text-sm">Status Operasi</Label>
+                <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}
+                  className="w-full mt-1 px-2 py-1 border rounded text-sm h-9">
+                  {UMKM_STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <Label className="text-sm">NPWP</Label>
+                <Input value={form.npwp} onChange={(e) => setForm({ ...form, npwp: e.target.value })}
+                  placeholder="xx.xxx.xxx.x-xxx" className="mt-1" />
+              </div>
+              <div>
+                <Label className="text-sm">NIB (Nomor Induk Berusaha)</Label>
+                <Input value={form.nib} onChange={(e) => setForm({ ...form, nib: e.target.value })}
+                  placeholder="13 digit" className="mt-1" />
+              </div>
+              <div>
+                <Label className="text-sm">No. Badan Hukum</Label>
+                <Input value={form.noBadanHukum} onChange={(e) => setForm({ ...form, noBadanHukum: e.target.value })}
+                  placeholder="untuk PT/CV/Yayasan/Koperasi" className="mt-1" />
+              </div>
+              <div>
+                <Label className="text-sm">Tanggal Berdiri</Label>
+                <Input type="date" value={form.foundedDate} onChange={(e) => setForm({ ...form, foundedDate: e.target.value })}
+                  className="mt-1" />
+              </div>
+              <div>
+                <Label className="text-sm">Nama Pemilik/Penanggung Jawab</Label>
+                <Input value={form.ownerName} onChange={(e) => setForm({ ...form, ownerName: e.target.value })}
+                  placeholder="cth: Budi Santoso" className="mt-1" />
+              </div>
+              <div>
+                <Label className="text-sm">No. Telepon/WhatsApp Pemilik</Label>
+                <Input value={form.ownerPhone} onChange={(e) => setForm({ ...form, ownerPhone: e.target.value })}
+                  placeholder="cth: 0812xxxxxxx" className="mt-1" />
+              </div>
+              <div className="col-span-2">
+                <Label className="text-sm">Alamat Usaha</Label>
+                <Textarea value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })}
+                  placeholder="Alamat lengkap usaha..." className="mt-1" rows={2} />
+              </div>
+              <div>
+                <Label className="text-sm">Jumlah Karyawan</Label>
+                <Input type="number" min={0} value={form.employeeCount}
+                  onChange={(e) => setForm({ ...form, employeeCount: parseInt(e.target.value) || 0 })}
+                  className="mt-1" />
+              </div>
+              <div>
+                <Label className="text-sm">Estimasi Omzet Bulanan (Rp)</Label>
+                <Input type="number" min={0} value={form.monthlyOmzet}
+                  onChange={(e) => setForm({ ...form, monthlyOmzet: parseInt(e.target.value) || 0 })}
+                  placeholder="cth: 5000000" className="mt-1" />
+              </div>
+              <div className="col-span-2">
+                <Label className="text-sm">Catatan</Label>
+                <Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                  placeholder="Catatan tambahan..." className="mt-1" rows={2} />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-2 border-t">
+              <Button type="button" variant="outline" onClick={() => { setShowForm(false); setEditingId(null) }}>Batal</Button>
+              <Button type="submit" disabled={saving} className="bg-amber-600 hover:bg-amber-700 text-white">
+                {saving && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
+                {editingId ? 'Simpan' : 'Tambah'}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* === DIALOG: Products management === */}
+      <Dialog open={!!showProducts} onOpenChange={(o) => { if (!o) { setShowProducts(null); setEditingProductId(null); setProducts([]) } }}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle>Kelola Produk UMKM</DialogTitle>
+            <DialogDescription>
+              {umkms.find(u => u.id === showProducts)?.name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            {/* List existing products */}
+            <div className="space-y-2">
+              {products.length === 0 ? (
+                <div className="text-xs text-muted-foreground italic">Belum ada produk.</div>
+              ) : (
+                products.map((p) => (
+                  <Card key={p.id} className="border-l-4 border-l-blue-400">
+                    <CardContent className="p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-start gap-3 flex-1">
+                          {p.photoUrl ? (
+                            <img src={p.photoUrl} alt={p.name} className="w-12 h-12 rounded object-cover" />
+                          ) : (
+                            <div className="w-12 h-12 rounded bg-blue-100 flex items-center justify-center text-blue-700">
+                              <Package className="w-6 h-6" />
+                            </div>
+                          )}
+                          <div className="flex-1">
+                            <div className="font-medium text-sm">{p.name}</div>
+                            {p.description && <div className="text-xs text-muted-foreground line-clamp-2">{p.description}</div>}
+                            <div className="text-xs mt-1">
+                              <span className="font-medium text-blue-600">{formatRupiah(p.price)}</span>
+                              {p.unit && <span className="text-muted-foreground"> / {p.unit}</span>}
+                              {p.stock > 0 && <span className="text-muted-foreground ml-2">Stok: {p.stock}</span>}
+                              {p.category && <Badge variant="outline" className="ml-2 text-xs">{p.category}</Badge>}
+                              {!p.isActive && <Badge variant="outline" className="ml-2 text-xs text-red-600">Non-aktif</Badge>}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex gap-1">
+                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => handleProductEdit(p)}>
+                            <Edit className="w-3 h-3" />
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-500" onClick={() => handleProductDelete(p.id, p.name)}>
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </div>
+
+            {/* Add/Edit product form */}
+            <div className="border-t pt-3">
+              <h4 className="text-sm font-medium mb-2">{editingProductId ? 'Edit Produk' : 'Tambah Produk Baru'}</h4>
+              <form onSubmit={handleProductSubmit} className="grid grid-cols-2 gap-2">
+                <div className="col-span-2">
+                  <Label className="text-xs">Nama Produk <span className="text-red-500">*</span></Label>
+                  <Input value={productForm.name} onChange={(e) => setProductForm({ ...productForm, name: e.target.value })}
+                    placeholder="cth: Keripik Singkong" required className="mt-1 text-xs h-8" />
+                </div>
+                <div className="col-span-2">
+                  <Label className="text-xs">Deskripsi</Label>
+                  <Textarea value={productForm.description} onChange={(e) => setProductForm({ ...productForm, description: e.target.value })}
+                    className="mt-1 text-xs" rows={2} />
+                </div>
+                <div>
+                  <Label className="text-xs">Harga (Rp)</Label>
+                  <Input type="number" min={0} value={productForm.price}
+                    onChange={(e) => setProductForm({ ...productForm, price: parseInt(e.target.value) || 0 })}
+                    className="mt-1 text-xs h-8" />
+                </div>
+                <div>
+                  <Label className="text-xs">Satuan</Label>
+                  <Input value={productForm.unit} onChange={(e) => setProductForm({ ...productForm, unit: e.target.value })}
+                    placeholder="cth: pcs, kg, porsi" className="mt-1 text-xs h-8" />
+                </div>
+                <div>
+                  <Label className="text-xs">Stok</Label>
+                  <Input type="number" min={0} value={productForm.stock}
+                    onChange={(e) => setProductForm({ ...productForm, stock: parseInt(e.target.value) || 0 })}
+                    className="mt-1 text-xs h-8" />
+                </div>
+                <div>
+                  <Label className="text-xs">Kategori</Label>
+                  <Input value={productForm.category} onChange={(e) => setProductForm({ ...productForm, category: e.target.value })}
+                    placeholder="cth: Makanan, Minuman" className="mt-1 text-xs h-8" />
+                </div>
+                <div className="col-span-2 flex justify-end gap-2 pt-2">
+                  {editingProductId && (
+                    <Button type="button" variant="outline" size="sm"
+                      onClick={() => { setEditingProductId(null); setProductForm({ name: '', description: '', price: 0, unit: '', stock: 0, category: '', photoUrl: '', isActive: true }) }}>
+                      Batal Edit
+                    </Button>
+                  )}
+                  <Button type="submit" disabled={saving} size="sm" className="bg-blue-600 hover:bg-blue-700 text-white">
+                    {saving && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
+                    {editingProductId ? 'Simpan' : 'Tambah Produk'}
+                  </Button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
   )
 }

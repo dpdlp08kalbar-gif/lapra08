@@ -300,7 +300,7 @@ export function formatDateTimeID(date: Date | string): string {
 // ============================================================
 
 export type AuditAction = 'VIEW' | 'EXPORT' | 'UPDATE' | 'DELETE' | 'CREATE' | 'LOGIN' | 'DOWNLOAD' | 'DENIED'
-export type AuditResource = 'MEMBER' | 'USER' | 'KTA_APPLICATION' | 'PROGRAM_DOCUMENT' | 'SEKRETARIAT_MESSAGE' | 'DATA_ACCESS_REQUEST' | 'SYSTEM_SETTING' | 'RESIDENT' | 'FAMILY_CARD'
+export type AuditResource = 'MEMBER' | 'USER' | 'KTA_APPLICATION' | 'PROGRAM_DOCUMENT' | 'SEKRETARIAT_MESSAGE' | 'DATA_ACCESS_REQUEST' | 'SYSTEM_SETTING' | 'RESIDENT' | 'FAMILY_CARD' | 'UMKM' | 'UMKM_PRODUCT'
 
 /**
  * Catat aksi akses ke data pribadi — wajib dipanggil di setiap endpoint yang menyentuh data anggota.
