@@ -132,7 +132,127 @@ export async function POST(request: NextRequest) {
     const action = body.action || 'create_kk'
 
     // ============================================================
-    // CREATE KARTU KELUARGA
+    // CREATE KARTU KELUARGA + MULTIPLE ANGGOTA (single submit)
+    // ============================================================
+    if (action === 'create_kk_with_members') {
+      const { kkNumber, headOfFamilyName, address, territoryId, kkDocumentUrl, members } = body
+
+      if (!kkNumber?.trim() || !headOfFamilyName?.trim() || !territoryId) {
+        return NextResponse.json({ success: false, error: 'kkNumber, headOfFamilyName, territoryId wajib diisi' }, { status: 400 })
+      }
+
+      // Validate members array if provided
+      const membersArr: any[] = Array.isArray(members) ? members : []
+      if (membersArr.length === 0) {
+        return NextResponse.json({ success: false, error: 'Minimal 1 anggota (kepala keluarga) wajib diisi' }, { status: 400 })
+      }
+
+      // Check unique KK number
+      const existing = await db.familyCard.findUnique({ where: { kkNumber: kkNumber.trim() } })
+      if (existing) {
+        return NextResponse.json({ success: false, error: `Nomor KK "${kkNumber.trim()}" sudah terdaftar` }, { status: 409 })
+      }
+
+      // Pre-check unique NIKs in members (against each other + against DB)
+      const seenNiks = new Set<string>()
+      for (const m of membersArr) {
+        if (m.nik?.trim()) {
+          const nik = m.nik.trim()
+          if (seenNiks.has(nik)) {
+            return NextResponse.json({ success: false, error: `NIK "${nik}" duplikat dalam daftar anggota` }, { status: 409 })
+          }
+          seenNiks.add(nik)
+          const dup = await db.resident.findUnique({ where: { nik } })
+          if (dup) {
+            return NextResponse.json({ success: false, error: `NIK "${nik}" sudah terdaftar di warga lain` }, { status: 409 })
+          }
+        }
+      }
+
+      // Get territory to derive codes/names
+      const territory = await db.territory.findUnique({
+        where: { id: territoryId },
+        include: { parent: { include: { parent: { include: { parent: { include: { parent: true } } } } } } },
+      })
+      if (!territory) {
+        return NextResponse.json({ success: false, error: 'Territory tidak ditemukan' }, { status: 404 })
+      }
+
+      const path = buildPath(territory)
+
+      // Create KK
+      const kk = await db.familyCard.create({
+        data: {
+          kkNumber: kkNumber.trim(),
+          headOfFamilyName: headOfFamilyName.trim(),
+          address: address?.trim() || null,
+          territoryId,
+          kkDocumentUrl: kkDocumentUrl || null,
+          rtCode: path.rtCode,
+          rwCode: path.rwCode,
+          villageCode: path.villageCode,
+          villageName: path.villageName,
+          districtName: path.districtName,
+          regencyName: path.regencyName,
+          provinceName: path.provinceName,
+          createdById: user.id,
+        },
+      })
+
+      // Create all residents in parallel batch
+      const createdResidents = []
+      for (const m of membersArr) {
+        const resident = await db.resident.create({
+          data: {
+            familyCardId: kk.id,
+            fullName: (m.fullName || '').trim(),
+            nik: m.nik?.trim() || null,
+            gender: m.gender || null,
+            birthPlace: m.birthPlace?.trim() || null,
+            birthDate: m.birthDate ? new Date(m.birthDate) : null,
+            religion: m.religion || null,
+            education: m.education || null,
+            occupation: m.occupation || null,
+            maritalStatus: m.maritalStatus || null,
+            bloodType: m.bloodType || null,
+            citizenship: m.citizenship || 'WNI',
+            motherName: m.motherName?.trim() || null,
+            fatherName: m.fatherName?.trim() || null,
+            relationToHead: m.relationToHead || 'FAMILI LAIN',
+            organisasi: m.organisasi?.trim() || null,
+            phone: m.phone?.trim() || null,
+            email: m.email?.trim() || null,
+            address: m.address?.trim() || null,
+            photoUrl: m.photoUrl || null,
+            idCardUrl: m.idCardUrl || null,
+            isActive: m.isActive !== false,
+            statusNote: m.statusNote?.trim() || null,
+            territoryId,
+            createdById: user.id,
+          },
+        })
+        createdResidents.push(resident)
+      }
+
+      await logAccess({
+        actor: user,
+        action: 'CREATE',
+        resource: 'FAMILY_CARD',
+        resourceId: kk.id,
+        resourceLabel: `KK ${kk.kkNumber} (${kk.headOfFamilyName}) + ${createdResidents.length} anggota`,
+        request,
+        detail: `KK document: ${kkDocumentUrl ? 'yes' : 'no'}; Members: ${createdResidents.length}`,
+      })
+
+      return NextResponse.json({
+        success: true,
+        data: { kk, residents: createdResidents },
+        message: `KK ${kk.kkNumber} berhasil dibuat dengan ${createdResidents.length} anggota`,
+      })
+    }
+
+    // ============================================================
+    // CREATE KARTU KELUARGA (legacy single-step, dengan auto-create head)
     // ============================================================
     if (action === 'create_kk') {
       const { kkNumber, headOfFamilyName, address, territoryId } = body
@@ -217,7 +337,7 @@ export async function POST(request: NextRequest) {
     // CREATE RESIDENT (anggota KK)
     // ============================================================
     if (action === 'create_resident') {
-      const { familyCardId, fullName, nik, gender, birthPlace, birthDate, religion, maritalStatus, bloodType, education, occupation, citizenship, motherName, fatherName, relationToHead, phone, email, address, territoryId } = body
+      const { familyCardId, fullName, nik, gender, birthPlace, birthDate, religion, maritalStatus, bloodType, education, occupation, citizenship, motherName, fatherName, relationToHead, organisasi, phone, email, address, photoUrl, idCardUrl, isActive, statusNote, territoryId } = body
 
       if (!familyCardId || !fullName?.trim() || !territoryId) {
         return NextResponse.json({ success: false, error: 'familyCardId, fullName, territoryId wajib diisi' }, { status: 400 })
@@ -254,9 +374,14 @@ export async function POST(request: NextRequest) {
           motherName: motherName?.trim() || null,
           fatherName: fatherName?.trim() || null,
           relationToHead: relationToHead || 'FAMILI LAIN',
+          organisasi: organisasi?.trim() || null,
           phone: phone?.trim() || null,
           email: email?.trim() || null,
           address: address?.trim() || null,
+          photoUrl: photoUrl || null,
+          idCardUrl: idCardUrl || null,
+          isActive: isActive !== false,
+          statusNote: statusNote?.trim() || null,
           territoryId,
           createdById: user.id,
         },
@@ -298,7 +423,7 @@ export async function PATCH(request: NextRequest) {
     const action = body.action
 
     if (action === 'update_kk') {
-      const { id, kkNumber, headOfFamilyName, address } = body
+      const { id, kkNumber, headOfFamilyName, address, kkDocumentUrl } = body
       if (!id) return NextResponse.json({ success: false, error: 'id wajib diisi' }, { status: 400 })
 
       const existing = await db.familyCard.findUnique({ where: { id } })
@@ -317,6 +442,7 @@ export async function PATCH(request: NextRequest) {
           ...(kkNumber !== undefined ? { kkNumber: kkNumber.trim() } : {}),
           ...(headOfFamilyName !== undefined ? { headOfFamilyName: headOfFamilyName.trim() } : {}),
           ...(address !== undefined ? { address: address?.trim() || null } : {}),
+          ...(kkDocumentUrl !== undefined ? { kkDocumentUrl: kkDocumentUrl || null } : {}),
         },
       })
 
@@ -334,7 +460,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     if (action === 'update_resident') {
-      const { id, fullName, nik, gender, birthPlace, birthDate, religion, maritalStatus, bloodType, education, occupation, citizenship, motherName, fatherName, relationToHead, phone, email, address, statusNote } = body
+      const { id, fullName, nik, gender, birthPlace, birthDate, religion, maritalStatus, bloodType, education, occupation, citizenship, motherName, fatherName, relationToHead, organisasi, phone, email, address, photoUrl, idCardUrl, statusNote } = body
       if (!id) return NextResponse.json({ success: false, error: 'id wajib diisi' }, { status: 400 })
 
       const existing = await db.resident.findUnique({ where: { id } })
@@ -364,9 +490,12 @@ export async function PATCH(request: NextRequest) {
           ...(motherName !== undefined ? { motherName: motherName?.trim() || null } : {}),
           ...(fatherName !== undefined ? { fatherName: fatherName?.trim() || null } : {}),
           ...(relationToHead !== undefined ? { relationToHead: relationToHead || null } : {}),
+          ...(organisasi !== undefined ? { organisasi: organisasi?.trim() || null } : {}),
           ...(phone !== undefined ? { phone: phone?.trim() || null } : {}),
           ...(email !== undefined ? { email: email?.trim() || null } : {}),
           ...(address !== undefined ? { address: address?.trim() || null } : {}),
+          ...(photoUrl !== undefined ? { photoUrl: photoUrl || null } : {}),
+          ...(idCardUrl !== undefined ? { idCardUrl: idCardUrl || null } : {}),
           ...(statusNote !== undefined ? { statusNote: statusNote?.trim() || null } : {}),
         },
       })

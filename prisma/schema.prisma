@@ -163,6 +163,9 @@ model FamilyCard {
   regencyName     String?  // nama Kab/Kota
   provinceName    String?  // nama Provinsi
 
+  // Dokumen KK (PDF/JPG, base64 data URL)
+  kkDocumentUrl   String?
+
   // Link ke Territory (RT level idealnya)
   territoryId     String
   territory       Territory @relation(fields: [territoryId], references: [id])
@@ -194,16 +197,18 @@ model Resident {
   gender          String?  // L | P
   birthPlace      String?
   birthDate       DateTime?
-  religion        String?  // ISLAM, KRISTEN, KATOLIK, HINDU, BUDDHA, KONGHUCU
+  religion        String?  // ISLAM, KRISTEN, KATOLIK, HINDU, BUDDHA, KONGHUCU, PENGHAYAT KEPERCAYAAN
   maritalStatus   String?  // LAJANG, KAWIN, CERAI HIDUP, CERAI MATI
   bloodType       String?  // A, B, AB, O
-  education       String?  // SD, SMP, SMA, D3, S1, S2, S3
-  occupation      String?  // Pekerjaan
+  education       String?  // TIDAK SEKOLAH, SD, SMP, SMA, D1/D2/D3, S1/D4, S2, S3
+  occupation      String?  // Pekerjaan (12 opsi standar Disdukcapil)
   citizenship     String?  // WNI, WNA
   motherName      String?  // Nama ibu kandung (anti-fraud NIK)
   fatherName      String?  // Nama ayah
   // Hubungan dalam KK
   relationToHead  String?  // KEPALA KELUARGA, ISTRI, SUAMI, ANAK, MENANTU, CUCU, ORANG TUA, MERTUA, FAMILI LAIN, PEMBANTU, LAINNYA
+  // Kegiatan Organisasi yang Diikuti
+  organisasi      String?
 
   // Kontak
   phone           String?
@@ -211,6 +216,10 @@ model Resident {
 
   // Lokasi (sebagian besar redundan dari KK, tapi bisa beda alamat untuk beda anggota)
   address         String?
+
+  // Dokumen & Foto
+  photoUrl        String?  // Pas Foto (JPG/PNG, base64 data URL — preview)
+  idCardUrl       String?  // KTP (PDF/JPG, base64 data URL)
 
   // Link ke Territory (RT level idealnya)
   territoryId     String
