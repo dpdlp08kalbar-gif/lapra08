@@ -907,8 +907,8 @@ function TerritoryTab() {
                         <Eye className="w-3 h-3 mr-1" /> Buka
                       </Button>
                     ) : null}
-                    {/* Data Warga button for RT and RW (leaf-level territories) */}
-                    {['RT', 'RW'].includes(t.level) && (
+                    {/* Data Warga button — ONLY on RT level (RT yang bertugas input data warga masing-masing) */}
+                    {t.level === 'RT' && (
                       <Button
                         size="sm"
                         variant="outline"
