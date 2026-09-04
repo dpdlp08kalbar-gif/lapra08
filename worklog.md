@@ -4166,3 +4166,93 @@ User action setelah deploy:
    pekerjaan — semua wajib sesuai spec)
 9. Klik 'Simpan KK + Anggota' di footer
 10. Stats (KK count, total warga, aktif, non-aktif) auto-update
+
+---
+Task ID: LAPRA08-DATA-WARGA-MEDSOS
+Agent: Main Agent (Super Z)
+Task: User request tambah kolom kontak + akun medsos warga: 'Tambahkan nomor telpon/whatsapp, tambahkan akun medsos seperti facebook, instagram, tiktok, linkedln, dan lainnya, semua wajib dibuatkan kolom isiannya masing-masing'
+
+Work Log:
+- Audit existing Resident model: phone & email sudah ada, tapi belum ada
+  WhatsApp, Facebook, Instagram, TikTok, LinkedIn, Medsos Lainnya
+- User emphasis: 'semua wajib dibuatkan kolom isiannya masing-masing'
+  → tambah 6 kolom medsos + 1 kolom WhatsApp terpisah dari phone
+
+Implementasi (1 commit, 4 files, +164 LOC):
+
+1. Schema (prisma/schema.prisma):
+   - Resident: tambah 6 fields baru
+     - whatsapp (TEXT): Nomor WhatsApp, bisa beda dengan phone
+     - facebook (TEXT): URL/username Facebook
+     - instagram (TEXT): username Instagram
+     - tiktok (TEXT): username TikTok
+     - linkedin (TEXT): URL/username LinkedIn
+     - socialOther (TEXT): Telegram, Twitter/X, YouTube, dll
+       Format free-text (cth: 'Telegram @username, YouTube channel')
+   - phone & email sudah ada sebelumnya
+
+2. Migration (prisma/migrations/20260904120000_add_resident_socials/migration.sql):
+   - ALTER TABLE Resident ADD COLUMN untuk 6 fields baru
+   - IF NOT EXISTS (idempotent)
+
+3. API (src/app/api/warga/route.ts):
+   - POST action='create_kk_with_members': terima 6 fields medsos di tiap
+     anggota array, simpan ke DB
+   - POST action='create_resident': tambah 6 fields medsos baru
+   - PATCH action='update_resident': tambah 6 fields medsos baru
+   - Fix TS error: createdResidents typed sebagai any[]
+
+4. UI WargaManagerDialog (communication-menu.tsx):
+   - emptyMember() helper: tambah 6 fields medsos + phone
+   - Form tambah anggota (multi-step Tambah KK):
+     + Tambah kolom No. Telepon + No. WhatsApp setelah Email
+     + Section baru 'Akun Media Sosial' (border purple) dengan 5 fields:
+       Facebook (f icon biru), Instagram (📷 icon pink),
+       TikTok (🎵 icon slate), LinkedIn (in icon biru tua),
+       Medsos Lainnya (✈️ icon sky)
+     + Layout grid 2-kolom, Medsos Lainnya col-span-2
+   - Form edit resident (existing):
+     + Tambah kolom No. Telepon + No. WhatsApp
+     + Section 'Akun Media Sosial' (col-span-3, grid 3-kolom) dengan 5 fields
+   - openEditResident() helper: load 6 fields medsos + phone/wa
+   - List tabel warga:
+     + Indikator 📞 di phone (hijau)
+     + Indikator 💬 WA di WhatsApp (jika beda dari phone, emerald)
+     + Badge medsos inline (f, 📷, 🎵, in, ✈️) dengan tooltip title attribute
+
+5. Icon & color theme:
+   - Facebook: huruf 'f' warna biru (#1877F2)
+   - Instagram: emoji 📷 warna pink
+   - TikTok: emoji 🎵 warna slate-900
+   - LinkedIn: huruf 'in' warna biru tua (#0A66C2)
+   - Medsos Lainnya: emoji ✈️ warna sky
+
+Typecheck: 0 error di file yang diubah (`npx tsc --noEmit`)
+Build & deploy: commit 17400b5 di-push ke origin/main (Vercel deploy ~1-2 menit)
+
+Stage Summary:
+- 7 kolom kontak baru untuk warga (phone sudah ada, +6 medsos):
+  No. Telepon, No. WhatsApp, Facebook, Instagram, TikTok, LinkedIn, Medsos Lainnya
+- Form multi-step Tambah KK: 6 fields medsos per anggota tersedia
+- Form edit resident: 6 fields medsos tersedia
+- List tabel warga: indikator visual (📞, 💬, f, 📷, 🎵, in, ✈️)
+- WhatsApp bisa berbeda dari No. Telepon (opsional)
+- Medsos Lainnya: free-text untuk platform tidak standar (Telegram, Twitter, YouTube, dll)
+- Audit log untuk semua aksi (UU PDP No. 27/2022)
+
+Artefak:
+- prisma/schema.prisma (+6 fields)
+- prisma/migrations/20260904120000_add_resident_socials/migration.sql (baru)
+- src/app/api/warga/route.ts (+30 LOC: 3 action update + TS fix)
+- src/components/menus/communication-menu.tsx (+134 LOC: form + list)
+- Commit 17400b5 → origin/main
+
+User action setelah deploy:
+1. Login admin → Menu > Keanggotaan & Pengurus > Kelola Wilayah
+2. Drill ke RT → klik 'Data Warga' → klik '+ Tambah KK'
+3. Isi Section 2 (Data Anggota Keluarga) → di setiap anggota:
+   - Lihat kolom No. Telepon, No. WhatsApp
+   - Lihat section 'Akun Media Sosial' dengan 5 kolom medsos
+4. Untuk edit warga existing: klik icon pensil → form edit punya kolom
+   medsos sama
+5. List tabel: akan tampil indikator 📞 💬 f 📷 🎵 in ✈️ di kolom Nama
