@@ -26,6 +26,7 @@ import {
   Globe, Newspaper, Youtube, Facebook, Instagram, Twitter, MapPin,
   Send, Sparkles, Filter, AlertTriangle, CheckCircle2, Target,
   TrendingUp, BarChart3, PieChart, Award, RefreshCw,
+  Users, ChevronDown, ChevronRight,
 } from 'lucide-react'
 
 const TABS = [
@@ -736,6 +737,9 @@ function TerritoryTab() {
   const [formCode, setFormCode] = useState('')
   const [formLevel, setFormLevel] = useState('')
   const [importing, setImporting] = useState(false)
+  // Data Warga dialog state
+  const [wargaOpen, setWargaOpen] = useState(false)
+  const [wargaTerritory, setWargaTerritory] = useState<any | null>(null)
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -903,6 +907,17 @@ function TerritoryTab() {
                         <Eye className="w-3 h-3 mr-1" /> Buka
                       </Button>
                     ) : null}
+                    {/* Data Warga button for RT and RW (leaf-level territories) */}
+                    {['RT', 'RW'].includes(t.level) && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs bg-emerald-50 border-emerald-300 text-emerald-700 hover:bg-emerald-100"
+                        onClick={() => { setWargaTerritory(t); setWargaOpen(true) }}
+                      >
+                        <Users className="w-3 h-3 mr-1" /> Data Warga
+                      </Button>
+                    )}
                     <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => { setEditingId(t.id); setFormName(t.name); setFormCode(t.code); setShowForm(true) }}>
                       <Plus className="w-3 h-3 rotate-45" />
                     </Button>
@@ -939,6 +954,518 @@ function TerritoryTab() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Data Warga Manager Dialog */}
+      <WargaManagerDialog
+        open={wargaOpen}
+        onClose={() => { setWargaOpen(false); setWargaTerritory(null) }}
+        territory={wargaTerritory}
+      />
     </div>
+  )
+}
+
+// ============================================================
+// WARGA MANAGER DIALOG (KK + Warga per RT)
+// ============================================================
+// Komponen untuk input data warga di level RT/RW dengan
+// pengelompokan KK (Kartu Keluarga).
+//
+// Fitur:
+// - List KK + residents per KK
+// - Tambah KK (auto-create head of family)
+// - Tambah anggota KK (resident) dengan biodata lengkap
+// - Edit KK / resident
+// - Toggle resident aktif/non-aktif (pindah/meninggal)
+// - Delete KK (cascade) / resident
+// - Stats ringkas (KK count, warga, demography)
+// ============================================================
+
+const RELATION_OPTIONS = [
+  { value: 'KEPALA KELUARGA', label: 'Kepala Keluarga' },
+  { value: 'ISTRI', label: 'Istri' },
+  { value: 'SUAMI', label: 'Suami' },
+  { value: 'ANAK', label: 'Anak' },
+  { value: 'MENANTU', label: 'Menantu' },
+  { value: 'CUCU', label: 'Cucu' },
+  { value: 'ORANG TUA', label: 'Orang Tua' },
+  { value: 'MERTUA', label: 'Mertua' },
+  { value: 'FAMILI LAIN', label: 'Famili Lain' },
+  { value: 'PEMBANTU', label: 'Pembantu' },
+  { value: 'LAINNYA', label: 'Lainnya' },
+]
+
+const GENDER_OPTIONS = [
+  { value: 'L', label: 'Laki-laki' },
+  { value: 'P', label: 'Perempuan' },
+]
+
+const RELIGION_OPTIONS = ['ISLAM', 'KRISTEN', 'KATOLIK', 'HINDU', 'BUDDHA', 'KONGHUCU', 'KEPERCAYAAN']
+const MARITAL_OPTIONS = ['LAJANG', 'KAWIN', 'CERAI HIDUP', 'CERAI MATI']
+const BLOOD_OPTIONS = ['A', 'B', 'AB', 'O', 'TIDAK TAHU']
+const EDUCATION_OPTIONS = ['TDK SEKOLAH', 'SD', 'SMP', 'SMA/SMK', 'D1', 'D2', 'D3', 'D4/S1', 'S2', 'S3']
+
+function WargaManagerDialog({ open, onClose, territory }: { open: boolean; onClose: () => void; territory: any | null }) {
+  const addToast = useToastStore((s) => s.addToast)
+  const [loading, setLoading] = useState(false)
+  const [familyCards, setFamilyCards] = useState<any[]>([])
+  const [stats, setStats] = useState<any>(null)
+  const [showAddKk, setShowAddKk] = useState(false)
+  const [expandedKk, setExpandedKk] = useState<Record<string, boolean>>({})
+  const [addingResidentTo, setAddingResidentTo] = useState<string | null>(null)
+  const [editingResident, setEditingResident] = useState<string | null>(null)
+
+  // Form states
+  const [kkForm, setKkForm] = useState({ kkNumber: '', headOfFamilyName: '', address: '' })
+  const [residentForm, setResidentForm] = useState<any>({
+    fullName: '', nik: '', gender: '', birthPlace: '', birthDate: '', religion: '',
+    maritalStatus: '', bloodType: '', education: '', occupation: '', citizenship: 'WNI',
+    motherName: '', fatherName: '', relationToHead: 'FAMILI LAIN', phone: '', email: '', address: '',
+  })
+
+  const loadData = useCallback(async () => {
+    if (!territory) return
+    setLoading(true)
+    try {
+      // Parallel fetch: full list + stats
+      const [listRes, statsRes] = await Promise.all([
+        api(`/api/warga?territoryId=${territory.id}`, { keepWrapper: true }),
+        api(`/api/warga?territoryId=${territory.id}&stats=1`, { keepWrapper: true }),
+      ])
+      if (listRes?.success) setFamilyCards(listRes.data?.familyCards || [])
+      if (statsRes?.success) setStats(statsRes.data)
+    } catch (e: any) {
+      addToast(e.message, 'error')
+    } finally {
+      setLoading(false)
+    }
+  }, [territory, addToast])
+
+  useEffect(() => {
+    if (open && territory) loadData()
+  }, [open, territory, loadData])
+
+  // ===== Handlers =====
+  const handleCreateKk = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!kkForm.kkNumber.trim() || !kkForm.headOfFamilyName.trim() || !territory) return
+    try {
+      const res = await api('/api/warga', {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'create_kk',
+          territoryId: territory.id,
+          kkNumber: kkForm.kkNumber.trim(),
+          headOfFamilyName: kkForm.headOfFamilyName.trim(),
+          address: kkForm.address.trim(),
+          autoCreateHead: true,
+        }),
+        keepWrapper: true,
+      })
+      if (res?.success) {
+        addToast(`KK ${kkForm.kkNumber} berhasil dibuat`, 'success')
+        setKkForm({ kkNumber: '', headOfFamilyName: '', address: '' })
+        setShowAddKk(false)
+        loadData()
+      } else addToast(res?.error || 'Gagal', 'error')
+    } catch (e: any) { addToast(e.message, 'error') }
+  }
+
+  const handleAddResident = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!residentForm.fullName.trim() || !addingResidentTo || !territory) return
+    try {
+      const res = await api('/api/warga', {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'create_resident',
+          territoryId: territory.id,
+          familyCardId: addingResidentTo,
+          ...residentForm,
+        }),
+        keepWrapper: true,
+      })
+      if (res?.success) {
+        addToast(`Warga ${residentForm.fullName} ditambahkan`, 'success')
+        setResidentForm({
+          fullName: '', nik: '', gender: '', birthPlace: '', birthDate: '', religion: '',
+          maritalStatus: '', bloodType: '', education: '', occupation: '', citizenship: 'WNI',
+          motherName: '', fatherName: '', relationToHead: 'FAMILI LAIN', phone: '', email: '', address: '',
+        })
+        setAddingResidentTo(null)
+        loadData()
+      } else addToast(res?.error || 'Gagal', 'error')
+    } catch (e: any) { addToast(e.message, 'error') }
+  }
+
+  const handleUpdateResident = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!residentForm.fullName.trim() || !editingResident) return
+    try {
+      const res = await api('/api/warga', {
+        method: 'PATCH',
+        body: JSON.stringify({
+          action: 'update_resident',
+          id: editingResident,
+          ...residentForm,
+        }),
+        keepWrapper: true,
+      })
+      if (res?.success) {
+        addToast('Warga diperbarui', 'success')
+        setResidentForm({
+          fullName: '', nik: '', gender: '', birthPlace: '', birthDate: '', religion: '',
+          maritalStatus: '', bloodType: '', education: '', occupation: '', citizenship: 'WNI',
+          motherName: '', fatherName: '', relationToHead: 'FAMILI LAIN', phone: '', email: '', address: '',
+        })
+        setEditingResident(null)
+        loadData()
+      } else addToast(res?.error || 'Gagal', 'error')
+    } catch (e: any) { addToast(e.message, 'error') }
+  }
+
+  const handleToggleResident = async (resident: any) => {
+    if (!confirm(`${resident.isActive ? 'Non-aktifkan' : 'Aktifkan kembali'} warga "${resident.fullName}"?`)) return
+    try {
+      const res = await api('/api/warga', {
+        method: 'PATCH',
+        body: JSON.stringify({
+          action: 'toggle_resident',
+          id: resident.id,
+          isActive: !resident.isActive,
+        }),
+        keepWrapper: true,
+      })
+      if (res?.success) { addToast(res.message, 'success'); loadData() }
+      else addToast(res?.error || 'Gagal', 'error')
+    } catch (e: any) { addToast(e.message, 'error') }
+  }
+
+  const handleDeleteResident = async (id: string, name: string) => {
+    if (!confirm(`Hapus warga "${name}"? Tindakan ini permanen.`)) return
+    try {
+      const res = await api(`/api/warga?id=${id}&type=resident`, { method: 'DELETE', keepWrapper: true })
+      if (res?.success) { addToast(res.message, 'success'); loadData() }
+      else addToast(res?.error || 'Gagal', 'error')
+    } catch (e: any) { addToast(e.message, 'error') }
+  }
+
+  const handleDeleteKk = async (id: string, kkNumber: string, count: number) => {
+    if (!confirm(`Hapus KK "${kkNumber}" beserta ${count} anggota? Tindakan ini permanen.`)) return
+    try {
+      const res = await api(`/api/warga?id=${id}&type=kk`, { method: 'DELETE', keepWrapper: true })
+      if (res?.success) { addToast(res.message, 'success'); loadData() }
+      else addToast(res?.error || 'Gagal', 'error')
+    } catch (e: any) { addToast(e.message, 'error') }
+  }
+
+  if (!territory) return null
+
+  const totalResidents = familyCards.reduce((sum, kk) => sum + (kk.residents?.length || 0), 0)
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose() }}>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Users className="w-4 h-4 text-emerald-600" />
+            Data Warga — {territory.name}
+            <Badge variant="outline" className="text-xs">{territory.code}</Badge>
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          {/* Stats summary */}
+          <div className="grid grid-cols-4 gap-2 text-xs">
+            <Card className="bg-emerald-50 border-emerald-200"><CardContent className="p-2">
+              <div className="text-emerald-700 font-bold text-lg">{familyCards.length}</div>
+              <div className="text-emerald-600">Kartu Keluarga</div>
+            </CardContent></Card>
+            <Card className="bg-blue-50 border-blue-200"><CardContent className="p-2">
+              <div className="text-blue-700 font-bold text-lg">{totalResidents}</div>
+              <div className="text-blue-600">Total Warga</div>
+            </CardContent></Card>
+            <Card className="bg-amber-50 border-amber-200"><CardContent className="p-2">
+              <div className="text-amber-700 font-bold text-lg">{stats?.activeResidents || 0}</div>
+              <div className="text-amber-600">Aktif</div>
+            </CardContent></Card>
+            <Card className="bg-rose-50 border-rose-200"><CardContent className="p-2">
+              <div className="text-rose-700 font-bold text-lg">{stats?.inactiveResidents || 0}</div>
+              <div className="text-rose-600">Non-aktif</div>
+            </CardContent></Card>
+          </div>
+
+          {/* Action bar */}
+          <div className="flex justify-between items-center">
+            <div className="text-xs text-muted-foreground">
+              {territory.villageName || territory.name} • Klik +KK untuk tambah kartu keluarga baru
+            </div>
+            <Button onClick={() => setShowAddKk(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+              <Plus className="w-4 h-4 mr-1" /> Tambah KK
+            </Button>
+          </div>
+
+          {/* List KK + Residents */}
+          {loading ? <LoadingState /> : familyCards.length === 0 ? (
+            <EmptyState icon={Users} title="Belum ada KK" description="Klik 'Tambah KK' di atas untuk mulai input data warga." />
+          ) : (
+            <div className="space-y-2">
+              {familyCards.map((kk) => (
+                <Card key={kk.id} className="border-l-4 border-l-emerald-500">
+                  <CardContent className="p-3">
+                    {/* KK Header */}
+                    <div className="flex items-center justify-between gap-2">
+                      <button
+                        className="flex-1 text-left"
+                        onClick={() => setExpandedKk(prev => ({ ...prev, [kk.id]: !prev[kk.id] }))}
+                      >
+                        <div className="flex items-center gap-2">
+                          {expandedKk[kk.id] ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                          <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">KK</Badge>
+                          <span className="font-medium text-sm">{kk.headOfFamilyName}</span>
+                          <span className="text-xs text-muted-foreground">• No. {kk.kkNumber}</span>
+                        </div>
+                        {kk.address && <div className="text-xs text-muted-foreground ml-6">📍 {kk.address}</div>}
+                      </button>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-xs">{kk.residents?.length || 0} warga</Badge>
+                        <Button size="sm" variant="ghost" className="h-7 text-xs"
+                          onClick={() => { setAddingResidentTo(kk.id); setResidentForm({ ...residentForm, relationToHead: 'FAMILI LAIN', address: kk.address || '' }) }}>
+                          <Plus className="w-3 h-3 mr-1" /> Tambah Anggota
+                        </Button>
+                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-500"
+                          onClick={() => handleDeleteKk(kk.id, kk.kkNumber, kk.residents?.length || 0)}>
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Residents list */}
+                    {expandedKk[kk.id] && (
+                      <div className="mt-2 ml-6 space-y-1">
+                        {(!kk.residents || kk.residents.length === 0) ? (
+                          <div className="text-xs text-muted-foreground italic">Belum ada anggota terdaftar.</div>
+                        ) : (
+                          <table className="w-full text-xs">
+                            <thead className="bg-slate-50 text-slate-600">
+                              <tr>
+                                <th className="text-left p-1.5">Nama</th>
+                                <th className="text-left p-1.5">Hub.</th>
+                                <th className="text-left p-1.5">JK</th>
+                                <th className="text-left p-1.5">Tgl Lahir</th>
+                                <th className="text-left p-1.5">Agama</th>
+                                <th className="text-left p-1.5">Pekerjaan</th>
+                                <th className="text-center p-1.5">Aksi</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {kk.residents.map((r: any) => (
+                                <tr key={r.id} className={r.isActive ? '' : 'opacity-50 line-through'}>
+                                  <td className="p-1.5">
+                                    <div className="font-medium">{r.fullName}</div>
+                                    <div className="text-[10px] text-muted-foreground">NIK: {r.nik || '-'}</div>
+                                  </td>
+                                  <td className="p-1.5">{r.relationToHead || '-'}</td>
+                                  <td className="p-1.5">{r.gender || '-'}</td>
+                                  <td className="p-1.5">{r.birthDate ? new Date(r.birthDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'}</td>
+                                  <td className="p-1.5">{r.religion || '-'}</td>
+                                  <td className="p-1.5">{r.occupation || '-'}</td>
+                                  <td className="p-1.5">
+                                    <div className="flex gap-1 justify-center">
+                                      <Button size="sm" variant="ghost" className="h-6 w-6 p-0"
+                                        onClick={() => {
+                                          setEditingResident(r.id)
+                                          setResidentForm({
+                                            fullName: r.fullName || '', nik: r.nik || '', gender: r.gender || '',
+                                            birthPlace: r.birthPlace || '', birthDate: r.birthDate ? new Date(r.birthDate).toISOString().slice(0, 10) : '',
+                                            religion: r.religion || '', maritalStatus: r.maritalStatus || '',
+                                            bloodType: r.bloodType || '', education: r.education || '',
+                                            occupation: r.occupation || '', citizenship: r.citizenship || 'WNI',
+                                            motherName: r.motherName || '', fatherName: r.fatherName || '',
+                                            relationToHead: r.relationToHead || 'FAMILI LAIN',
+                                            phone: r.phone || '', email: r.email || '', address: r.address || '',
+                                          })
+                                        }}>
+                                        <Plus className="w-3 h-3 rotate-45" />
+                                      </Button>
+                                      <Button size="sm" variant="ghost" className="h-6 w-6 p-0"
+                                        onClick={() => handleToggleResident(r)}
+                                        title={r.isActive ? 'Non-aktifkan' : 'Aktifkan'}>
+                                        {r.isActive ? '🟢' : '🔴'}
+                                      </Button>
+                                      <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-red-500"
+                                        onClick={() => handleDeleteResident(r.id, r.fullName)}>
+                                        <Trash2 className="w-3 h-3" />
+                                      </Button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        )}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* === Dialog: Tambah KK === */}
+        <Dialog open={showAddKk} onOpenChange={(o) => setShowAddKk(o)}>
+          <DialogContent className="max-w-md" aria-describedby={undefined}>
+            <DialogHeader><DialogTitle>Tambah Kartu Keluarga</DialogTitle></DialogHeader>
+            <form onSubmit={handleCreateKk} className="space-y-3">
+              <div>
+                <Label className="text-sm">Nomor KK (16 digit) <span className="text-red-500">*</span></Label>
+                <Input value={kkForm.kkNumber} onChange={(e) => setKkForm({ ...kkForm, kkNumber: e.target.value })}
+                  placeholder="cth: 6101010101080001" required className="mt-1" />
+              </div>
+              <div>
+                <Label className="text-sm">Nama Kepala Keluarga <span className="text-red-500">*</span></Label>
+                <Input value={kkForm.headOfFamilyName} onChange={(e) => setKkForm({ ...kkForm, headOfFamilyName: e.target.value })}
+                  placeholder="cth: Budi Santoso" required className="mt-1" />
+              </div>
+              <div>
+                <Label className="text-sm">Alamat</Label>
+                <Input value={kkForm.address} onChange={(e) => setKkForm({ ...kkForm, address: e.target.value })}
+                  placeholder="cth: Jl. Merdeka No. 1" className="mt-1" />
+              </div>
+              <div className="text-xs text-muted-foreground bg-blue-50 p-2 rounded">
+                💡 Kepala keluarga akan otomatis dibuat sebagai anggota pertama KK ini. Anda bisa tambah anggota lain (istri, anak, dll) setelah KK dibuat.
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button type="button" variant="outline" onClick={() => setShowAddKk(false)}>Batal</Button>
+                <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white">Simpan KK</Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* === Dialog: Tambah/Edit Anggota (Resident) === */}
+        <Dialog open={!!addingResidentTo || !!editingResident} onOpenChange={(o) => { if (!o) { setAddingResidentTo(null); setEditingResident(null) } }}>
+          <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto" aria-describedby={undefined}>
+            <DialogHeader>
+              <DialogTitle>{editingResident ? 'Edit Biodata Warga' : 'Tambah Anggota Keluarga'}</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={editingResident ? handleUpdateResident : handleAddResident} className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-2">
+                  <Label className="text-sm">Nama Lengkap <span className="text-red-500">*</span></Label>
+                  <Input value={residentForm.fullName} onChange={(e) => setResidentForm({ ...residentForm, fullName: e.target.value })}
+                    placeholder="cth: Siti Aminah" required className="mt-1" />
+                </div>
+                <div>
+                  <Label className="text-sm">NIK (16 digit)</Label>
+                  <Input value={residentForm.nik} onChange={(e) => setResidentForm({ ...residentForm, nik: e.target.value })}
+                    placeholder="cth: 6101010101080002" className="mt-1" />
+                </div>
+                <div>
+                  <Label className="text-sm">Jenis Kelamin</Label>
+                  <select value={residentForm.gender} onChange={(e) => setResidentForm({ ...residentForm, gender: e.target.value })}
+                    className="w-full mt-1 px-2 py-1 border rounded text-sm">
+                    <option value="">— pilih —</option>
+                    {GENDER_OPTIONS.map(g => <option key={g.value} value={g.value}>{g.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <Label className="text-sm">Tempat Lahir</Label>
+                  <Input value={residentForm.birthPlace} onChange={(e) => setResidentForm({ ...residentForm, birthPlace: e.target.value })}
+                    placeholder="cth: Pontianak" className="mt-1" />
+                </div>
+                <div>
+                  <Label className="text-sm">Tanggal Lahir</Label>
+                  <Input type="date" value={residentForm.birthDate} onChange={(e) => setResidentForm({ ...residentForm, birthDate: e.target.value })}
+                    className="mt-1" />
+                </div>
+                <div>
+                  <Label className="text-sm">Hubungan dlm KK</Label>
+                  <select value={residentForm.relationToHead} onChange={(e) => setResidentForm({ ...residentForm, relationToHead: e.target.value })}
+                    className="w-full mt-1 px-2 py-1 border rounded text-sm">
+                    {RELATION_OPTIONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <Label className="text-sm">Agama</Label>
+                  <select value={residentForm.religion} onChange={(e) => setResidentForm({ ...residentForm, religion: e.target.value })}
+                    className="w-full mt-1 px-2 py-1 border rounded text-sm">
+                    <option value="">— pilih —</option>
+                    {RELIGION_OPTIONS.map(r => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <Label className="text-sm">Status Pernikahan</Label>
+                  <select value={residentForm.maritalStatus} onChange={(e) => setResidentForm({ ...residentForm, maritalStatus: e.target.value })}
+                    className="w-full mt-1 px-2 py-1 border rounded text-sm">
+                    <option value="">— pilih —</option>
+                    {MARITAL_OPTIONS.map(m => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <Label className="text-sm">Gol. Darah</Label>
+                  <select value={residentForm.bloodType} onChange={(e) => setResidentForm({ ...residentForm, bloodType: e.target.value })}
+                    className="w-full mt-1 px-2 py-1 border rounded text-sm">
+                    <option value="">— pilih —</option>
+                    {BLOOD_OPTIONS.map(b => <option key={b} value={b}>{b}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <Label className="text-sm">Pendidikan</Label>
+                  <select value={residentForm.education} onChange={(e) => setResidentForm({ ...residentForm, education: e.target.value })}
+                    className="w-full mt-1 px-2 py-1 border rounded text-sm">
+                    <option value="">— pilih —</option>
+                    {EDUCATION_OPTIONS.map(ed => <option key={ed} value={ed}>{ed}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <Label className="text-sm">Pekerjaan</Label>
+                  <Input value={residentForm.occupation} onChange={(e) => setResidentForm({ ...residentForm, occupation: e.target.value })}
+                    placeholder="cth: Wiraswasta" className="mt-1" />
+                </div>
+                <div>
+                  <Label className="text-sm">Kewarganegaraan</Label>
+                  <select value={residentForm.citizenship} onChange={(e) => setResidentForm({ ...residentForm, citizenship: e.target.value })}
+                    className="w-full mt-1 px-2 py-1 border rounded text-sm">
+                    <option value="WNI">WNI</option>
+                    <option value="WNA">WNA</option>
+                  </select>
+                </div>
+                <div>
+                  <Label className="text-sm">Nama Ibu Kandung</Label>
+                  <Input value={residentForm.motherName} onChange={(e) => setResidentForm({ ...residentForm, motherName: e.target.value })}
+                    placeholder="anti-fraud NIK" className="mt-1" />
+                </div>
+                <div>
+                  <Label className="text-sm">Nama Ayah</Label>
+                  <Input value={residentForm.fatherName} onChange={(e) => setResidentForm({ ...residentForm, fatherName: e.target.value })}
+                    placeholder="opsional" className="mt-1" />
+                </div>
+                <div>
+                  <Label className="text-sm">No. HP</Label>
+                  <Input value={residentForm.phone} onChange={(e) => setResidentForm({ ...residentForm, phone: e.target.value })}
+                    placeholder="cth: 0812xxxxxxx" className="mt-1" />
+                </div>
+                <div>
+                  <Label className="text-sm">Email</Label>
+                  <Input value={residentForm.email} onChange={(e) => setResidentForm({ ...residentForm, email: e.target.value })}
+                    placeholder="opsional" className="mt-1" />
+                </div>
+                <div className="col-span-2">
+                  <Label className="text-sm">Alamat (jika beda dari KK)</Label>
+                  <Input value={residentForm.address} onChange={(e) => setResidentForm({ ...residentForm, address: e.target.value })}
+                    placeholder="kosongkan jika sama dengan KK" className="mt-1" />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-2 border-t">
+                <Button type="button" variant="outline" onClick={() => { setAddingResidentTo(null); setEditingResident(null) }}>Batal</Button>
+                <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white">{editingResident ? 'Simpan' : 'Tambah Anggota'}</Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </DialogContent>
+    </Dialog>
   )
 }

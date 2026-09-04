@@ -48,6 +48,8 @@ model Territory {
   contacts      Contact[]
   essayPolls    EssayPoll[]
   programDocuments ProgramDocument[]
+  familyCards   FamilyCard[]
+  residents     Resident[]
 }
 
 // ============================================================
@@ -90,7 +92,9 @@ model User {
   essayPollsCreated EssayPoll[]
   opinionLinksReviewed PublicOpinionLink[] @relation("OpinionReviewer")
   programDocumentsUploaded ProgramDocument[]
-  // NOTE: isDPO & audit/DAR relations dihapus dari schema untuk avoid DB migration
+  familyCardsCreated FamilyCard[]
+  residentsCreated Resident[]
+  // NOTE: isDPO & audit/DAR relations dihapus untuk schema untuk avoid DB migration
   // DPO assignments disimpan di SystemSetting (key='dpo_assignments')
   // AuditLog & DataAccessRequest tidak pakai FK relation, pakai raw userId string
 }
@@ -138,6 +142,93 @@ model Member {
   updatedAt       DateTime @updatedAt
 
   attendance      EventAttendance[]
+}
+
+// ============================================================
+// FAMILY CARD (Kartu Keluarga) - Data Warga per RT
+// ============================================================
+// Catatan: territoryId merujuk ke territory level RT (leaf).
+//          Untuk KK di tingkat RW (belum ada RT), gunakan RW territory.
+//          KK di kelurahan luar negeri bisa gunakan VILLAGE territory.
+model FamilyCard {
+  id              String   @id @default(cuid())
+  kkNumber        String   @unique // Nomor KK (16 digit dari Dinas Capil)
+  headOfFamilyName String  // Nama Kepala Keluarga (redundan untuk fast display)
+  address         String?  // Alamat lengkap
+  rtCode          String?  // kode RT (mis. 617103002_RW026_RT004)
+  rwCode          String?  // kode RW
+  villageCode     String?  // kode Kelurahan (mis. 617103002)
+  villageName     String?  // nama Kelurahan
+  districtName    String?  // nama Kecamatan
+  regencyName     String?  // nama Kab/Kota
+  provinceName    String?  // nama Provinsi
+
+  // Link ke Territory (RT level idealnya)
+  territoryId     String
+  territory       Territory @relation(fields: [territoryId], references: [id])
+
+  // Audit
+  createdById     String?
+  createdBy       User?    @relation(fields: [createdById], references: [id])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  residents       Resident[]
+
+  @@index([territoryId])
+  @@index([kkNumber])
+}
+
+// ============================================================
+// RESIDENT (Warga) - Individu anggota KK
+// ============================================================
+model Resident {
+  id              String   @id @default(cuid())
+  familyCardId    String
+  familyCard      FamilyCard @relation(fields: [familyCardId], references: [id], onDelete: Cascade)
+
+  // Biodata
+  nik             String?  @unique // NIK 16 digit
+  fullName        String
+  gender          String?  // L | P
+  birthPlace      String?
+  birthDate       DateTime?
+  religion        String?  // ISLAM, KRISTEN, KATOLIK, HINDU, BUDDHA, KONGHUCU
+  maritalStatus   String?  // LAJANG, KAWIN, CERAI HIDUP, CERAI MATI
+  bloodType       String?  // A, B, AB, O
+  education       String?  // SD, SMP, SMA, D3, S1, S2, S3
+  occupation      String?  // Pekerjaan
+  citizenship     String?  // WNI, WNA
+  motherName      String?  // Nama ibu kandung (anti-fraud NIK)
+  fatherName      String?  // Nama ayah
+  // Hubungan dalam KK
+  relationToHead  String?  // KEPALA KELUARGA, ISTRI, SUAMI, ANAK, MENANTU, CUCU, ORANG TUA, MERTUA, FAMILI LAIN, PEMBANTU, LAINNYA
+
+  // Kontak
+  phone           String?
+  email           String?
+
+  // Lokasi (sebagian besar redundan dari KK, tapi bisa beda alamat untuk beda anggota)
+  address         String?
+
+  // Link ke Territory (RT level idealnya)
+  territoryId     String
+  territory       Territory @relation(fields: [territoryId], references: [id])
+
+  // Status
+  isActive        Boolean  @default(true) // pindah / meninggal → false
+  statusNote      String?  // keterangan (mis. "Pindah ke Jakarta", "Meninggal 2024")
+
+  // Audit
+  createdById     String?
+  createdBy       User?    @relation(fields: [createdById], references: [id])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([familyCardId])
+  @@index([territoryId])
+  @@index([nik])
 }
 
 // ============================================================
