@@ -4382,3 +4382,67 @@ Pertanyaan user terjawab via sistem ini:
 - 'apakah sdh mendirikan koperasi atau usaha kecul atau ekonomi kreatif nya'
   → Cek di menu 'Daftar Usaha' filter by type: KOPERASI / USHA_KECIL / EKRAF
   → Sub-tab Dashboard untuk rekap per tingkat
+
+---
+Task ID: LAPRA08-UMKM-TYPE-USM
+Agent: Main Agent (Super Z)
+Task: User request: 'pada menu daftar usaha tambahkan: Badan Usaha Keciil dan menengah dan tambahkan koperasi'
+
+Analisis singkat:
+- Koperasi: sudah ada sejak commit b6d42bf (KOPERASI)
+- Usaha Kecil: sudah ada (USHA_KECIL)
+- Yang belum ada: 'Usaha Menengah' → tambah tipe baru USHA_MENENGAH
+- Sesuai UU No. 20/2008 tentang UMKM:
+  - Usaha Mikro: omzet < 300 juta/tahun
+  - Usaha Kecil: omzet 300 juta - 2.5 miliar/tahun
+  - Usaha Menengah: omzet 2.5 miliar - 50 miliar/tahun
+- Tidak perlu migration DB karena field `type` di Prisma adalah TEXT
+  (bukan enum DB) — validation dilakukan di API layer.
+
+Perubahan (3 files, +20 LOC):
+
+1. API /api/umkm/route.ts:
+   - ALLOWED_TYPES: ['KOPERASI', 'USHA_KECIL', 'USHA_MENENGAH', 'EKRAF']
+
+2. UI program-kegiatan-menu.tsx:
+   - UMKM_TYPE_CONFIG: tambah entry USHA_MENENGAH
+     * label: 'Usaha Menengah'
+     * color: cyan (bg-cyan-100 text-cyan-700 border-cyan-200)
+     * icon: Building2
+   - Filter dropdown Daftar Usaha: tambah option 'Usaha Menengah'
+   - Form Tipe dropdown (tambah/edit UMKM): tambah option 'Usaha Menengah'
+   - Dashboard stats cards: dari 4 → 5 cards (grid md:grid-cols-5):
+     Total UMKM | Koperasi | Usaha Kecil | Usaha Menengah | Ekraf
+   - Card 'Usaha Menengah': bg-cyan, icon Building2, count dari
+     stats.byType.find(t => t.type === 'USHA_MENENGAH')?._count
+
+3. Prisma schema: update comment enum values
+   type String // KOPERASI | USHA_KECIL | USHA_MENENGAH | EKRAF
+
+Typecheck: 0 error di file yang diubah
+Build & deploy: commit 30b132f di-push ke origin/main (Vercel deploy ~1-2 menit)
+
+Stage Summary:
+- 4 tipe UMKM tersedia di menu Daftar Usaha:
+  1. Koperasi (emerald, icon Store)
+  2. Usaha Kecil (blue, icon Package)
+  3. Usaha Menengah (cyan, icon Building2) — BARU
+  4. Ekonomi Kreatif (purple, icon TrendingUp)
+- Dashboard sekarang tampilkan 5 stats card (sebelumnya 4)
+- Form tambah/edit UMKM memiliki 4 pilihan tipe
+- Filter Daftar Usaha mendukung filter per 4 tipe
+- Tidak ada migration DB diperlukan (field type TEXT, validation di API)
+- UU PDP compliance tetap (audit log tidak berubah)
+
+Artefak:
+- src/app/api/umkm/route.ts (+1 LOC: ALLOWED_TYPES)
+- src/components/menus/program-kegiatan-menu.tsx (+19 LOC: config + filter +
+  form + dashboard card)
+- prisma/schema.prisma (+1 LOC: comment update)
+- Commit 30b132f → origin/main
+
+User action setelah deploy:
+1. Refresh halaman Program & Kegiatan > tab 'Ekonomi Kreatif & UMKM'
+2. Sub-tab 'Daftar Usaha' > klik '+ Tambah Usaha'
+3. Pilih Tipe: ada 4 opsi (Koperasi, Usaha Kecil, Usaha Menengah, Ekraf)
+4. Sub-tab 'Dashboard' > 5 stats card muncul (sebelumnya 4)
