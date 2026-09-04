@@ -1086,6 +1086,9 @@ function emptyMember(relation: string = 'KEPALA KELUARGA'): any {
     email: '', religion: '', education: '', occupation: '',
     relationToHead: relation, organisasi: '', isActive: true,
     photoUrl: '', idCardUrl: '',
+    // Kontak & Medsos
+    phone: '', whatsapp: '',
+    facebook: '', instagram: '', tiktok: '', linkedin: '', socialOther: '',
   }
 }
 
@@ -1293,6 +1296,9 @@ function WargaManagerDialog({ open, onClose, territory }: { open: boolean; onClo
       occupation: r.occupation || '', relationToHead: r.relationToHead || 'FAMILI LAIN',
       organisasi: r.organisasi || '', isActive: r.isActive,
       photoUrl: r.photoUrl || '', idCardUrl: r.idCardUrl || '',
+      phone: r.phone || '', whatsapp: r.whatsapp || '',
+      facebook: r.facebook || '', instagram: r.instagram || '',
+      tiktok: r.tiktok || '', linkedin: r.linkedin || '', socialOther: r.socialOther || '',
     })
   }
 
@@ -1410,7 +1416,19 @@ function WargaManagerDialog({ open, onClose, territory }: { open: boolean; onClo
                                   <td className="p-1.5">
                                     <div className="font-medium">{r.fullName}</div>
                                     <div className="text-[10px] text-muted-foreground">NIK: {r.nik || '-'}</div>
+                                    {r.phone && <div className="text-[10px] text-green-700">📞 {r.phone}</div>}
+                                    {r.whatsapp && r.whatsapp !== r.phone && <div className="text-[10px] text-emerald-700">💬 WA: {r.whatsapp}</div>}
                                     {r.organisasi && <div className="text-[10px] text-blue-600">🏅 {r.organisasi}</div>}
+                                    {/* Medsos badges */}
+                                    {(r.facebook || r.instagram || r.tiktok || r.linkedin || r.socialOther) && (
+                                      <div className="text-[10px] flex items-center gap-1 mt-0.5 flex-wrap">
+                                        {r.facebook && <span title="Facebook" className="text-blue-600">f</span>}
+                                        {r.instagram && <span title="Instagram">📷</span>}
+                                        {r.tiktok && <span title="TikTok">🎵</span>}
+                                        {r.linkedin && <span title="LinkedIn" className="text-blue-700 font-bold">in</span>}
+                                        {r.socialOther && <span title="Medsos Lainnya">✈️</span>}
+                                      </div>
+                                    )}
                                   </td>
                                   <td className="p-1.5">{r.relationToHead || '-'}</td>
                                   <td className="p-1.5">{r.gender || '-'}</td>
@@ -1607,6 +1625,16 @@ function WargaManagerDialog({ open, onClose, territory }: { open: boolean; onClo
                                 placeholder="opsional" className="mt-0.5 text-xs h-8" />
                             </div>
                             <div>
+                              <Label className="text-xs">No. Telepon</Label>
+                              <Input value={m.phone} onChange={(e) => updateMember(idx, 'phone', e.target.value)}
+                                placeholder="cth: 0812xxxxxxx" className="mt-0.5 text-xs h-8" />
+                            </div>
+                            <div>
+                              <Label className="text-xs">No. WhatsApp</Label>
+                              <Input value={m.whatsapp} onChange={(e) => updateMember(idx, 'whatsapp', e.target.value)}
+                                placeholder="cth: 0812xxxxxxx" className="mt-0.5 text-xs h-8" />
+                            </div>
+                            <div>
                               <Label className="text-xs">Hubungan Keluarga</Label>
                               <select value={m.relationToHead} onChange={(e) => updateMember(idx, 'relationToHead', e.target.value)}
                                 className="w-full mt-0.5 px-1 py-1 border rounded text-xs h-8">
@@ -1650,6 +1678,48 @@ function WargaManagerDialog({ open, onClose, territory }: { open: boolean; onClo
                                 <option value="AKTIF">Aktif</option>
                                 <option value="NON-AKTIF">Non-aktif (Pindah/Meninggal)</option>
                               </select>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* === Social Media Section === */}
+                        <div className="pt-2 border-t border-slate-200 space-y-2">
+                          <div className="text-xs font-semibold text-purple-700">📱 Akun Media Sosial</div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <Label className="text-xs flex items-center gap-1">
+                                <span className="text-blue-600">f</span> Facebook
+                              </Label>
+                              <Input value={m.facebook} onChange={(e) => updateMember(idx, 'facebook', e.target.value)}
+                                placeholder="username atau URL" className="mt-0.5 text-xs h-8" />
+                            </div>
+                            <div>
+                              <Label className="text-xs flex items-center gap-1">
+                                <span className="text-pink-600">📷</span> Instagram
+                              </Label>
+                              <Input value={m.instagram} onChange={(e) => updateMember(idx, 'instagram', e.target.value)}
+                                placeholder="@username" className="mt-0.5 text-xs h-8" />
+                            </div>
+                            <div>
+                              <Label className="text-xs flex items-center gap-1">
+                                <span className="text-slate-900">🎵</span> TikTok
+                              </Label>
+                              <Input value={m.tiktok} onChange={(e) => updateMember(idx, 'tiktok', e.target.value)}
+                                placeholder="@username" className="mt-0.5 text-xs h-8" />
+                            </div>
+                            <div>
+                              <Label className="text-xs flex items-center gap-1">
+                                <span className="text-blue-700">in</span> LinkedIn
+                              </Label>
+                              <Input value={m.linkedin} onChange={(e) => updateMember(idx, 'linkedin', e.target.value)}
+                                placeholder="URL atau username" className="mt-0.5 text-xs h-8" />
+                            </div>
+                            <div className="col-span-2">
+                              <Label className="text-xs flex items-center gap-1">
+                                <span className="text-sky-600">✈️</span> Medsos Lainnya
+                              </Label>
+                              <Input value={m.socialOther} onChange={(e) => updateMember(idx, 'socialOther', e.target.value)}
+                                placeholder="cth: Telegram @username, Twitter @handle, YouTube channel" className="mt-0.5 text-xs h-8" />
                             </div>
                           </div>
                         </div>
@@ -1775,6 +1845,16 @@ function WargaManagerDialog({ open, onClose, territory }: { open: boolean; onClo
                       className="mt-1" />
                   </div>
                   <div>
+                    <Label className="text-sm">No. Telepon</Label>
+                    <Input value={residentForm.phone} onChange={(e) => setResidentForm({ ...residentForm, phone: e.target.value })}
+                      placeholder="cth: 0812xxxxxxx" className="mt-1" />
+                  </div>
+                  <div>
+                    <Label className="text-sm">No. WhatsApp</Label>
+                    <Input value={residentForm.whatsapp} onChange={(e) => setResidentForm({ ...residentForm, whatsapp: e.target.value })}
+                      placeholder="cth: 0812xxxxxxx" className="mt-1" />
+                  </div>
+                  <div>
                     <Label className="text-sm">Hubungan Keluarga</Label>
                     <select value={residentForm.relationToHead} onChange={(e) => setResidentForm({ ...residentForm, relationToHead: e.target.value })}
                       className="w-full mt-1 px-2 py-1 border rounded text-sm">
@@ -1818,6 +1898,48 @@ function WargaManagerDialog({ open, onClose, territory }: { open: boolean; onClo
                       <option value="AKTIF">Aktif</option>
                       <option value="NON-AKTIF">Non-aktif</option>
                     </select>
+                  </div>
+                </div>
+
+                {/* === Social Media Section (edit dialog) === */}
+                <div className="col-span-3 pt-2 border-t border-slate-200 space-y-2">
+                  <div className="text-sm font-semibold text-purple-700">📱 Akun Media Sosial</div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <Label className="text-sm flex items-center gap-1">
+                        <span className="text-blue-600 font-bold">f</span> Facebook
+                      </Label>
+                      <Input value={residentForm.facebook} onChange={(e) => setResidentForm({ ...residentForm, facebook: e.target.value })}
+                        placeholder="username atau URL" className="mt-1" />
+                    </div>
+                    <div>
+                      <Label className="text-sm flex items-center gap-1">
+                        <span className="text-pink-600">📷</span> Instagram
+                      </Label>
+                      <Input value={residentForm.instagram} onChange={(e) => setResidentForm({ ...residentForm, instagram: e.target.value })}
+                        placeholder="@username" className="mt-1" />
+                    </div>
+                    <div>
+                      <Label className="text-sm flex items-center gap-1">
+                        <span className="text-slate-900">🎵</span> TikTok
+                      </Label>
+                      <Input value={residentForm.tiktok} onChange={(e) => setResidentForm({ ...residentForm, tiktok: e.target.value })}
+                        placeholder="@username" className="mt-1" />
+                    </div>
+                    <div>
+                      <Label className="text-sm flex items-center gap-1">
+                        <span className="text-blue-700 font-bold">in</span> LinkedIn
+                      </Label>
+                      <Input value={residentForm.linkedin} onChange={(e) => setResidentForm({ ...residentForm, linkedin: e.target.value })}
+                        placeholder="URL atau username" className="mt-1" />
+                    </div>
+                    <div className="col-span-2">
+                      <Label className="text-sm flex items-center gap-1">
+                        <span className="text-sky-600">✈️</span> Medsos Lainnya
+                      </Label>
+                      <Input value={residentForm.socialOther} onChange={(e) => setResidentForm({ ...residentForm, socialOther: e.target.value })}
+                        placeholder="cth: Telegram @username, Twitter @handle, YouTube channel" className="mt-1" />
+                    </div>
                   </div>
                 </div>
 

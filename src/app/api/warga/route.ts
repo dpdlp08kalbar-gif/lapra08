@@ -200,7 +200,7 @@ export async function POST(request: NextRequest) {
       })
 
       // Create all residents in parallel batch
-      const createdResidents = []
+      const createdResidents: any[] = []
       for (const m of membersArr) {
         const resident = await db.resident.create({
           data: {
@@ -222,6 +222,12 @@ export async function POST(request: NextRequest) {
             organisasi: m.organisasi?.trim() || null,
             phone: m.phone?.trim() || null,
             email: m.email?.trim() || null,
+            whatsapp: m.whatsapp?.trim() || null,
+            facebook: m.facebook?.trim() || null,
+            instagram: m.instagram?.trim() || null,
+            tiktok: m.tiktok?.trim() || null,
+            linkedin: m.linkedin?.trim() || null,
+            socialOther: m.socialOther?.trim() || null,
             address: m.address?.trim() || null,
             photoUrl: m.photoUrl || null,
             idCardUrl: m.idCardUrl || null,
@@ -337,7 +343,7 @@ export async function POST(request: NextRequest) {
     // CREATE RESIDENT (anggota KK)
     // ============================================================
     if (action === 'create_resident') {
-      const { familyCardId, fullName, nik, gender, birthPlace, birthDate, religion, maritalStatus, bloodType, education, occupation, citizenship, motherName, fatherName, relationToHead, organisasi, phone, email, address, photoUrl, idCardUrl, isActive, statusNote, territoryId } = body
+      const { familyCardId, fullName, nik, gender, birthPlace, birthDate, religion, maritalStatus, bloodType, education, occupation, citizenship, motherName, fatherName, relationToHead, organisasi, phone, email, whatsapp, facebook, instagram, tiktok, linkedin, socialOther, address, photoUrl, idCardUrl, isActive, statusNote, territoryId } = body
 
       if (!familyCardId || !fullName?.trim() || !territoryId) {
         return NextResponse.json({ success: false, error: 'familyCardId, fullName, territoryId wajib diisi' }, { status: 400 })
@@ -377,6 +383,12 @@ export async function POST(request: NextRequest) {
           organisasi: organisasi?.trim() || null,
           phone: phone?.trim() || null,
           email: email?.trim() || null,
+          whatsapp: whatsapp?.trim() || null,
+          facebook: facebook?.trim() || null,
+          instagram: instagram?.trim() || null,
+          tiktok: tiktok?.trim() || null,
+          linkedin: linkedin?.trim() || null,
+          socialOther: socialOther?.trim() || null,
           address: address?.trim() || null,
           photoUrl: photoUrl || null,
           idCardUrl: idCardUrl || null,
@@ -460,7 +472,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     if (action === 'update_resident') {
-      const { id, fullName, nik, gender, birthPlace, birthDate, religion, maritalStatus, bloodType, education, occupation, citizenship, motherName, fatherName, relationToHead, organisasi, phone, email, address, photoUrl, idCardUrl, statusNote } = body
+      const { id, fullName, nik, gender, birthPlace, birthDate, religion, maritalStatus, bloodType, education, occupation, citizenship, motherName, fatherName, relationToHead, organisasi, phone, email, whatsapp, facebook, instagram, tiktok, linkedin, socialOther, address, photoUrl, idCardUrl, statusNote } = body
       if (!id) return NextResponse.json({ success: false, error: 'id wajib diisi' }, { status: 400 })
 
       const existing = await db.resident.findUnique({ where: { id } })
@@ -493,6 +505,12 @@ export async function PATCH(request: NextRequest) {
           ...(organisasi !== undefined ? { organisasi: organisasi?.trim() || null } : {}),
           ...(phone !== undefined ? { phone: phone?.trim() || null } : {}),
           ...(email !== undefined ? { email: email?.trim() || null } : {}),
+          ...(whatsapp !== undefined ? { whatsapp: whatsapp?.trim() || null } : {}),
+          ...(facebook !== undefined ? { facebook: facebook?.trim() || null } : {}),
+          ...(instagram !== undefined ? { instagram: instagram?.trim() || null } : {}),
+          ...(tiktok !== undefined ? { tiktok: tiktok?.trim() || null } : {}),
+          ...(linkedin !== undefined ? { linkedin: linkedin?.trim() || null } : {}),
+          ...(socialOther !== undefined ? { socialOther: socialOther?.trim() || null } : {}),
           ...(address !== undefined ? { address: address?.trim() || null } : {}),
           ...(photoUrl !== undefined ? { photoUrl: photoUrl || null } : {}),
           ...(idCardUrl !== undefined ? { idCardUrl: idCardUrl || null } : {}),

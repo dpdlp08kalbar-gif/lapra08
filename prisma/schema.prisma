@@ -214,6 +214,14 @@ model Resident {
   phone           String?
   email           String?
 
+  // Medsos (akun-akun)
+  whatsapp        String?  // Nomor WhatsApp (bisa beda dengan phone)
+  facebook        String?  // URL/username Facebook
+  instagram       String?  // Username Instagram
+  tiktok          String?  // Username TikTok
+  linkedin        String?  // URL/username LinkedIn
+  socialOther     String?  // Platform medsos lainnya (Telegram, Twitter/X, YouTube, dll) — format "platform:username"
+
   // Lokasi (sebagian besar redundan dari KK, tapi bisa beda alamat untuk beda anggota)
   address         String?
 
