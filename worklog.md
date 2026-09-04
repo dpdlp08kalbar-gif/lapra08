@@ -4011,3 +4011,24 @@ User action setelah deploy:
 5. Klik 'Tambah KK' — isi nomor KK (16 digit) + nama kepala keluarga
 6. Setelah KK dibuat, klik 'Tambah Anggota' untuk tambah istri/anak/dll
 7. Biodata lengkap 17 field untuk tiap warga
+
+---
+Task ID: LAPRA08-DATA-WARGA-RT-FIX
+Agent: Main Agent (Super Z)
+Task: User report: 'anda salah memasukkan data warga bukan di samping rw, akhirnya RT jd kosong, kita hrs mengisi data warga RT, krn yg bertugas mengisi data warga nya adalah RT masing masing'
+
+Work Log:
+- Audit: tombol 'Data Warga' muncul di kondisi `['RT', 'RW'].includes(t.level)` — muncul di kedua level
+- Akibat: pengguna bisa klik tombol di RW, data warga masuk ke territory RW (bukan RT)
+- Konsekuensi: RT tetap kosong, data warga salah ter-link
+- User emphasis: RT yang bertugas input data warga masing-masing (bukan RW)
+- Fix: ubah kondisi ke `t.level === 'RT'` — tombol HANYA muncul di card RT
+- Typecheck pass, build aman
+
+Stage Summary:
+- 1 file changed, 2 LOC diff
+- Commit c139824 di-push ke origin/main
+- Setelah deploy: tombol hijau 'Data Warga' hanya muncul di card RT
+- RW tetap menampilkan tombol 'Buka' (untuk drill ke RT children), tanpa tombol Data Warga
+- Alur user yang benar: Indonesia → Kalbar → Pontianak → Pontianak Selatan → BMD → RW 026 → RT 001 → klik 'Data Warga'
+- Artefak: src/components/menus/communication-menu.tsx (1 baris diubah)
