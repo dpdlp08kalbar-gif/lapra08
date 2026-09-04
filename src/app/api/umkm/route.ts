@@ -18,7 +18,7 @@ import { getUserFromRequest, getViewableTerritoryIds, getEditableTerritoryIds, i
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const ALLOWED_TYPES = ['KOPERASI', 'USHA_KECIL', 'EKRAF']
+const ALLOWED_TYPES = ['KOPERASI', 'USHA_KECIL', 'USHA_MENENGAH', 'EKRAF']
 const ALLOWED_BIDANG = ['KULINER', 'FASHION', 'KERAJINAN', 'APLIKASI_DIGITAL', 'PERTANIAN', 'JASA', 'PERDAGANGAN', 'LAINNYA']
 const ALLOWED_LEGAL = ['BELUM_TERDAFTAR', 'NIB', 'BADAN_HUKUM_PT', 'BADAN_HUKUM_CV', 'YAYASAN', 'KOPERASI_RESMI']
 const ALLOWED_STATUS = ['AKTIF', 'NON-AKTIF', 'BERHENTI']

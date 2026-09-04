@@ -1693,6 +1693,7 @@ function EditDialog({
 const UMKM_TYPE_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
   KOPERASI: { label: 'Koperasi', color: 'bg-emerald-100 text-emerald-700 border-emerald-200', icon: Store },
   USHA_KECIL: { label: 'Usaha Kecil', color: 'bg-blue-100 text-blue-700 border-blue-200', icon: Package },
+  USHA_MENENGAH: { label: 'Usaha Menengah', color: 'bg-cyan-100 text-cyan-700 border-cyan-200', icon: Building2 },
   EKRAF: { label: 'Ekonomi Kreatif', color: 'bg-purple-100 text-purple-700 border-purple-200', icon: TrendingUp },
 }
 
@@ -1964,6 +1965,7 @@ function EkrafUmkmManager() {
                 <option value="">Semua Tipe</option>
                 <option value="KOPERASI">Koperasi</option>
                 <option value="USHA_KECIL">Usaha Kecil</option>
+                <option value="USHA_MENENGAH">Usaha Menengah</option>
                 <option value="EKRAF">Ekraf</option>
               </select>
               <select value={filterBidang} onChange={(e) => setFilterBidang(e.target.value)}
@@ -2059,8 +2061,8 @@ function EkrafUmkmManager() {
       {/* === SUB-TAB: DASHBOARD === */}
       {subTab === 'dashboard' && (
         <div className="space-y-4">
-          {/* Stats cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {/* Stats cards — 5 cards: Total + 4 tipe */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             <Card className="bg-amber-50 border-amber-200">
               <CardContent className="p-3">
                 <div className="flex items-center justify-between">
@@ -2095,6 +2097,19 @@ function EkrafUmkmManager() {
                     </div>
                   </div>
                   <Package className="w-8 h-8 text-blue-400" />
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="bg-cyan-50 border-cyan-200">
+              <CardContent className="p-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-xs text-cyan-600">Usaha Menengah</div>
+                    <div className="text-2xl font-bold text-cyan-700">
+                      {stats?.byType?.find((t:any) => t.type === 'USHA_MENENGAH')?._count || 0}
+                    </div>
+                  </div>
+                  <Building2 className="w-8 h-8 text-cyan-400" />
                 </div>
               </CardContent>
             </Card>
@@ -2193,6 +2208,7 @@ function EkrafUmkmManager() {
                   className="w-full mt-1 px-2 py-1 border rounded text-sm h-9" required>
                   <option value="KOPERASI">Koperasi</option>
                   <option value="USHA_KECIL">Usaha Kecil</option>
+                  <option value="USHA_MENENGAH">Usaha Menengah</option>
                   <option value="EKRAF">Ekonomi Kreatif</option>
                 </select>
               </div>

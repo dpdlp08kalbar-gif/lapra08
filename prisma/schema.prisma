@@ -260,7 +260,7 @@ model Resident {
 model Umkm {
   id              String   @id @default(cuid())
   name            String   // Nama usaha / koperasi / ekraf
-  type            String   // KOPERASI | USHA_KECIL | EKRAF
+  type            String   // KOPERASI | USHA_KECIL | USHA_MENENGAH | EKRAF
   bidang          String?  // KULINER, FASHION, KERAJINAN, APLIKASI_DIGITAL, PERTANIAN, JASA, PERDAGANGAN, LAINNYA
   description     String?  // Deskripsi usaha
   legalStatus     String   @default("BELUM_TERDAFTAR") // BELUM_TERDAFTAR | NIB | BADAN_HUKUM_PT | BADAN_HUKUM_CV | YAYASAN | KOPERASI_RESMI
