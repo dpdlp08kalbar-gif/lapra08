@@ -4032,3 +4032,137 @@ Stage Summary:
 - RW tetap menampilkan tombol 'Buka' (untuk drill ke RT children), tanpa tombol Data Warga
 - Alur user yang benar: Indonesia → Kalbar → Pontianak → Pontianak Selatan → BMD → RW 026 → RT 001 → klik 'Data Warga'
 - Artefak: src/components/menus/communication-menu.tsx (1 baris diubah)
+
+---
+Task ID: LAPRA08-DATA-WARGA-FORM-UPDATE
+Agent: Main Agent (Super Z)
+Task: User request update struktur form Data Warga sesuai spec detail (Section 1 KK + Section 2 anggota dengan 17 field biodata + upload KK/KTP/foto + dropdown standar Disdukcapil + usia otomatis + alur multi-step)
+
+Work Log:
+- User kirim screenshot + spec terstruktur:
+  - Section 1 (Data Utama KK): Nomor KK, Nama Kepala, Alamat Lengkap, Upload Dokumen KK (PDF/JPG)
+  - Section 2 (Data Anggota per individu): Pas Foto (preview), NIK, Nama, JK, Tempat/Tgl Lahir,
+    Usia (otomatis), Email, Agama (wajib), Pendidikan (wajib), Pekerjaan (wajib),
+    Hubungan Keluarga, Kegiatan Organisasi, Status Domisili (Aktif/Non-aktif),
+    Upload KTP (PDF/JPG)
+  - Dropdown spec: 7 Agama, 9 Pendidikan, 12 Pekerjaan
+  - Alur: '+ Tambah KK' → form KK + Upload KK → '+ Tambah Anggota Keluarga' untuk
+    tambah individu → klik 'Simpan' → stats auto-update
+
+Implementasi (1 commit, 5 files, +847 LOC):
+
+1. Schema (prisma/schema.prisma):
+   - FamilyCard: tambah kkDocumentUrl (TEXT — base64 data URL)
+   - Resident: tambah photoUrl, idCardUrl, organisasi (TEXT — base64 data URL)
+   - Audit log: 'RESIDENT' + 'FAMILY_CARD' sudah ada di AuditResource union
+
+2. Migration (prisma/migrations/20260904100000_add_warga_uploads/migration.sql):
+   - ALTER TABLE FamilyCard ADD COLUMN kkDocumentUrl
+   - ALTER TABLE Resident ADD COLUMN photoUrl, idCardUrl, organisasi
+   - IF NOT EXISTS clause (idempotent)
+
+3. API /api/warga:
+   - POST action='create_kk_with_members' (BARU): terima KK + array members
+     dalam 1 request. Validasi semua NIK unik (internal + DB) SEBELUM insert.
+     Simpan KK + semua residents dalam sequence.
+   - POST action='create_resident': tambah field organisasi, photoUrl, idCardUrl
+   - PATCH action='update_kk': tambah field kkDocumentUrl
+   - PATCH action='update_resident': tambah field organisasi, photoUrl, idCardUrl
+
+4. API /api/warga/upload (BARU, 90 LOC):
+   - POST: terima { file: <base64 data URL>, type: 'kk' | 'ktp' | 'photo' }
+   - Validate MIME type (PDF/JPG/PNG), max 2MB
+   - Photo harus image, KK/KTP boleh PDF atau image
+   - Return data URL untuk disimpan ke KK/Resident
+   - Audit log semua upload
+   - Vercel Free compatible (no filesystem write, store in DB)
+
+5. UI WargaManagerDialog (restrukturisasi total, +400 LOC):
+   - Multi-step form: 1 form untuk KK + N anggota dalam 1 submit
+   - Section 1 (border hijau 'Data Utama'):
+     - Nomor KK (16 digit, required)
+     - Nama Kepala Keluarga (required)
+     - Alamat Lengkap
+     - Upload Dokumen KK (PDF/JPG, preview jika image)
+   - Section 2 (border biru 'Data Anggota Keluarga'):
+     - Tombol '+ Tambah Anggota Keluarga' di header section
+     - List Card anggota (1 card per anggota)
+     - Setiap card punya:
+       * Photo column (preview 96x128 px) — Pas Foto
+       * Biodata grid 2-kolom: Nama, NIK, JK, Tempat Lahir, Tgl Lahir,
+         Usia (auto), Email, Hubungan Keluarga, Agama (required),
+         Pendidikan (required), Pekerjaan (required),
+         Kegiatan Organisasi, Status Domisili
+       * Upload KTP (PDF/JPG, preview jika image) di bagian bawah
+       * Tombol hapus anggota (kecuali jika hanya 1 tersisa)
+   - Footer sticky: 'Total: N anggota akan disimpan' + tombol Simpan
+   - Validation per spec: Agama, Pendidikan, Pekerjaan WAJIB untuk tiap anggota
+   - Reset form setelah sukses simpan
+   - List KK dengan expand/collapse (table):
+     * Photo thumbnail 32x32 px per warga
+     * Kolom: Foto, Nama, Hub., JK, Tgl Lahir, Usia (auto),
+       Agama, Pendidikan (label panjang), Pekerjaan (label panjang), Aksi
+     * Badge 🏅 untuk organisasi
+     * Indikator 📎 untuk dokumen KK/KTP
+     * Warga non-aktif: opacity 50% + line-through
+   - Dialog edit resident (existing):
+     * Photo preview di kolom kiri (96x128 px)
+     * Biodata grid di kolom kanan (2 sub-kolom)
+     * Upload KTP di bagian bawah
+
+6. Dropdown options (per spec user, label panjang):
+   - Agama (7): Islam, Kristen, Katolik, Hindu, Buddha, Khonghucu,
+     Penghayat Kepercayaan
+   - Pendidikan (9): Tidak/Belum Sekolah, Putus Sekolah, SD, SMP, SMA/SMK,
+     Diploma (D1/D2/D3), S1/D4, S2, S3
+   - Pekerjaan (12): Belum/Tidak Bekerja, Mengurus RT, Pelajar/Mahasiswa,
+     PNS, TNI/Polri, Karyawan Swasta, Karyawan BUMN/BUMD,
+     Buruh Harian Lepas, Pedagang, Wiraswasta/Pengusaha, Pensiunan,
+     Pekerjaan Lainnya
+   - Hubungan Keluarga (11): Kepala Keluarga, Istri, Suami, Anak, Menantu,
+     Cucu, Orang Tua, Mertua, Famili Lain, Pembantu, Lainnya
+   - Jenis Kelamin (2): Laki-laki, Perempuan
+
+7. Helpers:
+   - calcAge(birthDateStr): hitung usia dari YYYY-MM-DD (return number atau null)
+   - fileToDataUrl(file): konversi File ke base64 data URL (Promise)
+   - isImageMime(dataUrl): cek apakah data URL adalah image
+   - emptyMember(relation): default form anggota (KEPALA KELUARGA untuk anggota pertama)
+
+Typecheck: 0 error di file yang diubah (`npx tsc --noEmit`)
+Build & deploy: commit b6345a2 di-push ke origin/main (Vercel deploy ~1-2 menit)
+
+Stage Summary:
+- Form Data Warga sekarang sesuai 100% spec user
+- Multi-step form: 1 submit untuk KK + N anggota (efficiency + UX)
+- Upload file: KK (PDF/JPG), Pas Foto (JPG/PNG dengan preview), KTP (PDF/JPG)
+- Usia otomatis dihitung dari tanggal lahir (real-time di form + list)
+- Dropdown standar Disdukcapil (Agama 7, Pendidikan 9, Pekerjaan 12)
+- Field wajib: Nomor KK, Nama Kepala KK, Nama anggota, Agama, Pendidikan, Pekerjaan
+- File storage: base64 data URL di DB (Vercel Free compatible, no S3)
+- Max file size: 2MB per file
+- Allowed MIME: PDF, JPG, PNG
+- Audit log lengkap untuk semua aksi (UU PDP No. 27/2022)
+
+Artefak:
+- prisma/schema.prisma (+4 fields: kkDocumentUrl, photoUrl, idCardUrl, organisasi)
+- prisma/migrations/20260904100000_add_warga_uploads/migration.sql (baru)
+- src/app/api/warga/route.ts (+120 LOC: action create_kk_with_members + field baru)
+- src/app/api/warga/upload/route.ts (baru, 90 LOC)
+- src/components/menus/communication-menu.tsx (rewrite WargaManagerDialog, +400 LOC)
+- Commit b6345a2 → origin/main
+
+User action setelah deploy:
+1. Login admin (DPN/DPD/DPC tergantung wilayah akses)
+2. Menu > Keanggotaan & Pengurus > Kelola Wilayah
+3. Drill ke RT (cth: Indonesia > Kalbar > Pontianak > Pontianak Selatan
+   > BMD > RW 026 > RT 001)
+4. Klik tombol hijau 'Data Warga' di card RT
+5. Klik '+ Tambah KK' (tombol hijau)
+6. Isi Section 1: Nomor KK, Nama Kepala Keluarga, Alamat, Upload Dokumen KK
+7. Klik '+ Tambah Anggota Keluarga' di Section 2 untuk tambah anggota
+   (otomatis ada 1 anggota pertama untuk Kepala Keluarga)
+8. Isi biodata lengkap setiap anggota (foto, NIK, nama, agama, pendidikan,
+   pekerjaan — semua wajib sesuai spec)
+9. Klik 'Simpan KK + Anggota' di footer
+10. Stats (KK count, total warga, aktif, non-aktif) auto-update
