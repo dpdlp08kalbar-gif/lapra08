@@ -4561,3 +4561,113 @@ User action setelah deploy (~1-2 mnt):
 Bonus: Rekomendasi HIGH/URGENT dari Tactical Analysis otomatis disimpan
 ke tabel AIRecommendation yang sebelumnya unused → sekarang aktif untuk
 tracking eksekusi (Approve/Reject/Executed).
+
+---
+Task ID: LAPRA08-GOOGLE-SCANNER
+Agent: Main Agent (Super Z)
+Task: User request: 'tambahkan kemampuan akses berita dan informasi di https://www.google.com/ serta menganalisisnya semua terkait laskar prabowo 08 dan elektabilitas prabowo di https://www.google.com/'
+
+AUDIT KONDISI EXISTING:
+- scrapeGoogleNews di auto-scraper.ts sudah pakai Google News RSS
+  (news.google.com/rss/search?q=...) — TAPI hanya 10 query per batch
+  rotasi dari Lexicon Matrix (rotasi, bukan semua sekaligus)
+- User minta scan komprehensif semua keyword LAPRA + elektabilitas
+  Prabowo secara langsung, bukan rotasi
+
+Implementasi (1 commit, 2 files, +463 LOC):
+
+1. API /api/google-scan (BARU, ~280 LOC):
+   - POST /api/google-scan dengan 31 keyword comprehensive
+   - LAPRA_QUERIES (12):
+     * 'Laskar Prabowo 08', 'LAPRA 08', 'LAPRA08', 'Laskar Prabowo
+       Delapan', 'Relawan Laskar Prabowo 08', 'DPN LAPRA 08', 'DPD
+       LAPRA 08', 'DPC LAPRA 08', 'Hashim Djojohadikusumo Laskar Prabowo',
+       'Laskar Prabowo 08 Pontianak', 'Laskar Prabowo 08 Kalimantan
+       Barat', 'Laskar Prabowo 08 Kalbar'
+   - ELEKTABILITAS_QUERIES (19):
+     * 'elektabilitas Prabowo', 'Prabowo Subianto presiden', 'kabinet
+       merah putih Prabowo', 'Prabowo Gibran', 'Prabowo Asta Cita',
+       'program Prabowo makan bergizi', 'Prabowo MBG', 'Prabowo free
+       meal', 'Prabowo sejahtera', 'Prabowo dukung ummat', 'Prabowo
+       kerja rakyat', 'presiden Prabowo Subianto 2024', 'pemerintahan
+       Prabowo Gibran', 'dukungan rakyat Prabowo', 'survey elektabilitas
+       Prabowo', 'indikator elektabilitas Prabowo', 'charta
+       elektabilitas Prabowo', 'LSM elektabilitas Prabowo'
+   - Pakai rss-parser: https://news.google.com/rss/search?q=...
+   - 8 item per query, dedupe by URL
+   - Sentiment analysis rule-based (positive: 'apresiasi/puji/dukung',
+     negative: 'kritik/tolak/gagal/korupsi')
+   - Cluster 16 topik dominan (MBG, Astacita, Kabinet Merah Putih,
+     Prabowo-Gibran, LAPRA 08, Relawan, Bansos, Infrastruktur,
+     Pendidikan, Kesehatan, UMKM, Pertanian, Korupsi, Demo, Apresiasi,
+     Survey Elektabilitas)
+   - Elektabilitas Score: (Positif - Negatif) / Total × 50 + 50
+   - Simpan hasil ke Pusat Media (Announcement) dengan source='WEB_SYNC',
+     sourceUrl=item.url, sourceName=item.source, territoryId=Indonesia
+   - Dedup check: skip jika sourceUrl sudah ada
+   - GET: status (count berita Google di Pusat Media + available
+     keyword count)
+
+2. UI communication-menu.tsx (+180 LOC):
+   - Tambah state: googleScanning, googleScanResult, googleScanOpen,
+     customQuery
+   - Handler handleGoogleScan(): POST ke /api/google-scan, save hasil ke
+     state, refresh loadData
+   - Tambah tombol '🔍 Scan Google' (gradient blue-cyan) di period
+     selector (samping Refresh) — ElektabilitasAnalytics
+   - Info banner Google Scanner aktif di atas hero card
+   - Dialog hasil scan (max-w-3xl):
+     * Summary card: Total Berita + Query Berhasil + Elektabilitas Score
+       + Saved to Pusat Media (4 stat cards)
+     * Sentiment breakdown (positif/netral/negatif)
+     * Cluster per topik (10 cluster dengan sentiment bar)
+     * Preview 10 berita terbaru dari Google (title + source + date +
+       sentiment badge + link external)
+     * Sources & errors info
+
+COMPLIANCE VERCEL GRATIS (verified, anti berbayar):
+- Google News RSS: 100% gratis, no API key (RSS publik)
+- TIDAK pakai Google Custom Search JSON API (berbayar $4/1000 queries)
+- TIDAK pakai LLM (Gemini/OpenAI/Anthropic)
+- TIDAK pakai service berbayar (Redis/Cloudinary/SendGrid)
+- Database: SQLite lokal / Neon PostgreSQL free tier prod
+- File upload: base64 di DB (no S3)
+- Cron: Vercel Cron (gratis di Hobby tier)
+
+Typecheck: 0 error di file yang diubah (`npx tsc --noEmit`)
+Build & deploy: commit 40264b6 di-push ke origin/main (Vercel deploy
+~1-2 mnt)
+
+Sesuai user spec:
+- 'akses berita dan informasi di google.com' → DONE (via Google News
+  RSS, RSS publik resmi Google, no API key)
+- 'menganalisisnya semua terkait laskar prabowo 08' → DONE (12 keyword
+  LAPRA 08 + DPN/DPD/DPC + Hashim + Kalbar/Pontianak spesifik)
+- 'elektabilitas prabowo di google.com' → DONE (19 keyword elektabilitas
+  Prabowo: 'elektabilitas Prabowo', 'Prabowo Asta Cita', 'MBG',
+  'survey elektabilitas', dll)
+- Sentiment analysis: rule-based keyword matching (no LLM)
+- Simpan ke Pusat Media: otomatis (source='WEB_SYNC', sourceUrl=URL)
+- Bonus: Elektabilitas Score otomatis terupdate + Tactical Analysis
+  akan menggabungkan data Google untuk analisis cluster isu + peluang
+  politik + rekomendasi taktis
+
+Artefak:
+- src/app/api/google-scan/route.ts (baru, ~280 LOC)
+- src/components/menus/communication-menu.tsx (+180 LOC: tombol + dialog)
+- Commit 40264b6 → origin/main
+
+User action setelah deploy:
+1. Login admin
+2. Menu > Komunikasi & Broadcast > Dashboard Analitik > sub-tab
+   'Elektabilitas Prabowo'
+3. Klik tombol '🔍 Scan Google' (gradient blue-cyan, samping Refresh)
+4. Tunggu ~10-30 detik (31 query ke Google News RSS, ~1s per query)
+5. Dialog hasil muncul dengan:
+   - Summary: total berita, query berhasil, elektabilitas score, saved
+   - Cluster per topik (10 cluster dengan sentiment bar)
+   - Preview 10 berita terbaru dari Google (link external)
+6. Berita yang terscan otomatis disimpan ke Pusat Media
+7. Elektabilitas Score langsung update di hero card
+8. Tactical Analysis (sub-tab ke-3) akan otomatis menggabungkan data
+   Google untuk analisis cluster isu + peluang politik + rekomendasi
