@@ -26,7 +26,7 @@ import {
   Globe, Newspaper, Youtube, Facebook, Instagram, Twitter, MapPin,
   Send, Sparkles, Filter, AlertTriangle, CheckCircle2, Target,
   TrendingUp, BarChart3, PieChart, Award, RefreshCw,
-  Users, ChevronDown, ChevronRight, FileText, ExternalLink,
+  Users, ChevronDown, ChevronRight, FileText, ExternalLink, XCircle,
 } from 'lucide-react'
 
 const TABS = [
@@ -688,6 +688,9 @@ function ElektabilitasAnalytics() {
   const [waNotifOpen, setWaNotifOpen] = useState(false)
   // === Print report state (BARU) ===
   const [printMode, setPrintMode] = useState(false)
+  // === Sentimen filter dialog state (BARU — per user request 2026-09-05) ===
+  const [sentimenFilterOpen, setSentimenFilterOpen] = useState(false)
+  const [sentimenFilter, setSentimenFilter] = useState<'ALL' | 'POSITIVE' | 'NEUTRAL' | 'NEGATIVE'>('ALL')
   // Compute mediaFilter array dari group toggles
   const computeMediaFilter = (): string[] => {
     if (mediaFilterGroups.allMedia) return [] // kosong = semua media
@@ -933,12 +936,28 @@ function ElektabilitasAnalytics() {
               <div className="text-lg font-semibold mt-1">{scoreLabel}</div>
             </div>
             <div className="flex flex-col gap-1 text-sm opacity-90">
-              <div>📊 Total berita: {s.totalItems}</div>
-              <div>✅ Positif: {s.totalPositive}</div>
-              <div>⚪ Netral: {s.totalNeutral}</div>
-              <div>❌ Negatif: {s.totalNegative}</div>
+              <button onClick={() => { setSentimenFilter('ALL'); setSentimenFilterOpen(true) }}
+                className="text-left hover:bg-white/20 rounded px-2 py-1 transition-colors cursor-pointer"
+                title="Klik untuk lihat semua berita">
+                📊 Total berita: <strong>{s.totalItems}</strong>
+              </button>
+              <button onClick={() => { setSentimenFilter('POSITIVE'); setSentimenFilterOpen(true) }}
+                className="text-left hover:bg-white/20 rounded px-2 py-1 transition-colors cursor-pointer"
+                title="Klik untuk lihat berita positif">
+                ✅ Positif: <strong>{s.totalPositive}</strong>
+              </button>
+              <button onClick={() => { setSentimenFilter('NEUTRAL'); setSentimenFilterOpen(true) }}
+                className="text-left hover:bg-white/20 rounded px-2 py-1 transition-colors cursor-pointer"
+                title="Klik untuk lihat berita netral">
+                ⚪ Netral: <strong>{s.totalNeutral}</strong>
+              </button>
+              <button onClick={() => { setSentimenFilter('NEGATIVE'); setSentimenFilterOpen(true) }}
+                className="text-left hover:bg-white/20 rounded px-2 py-1 transition-colors cursor-pointer"
+                title="Klik untuk lihat berita negatif">
+                ❌ Negatif: <strong>{s.totalNegative}</strong>
+              </button>
               <div className="text-xs opacity-70 mt-1 pt-1 border-t border-white/20">
-                Rumus: (Positif - Negatif) / Total × 50 + 50
+                💡 Klik angka untuk lihat detail berita
               </div>
             </div>
           </div>
@@ -1134,6 +1153,99 @@ function ElektabilitasAnalytics() {
       <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs text-blue-800">
         <strong>Catatan:</strong> Sentimen dihitung berdasarkan keyword matching (positif: 'apresiasi/puji/dukung', negatif: 'kritik/tolak/gagal/korupsi'). Berita dari Pusat Media dianalisis on-the-fly, berita dari Monitoring Berita menggunakan sentiment yang sudah di-analisis sebelumnya. Hanya berita yang mengandung keyword Prabowo yang dihitung. 100% rule-based, no LLM.
       </div>
+
+      {/* === DIALOG FILTER SENTIMEN (BARU — per user request 2026-09-05) === */}
+      {/* Klik angka di hero card → buka dialog list berita dengan filter sentimen */}
+      <Dialog open={sentimenFilterOpen} onOpenChange={setSentimenFilterOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {sentimenFilter === 'ALL' && <><FileText className="w-5 h-5 text-slate-600" /> Semua Berita ({s.totalItems})</>}
+              {sentimenFilter === 'POSITIVE' && <><CheckCircle2 className="w-5 h-5 text-emerald-600" /> Berita Positif ({s.totalPositive})</>}
+              {sentimenFilter === 'NEUTRAL' && <><AlertTriangle className="w-5 h-5 text-amber-600" /> Berita Netral ({s.totalNeutral})</>}
+              {sentimenFilter === 'NEGATIVE' && <><XCircle className="w-5 h-5 text-red-600" /> Berita Negatif ({s.totalNegative})</>}
+            </DialogTitle>
+            <DialogDescription>
+              {sentimenFilter === 'ALL' && 'Semua berita Prabowo dari Pusat Media + Monitoring Berita'}
+              {sentimenFilter === 'POSITIVE' && 'Berita dengan sentimen positif terkait Prabowo / LAPRA 08'}
+              {sentimenFilter === 'NEUTRAL' && 'Berita dengan sentimen netral terkait Prabowo / LAPRA 08'}
+              {sentimenFilter === 'NEGATIVE' && '⚠️ Berita dengan sentimen negatif — perlu klarifikasi / respons cepat'}
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Switch filter cepat */}
+          <div className="flex gap-2 flex-wrap text-xs mb-2">
+            <button onClick={() => setSentimenFilter('ALL')}
+              className={`px-3 py-1 rounded-full border transition-colors ${sentimenFilter === 'ALL' ? 'bg-slate-700 text-white border-slate-700' : 'bg-white border-slate-300 hover:bg-slate-50'}`}>
+              📊 Semua ({s.totalItems})
+            </button>
+            <button onClick={() => setSentimenFilter('POSITIVE')}
+              className={`px-3 py-1 rounded-full border transition-colors ${sentimenFilter === 'POSITIVE' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white border-emerald-300 hover:bg-emerald-50'}`}>
+              ✅ Positif ({s.totalPositive})
+            </button>
+            <button onClick={() => setSentimenFilter('NEUTRAL')}
+              className={`px-3 py-1 rounded-full border transition-colors ${sentimenFilter === 'NEUTRAL' ? 'bg-amber-600 text-white border-amber-600' : 'bg-white border-amber-300 hover:bg-amber-50'}`}>
+              ⚪ Netral ({s.totalNeutral})
+            </button>
+            <button onClick={() => setSentimenFilter('NEGATIVE')}
+              className={`px-3 py-1 rounded-full border transition-colors ${sentimenFilter === 'NEGATIVE' ? 'bg-red-600 text-white border-red-600' : 'bg-white border-red-300 hover:bg-red-50'}`}>
+              ❌ Negatif ({s.totalNegative})
+            </button>
+          </div>
+
+          {/* List berita terfilter */}
+          {(() => {
+            const filtered = sentimenFilter === 'ALL'
+              ? (data.detail || [])
+              : (data.detail || []).filter((item: any) => item.sentiment === sentimenFilter)
+
+            if (filtered.length === 0) {
+              return <p className="text-xs text-muted-foreground text-center py-8">Belum ada berita untuk kategori ini dalam periode terpilih.</p>
+            }
+
+            return (
+              <div className="space-y-1.5">
+                {filtered.map((item: any, i: number) => (
+                  <div key={i} className={`border-l-4 rounded p-2 bg-white text-xs ${
+                    item.sentiment === 'POSITIVE' ? 'border-l-emerald-500' :
+                    item.sentiment === 'NEGATIVE' ? 'border-l-red-500' :
+                    'border-l-amber-500'
+                  }`}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium line-clamp-2">{item.title}</div>
+                        <div className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-2 flex-wrap">
+                          <span>{item.date ? new Date(item.date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'}</span>
+                          <span>•</span>
+                          <span>{item.sourceName || '-'}</span>
+                          <Badge variant="outline" className="text-[10px]">
+                            {item.sourceType === 'PUSAT_MEDIA' ? '📰 Pusat Media' : '🔍 Monitoring'}
+                          </Badge>
+                          {item.provinceName && <span>• 📍 {item.provinceName}</span>}
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-end gap-1 shrink-0">
+                        <Badge variant="outline" className={`text-[10px] ${item.sentiment === 'POSITIVE' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : item.sentiment === 'NEGATIVE' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
+                          {SENTIMENT_LABELS[item.sentiment]}
+                        </Badge>
+                        {item.url ? (
+                          <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline" title="Buka sumber berita">
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
+          })()}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSentimenFilterOpen(false)}>Tutup</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* === DIALOG NOTIFIKASI WA (BARU — per user request 2026-09-05) === */}
       <Dialog open={waNotifOpen} onOpenChange={setWaNotifOpen}>
