@@ -4857,3 +4857,81 @@ Artefak:
 - src/components/menus/communication-menu.tsx (+200 LOC: tombol + dialog)
 - src/app/globals.css (+30 LOC: print-friendly CSS)
 - Commit 2d14ff0 → origin/main
+
+---
+Task ID: LAPRA08-VERCEL-FREE-AUDIT
+Agent: Main Agent (Super Z) — audit komprehensif
+Task: User request: 'audit semua jgn menggunakan yg berbayar semua versel no bayar'
+
+AUDIT MENDALAM (13 aspek diperiksa):
+
+1. Database: ✅ Neon PostgreSQL free tier (selamanya gratis)
+2. Cron: ✅ Vercel Cron free tier (4 cron jobs aktif)
+3. Email: ✅ Resend free tier + mailto: fallback (opsional)
+4. WhatsApp: ✅ wa.me link (no Baileys worker, no Business API)
+5. PDF: ✅ window.print() (no Puppeteer)
+6. AI/LLM: ✅ 100% rule-based (no OpenAI/Anthropic/Gemini)
+7. Scraping: ✅ Google News RSS + Invidious + RSS lokal (no API key)
+8. File storage: ✅ base64 di DB (no S3)
+9. Queue/Worker: ✅ Opsional (Vercel tetap jalan tanpa Redis)
+10. Library: ✅ 100% FOSS/MIT/Apache (no berbayar)
+11. Env vars: ✅ Minimum 2 wajib, sisanya opsional
+12. Resend API: ✅ FREE tier selamanya + mailto fallback
+13. Z.AI SDK: ❌ TIDAK dipakai di production (dev only CLI)
+
+TINDAKAN REMEDIAL:
+
+1. Hapus src/lib/zai-init.ts (dead code, butuh ZAI_* berbayar env vars)
+   - File tidak di-import di mana pun (grep return kosong)
+   - Butuh env vars ZAI_BASE_URL, ZAI_API_KEY, ZAI_TOKEN, ZAI_CHAT_ID,
+     ZAI_USER_ID — semuanya berbayar
+   - Dihapus dari repository
+
+2. Update src/lib/email-service.ts — tambah mailto: fallback
+   - Sebelumnya: return error jika RESEND_API_KEY tidak diset
+   - Sekarang: auto-fallback ke mailto: link (100% gratis, no API)
+   - Mode 1: Resend API (opsional, free tier 3,000/bulan)
+   - Mode 2: mailto: link (selalu jalan, browser redirect)
+   - Auto-strip HTML tags untuk body plain text
+   - Return mailtoLink untuk UI buka di email client
+
+3. Update .env.example — dokumentasi Vercel Free compliant
+   - Hapus ZAI_* vars (tidak perlu untuk production)
+   - Tandai Resend/Redis/Baileys/Invidious sebagai OPSIONAL
+   - Tambah keterangan: 'Minimum 2 wajib, sisanya opsional'
+   - Tambah keterangan: '100% Vercel Free Compliant'
+   - Resend: 'FREE tier selamanya, 3,000 email/bulan'
+   - Upstash Redis: 'FREE tier 10,000 commands/day'
+   - Baileys: 'hanya untuk worker (Railway/VPS)'
+
+4. Buat AUDIT_VERCEL_FREE.md — laporan audit komprehensif
+   - 13 section audit lengkap
+   - Tabel status per aspek
+   - Detail library license
+   - Detail env vars (wajib/opsional/tidak perlu)
+   - Tindakan remedial yang dilakukan
+   - Estimasi biaya bulanan: Rp 0 (nol rupiah)
+
+HASIL AUDIT:
+- TIDAK ADA library berbayar di package.json
+- TIDAK ADA API call berbayar di source code
+- TIDAK ADA service berbayar di production
+- Z.AI SDK: ada di package.json TAPI tidak di-import di production
+  (hanya CLI dev tools)
+- Baileys: FOSS (MIT), tapi butuh worker process (Railway/VPS) —
+  tidak dijalankan di Vercel Free
+- BullMQ + ioredis: FOSS (MIT), tapi butuh Redis — opsional via
+  Upstash free tier (sistem tetap jalan tanpa Redis)
+- Resend: free tier selamanya + mailto fallback (gratis dengan/tanpa)
+- Semua @radix-ui, lucide-react, recharts, sharp, qrcode, html2canvas,
+  pdf-parse, pdfjs-dist, @xenova/transformers: 100% FOSS
+
+Typecheck: 0 error di file yang diubah
+Build & deploy: commit b8c2173 di-push ke origin/main
+
+Artefak:
+- src/lib/zai-init.ts (DELETED — dead code)
+- src/lib/email-service.ts (UPDATE — mailto fallback)
+- .env.example (UPDATE — hapus ZAI, tandai opsional)
+- AUDIT_VERCEL_FREE.md (NEW — laporan audit 13 section)
+- Commit b8c2173 → origin/main
