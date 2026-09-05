@@ -675,6 +675,25 @@ function ElektabilitasAnalytics() {
   const [googleScanResult, setGoogleScanResult] = useState<any>(null)
   const [googleScanOpen, setGoogleScanOpen] = useState(false)
   const [customQuery, setCustomQuery] = useState('')
+  // === Media filter state (BARU — per user request 2026-09-05) ===
+  // Set default: ALL media (jika kosong = semua media). User bisa toggle per group.
+  const [mediaFilterGroups, setMediaFilterGroups] = useState<{
+    nasional: boolean
+    kalbar: boolean
+    siaranPers: boolean
+    internasional: boolean
+    allMedia: boolean
+  }>({ nasional: false, kalbar: false, siaranPers: false, internasional: false, allMedia: true })
+  // Compute mediaFilter array dari group toggles
+  const computeMediaFilter = (): string[] => {
+    if (mediaFilterGroups.allMedia) return [] // kosong = semua media
+    const filters: string[] = []
+    if (mediaFilterGroups.nasional) filters.push('detik', 'kompas', 'tribunnews', 'cnnindonesia', 'tempo', 'antaranews', 'metrotvnews', 'republika', 'sindonews', 'okezone', 'merdeka', 'liputan6', 'kumparan', 'jawapos', 'suara')
+    if (mediaFilterGroups.kalbar) filters.push('mediakalbar', 'kalbar', 'pontianak', 'borneotribun', 'pontianakpost', 'kalbarexpress', 'radarpontianak', 'prokal', 'wartakini', 'sintang', 'singkawang', 'ketapang', 'sambas', 'mempawah')
+    if (mediaFilterGroups.siaranPers) filters.push('siaran pers', 'press release', 'pelita', 'lembaga', 'pengumuman', 'humas', 'official')
+    if (mediaFilterGroups.internasional) filters.push('reuters', 'ap news', 'afp', 'bbc', 'al jazeera', 'cna', 'the straits times')
+    return filters
+  }
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -693,6 +712,7 @@ function ElektabilitasAnalytics() {
     setGoogleScanning(true)
     setGoogleScanResult(null)
     try {
+      const mediaFilter = computeMediaFilter()
       const res = await api('/api/google-scan', {
         method: 'POST',
         body: JSON.stringify({
@@ -700,17 +720,30 @@ function ElektabilitasAnalytics() {
           maxResults: 8,
           saveToPusatMedia: true, // simpan hasil ke Pusat Media
           period,
+          mediaFilter, // BARU: filter media spesifik (kosong = semua media)
         }),
         keepWrapper: true,
       })
       if (res?.success) {
         setGoogleScanResult(res.data)
         setGoogleScanOpen(true)
-        addToast(res.message || `Google Scan selesai: ${res.data?.summary?.totalItems || 0} berita`, 'success')
+        const filterInfo = mediaFilter.length > 0 ? ` (filter: ${mediaFilter.length} media)` : ''
+        addToast(res.message || `Google Scan selesai: ${res.data?.summary?.totalItems || 0} berita${filterInfo}`, 'success')
         loadData() // refresh elektabilitas dengan data baru dari Pusat Media
       } else addToast(res?.error || 'Gagal scan Google', 'error')
     } catch (e: any) { addToast(e.message, 'error') }
     finally { setGoogleScanning(false) }
+  }
+
+  // === Handler: toggle media filter group (BARU) ===
+  const toggleMediaGroup = (group: 'nasional' | 'kalbar' | 'siaranPers' | 'internasional' | 'allMedia') => {
+    setMediaFilterGroups(prev => {
+      if (group === 'allMedia') {
+        return { nasional: false, kalbar: false, siaranPers: false, internasional: false, allMedia: true }
+      }
+      // Toggle group tertentu → set allMedia=false (karena user pilih spesifik)
+      return { ...prev, [group]: !prev[group], allMedia: false }
+    })
   }
 
   if (loading) return <LoadingState />
@@ -750,8 +783,87 @@ function ElektabilitasAnalytics() {
 
       {/* === Info banner Google Scan === */}
       <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs text-blue-800">
-        <strong>🌐 Google News Scanner aktif (100% gratis):</strong> Scan Google News RSS dengan 31 keyword (12 LAPRA 08 + 19 elektabilitas Prabowo). Hasil otomatis disimpan ke Pusat Media &amp; dianalisis untuk Elektabilitas Score. Klik tombol <strong>"🔍 Scan Google"</strong> untuk mulai.
+        <strong>🌐 Google News Scanner aktif (100% gratis):</strong> Scan Google News RSS dengan 31 keyword (12 LAPRA 08 + 19 elektabilitas Prabowo). Hasil otomatis disimpan ke Pusat Media &amp; dianalisis untuk Elektabilitas Score. Klik tombol <strong>"🔍 Scan Google"</strong> untuk mulai. Auto-scan: 06:00 &amp; 18:00 WIB (via Vercel Cron).
       </div>
+
+      {/* === Panel Filter Media Spesifik (BARU — per user request 2026-09-05) === */}
+      <Card className="border-blue-200">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Filter className="w-4 h-4 text-blue-600" /> Filter Media Spesifik
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-xs text-muted-foreground mb-2">
+            Pilih media yang ingin di-scan. Default: <strong>Semua Media</strong> (klik untuk pilih spesifik).
+            Hanya berita dari media terpilih yang akan disimpan ke Pusat Media.
+          </p>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
+            <label className="flex items-center gap-1.5 p-2 rounded border cursor-pointer hover:bg-slate-50 transition-colors">
+              <input type="checkbox"
+                checked={mediaFilterGroups.allMedia}
+                onChange={() => toggleMediaGroup('allMedia')}
+                className="w-3.5 h-3.5" />
+              <span className="font-medium">🌐 Semua Media</span>
+            </label>
+            <label className="flex items-center gap-1.5 p-2 rounded border cursor-pointer hover:bg-slate-50 transition-colors">
+              <input type="checkbox"
+                checked={mediaFilterGroups.nasional}
+                onChange={() => toggleMediaGroup('nasional')}
+                className="w-3.5 h-3.5" />
+              <span className="font-medium">📰 Media Nasional</span>
+            </label>
+            <label className="flex items-center gap-1.5 p-2 rounded border cursor-pointer hover:bg-slate-50 transition-colors">
+              <input type="checkbox"
+                checked={mediaFilterGroups.kalbar}
+                onChange={() => toggleMediaGroup('kalbar')}
+                className="w-3.5 h-3.5" />
+              <span className="font-medium">📍 Media Kalbar</span>
+            </label>
+            <label className="flex items-center gap-1.5 p-2 rounded border cursor-pointer hover:bg-slate-50 transition-colors">
+              <input type="checkbox"
+                checked={mediaFilterGroups.siaranPers}
+                onChange={() => toggleMediaGroup('siaranPers')}
+                className="w-3.5 h-3.5" />
+              <span className="font-medium">📢 Siaran Pers</span>
+            </label>
+            <label className="flex items-center gap-1.5 p-2 rounded border cursor-pointer hover:bg-slate-50 transition-colors">
+              <input type="checkbox"
+                checked={mediaFilterGroups.internasional}
+                onChange={() => toggleMediaGroup('internasional')}
+                className="w-3.5 h-3.5" />
+              <span className="font-medium">🌍 Internasional</span>
+            </label>
+          </div>
+
+          {/* Info detail media yang akan di-filter */}
+          {mediaFilterGroups.nasional && (
+            <div className="text-[10px] text-muted-foreground mt-2 pl-1">
+              Nasional: Detik, Kompas, Tribunnews, CNN Indonesia, Tempo, ANTARA, Metro TV, Republika, Sindonews, Okezone, Merdeka, Liputan6, Kumparan, Jawa Pos, Suara
+            </div>
+          )}
+          {mediaFilterGroups.kalbar && (
+            <div className="text-[10px] text-muted-foreground mt-2 pl-1">
+              Kalbar: Media Kalbar, Kalbar Express, Pontianak Post, Radar Pontianak, Borneo Tribune, Prokal News, Wartakini + 7 kota/kab Kalbar
+            </div>
+          )}
+          {mediaFilterGroups.siaranPers && (
+            <div className="text-[10px] text-muted-foreground mt-2 pl-1">
+              Siaran Pers: Press release, lembaga, humas, official, The Jakarta Post
+            </div>
+          )}
+          {mediaFilterGroups.internasional && (
+            <div className="text-[10px] text-muted-foreground mt-2 pl-1">
+              Internasional: Reuters, AP News, AFP, BBC, Al Jazeera, CNA, The Straits Times
+            </div>
+          )}
+          {!mediaFilterGroups.allMedia && !mediaFilterGroups.nasional && !mediaFilterGroups.kalbar && !mediaFilterGroups.siaranPers && !mediaFilterGroups.internasional && (
+            <div className="text-xs text-amber-700 mt-2 pl-1">
+              ⚠️ Tidak ada media terpilih. Pilih minimal 1 group, atau kembali ke "Semua Media".
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Hero card */}
       <Card className="bg-gradient-to-br from-orange-500 via-red-500 to-rose-600 text-white shadow-xl">

@@ -1,14 +1,19 @@
 // LAPRA 08 - API: Google News Scan (komprehensif untuk LAPRA 08 + elektabilitas Prabowo)
 // ============================================================
 // POST /api/google-scan
-// Body: { query?: string, period?: '24h'|'7d'|'30d', maxResults?: number, saveToPusatMedia?: boolean }
+// Body: {
+//   query?: string,                       // custom query (kosong = pakai 31 keyword default)
+//   period?: '24h'|'7d'|'30d',
+//   maxResults?: number,                  // default 8
+//   saveToPusatMedia?: boolean,           // default true
+//   mediaFilter?: string[],               // filter berdasarkan nama media (cth: ['detik', 'kompas'])
+//   triggeredBy?: 'manual'|'cron',        // deteksi trigger source
+// }
 //
-// Scan Google News RSS dengan keyword LAPRA 08 + elektabilitas Prabowo
-// Output: list berita + sentimen + cluster + elektabilitas score
+// Cron support: jika dipanggil tanpa header x-user-id, fallback ke SUPERADMIN
+// Filter media: hanya simpan berita yang source mengandung salah satu keyword mediaFilter
+//
 // 100% gratis (Google News RSS, no API key, Vercel Free compliant)
-//
-// Catatan: Google News RSS = https://news.google.com/rss/search?q=...
-// Tidak perlu Google Custom Search API (berbayar). RSS publik & gratis.
 // ============================================================
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
@@ -19,6 +24,19 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 const rssParser = new Parser({ timeout: 8000, headers: { 'User-Agent': 'LAPRA08-Bot/1.0' } })
+
+// === Media populer untuk filter cepat (UI checkbox) ===
+export const MEDIA_PRESETS = {
+  nasional: ['detik', 'kompas', 'tribunnews', 'cnnindonesia', 'tempo', 'antaranews',
+             'metrotvnews', 'republika', 'sindonews', 'okezone', 'merdeka',
+             'liputan6', 'kumparan', 'jawapos', 'suara'],
+  kalbar: ['mediakalbar', 'kalbar', 'pontianak', 'borneotribun', 'pontianakpost',
+           'kalbarexpress', 'radarpontianak', 'prokal', 'wartakini', 'sintang',
+           'singkawang', 'ketapang', 'sambas', 'mempawah'],
+  siaranPers: ['siaran pers', 'press release', 'pelita', 'the jakarta post',
+              'lembaga', 'pengumuman', 'humas', 'official'],
+  internasional: ['reuters', 'ap news', 'afp', 'bbc', 'al jazeera', 'cna', 'the straits times'],
+}
 
 // === Keyword LAPRA 08 + elektabilitas Prabowo (comprehensive) ===
 const LAPRA_QUERIES = [
@@ -100,8 +118,42 @@ function detectTopic(text: string): string {
 }
 
 export async function POST(request: NextRequest) {
-  const user = await getUserFromRequest(request)
+  // === Auth: support 2 mode ===
+  // 1. Manual (dari UI): header 'x-user-id'
+  // 2. Cron (dari Vercel Cron): tidak ada x-user-id, fallback ke SUPERADMIN
+  let user = await getUserFromRequest(request)
+
+  if (!user) {
+    const authHeader = request.headers.get('authorization') || ''
+    const cronSecret = process.env.CRON_SECRET
+    if (!cronSecret || authHeader === `Bearer ${cronSecret}`) {
+      try {
+        const superadmin = await db.user.findFirst({
+          where: { role: 'SUPERADMIN', isActive: true },
+          select: { id: true, username: true, fullName: true, role: true, territoryId: true, isActive: true },
+        })
+        if (superadmin) {
+          const territory = await db.territory.findUnique({
+            where: { id: superadmin.territoryId },
+            select: { id: true, code: true, name: true, level: true },
+          })
+          user = {
+            ...superadmin,
+            email: null, phone: null, avatar: null,
+            lastLogin: null, createdAt: new Date(), updatedAt: new Date(),
+            territory: territory || { id: superadmin.territoryId, code: 'ID', name: 'Indonesia', level: 'COUNTRY' },
+          } as any
+        }
+      } catch (e) { console.error('[Google Scan] Cron fallback auth failed:', e) }
+    }
+  }
+
   if (!user) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+  const authedUser = user as NonNullable<typeof user>
+
+  // Detect trigger source
+  const isCron = !request.headers.get('x-user-id')
+  const triggeredBy = isCron ? 'cron' : 'manual'
 
   try {
     const body = await request.json().catch(() => ({} as any))
@@ -109,6 +161,9 @@ export async function POST(request: NextRequest) {
     const maxPerQuery = parseInt(body?.maxResults) || 8
     const saveToPusatMedia = body?.saveToPusatMedia !== false // default true
     const period = body?.period || '30d'
+    const mediaFilter: string[] = Array.isArray(body?.mediaFilter)
+      ? body.mediaFilter.filter((m: any) => typeof m === 'string' && m.trim())
+      : []
 
     // === Build query list ===
     let queries: string[]
@@ -137,6 +192,20 @@ export async function POST(request: NextRequest) {
           const content = (item.contentSnippet || item.content || '').substring(0, 1000)
           const itemUrl = item.link || ''
           const date = item.isoDate ? new Date(item.isoDate) : new Date()
+          // Detect source (Google News RSS punya format title: "Title - Source Name")
+          // atau pakai creator/author
+          const itemSource = (item.creator || item.author || feed.title || '').toString()
+          // Parse source dari title pattern "Title - Source" jika ada
+          const titleParts = title.split(' - ')
+          const sourceFromTitle = titleParts.length > 1 ? titleParts[titleParts.length - 1].trim() : ''
+          const finalSource = itemSource || sourceFromTitle || 'Google News'
+
+          // === Filter media spesifik (jika mediaFilter di-set) ===
+          if (mediaFilter.length > 0) {
+            const sourceLower = finalSource.toLowerCase()
+            const matchesFilter = mediaFilter.some(m => sourceLower.includes(m.toLowerCase()))
+            if (!matchesFilter) continue // skip berita dari media yang tidak di-filter
+          }
 
           // Skip jika sudah ada di allItems (dedupe by URL)
           if (itemUrl && allItems.some(i => i.url === itemUrl)) continue
@@ -147,7 +216,7 @@ export async function POST(request: NextRequest) {
             content,
             url: itemUrl,
             date: date.toISOString(),
-            source: item.creator || item.author || feed.title || 'Google News',
+            source: finalSource,
             sentiment: sentiment(`${title} ${content}`),
             topic: detectTopic(`${title} ${content}`),
             platform: 'GOOGLE_NEWS',
@@ -194,7 +263,7 @@ export async function POST(request: NextRequest) {
                 sourceUrl: item.url,
                 sourceName: item.source.substring(0, 200),
                 territoryId: indonesia.id,
-                createdById: user.id,
+                createdById: authedUser.id,
               },
             })
             savedToPusatMedia++
@@ -238,9 +307,9 @@ export async function POST(request: NextRequest) {
       .map(([source, count]) => ({ source, count }))
 
     await logAccess({
-      actor: user, action: 'VIEW', resource: 'SYSTEM_SETTING', resourceId: 'google-scan',
-      resourceLabel: `Google Scan (${queriesScanned} queries, ${totalItems} berita)`,
-      request, detail: `Saved: ${savedToPusatMedia} ke Pusat Media, duplikat: ${savedDuplicate}`,
+      actor: authedUser, action: 'VIEW', resource: 'SYSTEM_SETTING', resourceId: 'google-scan',
+      resourceLabel: `Google Scan (${queriesScanned} queries, ${totalItems} berita, ${triggeredBy})`,
+      request, detail: `Filter: ${mediaFilter.length} media, saved: ${savedToPusatMedia}, duplikat: ${savedDuplicate}`,
     })
 
     return NextResponse.json({
@@ -258,12 +327,14 @@ export async function POST(request: NextRequest) {
           savedDuplicate,
           sources,
           skipped,
+          mediaFilter: mediaFilter.length > 0 ? mediaFilter : null,
+          triggeredBy,
         },
         clusters,
         topSources,
         items: allItems.slice(0, 50), // 50 item terbaru untuk preview
       },
-      message: `Google Scan selesai: ${totalItems} berita dari ${queriesScanned}/${queries.length} query. ${savedToPusatMedia} baru disimpan ke Pusat Media, ${savedDuplicate} duplikat skip.`,
+      message: `Google Scan selesai: ${totalItems} berita dari ${queriesScanned}/${queries.length} query${mediaFilter.length > 0 ? ` (filter: ${mediaFilter.length} media)` : ''}. ${savedToPusatMedia} baru disimpan ke Pusat Media, ${savedDuplicate} duplikat skip. Trigger: ${triggeredBy}.`,
     })
   } catch (e: any) {
     console.error('[Google Scan API] Error:', e)
