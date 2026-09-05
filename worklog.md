@@ -4759,3 +4759,101 @@ Hasil scan:
 - Elektabilitas Score otomatis update di hero card
 - Tactical Analysis (sub-tab ke-3) akan menggabungkan data Google
   untuk cluster isu + peluang politik + rekomendasi taktis
+
+---
+Task ID: LAPRA08-WA-NOTIF-REPORT-PDF
+Agent: Main Agent (Super Z)
+Task: User request: 'tambahkan juga notifikasi WhatsApp ke admin DPN setiap kali auto-scan selesai dengan hasil URGENT/HIGH, dan laporan elektabilitas'
+
+AUDIT Vercel Free compliance:
+- Baileys (WA Web) butuh worker process, tidak jalan di Vercel
+  serverless → TIDAK dipakai untuk notifikasi auto
+- Strategi: queue notifikasi ke SystemSetting + UI badge + tombol
+  'Buka WhatsApp' pakai wa.me/{nomor} link (manual kirim, no API
+  berbayar)
+- Laporan PDF: window.print() di layout print-friendly CSS (no
+  Puppeteer/berbayar)
+
+Implementasi (1 commit, 4 files, +475 LOC):
+
+1. API /api/wa-notifications (BARU, ~170 LOC):
+   - GET: list notifikasi (pending/sent) + admin DPN phones
+   - POST: enqueue notifikasi (dipanggil oleh /api/google-scan cron)
+   - PATCH ?id=xxx: mark as sent (setelah user klik tombol WA)
+   - DELETE ?id=xxx: hapus notifikasi (DPN only)
+   - Storage: SystemSetting JSON (key='wa_notifications_queue', max
+     100 entry rolling)
+   - Cron auth support (tanpa x-user-id → fallback SUPERADMIN)
+   - Audit log semua aksi
+
+2. API /api/google-scan (UPDATE, +100 LOC):
+   - Setelah scan selesai (cron trigger only), enqueue notifikasi WA:
+     * Case 1: Elektabilitas Score < 45 (NEGATIF) → URGENT notif
+       (message: score + statistik + top 3 cluster perlu klarifikasi)
+     * Case 2: Cluster dengan negatif >= 3 atau engagement > 1000 →
+       HIGH notif per cluster (message: topik + statistik + sample
+       berita + rekomendasi cek Tactical Analysis)
+   - Max 4 notifikasi per scan (1 URGENT + 3 HIGH)
+   - Tambah field waNotifEnqueued di summary response
+
+3. UI communication-menu.tsx (+200 LOC):
+   - State baru: waNotifData (queue + admin DPN), waNotifOpen,
+     printMode
+   - Handler loadWaNotif: GET /api/wa-notifications + auto-refresh
+     setiap 60 detik
+   - Handler handleSendWa: buka wa.me/{nomor}?text={pesan} + mark as
+     sent
+   - Handler handlePrintReport: set printMode=true + window.print() +
+     reset setelah 500ms
+   - Tombol 'Notifikasi WA' (emerald) dengan badge counter merah
+     (X pending) — refresh otomatis setiap 60s
+   - Tombol 'Cetak Laporan PDF' (purple) → window.print
+   - Dialog 'Notifikasi WA Admin DPN' (max-w-2xl):
+     * Header: judul + badge 'X pending'
+     * List notifikasi (max 20):
+       - Border kiri merah (URGENT) atau orange (HIGH)
+       - Badge: URGENT/HIGH + Status (Pending/Terkirim) + Score
+       - Title + message (whitespace-pre-line)
+       - Date + sender info
+       - Tombol 'Kirim ke: [Nama Admin DPN]' per nomor (wa.me link)
+     - Empty state jika tidak ada notifikasi
+
+4. globals.css (+30 LOC):
+   - @media print rules untuk print-friendly layout
+   - .print-header: display none saat normal, display block saat print
+   - Reset warna ke black-on-white saat print
+
+COMPLIANCE VERCEL GRATIS (verified):
+- TIDAK pakai Baileys (butuh worker, tidak Vercel compatible)
+- TIDAK pakai WhatsApp Business API (berbayar)
+- TIDAK pakai Puppeteer (butuh Vercel Pro)
+- TIDAK pakai LLM (Gemini/OpenAI/Anthropic)
+- Storage: SystemSetting JSON (no DB migration)
+- WA kirim: via wa.me link (browser redirect, no API)
+- PDF: window.print() browser native (no library)
+
+Typecheck: 0 error di file yang diubah (`npx tsc --noEmit`)
+Build & deploy: commit 2d14ff0 di-push ke origin/main
+
+Cara pakai:
+1. Notifikasi WA:
+   - Auto-scan Google (06:00 & 18:00 WIB) cek elektabilitas score
+   - Jika < 45 (NEGATIF) → enqueue URGENT notif ke SystemSetting
+   - Jika ada cluster negatif/trend → enqueue HIGH notif per cluster
+   - User buka Dashboard Analitik → badge 'X' muncul di tombol
+     'Notifikasi WA'
+   - Klik tombol → dialog list + klik 'Kirim ke: [Nama Admin]' →
+     buka wa.me dengan pesan pre-filled → user kirim manual
+   - Setelah kirim, notifikasi otomatis di-mark as sent
+2. Laporan PDF:
+   - Klik tombol 'Cetak Laporan PDF'
+   - Browser print dialog muncul
+   - Save as PDF atau print langsung
+   - Layout print-friendly (hanya konten elektabilitas yang tampil)
+
+Artefak:
+- src/app/api/wa-notifications/route.ts (baru, ~170 LOC)
+- src/app/api/google-scan/route.ts (+100 LOC: enqueue notifikasi)
+- src/components/menus/communication-menu.tsx (+200 LOC: tombol + dialog)
+- src/app/globals.css (+30 LOC: print-friendly CSS)
+- Commit 2d14ff0 → origin/main
