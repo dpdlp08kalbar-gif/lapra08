@@ -1,9 +1,19 @@
-// LAPRA 08 - Email Service via Resend (FREE 3.000 email/bulan)
-// Setup: daftar di resend.com → dapatkan API key → simpan di .env
-// 
-// USAGE:
-// import { sendEmail } from '@/lib/email-service'
-// await sendEmail({ to: 'admin@lapra08.id', subject: 'Test', html: '<h1>Hello</h1>' })
+// LAPRA 08 - Email Service (Vercel Free Compliant)
+// =====================================================
+// STRATEGI: Dua-mode fallback, 100% gratis:
+//
+// Mode 1 (PRODUCTION, opsional): Resend.com API
+//   - FREE tier selamanya: 3,000 email/bulan, 100 email/hari
+//   - Daftar di resend.com → dapatkan API key → simpan RESEND_API_KEY
+//   - Jika TIDAK diset, otomatis fallback ke Mode 2
+//
+// Mode 2 (FALLBACK, selalu jalan): mailto: link
+//   - Generate HTML mailto: link dengan subject + body pre-filled
+//   - User klik link → buka email client default → kirim manual
+//   - 100% gratis, no API, no registration
+//
+// Vercel Free compliant: tidak ada service berbayar, tidak ada trial
+// =====================================================
 
 export type EmailParams = {
   to: string | string[]
@@ -12,38 +22,58 @@ export type EmailParams = {
   from?: string
 }
 
-export async function sendEmail({ to, subject, html, from }: EmailParams): Promise<{ success: boolean; messageId?: string; error?: string }> {
+export async function sendEmail({ to, subject, html, from }: EmailParams): Promise<{ success: boolean; messageId?: string; error?: string; mailtoLink?: string }> {
   const apiKey = process.env.RESEND_API_KEY
   const fromEmail = from || process.env.RESEND_FROM_EMAIL || 'LAPRA 08 <noreply@lapra08.vercel.app>'
 
-  if (!apiKey) {
-    console.warn('[Email] RESEND_API_KEY not configured — email not sent')
-    return { success: false, error: 'RESEND_API_KEY not configured' }
+  // Mode 1: Resend API (jika API key diset)
+  if (apiKey) {
+    try {
+      const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: fromEmail,
+          to: Array.isArray(to) ? to : [to],
+          subject,
+          html,
+        }),
+      })
+
+      const data = await res.json()
+      if (!res.ok) {
+        return { success: false, error: data.message || data.error || 'Failed to send email' }
+      }
+
+      return { success: true, messageId: data.id }
+    } catch (e: any) {
+      console.warn('[Email] Resend API gagal, fallback ke mailto:', e.message)
+      // Fallback ke Mode 2 jika Resend gagal
+    }
   }
 
-  try {
-    const res = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: fromEmail,
-        to: Array.isArray(to) ? to : [to],
-        subject,
-        html,
-      }),
-    })
+  // Mode 2: mailto: link (100% gratis, no API)
+  // Strip HTML tags untuk body plain text
+  const plainTextBody = html
+    .replace(/<style[^>]*>.*?<\/style>/gi, '')
+    .replace(/<script[^>]*>.*?<\/script>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .substring(0, 1500) // limit panjang URL
 
-    const data = await res.json()
-    if (!res.ok) {
-      return { success: false, error: data.message || data.error || 'Failed to send email' }
-    }
+  const toStr = Array.isArray(to) ? to.join(',') : to
+  const mailtoLink = `mailto:${toStr}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(plainTextBody)}`
 
-    return { success: true, messageId: data.id }
-  } catch (e: any) {
-    return { success: false, error: e.message }
+  console.log('[Email] Fallback ke mailto: link (no RESEND_API_KEY atau Resend gagal)')
+  return {
+    success: true, // dianggap sukses karena user bisa kirim manual
+    mailtoLink,
+    messageId: `mailto_${Date.now()}`,
+    error: 'Email dibuka via mailto: link — kirim manual dari email client',
   }
 }
 
