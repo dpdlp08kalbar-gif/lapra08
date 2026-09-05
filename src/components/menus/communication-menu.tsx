@@ -26,7 +26,7 @@ import {
   Globe, Newspaper, Youtube, Facebook, Instagram, Twitter, MapPin,
   Send, Sparkles, Filter, AlertTriangle, CheckCircle2, Target,
   TrendingUp, BarChart3, PieChart, Award, RefreshCw,
-  Users, ChevronDown, ChevronRight,
+  Users, ChevronDown, ChevronRight, FileText, ExternalLink,
 } from 'lucide-react'
 
 const TABS = [
@@ -479,6 +479,67 @@ function MonitoringTab({ onGoToTerritory }: { onGoToTerritory?: () => void }) {
 // TAB 3: DASHBOARD ANALITIK (Fase 4 — Cross-tab + Tren + Zonasi)
 // ============================================================
 function AnalyticsTab({ onGoToTerritory }: { onGoToTerritory?: () => void }) {
+  // === Default sub-tab: 'elektabilitas' (selalu punya data dari Pusat Media) ===
+  // 'survei' kosong sampai ada respon survei essay — bukan default yang ramah user
+  const [subTab, setSubTab] = useState<'survei' | 'elektabilitas' | 'tactical'>('elektabilitas')
+
+  return (
+    <div className="space-y-4">
+      {/* Sub-tab navigation */}
+      <div className="flex gap-2 border-b flex-wrap">
+        <button
+          onClick={() => setSubTab('survei')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            subTab === 'survei' ? 'border-blue-500 text-blue-700' : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <Target className="w-4 h-4 inline mr-1" /> Analitik Survei
+        </button>
+        <button
+          onClick={() => setSubTab('elektabilitas')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            subTab === 'elektabilitas' ? 'border-orange-500 text-orange-700' : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <TrendingUp className="w-4 h-4 inline mr-1" /> Elektabilitas Prabowo
+        </button>
+        <button
+          onClick={() => setSubTab('tactical')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            subTab === 'tactical' ? 'border-red-500 text-red-700' : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <Zap className="w-4 h-4 inline mr-1" /> Tactical Analysis
+        </button>
+      </div>
+
+      {/* Hint banner di sub-tab 'survei': arahkan user ke sub-tab lain yang punya data */}
+      {subTab === 'survei' && (
+        <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs text-blue-800">
+          <strong>💡 Tips:</strong> "Analitik Survei" kosong sampai ada orang isi survei essay (bikin di tab <strong>Survei &amp; Polling</strong>).
+          Sementara itu, lihat data realtime dari berita &amp; medsos di sub-tab lain:
+          <div className="flex gap-2 mt-2">
+            <button onClick={() => setSubTab('elektabilitas')} className="px-2 py-1 rounded bg-orange-100 border border-orange-300 text-orange-700 hover:bg-orange-200">
+              <TrendingUp className="w-3 h-3 inline mr-1" /> Elektabilitas Prabowo
+            </button>
+            <button onClick={() => setSubTab('tactical')} className="px-2 py-1 rounded bg-red-100 border border-red-300 text-red-700 hover:bg-red-200">
+              <Zap className="w-3 h-3 inline mr-1" /> Tactical Analysis
+            </button>
+          </div>
+        </div>
+      )}
+
+      {subTab === 'survei' && <SurveiAnalytics onGoToTerritory={onGoToTerritory} />}
+      {subTab === 'elektabilitas' && <ElektabilitasAnalytics />}
+      {subTab === 'tactical' && <TacticalAnalysis />}
+    </div>
+  )
+}
+
+// ============================================================
+// SURVEI ANALYTICS (analytics survei essay existing)
+// ============================================================
+function SurveiAnalytics({ onGoToTerritory }: { onGoToTerritory?: () => void }) {
   const [analytics, setAnalytics] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
@@ -503,14 +564,12 @@ function AnalyticsTab({ onGoToTerritory }: { onGoToTerritory?: () => void }) {
   }, [loadAnalytics])
 
   if (loading) return <LoadingState />
-  if (!analytics) return <EmptyState icon={Target} title="Belum ada data" description="Data analitik akan muncul setelah ada respon survei." />
+  if (!analytics) return <EmptyState icon={Target} title="Belum ada data" description="Data analitik survei akan muncul setelah ada respon survei essay. Bikin survei di tab 'Survei & Polling' lalu publikasikan." />
 
   const s = analytics.summary
-  const total = s.totalResponses || 1
 
   return (
     <div className="space-y-4">
-      {/* Live Badge */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">
@@ -527,49 +586,36 @@ function AnalyticsTab({ onGoToTerritory }: { onGoToTerritory?: () => void }) {
         </Button>
       </div>
 
-      {/* Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Card><CardContent className="p-3 text-center">
-          <div className="text-2xl font-bold text-slate-800">{s.totalResponses}</div>
+        <Card><CardContent className="p-3">
+          <div className="text-2xl font-bold text-slate-700">{s.totalResponses || 0}</div>
           <div className="text-xs text-muted-foreground">Total Respon</div>
         </CardContent></Card>
-        <Card className="border-emerald-200"><CardContent className="p-3 text-center">
-          <div className="text-2xl font-bold text-emerald-600">{s.positive}</div>
-          <div className="text-xs text-muted-foreground">Positif ({Math.round(s.positive / total * 100)}%)</div>
+        <Card><CardContent className="p-3">
+          <div className="text-2xl font-bold text-emerald-600">{s.positiveCount || 0}</div>
+          <div className="text-xs text-muted-foreground">Positif</div>
         </CardContent></Card>
-        <Card className="border-amber-200"><CardContent className="p-3 text-center">
-          <div className="text-2xl font-bold text-amber-600">{s.neutral}</div>
-          <div className="text-xs text-muted-foreground">Netral ({Math.round(s.neutral / total * 100)}%)</div>
+        <Card><CardContent className="p-3">
+          <div className="text-2xl font-bold text-amber-600">{s.neutralCount || 0}</div>
+          <div className="text-xs text-muted-foreground">Netral</div>
         </CardContent></Card>
-        <Card className="border-red-200"><CardContent className="p-3 text-center">
-          <div className="text-2xl font-bold text-red-600">{s.negative}</div>
-          <div className="text-xs text-muted-foreground">Negatif ({Math.round(s.negative / total * 100)}%)</div>
+        <Card><CardContent className="p-3">
+          <div className="text-2xl font-bold text-red-600">{s.negativeCount || 0}</div>
+          <div className="text-xs text-muted-foreground">Negatif</div>
         </CardContent></Card>
       </div>
 
-      {/* Zonasi Wilayah */}
       <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm flex items-center gap-2"><MapPin className="w-4 h-4 text-orange-600" /> Zonasi Wilayah</CardTitle>
-        </CardHeader>
+        <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><MapPin className="w-4 h-4 text-blue-600" /> Zonasi Wilayah</CardTitle></CardHeader>
         <CardContent>
-          <div className="flex gap-2 mb-3 text-xs">
-            <div className="flex items-center gap-1 px-2 py-1 rounded bg-emerald-50"><span>🟢</span> Basis Aman ({s.greenZones})</div>
-            <div className="flex items-center gap-1 px-2 py-1 rounded bg-amber-50"><span>🟡</span> Medan Tempur ({s.yellowZones})</div>
-            <div className="flex items-center gap-1 px-2 py-1 rounded bg-red-50"><span>🔴</span> Kritis ({s.redZones})</div>
-          </div>
-          {analytics.zonasi.length === 0 ? (
+          {analytics.zonasi?.length === 0 ? (
             <p className="text-xs text-muted-foreground text-center py-4">Belum ada data zonasi. Data muncul setelah ada respon dengan lokasi.</p>
           ) : (
-            <div className="space-y-1.5">
-              {analytics.zonasi.slice(0, 10).map((z: any) => (
-                <div key={z.code} className="flex items-center gap-2 text-xs p-2 rounded border">
-                  <span className="text-lg">{z.zoneIcon}</span>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium truncate">{z.name}</div>
-                    <div className="text-[10px] text-muted-foreground">{z.total} respon • {z.posRate}% positif • {z.negRate}% negatif</div>
-                  </div>
-                  <Badge variant="outline" className={`text-xs bg-${z.zoneColor}-50 text-${z.zoneColor}-700`}>{z.zone}</Badge>
+            <div className="space-y-1">
+              {(analytics.zonasi || []).slice(0, 10).map((z: any, i: number) => (
+                <div key={i} className="flex items-center justify-between p-2 rounded hover:bg-slate-50">
+                  <span className="text-sm font-medium">{z.name || z.province || z.label}</span>
+                  <Badge variant="outline" className="text-xs">{z.count || z.total} respon</Badge>
                 </div>
               ))}
             </div>
@@ -577,60 +623,201 @@ function AnalyticsTab({ onGoToTerritory }: { onGoToTerritory?: () => void }) {
         </CardContent>
       </Card>
 
-      {/* Tren Sentimen Harian */}
       <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm flex items-center gap-2"><TrendingUp className="w-4 h-4 text-blue-600" /> Tren Sentimen Harian (30 Hari)</CardTitle>
-        </CardHeader>
+        <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><TrendingUp className="w-4 h-4 text-orange-600" /> Tren Sentimen Harian</CardTitle></CardHeader>
         <CardContent>
-          {analytics.sentimenTrend.length === 0 ? (
+          {analytics.sentimenTrend?.length === 0 ? (
             <p className="text-xs text-muted-foreground text-center py-4">Belum ada data tren. Data muncul setelah ada respon dalam 30 hari terakhir.</p>
           ) : (
-            <div className="space-y-2">
-              {/* Simple bar chart (CSS-based, no external lib) */}
-              {analytics.sentimenTrend.slice(-15).map((d: any) => {
-                const max = Math.max(d.positive, d.neutral, d.negative, 1)
+            <div className="space-y-1">
+              {(analytics.sentimenTrend || []).slice(-15).map((d: any, i: number) => {
+                const t = (d.positive || 0) + (d.neutral || 0) + (d.negative || 0) || 1
                 return (
-                  <div key={d.date} className="flex items-center gap-2 text-xs">
-                    <span className="w-20 text-muted-foreground">{d.date.slice(5)}</span>
-                    <div className="flex-1 flex gap-0.5 h-4">
-                      <div className="bg-emerald-500 rounded-l h-full transition-all" style={{ width: `${(d.positive / max) * 100}%` }} title={`Positif: ${d.positive}`} />
-                      <div className="bg-amber-500 h-full transition-all" style={{ width: `${(d.neutral / max) * 100}%` }} title={`Netral: ${d.neutral}`} />
-                      <div className="bg-red-500 rounded-r h-full transition-all" style={{ width: `${(d.negative / max) * 100}%` }} title={`Negatif: ${d.negative}`} />
+                  <div key={i} className="text-xs">
+                    <div className="flex justify-between mb-0.5"><span>{d.date}</span><span className="text-muted-foreground">{t}</span></div>
+                    <div className="flex h-2 rounded overflow-hidden">
+                      <div className="bg-emerald-500" style={{ width: `${((d.positive || 0) / t) * 100}%` }} />
+                      <div className="bg-amber-500" style={{ width: `${((d.neutral || 0) / t) * 100}%` }} />
+                      <div className="bg-red-500" style={{ width: `${((d.negative || 0) / t) * 100}%` }} />
                     </div>
-                    <span className="w-8 text-right text-muted-foreground">{d.positive + d.neutral + d.negative}</span>
                   </div>
                 )
               })}
-              <div className="flex gap-3 text-[10px] text-muted-foreground mt-2">
-                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-emerald-500"></span> Positif</span>
-                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-amber-500"></span> Netral</span>
-                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-red-500"></span> Negatif</span>
-              </div>
             </div>
           )}
         </CardContent>
       </Card>
+    </div>
+  )
+}
 
-      {/* Cross-tabulation: Demografi vs Sentimen */}
-      <div className="grid md:grid-cols-3 gap-3">
-        {/* Age Group */}
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><BarChart3 className="w-4 h-4 text-purple-600" /> Usia vs Sentimen</CardTitle></CardHeader>
-          <CardContent>
-            {Object.keys(analytics.crossTab.ageGroup).length === 0 ? (
-              <p className="text-xs text-muted-foreground text-center py-4">Belum ada data</p>
-            ) : (
-              <div className="space-y-1">
-                {Object.entries(analytics.crossTab.ageGroup).map(([age, ct]: any) => {
-                  const t = ct.positive + ct.neutral + ct.negative || 1
+// ============================================================
+// ELEKTABILITAS ANALYTICS (BARU — analisis sentimen + tabel + grafik)
+// ============================================================
+// 100% rule-based, no LLM. Sumber: Pusat Media + Monitoring Berita
+// Output: Elektabilitas Score 0-100 + trend + top wilayah + tabel detail
+// ============================================================
+
+const SENTIMENT_COLORS: Record<string, string> = {
+  POSITIVE: '#10b981', NEUTRAL: '#f59e0b', NEGATIVE: '#ef4444',
+}
+const SENTIMENT_LABELS: Record<string, string> = {
+  POSITIVE: 'Positif', NEUTRAL: 'Netral', NEGATIVE: 'Negatif',
+}
+
+function ElektabilitasAnalytics() {
+  const addToast = useToastStore((s) => s.addToast)
+  const [data, setData] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [period, setPeriod] = useState<string>('30d')
+
+  const loadData = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await api(`/api/elektabilitas?period=${period}`, { keepWrapper: true })
+      if (res?.success) setData(res.data)
+      else addToast(res?.error || 'Gagal memuat analisis elektabilitas', 'error')
+    } catch (e: any) { addToast(e.message, 'error') }
+    finally { setLoading(false) }
+  }, [period, addToast])
+
+  useEffect(() => { loadData() }, [loadData])
+
+  if (loading) return <LoadingState />
+  if (!data) return <EmptyState icon={TrendingUp} title="Belum ada data" description="Data elektabilitas akan muncul setelah ada berita Prabowo di Pusat Media atau Monitoring Berita." />
+
+  const s = data.summary
+  const scoreLabel = s.elektabilitasScore >= 75 ? 'Sangat Positif' :
+                    s.elektabilitasScore >= 60 ? 'Positif' :
+                    s.elektabilitasScore >= 45 ? 'Netral' :
+                    s.elektabilitasScore >= 30 ? 'Negatif' : 'Sangat Negatif'
+  const maxTrend = Math.max(...(data.trend || []).map((t: any) => t.total), 1)
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">Periode:</span>
+          <select value={period} onChange={(e) => setPeriod(e.target.value)} className="h-8 px-2 border rounded text-sm">
+            <option value="7d">7 hari terakhir</option>
+            <option value="30d">30 hari terakhir</option>
+            <option value="90d">90 hari terakhir</option>
+            <option value="180d">180 hari terakhir</option>
+          </select>
+        </div>
+        <Button variant="outline" size="sm" onClick={loadData}>
+          <RefreshCw className="w-4 h-4 mr-1" /> Refresh
+        </Button>
+      </div>
+
+      {/* Hero card */}
+      <Card className="bg-gradient-to-br from-orange-500 via-red-500 to-rose-600 text-white shadow-xl">
+        <CardContent className="p-6">
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div>
+              <div className="text-sm opacity-90 mb-1">Elektabilitas Prabowo</div>
+              <div className="text-6xl font-black">{s.elektabilitasScore}<span className="text-2xl opacity-70">/100</span></div>
+              <div className="text-lg font-semibold mt-1">{scoreLabel}</div>
+            </div>
+            <div className="flex flex-col gap-1 text-sm opacity-90">
+              <div>📊 Total berita: {s.totalItems}</div>
+              <div>✅ Positif: {s.totalPositive}</div>
+              <div>⚪ Netral: {s.totalNeutral}</div>
+              <div>❌ Negatif: {s.totalNegative}</div>
+              <div className="text-xs opacity-70 mt-1 pt-1 border-t border-white/20">
+                Rumus: (Positif - Negatif) / Total × 50 + 50
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Source breakdown */}
+      <div className="grid grid-cols-2 gap-3">
+        <Card className="bg-blue-50 border-blue-200">
+          <CardContent className="p-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-xs text-blue-600">Dari Pusat Media</div>
+                <div className="text-2xl font-bold text-blue-700">{s.sourcePusatMedia}</div>
+              </div>
+              <Globe className="w-8 h-8 text-blue-400" />
+            </div>
+            <div className="text-xs text-muted-foreground mt-1">Kabar Utama &amp; Pengumuman</div>
+          </CardContent>
+        </Card>
+        <Card className="bg-purple-50 border-purple-200">
+          <CardContent className="p-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-xs text-purple-600">Dari Monitoring Berita</div>
+                <div className="text-2xl font-bold text-purple-700">{s.sourceMonitoringBerita}</div>
+              </div>
+              <Sparkles className="w-8 h-8 text-purple-400" />
+            </div>
+            <div className="text-xs text-muted-foreground mt-1">Mention dari medsos &amp; berita</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Tren harian */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-orange-600" /> Tren Sentimen Harian
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {(data.trend || []).length === 0 ? (
+            <p className="text-xs text-muted-foreground text-center py-4">Belum ada data trend untuk periode ini.</p>
+          ) : (
+            <>
+              <div className="flex items-center gap-4 mb-3 text-xs">
+                <div className="flex items-center gap-1"><div className="w-3 h-3 rounded" style={{ background: SENTIMENT_COLORS.POSITIVE }} /> Positif</div>
+                <div className="flex items-center gap-1"><div className="w-3 h-3 rounded" style={{ background: SENTIMENT_COLORS.NEUTRAL }} /> Netral</div>
+                <div className="flex items-center gap-1"><div className="w-3 h-3 rounded" style={{ background: SENTIMENT_COLORS.NEGATIVE }} /> Negatif</div>
+              </div>
+              <div className="flex items-end gap-1 h-40 border-b border-l p-2 bg-slate-50">
+                {(data.trend || []).map((t: any, i: number) => {
+                  const posH = (t.positive / maxTrend) * 100
+                  const neuH = (t.neutral / maxTrend) * 100
+                  const negH = (t.negative / maxTrend) * 100
                   return (
-                    <div key={age} className="text-xs">
-                      <div className="flex justify-between mb-0.5"><span className="font-medium">{age}</span><span className="text-muted-foreground">{t} respon</span></div>
-                      <div className="flex h-2 rounded overflow-hidden">
-                        <div className="bg-emerald-500 h-full" style={{ width: `${(ct.positive / t) * 100}%` }} />
-                        <div className="bg-amber-500 h-full" style={{ width: `${(ct.neutral / t) * 100}%` }} />
-                        <div className="bg-red-500 h-full" style={{ width: `${(ct.negative / t) * 100}%` }} />
+                    <div key={i} className="flex-1 flex flex-col justify-end group relative" title={`${t.date}: ${t.total} berita (${t.positive}+/${t.neutral}0/${t.negative}-)`}>
+                      <div style={{ height: `${negH}%`, background: SENTIMENT_COLORS.NEGATIVE }} className="w-full transition-all hover:opacity-80" />
+                      <div style={{ height: `${neuH}%`, background: SENTIMENT_COLORS.NEUTRAL }} className="w-full transition-all hover:opacity-80" />
+                      <div style={{ height: `${posH}%`, background: SENTIMENT_COLORS.POSITIVE }} className="w-full transition-all hover:opacity-80" />
+                    </div>
+                  )
+                })}
+              </div>
+              <div className="text-xs text-muted-foreground mt-2 text-center">{(data.trend || []).length} hari dengan aktivitas</div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Top wilayah + top sources */}
+      <div className="grid md:grid-cols-2 gap-3">
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><MapPin className="w-4 h-4 text-blue-600" /> Top 10 Wilayah (Provinsi)</CardTitle></CardHeader>
+          <CardContent>
+            {(data.topWilayah || []).length === 0 ? (
+              <p className="text-xs text-muted-foreground text-center py-4">Belum ada data wilayah.</p>
+            ) : (
+              <div className="space-y-1.5">
+                {(data.topWilayah || []).map((w: any, i: number) => {
+                  const total = w.total || 1
+                  return (
+                    <div key={i} className="text-xs">
+                      <div className="flex justify-between mb-0.5">
+                        <span className="font-medium truncate flex-1">{i + 1}. {w.province}</span>
+                        <span className="text-muted-foreground ml-2">{w.total}</span>
+                      </div>
+                      <div className="flex h-3 rounded overflow-hidden bg-slate-100">
+                        <div className="bg-emerald-500" style={{ width: `${(w.positive / total) * 100}%` }} />
+                        <div className="bg-amber-500" style={{ width: `${(w.neutral / total) * 100}%` }} />
+                        <div className="bg-red-500" style={{ width: `${(w.negative / total) * 100}%` }} />
                       </div>
                     </div>
                   )
@@ -639,50 +826,25 @@ function AnalyticsTab({ onGoToTerritory }: { onGoToTerritory?: () => void }) {
             )}
           </CardContent>
         </Card>
-
-        {/* Gender */}
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><PieChart className="w-4 h-4 text-blue-600" /> Gender vs Sentimen</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Newspaper className="w-4 h-4 text-purple-600" /> Top 10 Sumber Berita</CardTitle></CardHeader>
           <CardContent>
-            {Object.keys(analytics.crossTab.gender).length === 0 ? (
-              <p className="text-xs text-muted-foreground text-center py-4">Belum ada data</p>
+            {(data.topSources || []).length === 0 ? (
+              <p className="text-xs text-muted-foreground text-center py-4">Belum ada data sumber.</p>
             ) : (
-              <div className="space-y-1">
-                {Object.entries(analytics.crossTab.gender).map(([gender, ct]: any) => {
-                  const t = ct.positive + ct.neutral + ct.negative || 1
+              <div className="space-y-1.5">
+                {(data.topSources || []).map((src: any, i: number) => {
+                  const total = src.total || 1
                   return (
-                    <div key={gender} className="text-xs">
-                      <div className="flex justify-between mb-0.5"><span className="font-medium">{gender === 'LAKI-LAKI' ? 'Laki-laki' : 'Perempuan'}</span><span className="text-muted-foreground">{t} respon</span></div>
-                      <div className="flex h-2 rounded overflow-hidden">
-                        <div className="bg-emerald-500 h-full" style={{ width: `${(ct.positive / t) * 100}%` }} />
-                        <div className="bg-amber-500 h-full" style={{ width: `${(ct.neutral / t) * 100}%` }} />
-                        <div className="bg-red-500 h-full" style={{ width: `${(ct.negative / t) * 100}%` }} />
+                    <div key={i} className="text-xs">
+                      <div className="flex justify-between mb-0.5">
+                        <span className="font-medium truncate flex-1">{i + 1}. {src.source}</span>
+                        <span className="text-muted-foreground ml-2">{src.total}</span>
                       </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Occupation */}
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Award className="w-4 h-4 text-orange-600" /> Pekerjaan vs Sentimen</CardTitle></CardHeader>
-          <CardContent>
-            {Object.keys(analytics.crossTab.occupation).length === 0 ? (
-              <p className="text-xs text-muted-foreground text-center py-4">Belum ada data</p>
-            ) : (
-              <div className="space-y-1">
-                {Object.entries(analytics.crossTab.occupation).slice(0, 8).map(([occ, ct]: any) => {
-                  const t = ct.positive + ct.neutral + ct.negative || 1
-                  return (
-                    <div key={occ} className="text-xs">
-                      <div className="flex justify-between mb-0.5"><span className="font-medium truncate">{occ}</span><span className="text-muted-foreground">{t}</span></div>
-                      <div className="flex h-2 rounded overflow-hidden">
-                        <div className="bg-emerald-500 h-full" style={{ width: `${(ct.positive / t) * 100}%` }} />
-                        <div className="bg-amber-500 h-full" style={{ width: `${(ct.neutral / t) * 100}%` }} />
-                        <div className="bg-red-500 h-full" style={{ width: `${(ct.negative / t) * 100}%` }} />
+                      <div className="flex h-3 rounded overflow-hidden bg-slate-100">
+                        <div className="bg-emerald-500" style={{ width: `${(src.positive / total) * 100}%` }} />
+                        <div className="bg-amber-500" style={{ width: `${(src.neutral / total) * 100}%` }} />
+                        <div className="bg-red-500" style={{ width: `${(src.negative / total) * 100}%` }} />
                       </div>
                     </div>
                   )
@@ -692,9 +854,390 @@ function AnalyticsTab({ onGoToTerritory }: { onGoToTerritory?: () => void }) {
           </CardContent>
         </Card>
       </div>
+
+      {/* Tabel detail */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <FileText className="w-4 h-4 text-orange-600" /> Tabel Detail — 50 Berita Prabowo Terbaru
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {(data.detail || []).length === 0 ? (
+            <p className="text-xs text-muted-foreground text-center py-4">Belum ada berita Prabowo terkait dalam periode ini.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead className="bg-slate-50 text-slate-600 sticky top-0">
+                  <tr>
+                    <th className="text-left p-2 whitespace-nowrap">Tanggal</th>
+                    <th className="text-left p-2">Judul</th>
+                    <th className="text-left p-2 whitespace-nowrap">Sumber</th>
+                    <th className="text-center p-2 whitespace-nowrap">Sentimen</th>
+                    <th className="text-center p-2 whitespace-nowrap">Engagement</th>
+                    <th className="text-center p-2 whitespace-nowrap">Link</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(data.detail || []).map((item: any, i: number) => (
+                    <tr key={i} className="border-b hover:bg-slate-50">
+                      <td className="p-2 whitespace-nowrap text-muted-foreground">
+                        {item.date ? new Date(item.date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'}
+                      </td>
+                      <td className="p-2 max-w-md">
+                        <div className="font-medium truncate">{item.title}</div>
+                        {item.provinceName && <div className="text-[10px] text-muted-foreground">📍 {item.provinceName}</div>}
+                      </td>
+                      <td className="p-2 whitespace-nowrap">
+                        <Badge variant="outline" className="text-xs">
+                          {item.sourceType === 'PUSAT_MEDIA' ? '📰 Pusat Media' : '🔍 Monitoring'}
+                        </Badge>
+                        <div className="text-[10px] text-muted-foreground mt-0.5">{item.sourceName}</div>
+                      </td>
+                      <td className="p-2 text-center">
+                        <Badge variant="outline" className={`text-xs ${item.sentiment === 'POSITIVE' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : item.sentiment === 'NEGATIVE' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
+                          {SENTIMENT_LABELS[item.sentiment]}
+                        </Badge>
+                      </td>
+                      <td className="p-2 text-center text-muted-foreground">
+                        {item.engagement ? item.engagement.toLocaleString('id-ID') : '-'}
+                      </td>
+                      <td className="p-2 text-center">
+                        {item.url ? (
+                          <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        ) : '-'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs text-blue-800">
+        <strong>Catatan:</strong> Sentimen dihitung berdasarkan keyword matching (positif: 'apresiasi/puji/dukung', negatif: 'kritik/tolak/gagal/korupsi'). Berita dari Pusat Media dianalisis on-the-fly, berita dari Monitoring Berita menggunakan sentiment yang sudah di-analisis sebelumnya. Hanya berita yang mengandung keyword Prabowo yang dihitung. 100% rule-based, no LLM.
+      </div>
     </div>
   )
 }
+
+// ============================================================
+// TACTICAL ANALYSIS (BARU — 3 kemampuan AI taktis)
+// ============================================================
+const OPPORTUNITY_LABELS: Record<string, { label: string; color: string }> = {
+  RISIKO_NEGATIF: { label: '⚠️ Risiko Negatif', color: 'bg-red-100 text-red-700 border-red-200' },
+  AMPLIFIKASI_POSITIF: { label: '✨ Amplifikasi Positif', color: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
+  PELUANG_DAERAH: { label: '📍 Peluang Daerah', color: 'bg-blue-100 text-blue-700 border-blue-200' },
+  GAP_RESPON: { label: '📊 Gap Respon', color: 'bg-amber-100 text-amber-700 border-amber-200' },
+  TREND_NAIK: { label: '🚀 Trend Naik', color: 'bg-purple-100 text-purple-700 border-purple-200' },
+  TREND_TURUN: { label: '📉 Trend Turun', color: 'bg-slate-100 text-slate-700 border-slate-200' },
+}
+
+const ACTION_TYPE_LABELS: Record<string, { label: string; icon: string; color: string }> = {
+  FIELD_VISIT: { label: 'Kunjungan Lapangan', icon: '🚶', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  DIGITAL_ACTION: { label: 'Aksi Digital', icon: '📱', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+  BROADCAST: { label: 'Broadcast WA', icon: '📨', color: 'bg-amber-50 text-amber-700 border-amber-200' },
+  CLARIFICATION: { label: 'Klarifikasi Resmi', icon: '📢', color: 'bg-red-50 text-red-700 border-red-200' },
+  COORDINATE: { label: 'Koordinasi Multi-Wilayah', icon: '🤝', color: 'bg-purple-50 text-purple-700 border-purple-200' },
+  MONITOR: { label: 'Monitor Intensif', icon: '👁️', color: 'bg-slate-50 text-slate-700 border-slate-200' },
+}
+
+const PRIORITY_CONFIG: Record<string, { label: string; color: string }> = {
+  URGENT: { label: 'URGENT', color: 'bg-red-600 text-white' },
+  HIGH: { label: 'HIGH', color: 'bg-orange-500 text-white' },
+  MEDIUM: { label: 'MEDIUM', color: 'bg-amber-500 text-white' },
+  LOW: { label: 'LOW', color: 'bg-slate-400 text-white' },
+}
+
+function TacticalAnalysis() {
+  const addToast = useToastStore((s) => s.addToast)
+  const [data, setData] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [period, setPeriod] = useState<string>('24h')
+  const [expandedCluster, setExpandedCluster] = useState<string | null>(null)
+  const [filterPriority, setFilterPriority] = useState<string>('')
+
+  const loadData = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await api(`/api/tactical-analysis?period=${period}`, { keepWrapper: true })
+      if (res?.success) setData(res.data)
+      else addToast(res?.error || 'Gagal memuat tactical analysis', 'error')
+    } catch (e: any) { addToast(e.message, 'error') }
+    finally { setLoading(false) }
+  }, [period, addToast])
+
+  useEffect(() => { loadData() }, [loadData])
+
+  if (loading) return <LoadingState />
+  if (!data) return <EmptyState icon={Zap} title="Belum ada data" description="Tactical analysis akan muncul setelah ada berita Prabowo di Pusat Media, Monitoring Berita, atau Survei Essay." />
+
+  const s = data.summary
+  const allClusters = data.clusters || []
+  const filteredClusters = filterPriority
+    ? allClusters.filter((c: any) => c.recommendations.some((r: any) => r.priority === filterPriority))
+    : allClusters
+
+  const allRecommendations: any[] = []
+  filteredClusters.forEach((cluster: any) => {
+    cluster.recommendations.forEach((rec: any) => {
+      if (!filterPriority || rec.priority === filterPriority) {
+        allRecommendations.push({ ...rec, clusterTopic: cluster.cluster.topic, clusterScope: cluster.cluster.scope })
+      }
+    })
+  })
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <Card className="bg-gradient-to-br from-red-600 via-orange-600 to-amber-600 text-white shadow-xl">
+        <CardContent className="p-5">
+          <div className="flex items-start justify-between flex-wrap gap-4">
+            <div>
+              <div className="text-sm opacity-90 mb-1">⚡ Tactical Analysis</div>
+              <div className="text-2xl font-bold">{s.totalClusters} Isu Aktif · {s.totalRecommendations} Rekomendasi</div>
+              <div className="text-sm opacity-80 mt-1">
+                {s.totalSources} sumber: 📰 {s.sourcePusatMedia} Pusat Media · 🔍 {s.sourceMonitoringBerita} Monitoring · ✍️ {s.sourceSurveiEssay} Survei Essay
+              </div>
+              {s.savedToDb > 0 && (
+                <div className="text-xs opacity-70 mt-1">💾 {s.savedToDb} rekomendasi HIGH/URGENT disimpan ke DB untuk tracking</div>
+              )}
+            </div>
+            <div className="flex flex-col gap-1 text-sm">
+              {s.urgentCount > 0 && <div className="bg-red-700/40 px-2 py-1 rounded">🔴 URGENT: {s.urgentCount}</div>}
+              {s.highCount > 0 && <div className="bg-orange-500/40 px-2 py-1 rounded">🟠 HIGH: {s.highCount}</div>}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Period + filter */}
+      <div className="flex flex-wrap gap-2 items-center">
+        <span className="text-xs text-muted-foreground">Periode:</span>
+        <select value={period} onChange={(e) => setPeriod(e.target.value)} className="h-8 px-2 border rounded text-sm">
+          <option value="6h">6 jam terakhir</option>
+          <option value="24h">24 jam terakhir</option>
+          <option value="72h">3 hari terakhir</option>
+          <option value="7d">7 hari terakhir</option>
+          <option value="30d">30 hari terakhir</option>
+        </select>
+        <span className="text-xs text-muted-foreground ml-2">Filter priority:</span>
+        <select value={filterPriority} onChange={(e) => setFilterPriority(e.target.value)} className="h-8 px-2 border rounded text-sm">
+          <option value="">Semua</option>
+          <option value="URGENT">URGENT saja</option>
+          <option value="HIGH">HIGH saja</option>
+          <option value="MEDIUM">MEDIUM saja</option>
+          <option value="LOW">LOW saja</option>
+        </select>
+        <Button variant="outline" size="sm" onClick={loadData} className="ml-auto">
+          <RefreshCw className="w-4 h-4 mr-1" /> Refresh
+        </Button>
+      </div>
+
+      {/* 3 Kemampuan AI Banner */}
+      <div className="grid md:grid-cols-3 gap-2">
+        <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs">
+          <div className="font-semibold text-blue-700 mb-1">1️⃣ Scan Isu Hangat</div>
+          <div className="text-blue-600">Deteksi {s.totalSources} berita/mention Prabowo dari 3 sumber, cluster otomatis berdasarkan topik.</div>
+        </div>
+        <div className="rounded-lg bg-purple-50 border border-purple-200 p-3 text-xs">
+          <div className="font-semibold text-purple-700 mb-1">2️⃣ Deteksi Peluang Politik</div>
+          <div className="text-purple-600">Analisis 5 type: Risiko Negatif, Amplifikasi Positif, Peluang Daerah, Gap Respon, Trend Naik.</div>
+        </div>
+        <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-xs">
+          <div className="font-semibold text-emerald-700 mb-1">3️⃣ Rekomendasi Taktis</div>
+          <div className="text-emerald-600">{s.totalRecommendations} aksi konkret: Lapangan, Digital, Broadcast, Klarifikasi, Koordinasi.</div>
+        </div>
+      </div>
+
+      {/* List cluster isu */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Brain className="w-4 h-4 text-red-600" /> Isu Hangat Terdeteksi ({filteredClusters.length} cluster)
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {filteredClusters.length === 0 ? (
+            <EmptyState icon={Brain} title="Belum ada isu terdeteksi" description="Coba periode lebih lama atau refresh setelah sync medsos." />
+          ) : (
+            filteredClusters.slice(0, 15).map((cluster: any, i: number) => {
+              const c = cluster.cluster
+              const opp = cluster.opportunity
+              const recs = cluster.recommendations
+              const oppLabel = opp ? OPPORTUNITY_LABELS[opp.type] : null
+              const isExpanded = expandedCluster === c.id
+
+              return (
+                <div key={c.id} className={`border-l-4 ${opp?.type === 'RISIKO_NEGATIF' ? 'border-l-red-500' : opp?.type === 'AMPLIFIKASI_POSITIF' ? 'border-l-emerald-500' : opp?.type === 'PELUANG_DAERAH' ? 'border-l-blue-500' : opp?.type === 'TREND_NAIK' ? 'border-l-purple-500' : 'border-l-slate-400'} rounded bg-white`}>
+                  <button
+                    type="button"
+                    onClick={() => setExpandedCluster(isExpanded ? null : c.id)}
+                    className="w-full text-left p-3 hover:bg-slate-50 transition-colors"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <span className="text-sm font-semibold">{i + 1}. {c.topic}</span>
+                          {oppLabel && <Badge variant="outline" className={`text-xs ${oppLabel.color}`}>{oppLabel.label}</Badge>}
+                          <Badge variant="outline" className="text-xs">{c.scope === 'NATIONAL' ? '🌐 Nasional' : c.scope === 'PROVINCIAL' ? `📍 ${c.provinceName || 'Provinsi'}` : c.scope === 'REGENCY' ? '🏙️ Kab/Kota' : '❓ Unknown'}</Badge>
+                        </div>
+                        <div className="text-xs text-muted-foreground flex items-center gap-3 flex-wrap">
+                          <span>📰 {c.itemCount} berita</span>
+                          {c.totalEngagement > 0 && <span>🔥 {c.totalEngagement.toLocaleString('id-ID')} engagement</span>}
+                          <span>✅ {c.sentimentBreakdown.positive} positif</span>
+                          <span>⚪ {c.sentimentBreakdown.neutral} netral</span>
+                          <span>❌ {c.sentimentBreakdown.negative} negatif</span>
+                        </div>
+                        {opp && <div className="text-xs text-amber-700 mt-1">💡 {opp.description}</div>}
+                      </div>
+                      <div className="flex flex-col items-end gap-1 shrink-0">
+                        <div className="flex gap-1">
+                          {recs.filter((r: any) => r.priority === 'URGENT').length > 0 && <div className="bg-red-600 text-white text-[10px] px-1.5 py-0.5 rounded">{recs.filter((r: any) => r.priority === 'URGENT').length} URGENT</div>}
+                          {recs.filter((r: any) => r.priority === 'HIGH').length > 0 && <div className="bg-orange-500 text-white text-[10px] px-1.5 py-0.5 rounded">{recs.filter((r: any) => r.priority === 'HIGH').length} HIGH</div>}
+                        </div>
+                        {isExpanded ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
+                      </div>
+                    </div>
+                  </button>
+
+                  {isExpanded && (
+                    <div className="p-3 pt-0 space-y-3 border-t border-slate-100">
+                      <div>
+                        <div className="text-xs font-semibold text-muted-foreground mb-1">Contoh berita dalam cluster ini:</div>
+                        <ul className="text-xs space-y-0.5 list-disc pl-5">
+                          {c.sampleTitles.map((t: string, idx: number) => (
+                            <li key={idx} className="text-slate-700 line-clamp-1">{t}</li>
+                          ))}
+                        </ul>
+                      </div>
+                      <div>
+                        <div className="text-xs font-semibold text-muted-foreground mb-2">🎯 Rekomendasi Aksi Taktis ({recs.length}):</div>
+                        <div className="space-y-2">
+                          {recs.map((rec: any, idx: number) => {
+                            const actionConf = ACTION_TYPE_LABELS[rec.actionType] || ACTION_TYPE_LABELS.MONITOR
+                            const priorityConf = PRIORITY_CONFIG[rec.priority] || PRIORITY_CONFIG.LOW
+                            return (
+                              <div key={rec.id || idx} className="border rounded-lg p-3 bg-white">
+                                <div className="flex items-start justify-between gap-2 mb-2">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <Badge variant="outline" className={`text-xs ${actionConf.color}`}>
+                                      {actionConf.icon} {actionConf.label}
+                                    </Badge>
+                                    <Badge variant="outline" className={`text-xs ${priorityConf.color}`}>{priorityConf.label}</Badge>
+                                  </div>
+                                </div>
+                                <div className="font-semibold text-sm mb-1">{rec.title}</div>
+                                <div className="text-xs text-muted-foreground mb-2">{rec.description}</div>
+                                <div className="grid grid-cols-3 gap-2 text-xs">
+                                  <div>
+                                    <div className="font-medium text-slate-700">📢 Channel:</div>
+                                    <div className="text-muted-foreground">{rec.suggestedChannels.join(', ')}</div>
+                                  </div>
+                                  <div>
+                                    <div className="font-medium text-slate-700">👥 Audience:</div>
+                                    <div className="text-muted-foreground">{rec.suggestedAudience}</div>
+                                  </div>
+                                  <div>
+                                    <div className="font-medium text-slate-700">📈 Dampak:</div>
+                                    <div className="text-muted-foreground">{rec.expectedImpact}</div>
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Matriks rekomendasi */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Target className="w-4 h-4 text-orange-600" /> Matriks Rekomendasi Aksi Taktis ({allRecommendations.length})
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {allRecommendations.length === 0 ? (
+            <p className="text-xs text-muted-foreground text-center py-4">Belum ada rekomendasi terfilter.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead className="bg-slate-50 text-slate-600 sticky top-0">
+                  <tr>
+                    <th className="text-left p-2">Priority</th>
+                    <th className="text-left p-2">Tipe Aksi</th>
+                    <th className="text-left p-2">Isu</th>
+                    <th className="text-left p-2">Rekomendasi</th>
+                    <th className="text-left p-2">Audience</th>
+                    <th className="text-left p-2">Dampak</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allRecommendations
+                    .sort((a, b) => {
+                      const order: any = { URGENT: 0, HIGH: 1, MEDIUM: 2, LOW: 3 }
+                      return (order[a.priority] || 4) - (order[b.priority] || 4)
+                    })
+                    .map((rec: any, i: number) => {
+                      const actionConf = ACTION_TYPE_LABELS[rec.actionType] || ACTION_TYPE_LABELS.MONITOR
+                      const priorityConf = PRIORITY_CONFIG[rec.priority] || PRIORITY_CONFIG.LOW
+                      return (
+                        <tr key={rec.id || i} className="border-b hover:bg-slate-50">
+                          <td className="p-2">
+                            <Badge variant="outline" className={`text-xs ${priorityConf.color}`}>{priorityConf.label}</Badge>
+                          </td>
+                          <td className="p-2 whitespace-nowrap">
+                            <Badge variant="outline" className={`text-xs ${actionConf.color}`}>
+                              {actionConf.icon} {actionConf.label}
+                            </Badge>
+                          </td>
+                          <td className="p-2 max-w-xs">
+                            <div className="font-medium truncate">{rec.clusterTopic}</div>
+                            <div className="text-[10px] text-muted-foreground">{rec.clusterScope}</div>
+                          </td>
+                          <td className="p-2 max-w-md">
+                            <div className="font-medium">{rec.title}</div>
+                            <div className="text-[10px] text-muted-foreground line-clamp-2">{rec.description}</div>
+                          </td>
+                          <td className="p-2 max-w-xs text-muted-foreground">{rec.suggestedAudience}</td>
+                          <td className="p-2 max-w-xs text-muted-foreground">{rec.expectedImpact}</td>
+                        </tr>
+                      )
+                    })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs text-blue-800">
+        <strong>3 Kemampuan AI Taktis (rule-based, 100% gratis):</strong>
+        <ol className="list-decimal ml-4 mt-1 space-y-0.5">
+          <li><strong>Scan Isu Hangat</strong> — Cluster otomatis dari 3 sumber: Pusat Media, Monitoring Berita, Survei Essay.</li>
+          <li><strong>Deteksi Peluang Politik</strong> — 5 type: Risiko Negatif, Amplifikasi Positif, Peluang Daerah, Gap Respon, Trend Naik.</li>
+          <li><strong>Rekomendasi Aksi Taktis</strong> — 6 jenis aksi konkret: 🚶 Kunjungan Lapangan, 📱 Aksi Digital, 📨 Broadcast WA, 📢 Klarifikasi Resmi, 🤝 Koordinasi Multi-Wilayah, 👁️ Monitor Intensif.</li>
+        </ol>
+        <div className="mt-2 pt-2 border-t border-blue-200">
+          💡 Rekomendasi HIGH/URGENT otomatis disimpan ke DB AIRecommendation untuk tracking. 100% rule-based — no LLM, no API berbayar, Vercel Free compatible.
+        </div>
+      </div>
+    </div>
+  )
+}
+
 
 // ============================================================
 // TAB 4: KELOLA WILAYAH (Fase 5 — Struktur Hierarki)
