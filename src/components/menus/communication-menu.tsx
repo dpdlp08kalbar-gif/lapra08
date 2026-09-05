@@ -670,6 +670,11 @@ function ElektabilitasAnalytics() {
   const [data, setData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [period, setPeriod] = useState<string>('30d')
+  // === Google Scan state (BARU) ===
+  const [googleScanning, setGoogleScanning] = useState(false)
+  const [googleScanResult, setGoogleScanResult] = useState<any>(null)
+  const [googleScanOpen, setGoogleScanOpen] = useState(false)
+  const [customQuery, setCustomQuery] = useState('')
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -682,6 +687,31 @@ function ElektabilitasAnalytics() {
   }, [period, addToast])
 
   useEffect(() => { loadData() }, [loadData])
+
+  // === Handler: Scan Google News (BARU) ===
+  const handleGoogleScan = async (query?: string) => {
+    setGoogleScanning(true)
+    setGoogleScanResult(null)
+    try {
+      const res = await api('/api/google-scan', {
+        method: 'POST',
+        body: JSON.stringify({
+          query: query || undefined, // kosong = pakai default 31 keyword LAPRA + elektabilitas
+          maxResults: 8,
+          saveToPusatMedia: true, // simpan hasil ke Pusat Media
+          period,
+        }),
+        keepWrapper: true,
+      })
+      if (res?.success) {
+        setGoogleScanResult(res.data)
+        setGoogleScanOpen(true)
+        addToast(res.message || `Google Scan selesai: ${res.data?.summary?.totalItems || 0} berita`, 'success')
+        loadData() // refresh elektabilitas dengan data baru dari Pusat Media
+      } else addToast(res?.error || 'Gagal scan Google', 'error')
+    } catch (e: any) { addToast(e.message, 'error') }
+    finally { setGoogleScanning(false) }
+  }
 
   if (loading) return <LoadingState />
   if (!data) return <EmptyState icon={TrendingUp} title="Belum ada data" description="Data elektabilitas akan muncul setelah ada berita Prabowo di Pusat Media atau Monitoring Berita." />
@@ -705,9 +735,22 @@ function ElektabilitasAnalytics() {
             <option value="180d">180 hari terakhir</option>
           </select>
         </div>
-        <Button variant="outline" size="sm" onClick={loadData}>
-          <RefreshCw className="w-4 h-4 mr-1" /> Refresh
-        </Button>
+        <div className="flex gap-2">
+          {/* === TOMBOL SCAN GOOGLE (BARU) === */}
+          <Button onClick={() => handleGoogleScan()} disabled={googleScanning}
+            className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white">
+            {googleScanning ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Globe className="w-4 h-4 mr-1" />}
+            {googleScanning ? 'Scanning Google...' : '🔍 Scan Google'}
+          </Button>
+          <Button variant="outline" size="sm" onClick={loadData}>
+            <RefreshCw className="w-4 h-4 mr-1" /> Refresh
+          </Button>
+        </div>
+      </div>
+
+      {/* === Info banner Google Scan === */}
+      <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs text-blue-800">
+        <strong>🌐 Google News Scanner aktif (100% gratis):</strong> Scan Google News RSS dengan 31 keyword (12 LAPRA 08 + 19 elektabilitas Prabowo). Hasil otomatis disimpan ke Pusat Media &amp; dianalisis untuk Elektabilitas Score. Klik tombol <strong>"🔍 Scan Google"</strong> untuk mulai.
       </div>
 
       {/* Hero card */}
@@ -921,6 +964,124 @@ function ElektabilitasAnalytics() {
       <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs text-blue-800">
         <strong>Catatan:</strong> Sentimen dihitung berdasarkan keyword matching (positif: 'apresiasi/puji/dukung', negatif: 'kritik/tolak/gagal/korupsi'). Berita dari Pusat Media dianalisis on-the-fly, berita dari Monitoring Berita menggunakan sentiment yang sudah di-analisis sebelumnya. Hanya berita yang mengandung keyword Prabowo yang dihitung. 100% rule-based, no LLM.
       </div>
+
+      {/* === DIALOG HASIL GOOGLE SCAN (BARU) === */}
+      <Dialog open={googleScanOpen} onOpenChange={setGoogleScanOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Globe className="w-5 h-5 text-blue-600" /> Hasil Google News Scan
+            </DialogTitle>
+            <DialogDescription>Hasil scan Google News RSS dengan keyword LAPRA 08 + elektabilitas Prabowo</DialogDescription>
+          </DialogHeader>
+
+          {googleScanResult && (
+            <div className="space-y-3 text-sm">
+              {/* Summary */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                <div className="rounded-lg bg-blue-50 border border-blue-200 p-2">
+                  <div className="text-lg font-bold text-blue-700">{googleScanResult.summary.totalItems}</div>
+                  <div className="text-blue-600">Total Berita</div>
+                </div>
+                <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-2">
+                  <div className="text-lg font-bold text-emerald-700">{googleScanResult.summary.queriesScanned}/{googleScanResult.summary.totalQueries}</div>
+                  <div className="text-emerald-600">Query Berhasil</div>
+                </div>
+                <div className="rounded-lg bg-purple-50 border border-purple-200 p-2">
+                  <div className="text-lg font-bold text-purple-700">{googleScanResult.summary.elektabilitasScore}</div>
+                  <div className="text-purple-600">Elektabilitas Score</div>
+                </div>
+                <div className="rounded-lg bg-amber-50 border border-amber-200 p-2">
+                  <div className="text-lg font-bold text-amber-700">{googleScanResult.summary.savedToPusatMedia}</div>
+                  <div className="text-amber-600">Simpan ke Pusat Media</div>
+                </div>
+              </div>
+
+              {/* Sentiment breakdown */}
+              <div className="rounded-lg bg-slate-50 border p-3">
+                <div className="text-xs font-semibold text-slate-700 mb-1">📊 Sentiment Breakdown</div>
+                <div className="flex gap-3 text-xs">
+                  <div className="text-emerald-600">✅ Positif: {googleScanResult.summary.totalPositive}</div>
+                  <div className="text-amber-600">⚪ Netral: {googleScanResult.summary.totalNeutral}</div>
+                  <div className="text-red-600">❌ Negatif: {googleScanResult.summary.totalNegative}</div>
+                </div>
+              </div>
+
+              {/* Cluster by topic */}
+              {googleScanResult.clusters?.length > 0 && (
+                <div>
+                  <div className="text-xs font-semibold text-slate-700 mb-2">🗂️ Cluster Berita per Topik:</div>
+                  <div className="space-y-1.5 max-h-60 overflow-y-auto">
+                    {googleScanResult.clusters.slice(0, 10).map((c: any, i: number) => (
+                      <div key={i} className="text-xs border rounded p-2 bg-white">
+                        <div className="flex justify-between mb-1">
+                          <span className="font-medium">{c.topic}</span>
+                          <Badge variant="outline" className="text-xs">{c.total} berita</Badge>
+                        </div>
+                        <div className="flex h-2 rounded overflow-hidden bg-slate-100">
+                          <div className="bg-emerald-500" style={{ width: `${(c.positive / Math.max(c.total, 1)) * 100}%` }} />
+                          <div className="bg-amber-500" style={{ width: `${(c.neutral / Math.max(c.total, 1)) * 100}%` }} />
+                          <div className="bg-red-500" style={{ width: `${(c.negative / Math.max(c.total, 1)) * 100}%` }} />
+                        </div>
+                        <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
+                          <span>✅ {c.positive}</span>
+                          <span>⚪ {c.neutral}</span>
+                          <span>❌ {c.negative}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Preview 10 berita terbaru */}
+              {googleScanResult.items?.length > 0 && (
+                <div>
+                  <div className="text-xs font-semibold text-slate-700 mb-2">📰 Preview 10 Berita Terbaru dari Google:</div>
+                  <div className="space-y-1 max-h-60 overflow-y-auto">
+                    {googleScanResult.items.slice(0, 10).map((item: any, i: number) => (
+                      <div key={i} className="text-xs border rounded p-2 bg-white">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium line-clamp-2">{item.title}</div>
+                            <div className="text-[10px] text-muted-foreground mt-0.5">
+                              {item.source} • {new Date(item.date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })}
+                            </div>
+                          </div>
+                          <Badge variant="outline" className={`text-[10px] shrink-0 ${item.sentiment === 'POSITIVE' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : item.sentiment === 'NEGATIVE' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
+                            {SENTIMENT_LABELS[item.sentiment]}
+                          </Badge>
+                        </div>
+                        {item.url && (
+                          <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-[10px] text-blue-600 hover:underline mt-1 inline-block">
+                            <ExternalLink className="w-2.5 h-2.5 inline mr-0.5" /> Buka di Google News
+                          </a>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Sources & errors */}
+              {googleScanResult.summary.sources?.length > 0 && (
+                <div className="text-xs text-muted-foreground">
+                  <strong>Sumber:</strong> {googleScanResult.summary.sources.join(' | ')}
+                </div>
+              )}
+              {googleScanResult.summary.skipped?.length > 0 && (
+                <div className="text-xs text-amber-700">
+                  <strong>Query gagal:</strong> {googleScanResult.summary.skipped.length} query (network/timeout)
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setGoogleScanOpen(false)}>Tutup</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
