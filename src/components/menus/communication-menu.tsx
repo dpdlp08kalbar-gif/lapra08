@@ -676,7 +676,6 @@ function ElektabilitasAnalytics() {
   const [googleScanOpen, setGoogleScanOpen] = useState(false)
   const [customQuery, setCustomQuery] = useState('')
   // === Media filter state (BARU — per user request 2026-09-05) ===
-  // Set default: ALL media (jika kosong = semua media). User bisa toggle per group.
   const [mediaFilterGroups, setMediaFilterGroups] = useState<{
     nasional: boolean
     kalbar: boolean
@@ -684,6 +683,11 @@ function ElektabilitasAnalytics() {
     internasional: boolean
     allMedia: boolean
   }>({ nasional: false, kalbar: false, siaranPers: false, internasional: false, allMedia: true })
+  // === WA Notifications state (BARU — per user request 2026-09-05) ===
+  const [waNotifData, setWaNotifData] = useState<any>(null)
+  const [waNotifOpen, setWaNotifOpen] = useState(false)
+  // === Print report state (BARU) ===
+  const [printMode, setPrintMode] = useState(false)
   // Compute mediaFilter array dari group toggles
   const computeMediaFilter = (): string[] => {
     if (mediaFilterGroups.allMedia) return [] // kosong = semua media
@@ -741,9 +745,48 @@ function ElektabilitasAnalytics() {
       if (group === 'allMedia') {
         return { nasional: false, kalbar: false, siaranPers: false, internasional: false, allMedia: true }
       }
-      // Toggle group tertentu → set allMedia=false (karena user pilih spesifik)
       return { ...prev, [group]: !prev[group], allMedia: false }
     })
+  }
+
+  // === Handler: load WA notifikasi (BARU) ===
+  const loadWaNotif = useCallback(async () => {
+    try {
+      const res = await api('/api/wa-notifications', { keepWrapper: true })
+      if (res?.success) setWaNotifData(res.data)
+    } catch (e: any) { console.error('[WA Notif] load error:', e) }
+  }, [])
+
+  // Load WA notif saat mount + setiap 60s
+  useEffect(() => {
+    loadWaNotif()
+    const interval = setInterval(loadWaNotif, 60000)
+    return () => clearInterval(interval)
+  }, [loadWaNotif])
+
+  // === Handler: kirim WA ke admin DPN (BARU — buka wa.me link) ===
+  const handleSendWa = async (notif: any, phone: string) => {
+    if (!phone) { addToast('Nomor WhatsApp tidak tersedia', 'error'); return }
+    // Format nomor: hapus 0 di depan, ganti 62, hapus + dan spasi
+    const cleanPhone = phone.replace(/[^0-9]/g, '').replace(/^0/, '62').replace(/^\+/, '')
+    // Buat wa.me link dengan pesan
+    const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(notif.message || notif.title)}`
+    window.open(waUrl, '_blank')
+    // Mark as sent
+    try {
+      await api(`/api/wa-notifications?id=${notif.id}`, { method: 'PATCH', keepWrapper: true })
+      addToast('Notifikasi ditandai terkirim', 'success')
+      loadWaNotif()
+    } catch (e: any) { addToast(e.message, 'error') }
+  }
+
+  // === Handler: cetak laporan PDF (BARU — window.print di layout print-friendly) ===
+  const handlePrintReport = () => {
+    setPrintMode(true)
+    setTimeout(() => {
+      window.print()
+      setTimeout(() => setPrintMode(false), 500)
+    }, 200)
   }
 
   if (loading) return <LoadingState />
@@ -768,12 +811,27 @@ function ElektabilitasAnalytics() {
             <option value="180d">180 hari terakhir</option>
           </select>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           {/* === TOMBOL SCAN GOOGLE (BARU) === */}
           <Button onClick={() => handleGoogleScan()} disabled={googleScanning}
             className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white">
             {googleScanning ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Globe className="w-4 h-4 mr-1" />}
-            {googleScanning ? 'Scanning Google...' : '🔍 Scan Google'}
+            {googleScanning ? 'Scanning...' : '🔍 Scan Google'}
+          </Button>
+          {/* === TOMBOL NOTIFIKASI WA (BARU) — badge counter === */}
+          <Button onClick={() => { setWaNotifOpen(true); loadWaNotif() }} variant="outline"
+            className="border-emerald-400 text-emerald-700 hover:bg-emerald-50 relative">
+            <Send className="w-4 h-4 mr-1" /> Notifikasi WA
+            {waNotifData?.totalPending > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 min-w-[18px] text-center">
+                {waNotifData.totalPending}
+              </span>
+            )}
+          </Button>
+          {/* === TOMBOL CETAK LAPORAN PDF (BARU) === */}
+          <Button onClick={handlePrintReport} variant="outline"
+            className="border-purple-400 text-purple-700 hover:bg-purple-50">
+            <FileText className="w-4 h-4 mr-1" /> Cetak Laporan PDF
           </Button>
           <Button variant="outline" size="sm" onClick={loadData}>
             <RefreshCw className="w-4 h-4 mr-1" /> Refresh
@@ -1076,6 +1134,81 @@ function ElektabilitasAnalytics() {
       <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs text-blue-800">
         <strong>Catatan:</strong> Sentimen dihitung berdasarkan keyword matching (positif: 'apresiasi/puji/dukung', negatif: 'kritik/tolak/gagal/korupsi'). Berita dari Pusat Media dianalisis on-the-fly, berita dari Monitoring Berita menggunakan sentiment yang sudah di-analisis sebelumnya. Hanya berita yang mengandung keyword Prabowo yang dihitung. 100% rule-based, no LLM.
       </div>
+
+      {/* === DIALOG NOTIFIKASI WA (BARU — per user request 2026-09-05) === */}
+      <Dialog open={waNotifOpen} onOpenChange={setWaNotifOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Send className="w-5 h-5 text-emerald-600" /> Notifikasi WA Admin DPN
+              {waNotifData?.totalPending > 0 && (
+                <Badge className="bg-red-100 text-red-700 border-red-200">{waNotifData.totalPending} pending</Badge>
+              )}
+            </DialogTitle>
+            <DialogDescription>
+              Notifikasi URGENT/HIGH dari auto-scan Google. Klik "Buka WhatsApp" untuk kirim manual via wa.me (100% gratis, no API berbayar).
+            </DialogDescription>
+          </DialogHeader>
+
+          {waNotifData?.queue?.length === 0 ? (
+            <EmptyState icon={Send} title="Tidak ada notifikasi" description="Notifikasi URGENT/HIGH akan muncul otomatis setiap kali auto-scan Google (06:00 & 18:00 WIB) menemukan elektabilitas negatif atau cluster berisiko." />
+          ) : (
+            <div className="space-y-2">
+              {(waNotifData?.queue || []).slice(0, 20).map((notif: any) => (
+                <Card key={notif.id} className={`border-l-4 ${notif.type === 'URGENT' ? 'border-l-red-500' : 'border-l-orange-500'}`}>
+                  <CardContent className="p-3 space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Badge variant="outline" className={`text-xs ${notif.type === 'URGENT' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-orange-50 text-orange-700 border-orange-200'}`}>
+                            {notif.type === 'URGENT' ? '🔴 URGENT' : '🟠 HIGH'}
+                          </Badge>
+                          {notif.sentAt ? (
+                            <Badge variant="outline" className="text-xs bg-emerald-50 text-emerald-700 border-emerald-200">✓ Terkirim</Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200">⏳ Pending</Badge>
+                          )}
+                          {notif.elektabilitasScore != null && (
+                            <Badge variant="outline" className="text-xs">Score: {notif.elektabilitasScore}/100</Badge>
+                          )}
+                        </div>
+                        <div className="text-sm font-medium mb-1">{notif.title}</div>
+                        <div className="text-xs text-muted-foreground whitespace-pre-line">{notif.message}</div>
+                        <div className="text-[10px] text-muted-foreground mt-1">
+                          {new Date(notif.createdAt).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })}
+                          {notif.sentBy && ` • dikirim oleh ${notif.sentBy}`}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Tombol WA per admin DPN */}
+                    {waNotifData?.adminDpn?.length > 0 && !notif.sentAt ? (
+                      <div className="flex gap-1 flex-wrap pt-2 border-t">
+                        <span className="text-xs text-muted-foreground mr-1">Kirim ke:</span>
+                        {waNotifData.adminDpn.map((admin: any, i: number) => (
+                          <Button
+                            key={i}
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs bg-emerald-50 border-emerald-300 text-emerald-700 hover:bg-emerald-100"
+                            onClick={() => handleSendWa(notif, admin.phone)}
+                          >
+                            <Send className="w-3 h-3 mr-1" /> {admin.name}
+                          </Button>
+                        ))}
+                      </div>
+                    ) : null}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setWaNotifOpen(false)}>Tutup</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* === DIALOG HASIL GOOGLE SCAN (BARU) === */}
       <Dialog open={googleScanOpen} onOpenChange={setGoogleScanOpen}>

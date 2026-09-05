@@ -291,6 +291,7 @@ export async function POST(request: NextRequest) {
     const totalPositive = allItems.filter(i => i.sentiment === 'POSITIVE').length
     const totalNegative = allItems.filter(i => i.sentiment === 'NEGATIVE').length
     const totalItems = allItems.length
+    const totalNeutral = totalItems - totalPositive - totalNegative
     const elektabilitasScore = totalItems > 0
       ? Math.round(((totalPositive - totalNegative) / totalItems) * 50 + 50)
       : 50
@@ -312,6 +313,110 @@ export async function POST(request: NextRequest) {
       request, detail: `Filter: ${mediaFilter.length} media, saved: ${savedToPusatMedia}, duplikat: ${savedDuplicate}`,
     })
 
+    // === Enqueue notifikasi WA ke admin DPN jika ada hasil URGENT/HIGH (cron only) ===
+    // Aturan:
+    // - Elektabilitas score < 50 (NEGATIF) → URGENT notif
+    // - Ada cluster dengan sentimen negatif dominan → HIGH notif per cluster
+    // - Ada cluster dengan engagement > 1000 → HIGH notif per cluster
+    let waNotifEnqueued = 0
+    if (triggeredBy === 'cron' && totalItems > 0) {
+      const waQueueKey = 'wa_notifications_queue'
+
+      // Get existing queue
+      let waQueue: any[] = []
+      try {
+        const existing = await db.systemSetting.findUnique({ where: { key: waQueueKey } })
+        if (existing) waQueue = JSON.parse(existing.value)
+      } catch (e) { /* ignore */ }
+
+      const scanDate = new Date().toISOString()
+
+      // Case 1: Elektabilitas Score NEGATIF (< 45) → URGENT
+      if (elektabilitasScore < 45) {
+        const message = `⚠️ *AUTO-SCAN GOOGLE - PERHATIAN URGENT*
+
+Elektabilitas Prabowo saat ini: *${elektabilitasScore}/100* (NEGATIF)
+
+📊 Statistik scan ${scanDate}:
+• Total berita: ${totalItems}
+• Positif: ${totalPositive} | Netral: ${totalNeutral} | Negatif: ${totalNegative}
+• Saved ke Pusat Media: ${savedToPusatMedia}
+
+🔍 Top cluster (perlu klarifikasi):
+${clusters.slice(0, 3).map((c: any, i: number) =>
+  `${i + 1}. ${c.topic} (${c.total} berita, ${c.negative} negatif)`
+).join('\n')}
+
+⚠️ Tindakan: Buka Dashboard Analitik > Elektabilitas Prabowo untuk analisis lengkap.
+
+— LAPRA 08 Sistem Auto-Scan`
+
+        waQueue.unshift({
+          id: `wa_notif_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+          type: 'URGENT',
+          title: `Elektabilitas NEGATIF (${elektabilitasScore}/100) — perlu klarifikasi`,
+          message,
+          scanDate,
+          elektabilitasScore,
+          recommendations: clusters.slice(0, 3).map((c: any) => ({
+            topic: c.topic,
+            itemCount: c.total,
+            negativeCount: c.negative,
+          })),
+          createdAt: scanDate,
+          sentAt: null, sentBy: null,
+        })
+        waNotifEnqueued++
+      }
+
+      // Case 2: Cluster dengan negatif dominan (>= 3 berita negatif) → HIGH per cluster
+      const urgentClusters = clusters.filter((c: any) => c.negative >= 3 || c.totalEngagement > 1000)
+      for (const c of urgentClusters.slice(0, 3)) {
+        const message = `🔔 *AUTO-SCAN GOOGLE - ${c.negative >= 3 ? 'RISIKO NEGATIF' : 'TREND TINGGI'}*
+
+Topik: *${c.topic}*
+📊 Statistik cluster:
+• ${c.total} berita (positif: ${c.positive}, netral: ${c.neutral}, negatif: ${c.negative})
+• Engagement: ${c.totalEngagement.toLocaleString('id-ID')}
+
+🔍 Sample berita:
+${c.items?.slice(0, 2).map((it: any) => `• ${it.title}`).join('\n') || '-'}
+
+💡 Rekomendasi: Cek Dashboard > Tactical Analysis untuk rekomendasi aksi taktis.
+
+— LAPRA 08 Sistem Auto-Scan`
+
+        waQueue.unshift({
+          id: `wa_notif_${Date.now()}_${waNotifEnqueued}_${Math.random().toString(36).substring(2, 8)}`,
+          type: 'HIGH',
+          title: `Cluster "${c.topic}" — ${c.negative >= 3 ? `${c.negative} berita negatif` : `trend ${c.totalEngagement} engagement`}`,
+          message,
+          scanDate,
+          elektabilitasScore,
+          recommendations: [{
+            topic: c.topic,
+            itemCount: c.total,
+            negativeCount: c.negative,
+            totalEngagement: c.totalEngagement,
+          }],
+          createdAt: scanDate,
+          sentAt: null, sentBy: null,
+        })
+        waNotifEnqueued++
+      }
+
+      // Save queue (max 100)
+      if (waNotifEnqueued > 0) {
+        const trimmed = waQueue.slice(0, 100)
+        await db.systemSetting.upsert({
+          where: { key: waQueueKey },
+          update: { value: JSON.stringify(trimmed) },
+          create: { key: waQueueKey, value: JSON.stringify(trimmed) },
+        })
+        console.log(`[Google Scan] Enqueued ${waNotifEnqueued} WA notifikasi ke admin DPN`)
+      }
+    }
+
     return NextResponse.json({
       success: true,
       data: {
@@ -329,12 +434,13 @@ export async function POST(request: NextRequest) {
           skipped,
           mediaFilter: mediaFilter.length > 0 ? mediaFilter : null,
           triggeredBy,
+          waNotifEnqueued,
         },
         clusters,
         topSources,
         items: allItems.slice(0, 50), // 50 item terbaru untuk preview
       },
-      message: `Google Scan selesai: ${totalItems} berita dari ${queriesScanned}/${queries.length} query${mediaFilter.length > 0 ? ` (filter: ${mediaFilter.length} media)` : ''}. ${savedToPusatMedia} baru disimpan ke Pusat Media, ${savedDuplicate} duplikat skip. Trigger: ${triggeredBy}.`,
+      message: `Google Scan selesai: ${totalItems} berita dari ${queriesScanned}/${queries.length} query${mediaFilter.length > 0 ? ` (filter: ${mediaFilter.length} media)` : ''}. ${savedToPusatMedia} baru disimpan ke Pusat Media, ${savedDuplicate} duplikat skip. Trigger: ${triggeredBy}.${waNotifEnqueued > 0 ? ` ${waNotifEnqueued} notifikasi WA di-enqueue ke admin DPN.` : ''}`,
     })
   } catch (e: any) {
     console.error('[Google Scan API] Error:', e)

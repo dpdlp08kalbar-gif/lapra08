@@ -340,3 +340,23 @@ button[class*="rounded-lg"] {
   font-size: 0.95rem !important;
   line-height: 1.5 !important;
 }
+
+/* === Print-friendly mode (Laporan Elektabilitas PDF) === */
+@media print {
+  /* Hide: tombol, navigation, sidebar, footer, dialog */
+  button, nav, aside, footer, [role="dialog"], [aria-modal="true"] {
+    display: none !important;
+  }
+  /* Hide components with class print-hide */
+  .print-hide { display: none !important; }
+  /* Show only components with class print-show */
+  body * { visibility: hidden; }
+  .print-show, .print-show * { visibility: visible; }
+  .print-show { position: absolute; left: 0; top: 0; width: 100%; }
+  /* Reset warna untuk print */
+  * { color: black !important; background: white !important; }
+  /* Header laporan */
+  .print-header { display: block !important; text-align: center; padding: 20px 0; border-bottom: 2px solid #333; margin-bottom: 20px; }
+}
+/* Hide print-header saat tidak print mode */
+.print-header { display: none; }
