@@ -145,6 +145,27 @@ function SurveysTab({ onGoToTerritory }: { onGoToTerritory?: () => void }) {
     } catch (e: any) { addToast(e.message, 'error') }
   }
 
+  // === AI Analysis handler (BARU) ===
+  const [aiAnalysis, setAiAnalysis] = useState<any>(null)
+  const [aiAnalyzing, setAiAnalyzing] = useState(false)
+
+  const handleAiAnalysis = async (surveyId: string) => {
+    setAiAnalyzing(true)
+    setAiAnalysis(null)
+    try {
+      const res = await api('/api/surveys/ai-analysis', {
+        method: 'POST',
+        body: JSON.stringify({ surveyId, analysisType: 'all' }),
+        keepWrapper: true,
+      })
+      if (res?.success) {
+        setAiAnalysis(res.data)
+        addToast('AI analisis selesai', 'success')
+      } else addToast(res?.error || 'Gagal AI analisis', 'error')
+    } catch (e: any) { addToast(e.message, 'error') }
+    finally { setAiAnalyzing(false) }
+  }
+
   const handleShare = (s: any) => {
     const url = `${window.location.origin}/survey/${s.id}`
     navigator.clipboard.writeText(url).then(() => addToast('Link survei disalin', 'success')).catch(() => addToast(`Link: ${url}`, 'info'))
@@ -250,6 +271,94 @@ function SurveysTab({ onGoToTerritory }: { onGoToTerritory?: () => void }) {
               <div><Label className="text-xs font-semibold">Judul</Label><p className="text-sm">{detailSurvey.title}</p></div>
               <div><Label className="text-xs font-semibold">Pertanyaan</Label><p className="text-sm">{detailSurvey.question}</p></div>
               <div><Label className="text-xs font-semibold">Status</Label><Badge variant="outline" className="text-xs ml-2">{detailSurvey.status}</Badge><Badge variant="outline" className="text-xs ml-1">{detailSurvey.totalResponses || 0} respon</Badge></div>
+
+              {/* === AI ANALYSIS BUTTON + PANEL (BARU) === */}
+              {detailSurvey.totalResponses > 0 && (
+                <div className="rounded-lg border-2 border-purple-200 bg-purple-50 p-3 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Brain className="w-4 h-4 text-purple-600" />
+                      <span className="text-sm font-semibold text-purple-800">AI Analisis Lengkap</span>
+                    </div>
+                    <Button size="sm" onClick={() => handleAiAnalysis(detailSurvey.id)} disabled={aiAnalyzing}
+                      className="bg-purple-600 hover:bg-purple-700 text-white h-7 text-xs">
+                      {aiAnalyzing ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Sparkles className="w-3 h-3 mr-1" />}
+                      {aiAnalyzing ? 'Menganalisis...' : '🤖 Jalankan AI'}
+                    </Button>
+                  </div>
+
+                  {/* AI Results */}
+                  {aiAnalysis && (
+                    <div className="space-y-3 text-xs">
+                      {/* Summary */}
+                      {aiAnalysis.summary && (
+                        <div className="bg-white rounded border p-2">
+                          <div className="font-semibold text-slate-700 mb-1">📊 Ringkasan Survei</div>
+                          <div className="text-slate-600 whitespace-pre-line">{aiAnalysis.summary}</div>
+                        </div>
+                      )}
+
+                      {/* Clusters */}
+                      {aiAnalysis.clusters?.length > 0 && (
+                        <div className="bg-white rounded border p-2">
+                          <div className="font-semibold text-slate-700 mb-1">🗂️ Cluster Respon ({aiAnalysis.clusters.length} kelompok)</div>
+                          {aiAnalysis.clusters.map((c: any, i: number) => (
+                            <div key={i} className="border-l-2 border-purple-300 pl-2 mb-1">
+                              <div className="font-medium">{i + 1}. {c.theme} ({c.count} respon)</div>
+                              <div className="text-[10px] text-muted-foreground">✅ {c.sentimentBreakdown.positive} • ⚪ {c.sentimentBreakdown.neutral} • ❌ {c.sentimentBreakdown.negative}</div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Anomalies */}
+                      {aiAnalysis.anomalies?.length > 0 ? (
+                        <div className="bg-red-50 rounded border border-red-200 p-2">
+                          <div className="font-semibold text-red-700 mb-1">⚠️ Anomali Terdeteksi ({aiAnalysis.anomalies.length})</div>
+                          {aiAnalysis.anomalies.map((a: any, i: number) => (
+                            <div key={i} className="text-red-600 text-[10px]">• {a.type}: {a.description}</div>
+                          ))}
+                        </div>
+                      ) : aiAnalysis.anomalies?.length === 0 ? (
+                        <div className="bg-emerald-50 rounded border border-emerald-200 p-2 text-emerald-700">
+                          ✅ Tidak ada anomali terdeteksi — semua respon terlihat valid.
+                        </div>
+                      ) : null}
+
+                      {/* Location tags */}
+                      {aiAnalysis.locationTagged != null && aiAnalysis.locationTagged > 0 && (
+                        <div className="bg-blue-50 rounded border border-blue-200 p-2">
+                          <div className="font-semibold text-blue-700 mb-1">📍 Tagging Lokasi ({aiAnalysis.locationTagged} respon ter-tag)</div>
+                        </div>
+                      )}
+
+                      {/* Action recommendations */}
+                      {aiAnalysis.recommendations?.length > 0 && (
+                        <div className="bg-amber-50 rounded border border-amber-200 p-2">
+                          <div className="font-semibold text-amber-700 mb-1">🎯 Rekomendasi Aksi ({aiAnalysis.recommendations.length})</div>
+                          {aiAnalysis.recommendations.map((r: any, i: number) => (
+                            <div key={i} className="border-l-2 border-amber-400 pl-2 mb-1">
+                              <div className="font-medium text-amber-800">{r.title}</div>
+                              <div className="text-[10px] text-amber-600">{r.description}</div>
+                              <Badge variant="outline" className="text-[10px] mt-0.5">{r.priority}</Badge>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Stats footer */}
+                      {aiAnalysis.stats && (
+                        <div className="text-[10px] text-muted-foreground border-t pt-1">
+                          Total: {aiAnalysis.stats.total} • Positif: {aiAnalysis.stats.positive} • Netral: {aiAnalysis.stats.neutral} • Negatif: {aiAnalysis.stats.negative}
+                          {aiAnalysis.stats.clusterCount != null && ` • Clusters: ${aiAnalysis.stats.clusterCount}`}
+                          {aiAnalysis.stats.anomalyCount != null && ` • Anomali: ${aiAnalysis.stats.anomalyCount}`}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {detailSurvey.totalResponses > 0 && (
                 <>
                   <div className="grid grid-cols-3 gap-2">

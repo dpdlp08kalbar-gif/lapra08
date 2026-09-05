@@ -847,3 +847,299 @@ export function detectSpam(answer: string): boolean {
   if (answer.trim().length < 15) return true
   return false
 }
+
+// ============================================================
+// AI ENGINE EXTENSION — 5 fungsi baru untuk Survei & Polling
+// ============================================================
+// 100% rule-based, no LLM, Vercel Free compliant
+//
+// 1. generateSurveySummary — ringkasan multi-respon survei
+// 2. clusterResponses — grouping respon serupa berdasarkan keyword
+// 3. detectAnomaly — deteksi respon spam/aneh/duplikat
+// 4. autoTagLocation — tagging lokasi dari text jawaban essay
+// 5. generateActionRecommendation — rekomendasi aksi dari hasil survei
+// ============================================================
+
+// === 1. SURVEY SUMMARY GENERATOR ===
+// Ringkas multi-respon jadi 3-5 poin utama berdasarkan keyword + sentimen
+export function generateSurveySummary(responses: any[]): string {
+  if (!responses || responses.length === 0) return 'Belum ada respon untuk diringkas.'
+
+  const total = responses.length
+  const positive = responses.filter(r => r.aiSentiment === 'POSITIVE' || r.sentiment === 'POSITIVE').length
+  const negative = responses.filter(r => r.aiSentiment === 'NEGATIVE' || r.sentiment === 'NEGATIVE').length
+  const neutral = total - positive - negative
+
+  // Extract top keywords dari semua respon
+  const allText = responses.map(r => r.answer || r.content || '').join(' ')
+  const keywords = extractKeywords(allText).slice(0, 8)
+
+  // Detect top kategori
+  const categories = new Map<string, number>()
+  responses.forEach(r => {
+    const cat = r.aiCategory || detectCategory(r.answer || '')
+    categories.set(cat, (categories.get(cat) || 0) + 1)
+  })
+  const topCategory = Array.from(categories.entries()).sort((a, b) => b[1] - a[1])[0]
+
+  // Build summary
+  const posPct = total > 0 ? Math.round((positive / total) * 100) : 0
+  const negPct = total > 0 ? Math.round((negative / total) * 100) : 0
+
+  let summary = `📊 RINGKASAN SURVEI (${total} respon)\n\n`
+  summary += `Sentimen: ${positive} positif (${posPct}%) • ${neutral} netral • ${negative} negatif (${negPct}%)\n`
+
+  if (posPct > 60) {
+    summary += `✅ Mayoritas responden menunjukkan respons POSITIF. Tema dominan: ${keywords.slice(0, 3).join(', ')}.\n`
+  } else if (negPct > 40) {
+    summary += `⚠️ Sentimen NEGATIF mendominasi. Isu utama: ${keywords.slice(0, 3).join(', ')}.\n`
+  } else {
+    summary += `⚪ Sentimen responden cenderung NETRAL. Kata kunci: ${keywords.slice(0, 4).join(', ')}.\n`
+  }
+
+  if (topCategory) {
+    summary += `📂 Kategori terbanyak: ${topCategory[0]} (${topCategory[1]} respon)\n`
+  }
+
+  // Demografi jika ada
+  const ageGroups = new Map<string, number>()
+  const occupations = new Map<string, number>()
+  responses.forEach(r => {
+    if (r.ageGroup) ageGroups.set(r.ageGroup, (ageGroups.get(r.ageGroup) || 0) + 1)
+    if (r.occupation) occupations.set(r.occupation, (occupations.get(r.occupation) || 0) + 1)
+  })
+  if (ageGroups.size > 0) {
+    const topAge = Array.from(ageGroups.entries()).sort((a, b) => b[1] - a[1])[0]
+    summary += `👥 Kelompok usia dominan: ${topAge[0]} (${topAge[1]} responden)\n`
+  }
+  if (occupations.size > 0) {
+    const topOcc = Array.from(occupations.entries()).sort((a, b) => b[1] - a[1])[0]
+    summary += `💼 Pekerjaan dominan: ${topOcc[0]} (${topOcc[1]} responden)\n`
+  }
+
+  return summary
+}
+
+// === 2. RESPONSE CLUSTERING ===
+// Group respon serupa berdasarkan keyword overlap
+export function clusterResponses(responses: any[], maxClusters = 5): { clusterId: string; theme: string; count: number; sampleTitles: string[]; sentimentBreakdown: { positive: number; neutral: number; negative: number } }[] {
+  if (!responses || responses.length === 0) return []
+
+  // Extract keywords per response
+  const responseKeywords = responses.map(r => ({
+    response: r,
+    keywords: new Set(extractKeywords(r.answer || r.content || '').slice(0, 5)),
+  }))
+
+  // Simple clustering: group responses that share >= 2 keywords
+  const clusters: { keywords: Set<string>; responses: any[] }[] = []
+
+  for (const rk of responseKeywords) {
+    let added = false
+    for (const cluster of clusters) {
+      // Check overlap
+      const overlap = Array.from(rk.keywords).filter(k => cluster.keywords.has(k))
+      if (overlap.length >= 2) {
+        cluster.responses.push(rk.response)
+        rk.keywords.forEach(k => cluster.keywords.add(k))
+        added = true
+        break
+      }
+    }
+    if (!added) {
+      clusters.push({ keywords: new Set(rk.keywords), responses: [rk.response] })
+    }
+  }
+
+  // Sort by count, take top maxClusters
+  clusters.sort((a, b) => b.responses.length - a.responses.length)
+
+  return clusters.slice(0, maxClusters).map((c, i) => {
+    const positive = c.responses.filter(r => r.aiSentiment === 'POSITIVE' || r.sentiment === 'POSITIVE').length
+    const negative = c.responses.filter(r => r.aiSentiment === 'NEGATIVE' || r.sentiment === 'NEGATIVE').length
+    const neutral = c.responses.length - positive - negative
+    const theme = Array.from(c.keywords).slice(0, 4).join(' + ')
+    return {
+      clusterId: `cluster_${i + 1}`,
+      theme,
+      count: c.responses.length,
+      sampleTitles: c.responses.slice(0, 3).map(r => (r.answer || r.content || '').substring(0, 100)),
+      sentimentBreakdown: { positive, neutral, negative },
+    }
+  })
+}
+
+// === 3. ANOMALY DETECTION ===
+// Deteksi respon spam, duplikat, atau mencurigakan
+export function detectAnomalies(responses: any[]): { type: string; description: string; responseIds: string[] }[] {
+  if (!responses || responses.length === 0) return []
+
+  const anomalies: { type: string; description: string; responseIds: string[] }[] = []
+
+  // Check duplikat (same answer text)
+  const textMap = new Map<string, string[]>()
+  responses.forEach(r => {
+    const text = (r.answer || '').trim().toLowerCase().substring(0, 200)
+    if (text.length > 20) {
+      const ids = textMap.get(text) || []
+      ids.push(r.id)
+      textMap.set(text, ids)
+    }
+  })
+  textMap.forEach((ids, text) => {
+    if (ids.length > 1) {
+      anomalies.push({
+        type: 'DUPLICATE',
+        description: `${ids.length} respon dengan teks identik/sangat mirip terdeteksi`,
+        responseIds: ids,
+      })
+    }
+  })
+
+  // Check spam (multiple URLs or phone numbers)
+  responses.forEach(r => {
+    const text = r.answer || ''
+    const urlCount = (text.match(/https?:\/\//g) || []).length
+    const phoneCount = (text.match(/\b08\d{8,12}\b/g) || []).length
+    if (urlCount >= 3 || phoneCount >= 3) {
+      anomalies.push({
+        type: 'SPAM',
+        description: `Respon mengandung ${urlCount} URL dan ${phoneCount} nomor telepon — potensi spam`,
+        responseIds: [r.id],
+      })
+    }
+  })
+
+  // Check very short responses (less than 10 chars)
+  const tooShort = responses.filter(r => (r.answer || '').trim().length < 10 && (r.answer || '').trim().length > 0)
+  if (tooShort.length > 0) {
+    anomalies.push({
+      type: 'TOO_SHORT',
+      description: `${tooShort.length} respon terlalu pendek (<10 karakter) — mungkin tidak bermakna`,
+      responseIds: tooShort.map(r => r.id),
+    })
+  }
+
+  // Check extreme length (potential essay bombing)
+  const tooLong = responses.filter(r => (r.answer || '').length > 5000)
+  if (tooLong.length > 0) {
+    anomalies.push({
+      type: 'TOO_LONG',
+      description: `${tooLong.length} respon sangat panjang (>5000 karakter) — potensi copy-paste spam`,
+      responseIds: tooLong.map(r => r.id),
+    })
+  }
+
+  return anomalies
+}
+
+// === 4. AUTO LOCATION TAGGING ===
+// Tagging lokasi dari text jawaban essay berdasarkan nama daerah
+const LOCATION_PATTERNS = [
+  { pattern: /\b(jakarta|jakarta barat|jakarta timur|jakarta selatan|jakarta pusat|jakarta utara|dki jakarta)\b/i, province: 'DKI Jakarta', regency: null },
+  { pattern: /\b(bandung|kota bandung|kab bandung)\b/i, province: 'Jawa Barat', regency: 'Bandung' },
+  { pattern: /\b(surabaya|kota surabaya)\b/i, province: 'Jawa Timur', regency: 'Surabaya' },
+  { pattern: /\b(pontianak|kota pontianak)\b/i, province: 'Kalimantan Barat', regency: 'Pontianak' },
+  { pattern: /\b(singkawang)\b/i, province: 'Kalimantan Barat', regency: 'Singkawang' },
+  { pattern: /\b(sambas)\b/i, province: 'Kalimantan Barat', regency: 'Sambas' },
+  { pattern: /\b(sintang)\b/i, province: 'Kalimantan Barat', regency: 'Sintang' },
+  { pattern: /\b(ketapang)\b/i, province: 'Kalimantan Barat', regency: 'Ketapang' },
+  { pattern: /\b(kubu raya)\b/i, province: 'Kalimantan Barat', regency: 'Kubu Raya' },
+  { pattern: /\b(mempawah)\b/i, province: 'Kalimantan Barat', regency: 'Mempawah' },
+  { pattern: /\b(bengkayang)\b/i, province: 'Kalimantan Barat', regency: 'Bengkayang' },
+  { pattern: /\b(landak)\b/i, province: 'Kalimantan Barat', regency: 'Landak' },
+  { pattern: /\b(kapuas hulu)\b/i, province: 'Kalimantan Barat', regency: 'Kapuas Hulu' },
+  { pattern: /\b(melawi)\b/i, province: 'Kalimantan Barat', regency: 'Melawi' },
+  { pattern: /\b(sekadau)\b/i, province: 'Kalimantan Barat', regency: 'Sekadau' },
+  { pattern: /\b(sanggau)\b/i, province: 'Kalimantan Barat', regency: 'Sanggau' },
+  { pattern: /\b(kalimantan barat|kalbar)\b/i, province: 'Kalimantan Barat', regency: null },
+  { pattern: /\b(semarang)\b/i, province: 'Jawa Tengah', regency: 'Semarang' },
+  { pattern: /\b(yogyakarta|jogja|diy)\b/i, province: 'DI Yogyakarta', regency: null },
+  { pattern: /\b(medan)\b/i, province: 'Sumatera Utara', regency: 'Medan' },
+  { pattern: /\b(palembang)\b/i, province: 'Sumatera Selatan', regency: 'Palembang' },
+  { pattern: /\b(makassar)\b/i, province: 'Sulawesi Selatan', regency: 'Makassar' },
+  { pattern: /\b(bali|denpasar)\b/i, province: 'Bali', regency: 'Denpasar' },
+  { pattern: /\b(aceh|banda aceh)\b/i, province: 'Aceh', regency: null },
+  { pattern: /\b(papua|jayapura)\b/i, province: 'Papua', regency: null },
+]
+
+export function autoTagLocation(text: string): { province: string | null; regency: string | null; matched: boolean } {
+  if (!text) return { province: null, regency: null, matched: false }
+  for (const loc of LOCATION_PATTERNS) {
+    if (loc.pattern.test(text)) {
+      return { province: loc.province, regency: loc.regency, matched: true }
+    }
+  }
+  return { province: null, regency: null, matched: false }
+}
+
+// === 5. ACTION RECOMMENDATION GENERATOR ===
+// Generate rekomendasi aksi dari hasil survei
+export function generateActionRecommendation(surveySummary: any): { type: string; priority: string; title: string; description: string }[] {
+  const recs: { type: string; priority: string; title: string; description: string }[] = []
+
+  const { totalResponses, positivePct, negativePct, topCategory, topKeywords } = surveySummary
+
+  if (!totalResponses || totalResponses === 0) return recs
+
+  // Jika sentimen negatif dominan
+  if (negativePct > 40) {
+    recs.push({
+      type: 'CLARIFICATION',
+      priority: 'URGENT',
+      title: `Klarifikasi isu "${topKeywords?.[0] || 'yang dikuatirkan responden'}"`,
+      description: `${negativePct}% responden menunjukkan sentimen negatif. Segera terbitkan klarifikasi/siaran pers untuk respon isu ini. Gunakan data survei sebagai basis klarifikasi.`,
+    })
+    recs.push({
+      type: 'FIELD_VISIT',
+      priority: 'HIGH',
+      title: `Kunjungan lapangan untuk verifikasi isu di lapangan`,
+      description: `Deploy pengurus LAPRA 08 ke lokasi untuk verifikasi langsung isu yang dikuatirkan responden. Dokumentasi untuk konten positif.`,
+    })
+  }
+
+  // Jika sentimen positif dominan
+  if (positivePct > 60) {
+    recs.push({
+      type: 'AMPLIFY',
+      priority: 'HIGH',
+      title: `Amplifikasi sentimen positif via konten digital`,
+      description: `${positivePct}% responden positif. Buat konten Instagram/TikTok/X yang amplify tema positif dari survei. Sertakan testimoni responden (anonim).`,
+    })
+    recs.push({
+      type: 'BROADCAST',
+      priority: 'MEDIUM',
+      title: `Broadcast hasil positif ke anggota LAPRA 08`,
+      description: `Kirim broadcast WhatsApp ke pengurus dengan ringkasan hasil positif. Motivasi tim untuk pertahankan momentum.`,
+    })
+  }
+
+  // Jika kategori dominan terdeteksi
+  if (topCategory) {
+    recs.push({
+      type: 'TARGETED_PROGRAM',
+      priority: 'MEDIUM',
+      title: `Program terfokus untuk kategori "${topCategory}"`,
+      description: `Kategori "${topCategory}" adalah isu dominan dari survei. Pertimbangkan program LAPRA 08 yang menjawab isu ini (cth: baksos, advokasi, edukasi).`,
+    })
+  }
+
+  // Jika respon terlalu sedikit
+  if (totalResponses < 30) {
+    recs.push({
+      type: 'EXPAND_REACH',
+      priority: 'MEDIUM',
+      title: `Perluas jangkauan survei (${totalResponses} respon — target 100+)`,
+      description: `Respon masih kurang untuk analisis statistik valid. Bagikan link survei ke lebih banyak channel: grup WA, medsos, website. Target minimal 100 respon.`,
+    })
+  } else if (totalResponses >= 100) {
+    recs.push({
+      type: 'REPORT',
+      priority: 'LOW',
+      title: `Buat laporan formal hasil survei (${totalResponses} respon)`,
+      description: `Jumlah respon sudah memadai untuk laporan formal. Buat infografis + PDF laporan untuk presentasi ke DPN/DPRD/press release.`,
+    })
+  }
+
+  return recs
+}
