@@ -1500,9 +1500,9 @@ export function PusatMediaMenu() {
   // with category pre-set to SIRANAN_PERS (auto consumed once opened)
   const [pendingNewBerita, setPendingNewBerita] = useState<string | null>(null)
   const tabs = [
-    { key: 'berita', label: 'Kabar Utama & Pengumuman', icon: Newspaper },
+    { key: 'berita', label: 'Berita Utama & Media Siaran LAPRA 08', icon: Newspaper },
     { key: 'galeri', label: 'Galeri Media', icon: ImageIcon },
-    { key: 'rilis-pers', label: 'Media Siaran LAPRA 08', icon: Megaphone },
+    { key: 'rilis-pers', label: 'Pengumuman LAPRA 08', icon: Megaphone },
     { key: 'majalah', label: 'Majalah / Buletin Digital', icon: BookOpen },
   ]
 
@@ -2284,7 +2284,7 @@ function ArsipBeritaPentingManager() {
       </CardHeader>
       <CardContent>
         {filtered.length === 0 ? (
-          <EmptyState icon={BookMarked} title={bookmarks.length === 0 ? "Arsip masih kosong" : "Tidak ada berita cocok"} description={bookmarks.length === 0 ? "Bookmark berita penting dari Kabar Utama untuk dijadikan arsip permanen." : "Coba ubah filter level/wilayah/album."} />
+          <EmptyState icon={BookMarked} title={bookmarks.length === 0 ? "Arsip masih kosong" : "Tidak ada berita cocok"} description={bookmarks.length === 0 ? "Bookmark berita penting dari Berita Utama untuk dijadikan arsip permanen." : "Coba ubah filter level/wilayah/album."} />
         ) : (
           <div className="space-y-6">
             {/* === Display grouped by level + territory + album === */}
@@ -2359,7 +2359,7 @@ function ArsipBeritaPentingManager() {
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><BookMarked className="w-4 h-4 text-amber-600" /> Tambah Berita ke Arsip</DialogTitle>
-            <DialogDescription>Pilih berita dari Kabar Utama untuk diarsipkan</DialogDescription>
+            <DialogDescription>Pilih berita dari Berita Utama untuk diarsipkan</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleAdd} className="space-y-3">
             <div className="space-y-2">
@@ -2482,19 +2482,19 @@ function MediaSiaranManager({ onCreateNew }: { onCreateNew?: () => void }) {
         <div className="flex items-center justify-between flex-wrap gap-2">
           <CardTitle className="flex items-center gap-2 text-base">
             <Megaphone className="w-4 h-4 text-indigo-600" />
-            Media Siaran LAPRA 08 ({items.length} rilis pers)
+            Pengumuman LAPRA 08 ({items.length} rilis pers)
           </CardTitle>
           <Button
             size="sm"
             variant="outline"
             onClick={() => {
-              // Switch to Kabar Utama tab + auto-open new berita dialog
+              // Switch to Berita Utama tab + auto-open new berita dialog
               // with category pre-set to SIRANAN_PERS via callback from parent PusatMediaMenu
               if (onCreateNew) {
                 onCreateNew()
               } else {
                 // Fallback: just notify user (shouldn't happen in normal flow)
-                addToast('Silakan buka tab "Kabar Utama" lalu klik "Tambah Berita" dengan kategori "Siaran Pers"', 'info')
+                addToast('Silakan buka tab "Berita Utama" lalu klik "Tambah Berita" dengan kategori "Siaran Pers"', 'info')
               }
             }}
           >
@@ -2505,11 +2505,11 @@ function MediaSiaranManager({ onCreateNew }: { onCreateNew?: () => void }) {
       <CardContent>
         <div className="rounded-lg bg-indigo-50 border border-indigo-200 p-3 mb-4 text-xs text-indigo-800">
           <Megaphone className="w-4 h-4 inline mr-1" />
-          <strong>Media Siaran</strong> otomatis menampilkan berita dengan kategori <strong>"Siaran Pers"</strong> yang dibuat di tab Kabar Utama.
-          Untuk membuat siaran pers baru, buat berita dengan kategori "Siaran Pers" di menu Kabar Utama.
+          <strong>Pengumuman LAPRA 08</strong> otomatis menampilkan berita dengan kategori <strong>"Siaran Pers"</strong> yang dibuat di tab Berita Utama.
+          Untuk membuat siaran pers baru, buat berita dengan kategori "Siaran Pers" di menu Berita Utama.
         </div>
         {items.length === 0 ? (
-          <EmptyState icon={Megaphone} title="Belum ada siaran pers" description="Buat berita dengan kategori 'Siaran Pers' di tab Kabar Utama, dan akan otomatis muncul di sini." />
+          <EmptyState icon={Megaphone} title="Belum ada siaran pers" description="Buat berita dengan kategori 'Siaran Pers' di tab Berita Utama, dan akan otomatis muncul di sini." />
         ) : (
           <div className="space-y-2">
             {items.map((a) => (
@@ -3200,7 +3200,7 @@ function AnnouncementManager({
   }
   useEffect(() => { loadData() }, [])
 
-  // === Auto-open new-berita dialog when triggered from sibling (e.g. Media Siaran) ===
+  // === Auto-open new-berita dialog when triggered from sibling (e.g. Pengumuman LAPRA 08) ===
   // Trigger fires when `pendingNewBerita` becomes a non-null category string.
   useEffect(() => {
     if (!pendingNewBerita) return
@@ -3208,7 +3208,7 @@ function AnnouncementManager({
     setPreviewMode(false)
     setForm({
       title: '', content: '', type: 'INFO',
-      category: pendingNewBerita, // preset (e.g. SIRANAN_PERS from Media Siaran tab)
+      category: pendingNewBerita, // preset (e.g. SIRANAN_PERS from Pengumuman LAPRA 08 tab)
       isPinned: false,
       territoryId: '', imageUrl: '', publishDate: '',
     })
@@ -3321,7 +3321,7 @@ function AnnouncementManager({
         <div className="flex items-center justify-between flex-wrap gap-2">
           <CardTitle className="flex items-center gap-2 text-base">
             <Newspaper className="w-4 h-4 text-orange-600" />
-            Kabar Utama & Pengumuman ({items.length})
+            Berita Utama & Media Siaran LAPRA 08 ({items.length})
           </CardTitle>
           <div className="flex gap-2 flex-wrap">
             <Button onClick={handleSyncMedsos} size="sm" variant="outline" disabled={syncLoading}
@@ -3330,7 +3330,7 @@ function AnnouncementManager({
               Update Informasi Medsos
             </Button>
             <Button onClick={() => openEditor()} size="sm" className="bg-gradient-to-r from-orange-600 to-red-600 text-white">
-              <Plus className="w-4 h-4 mr-1" /> Buat Berita/Pengumuman
+              <Plus className="w-4 h-4 mr-1" /> Buat Berita/Siaran Pers
             </Button>
           </div>
         </div>
@@ -3348,7 +3348,7 @@ function AnnouncementManager({
           <Input placeholder="Cari berita atau pengumuman..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />
         </div>
         {filtered.length === 0 ? (
-          <EmptyState icon={Newspaper} title="Belum ada berita" description="Klik 'Buat Berita/Pengumuman' untuk menambahkan." />
+          <EmptyState icon={Newspaper} title="Belum ada berita" description="Klik 'Buat Berita/Siaran Pers' untuk menambahkan." />
         ) : (
           <div className="space-y-2">
             {filtered.map((a) => {
