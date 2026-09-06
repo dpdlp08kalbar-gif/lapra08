@@ -2457,7 +2457,7 @@ function ArsipBeritaPentingManager() {
 }
 
 // ============================================================
-// MEDIA SIARAN — Auto-sync dari berita kategori SIRANAN_PERS
+// PENGUMUMAN LAPRA 08 — Auto-sync dari berita kategori SIRANAN_PERS
 // ============================================================
 function MediaSiaranManager({ onCreateNew }: { onCreateNew?: () => void }) {
   const addToast = useToastStore((s) => s.addToast)
@@ -2494,22 +2494,22 @@ function MediaSiaranManager({ onCreateNew }: { onCreateNew?: () => void }) {
                 onCreateNew()
               } else {
                 // Fallback: just notify user (shouldn't happen in normal flow)
-                addToast('Silakan buka tab "Berita Utama" lalu klik "Tambah Berita" dengan kategori "Siaran Pers"', 'info')
+                addToast('Silakan buka tab "Berita Utama & Media Siaran" lalu klik "Buat Berita/Siaran Pers" dengan kategori "Siaran Pers"', 'info')
               }
             }}
           >
-            <Plus className="w-4 h-4 mr-1" /> Buat Siaran Pers Baru
+            <Plus className="w-4 h-4 mr-1" /> Buat Pengumuman Baru
           </Button>
         </div>
       </CardHeader>
       <CardContent>
         <div className="rounded-lg bg-indigo-50 border border-indigo-200 p-3 mb-4 text-xs text-indigo-800">
           <Megaphone className="w-4 h-4 inline mr-1" />
-          <strong>Pengumuman LAPRA 08</strong> otomatis menampilkan berita dengan kategori <strong>"Siaran Pers"</strong> yang dibuat di tab Berita Utama.
-          Untuk membuat siaran pers baru, buat berita dengan kategori "Siaran Pers" di menu Berita Utama.
+          <strong>Pengumuman LAPRA 08</strong> otomatis menampilkan berita dengan kategori <strong>"Siaran Pers"</strong> yang dibuat di tab Berita Utama & Media Siaran.
+          Untuk membuat pengumuman baru, buat berita dengan kategori "Siaran Pers" di menu Berita Utama & Media Siaran.
         </div>
         {items.length === 0 ? (
-          <EmptyState icon={Megaphone} title="Belum ada siaran pers" description="Buat berita dengan kategori 'Siaran Pers' di tab Berita Utama, dan akan otomatis muncul di sini." />
+          <EmptyState icon={Megaphone} title="Belum ada pengumuman LAPRA 08" description="Buat berita dengan kategori 'Siaran Pers' di tab Berita Utama & Media Siaran, dan akan otomatis muncul di sini sebagai Pengumuman LAPRA 08." />
         ) : (
           <div className="space-y-2">
             {items.map((a) => (
@@ -3345,10 +3345,10 @@ function AnnouncementManager({
       <CardContent className="space-y-3">
         <div className="relative max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input placeholder="Cari berita atau pengumuman..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />
+          <Input placeholder="Cari berita atau siaran pers..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />
         </div>
         {filtered.length === 0 ? (
-          <EmptyState icon={Newspaper} title="Belum ada berita" description="Klik 'Buat Berita/Siaran Pers' untuk menambahkan." />
+          <EmptyState icon={Newspaper} title="Belum ada berita" description="Klik 'Buat Berita/Siaran Pers' untuk membuat berita atau pengumuman resmi LAPRA 08." />
         ) : (
           <div className="space-y-2">
             {filtered.map((a) => {
@@ -3430,7 +3430,7 @@ function AnnouncementManager({
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
                   <FileText className="w-5 h-5 text-orange-600" />
-                  {editItem ? 'Edit' : 'Buat'} Berita / Pengumuman / Siaran Pers
+                  {editItem ? 'Edit' : 'Buat'} Berita / Siaran Pers LAPRA 08
                 </DialogTitle>
                 <DialogDescription>Lengkapi form di bawah, lalu klik "Pratinjau" untuk melihat hasil sebelum disiarkan</DialogDescription>
               </DialogHeader>
@@ -3467,7 +3467,7 @@ function AnnouncementManager({
                   <Input
                     value={form.title}
                     onChange={(e) => setForm({ ...form, title: e.target.value })}
-                    placeholder="Masukkan judul berita/pengumuman..."
+                    placeholder="Masukkan judul berita/siaran pers..."
                     className="text-base font-medium"
                     required
                   />
@@ -3510,12 +3510,12 @@ function AnnouncementManager({
 
                 {/* Isi Berita */}
                 <div className="space-y-2">
-                  <Label>Isi Berita/Pengumuman *</Label>
+                  <Label>Isi Berita/Siaran Pers *</Label>
                   <Textarea
                     value={form.content}
                     onChange={(e) => setForm({ ...form, content: e.target.value })}
                     rows={6}
-                    placeholder="Tulis isi berita atau pengumuman di sini..."
+                    placeholder="Tulis isi berita atau siaran pers di sini..."
                     className="resize-y"
                     required
                   />
@@ -3574,7 +3574,7 @@ function AnnouncementManager({
                   <Eye className="w-5 h-5 text-blue-600" />
                   Pratinjau Sebelum Disiarkan
                 </DialogTitle>
-                <DialogDescription>Periksa tampilan berita/pengumuman sebelum dipublikasikan</DialogDescription>
+                <DialogDescription>Periksa tampilan berita/siaran pers sebelum dipublikasikan</DialogDescription>
               </DialogHeader>
 
               {/* Preview Content — seperti akan tampil di publik */}
@@ -3608,7 +3608,7 @@ function AnnouncementManager({
                   </div>
                   {/* Content */}
                   <div className="text-sm text-slate-600 whitespace-pre-wrap leading-relaxed">
-                    {form.content || '(Isi berita/pengumuman)'}
+                    {form.content || '(Isi berita/siaran pers)'}
                   </div>
                 </div>
               </div>
