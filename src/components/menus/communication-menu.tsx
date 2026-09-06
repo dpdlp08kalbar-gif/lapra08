@@ -1245,10 +1245,10 @@ function ElektabilitasAnalytics() {
                       </td>
                       <td className="p-2 text-center">
                         {item.url ? (
-                          <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
-                            <ExternalLink className="w-3 h-3" />
+                          <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline inline-flex items-center gap-1 text-xs font-medium" title={item.url}>
+                            <ExternalLink className="w-3 h-3" /> Buka
                           </a>
-                        ) : '-'}
+                        ) : <span className="text-muted-foreground text-xs">—</span>}
                       </td>
                     </tr>
                   ))}
@@ -1338,10 +1338,10 @@ function ElektabilitasAnalytics() {
                           {SENTIMENT_LABELS[item.sentiment]}
                         </Badge>
                         {item.url ? (
-                          <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline" title="Buka sumber berita">
-                            <ExternalLink className="w-3 h-3" />
+                          <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline inline-flex items-center gap-1 text-xs font-medium" title={item.url}>
+                            <ExternalLink className="w-3 h-3" /> Buka
                           </a>
-                        ) : null}
+                        ) : <span className="text-muted-foreground text-xs">—</span>}
                       </div>
                     </div>
                   </div>
