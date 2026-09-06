@@ -774,6 +774,24 @@ const SENTIMENT_LABELS: Record<string, string> = {
   POSITIVE: 'Positif', NEUTRAL: 'Netral', NEGATIVE: 'Negatif',
 }
 
+// Helper: resolve Google News RSS URL ke URL yang bisa diakses
+// Google News RSS URL format: https://news.google.com/rss/articles/CBMxxxx
+// Ganti /rss/articles/ → /articles/ agar redirect ke artikel asli
+// Jika URL null/empty → buat Google Search URL dengan title sebagai query
+function resolveNewsUrl(url: string | undefined | null, title: string): string | null {
+  if (!url || typeof url !== 'string' || url.trim() === '') {
+    // Tidak ada URL — buat Google Search link dengan title
+    if (title) return `https://www.google.com/search?q=${encodeURIComponent(title)}`
+    return null
+  }
+  // Google News RSS URL — ganti /rss/articles/ → /articles/
+  if (url.includes('news.google.com/rss/articles/')) {
+    return url.replace('/rss/articles/', '/articles/')
+  }
+  // URL normal — kembalikan apa adanya
+  return url
+}
+
 function ElektabilitasAnalytics() {
   const addToast = useToastStore((s) => s.addToast)
   const [data, setData] = useState<any>(null)
@@ -1244,11 +1262,11 @@ function ElektabilitasAnalytics() {
                         {item.engagement ? item.engagement.toLocaleString('id-ID') : '-'}
                       </td>
                       <td className="p-2 text-center">
-                        {item.url ? (
-                          <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline inline-flex items-center gap-1 text-xs font-medium" title={item.url}>
+                        {(() => { const resolvedUrl = resolveNewsUrl(item.url, item.title); return resolvedUrl ? (
+                          <a href={resolvedUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline inline-flex items-center gap-1 text-xs font-medium" title={resolvedUrl}>
                             <ExternalLink className="w-3 h-3" /> Buka
                           </a>
-                        ) : <span className="text-muted-foreground text-xs">—</span>}
+                        ) : <span className="text-muted-foreground text-xs">—</span>; })()}
                       </td>
                     </tr>
                   ))}
@@ -1337,11 +1355,11 @@ function ElektabilitasAnalytics() {
                         <Badge variant="outline" className={`text-[10px] ${item.sentiment === 'POSITIVE' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : item.sentiment === 'NEGATIVE' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
                           {SENTIMENT_LABELS[item.sentiment]}
                         </Badge>
-                        {item.url ? (
-                          <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline inline-flex items-center gap-1 text-xs font-medium" title={item.url}>
+                        {(() => { const resolvedUrl = resolveNewsUrl(item.url, item.title); return resolvedUrl ? (
+                          <a href={resolvedUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline inline-flex items-center gap-1 text-xs font-medium" title={resolvedUrl}>
                             <ExternalLink className="w-3 h-3" /> Buka
                           </a>
-                        ) : <span className="text-muted-foreground text-xs">—</span>}
+                        ) : <span className="text-muted-foreground text-xs">—</span>; })()}
                       </div>
                     </div>
                   </div>
