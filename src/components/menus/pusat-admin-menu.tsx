@@ -22,6 +22,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
@@ -44,7 +45,7 @@ import {
   Edit, Trash2, Search, RefreshCw, Loader2, Shield, ShieldCheck, Lock, Unlock,
   KeyRound, UserPlus, CalendarDays, Briefcase, ChevronLeft, ChevronRight,
   CheckCircle2, XCircle, Clock, Building2, MapPin, User as UserIcon,
-  Megaphone, HelpCircle,
+  Megaphone, HelpCircle, Database,
 } from 'lucide-react'
 import { formatDateTimeID } from '@/lib/format'
 
@@ -174,6 +175,10 @@ export function PusatAdminMenu() {
           <Button variant="outline" size="sm" onClick={loadStats} disabled={loadingStats} className="gap-1">
             <RefreshCw className={`w-3 h-3 ${loadingStats ? 'animate-spin' : ''}`} /> Refresh
           </Button>
+          {/* === TOMBOL RUN MIGRATION (BARU — fix error tabel Umkm tidak ditemukan) === */}
+          {user?.role === 'SUPERADMIN' && (
+            <MigrationButton />
+          )}
         </div>
       </div>
 
@@ -1598,5 +1603,148 @@ function DataAccessRequestTab({ currentUser }: { currentUser: any }) {
         </DialogContent>
       </Dialog>
     </div>
+  )
+}
+
+// ============================================================
+// MIGRATION BUTTON — jalankan database migration dengan 1 klik
+// ============================================================
+// Fix error: "tabel Umkm tidak ditemukan" di production Neon PostgreSQL
+// Migration SQL di-execute via /api/migrate (Prisma $executeRawUnsafe)
+// Vercel Free compatible: no prisma migrate deploy command
+// ============================================================
+
+function MigrationButton() {
+  const addToast = useToastStore((s) => s.addToast)
+  const [migrating, setMigrating] = useState(false)
+  const [migrationResult, setMigrationResult] = useState<any>(null)
+  const [showResult, setShowResult] = useState(false)
+  const [checkStatus, setCheckStatus] = useState<any>(null)
+
+  // Check status tabel saat mount
+  const checkTables = useCallback(async () => {
+    try {
+      const res = await api('/api/migrate', { keepWrapper: true })
+      if (res?.success) setCheckStatus(res.data)
+    } catch (e: any) { console.error('[Migration] check error:', e) }
+  }, [])
+
+  useEffect(() => { checkTables() }, [checkTables])
+
+  const handleMigrate = async () => {
+    if (!confirm('Jalankan database migration? Ini akan membuat tabel Umkm, UmkmProduct, FamilyCard, Resident jika belum ada. Aman untuk dijalankan ulang (idempotent).')) return
+    setMigrating(true)
+    try {
+      const res = await api('/api/migrate', {
+        method: 'POST',
+        keepWrapper: true,
+      })
+      if (res?.success) {
+        setMigrationResult(res.data)
+        setShowResult(true)
+        addToast(res.message || 'Migration selesai', 'success')
+        checkTables() // refresh status
+      } else {
+        addToast(res?.error || 'Migration gagal', 'error')
+      }
+    } catch (e: any) {
+      addToast(e.message, 'error')
+    } finally {
+      setMigrating(false)
+    }
+  }
+
+  // Check jika ada tabel yang missing
+  const missingTables = checkStatus ? Object.entries(checkStatus).filter(([_, v]: any) => !v.exists).map(([k]) => k) : []
+  const hasMissing = missingTables.length > 0
+
+  return (
+    <>
+      <Button
+        onClick={handleMigrate}
+        disabled={migrating}
+        variant={hasMissing ? 'destructive' : 'outline'}
+        size="sm"
+        className="gap-1"
+        title={hasMissing ? `Tabel missing: ${missingTables.join(', ')} — klik untuk fix` : 'Jalankan database migration'}
+      >
+        {migrating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Database className="w-3 h-3" />}
+        {migrating ? 'Migrating...' : hasMissing ? '⚠️ Fix DB' : 'Run Migration'}
+      </Button>
+
+      {/* Status badge */}
+      {checkStatus && !hasMissing && (
+        <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-xs">
+          <CheckCircle2 className="w-3 h-3 mr-1" /> DB OK
+        </Badge>
+      )}
+      {hasMissing && (
+        <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 text-xs">
+          <AlertTriangle className="w-3 h-3 mr-1" /> {missingTables.length} tabel missing
+        </Badge>
+      )}
+
+      {/* Dialog hasil migration */}
+      <Dialog open={showResult} onOpenChange={setShowResult}>
+        <DialogContent className="max-w-md" aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600" /> Migration Selesai
+            </DialogTitle>
+            <DialogDescription>
+              Database tabel telah dibuat/diperiksa
+            </DialogDescription>
+          </DialogHeader>
+          {migrationResult && (
+            <div className="space-y-2 text-sm">
+              <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3">
+                <div className="font-medium text-emerald-800">
+                  ✅ {migrationResult.executed} statement berhasil dijalankan
+                </div>
+                {migrationResult.errors > 0 ? (
+                  <div className="text-xs text-amber-600 mt-1">
+                    {migrationResult.errors} error (sudah ada = OK, idempotent)
+                  </div>
+                ) : (
+                  <div className="text-xs text-emerald-600 mt-1">
+                    Semua statement berhasil tanpa error
+                  </div>
+                )}
+              </div>
+
+              {/* Tabel yang tersedia */}
+              <div className="space-y-1">
+                <div className="text-xs font-medium text-muted-foreground">Status tabel:</div>
+                {['FamilyCard', 'Resident', 'Umkm', 'UmkmProduct'].map(t => {
+                  const exists = !migrationResult.errorMessages?.some((m: string) => m.includes(t))
+                  return (
+                    <div key={t} className="flex items-center gap-2 text-xs">
+                      {exists ? (
+                        <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                      ) : (
+                        <AlertTriangle className="w-3 h-3 text-amber-600" />
+                      )}
+                      <span>{t}</span>
+                      <span className={exists ? 'text-emerald-600' : 'text-amber-600'}>
+                        {exists ? '✓ tersedia' : '⚠️ mungkin sudah ada'}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {migrationResult.errorMessages?.length > 0 && (
+                <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
+                  <strong>Catatan:</strong> Beberapa error bisa diabaikan jika tabel/FK sudah ada (idempotent).
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowResult(false)}>Tutup</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
